@@ -1,0 +1,54 @@
+<Directory /var/www/html>
+    Options Indexes FollowSymlinks
+    AllowOverride All
+    Require all granted
+</Directory>
+
+
+<VirtualHost *:80>
+	ServerName tablda.com
+	ServerAlias *.tablda.com
+
+	RewriteEngine On
+	RewriteCond %{HTTPS} !=on
+	RewriteRule ^/?(.*) https://%{SERVER_NAME}/$1 [R=301,L]
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    SSLEngine on
+    SSLCertificateFile "/etc/apache2/tablda.com.crt"
+    SSLCertificateKeyFile "/etc/apache2/tablda.com.key"
+    SSLCertificateChainFile "/etc/apache2/tablda.com.bundle.crt"
+
+	ServerName e3c.tablda.com
+
+	DocumentRoot /var/www/html/public
+
+	Alias /_tablda_apps /var/www/html/e3c/public
+
+	ErrorLog ${APACHE_LOG_DIR}/error.log
+	CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    SSLEngine on
+    SSLCertificateFile "/etc/apache2/tablda.com.crt"
+    SSLCertificateKeyFile "/etc/apache2/tablda.com.key"
+    SSLCertificateChainFile "/etc/apache2/tablda.com.bundle.crt"
+
+	ServerName tablda.com
+	ServerAlias *.tablda.com
+
+	DocumentRoot /var/www/html/home/public
+
+	Alias /_tablda_apps/WID /var/www/html/tablda_apps/WID/public
+
+	Alias /_external_api_ /var/www/html/external_api
+
+	Alias /phpmyadmin /phpmyadmin
+
+	ErrorLog ${APACHE_LOG_DIR}/error.log
+	CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>

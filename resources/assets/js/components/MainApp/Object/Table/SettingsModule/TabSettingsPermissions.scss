@@ -1,0 +1,186 @@
+.permissions-tab {
+
+  .c2-m2 {
+    display: inline-block;
+    float: right;
+  }
+
+  .top-text {
+    font-size: 16px;
+    color: #FFF;
+    padding: 5px 0;
+    height: 30px;
+  }
+  .top-text--height {
+    height: 30px;
+    overflow: hidden;
+  }
+
+  .font-sm {
+    font-size: 0.9em;
+  }
+
+  .permissions-panel {
+    height: calc(100% - 35px);
+    position: relative;
+    padding: 5px;
+    background-color: #FFF;
+
+    .permissions-menu-header {
+      button {
+        background-color: #CCC;
+        outline: none;
+        &.active {
+          background-color: #FFF;
+        }
+        &:not(.active):hover {
+          color: black;
+        }
+      }
+
+      .right-btn {
+        float: right;
+        background: white;
+        margin-right: 10px;
+        position: relative;
+        top: -3px;
+      }
+    }
+
+    .permissions-menu-body {
+      position: absolute;
+      top: 32px;
+      right: 0;
+      left: 0;
+      bottom: 0;
+      background-color: #FFF;
+
+      div {
+        border: 1px solid #FFF;
+      }
+
+      .others-tab {
+        padding-top: 10px;
+        border: 1px solid #CCC;
+        overflow: auto;
+
+        .other-margin {
+          margin-left: 44px;
+        }
+
+        .tb-margin {
+          margin-top: 15px;
+          margin-bottom: 15px;
+        }
+
+        label {
+          color: #555;
+        }
+
+        .table {
+          margin: 0;
+          width: 100%;
+
+          th, td {
+            white-space: nowrap;
+            border: 1px solid #CCC;
+          }
+          td {
+            padding: 3px 8px;
+          }
+          th {
+            text-align: center;
+            background-color: #AAA;
+            color: #000;
+
+            span {
+              cursor: pointer;
+            }
+          }
+          input[type="radio"], input[type="checkbox"] {
+            margin: 3px 0 0 0;
+          }
+          label {
+            margin: 0;
+          }
+          .no-pad {
+            padding: 0;
+          }
+          .like-td {
+            border: 1px solid #CCC;
+          }
+          .in-tb-check {
+            text-align: center;
+            width: 100px;
+          }
+        }
+      }
+
+      .defaults-tab {
+        border: 1px solid #CCC;
+        overflow: auto;
+        padding: 10px;
+        background-color: #fff;
+        border-radius: 4px;
+      }
+    }
+
+    .data-set-panel-sm {
+      height: calc(30% - 8px);
+      background-color: #FFF;
+    }
+    .data-set-panel-lg {
+      height: calc(70% - 8px);
+      background-color: #FFF;
+    }
+  }
+
+  .inherit-bg {
+    background-color: inherit;
+  }
+
+  .user-search-box {
+    background-color: #CCC;
+
+    .search-wrapper {
+      display: inline-block;
+      padding: 5px;
+      width: calc(100% - 80px);
+    }
+  }
+
+  .no-padding {
+    padding: 0;
+  }
+
+  .field-loader-wrapper {
+    top: 2px;
+    position: relative;
+
+    .field-loader {
+      display: inline-block;
+
+      .field-selector {
+        display: inline-block;
+        width: 90px;
+        height: 30px;
+        padding: 4px;
+        top: -2px;
+        position: relative;
+      }
+    }
+  }
+}
+
+.table-others {
+  width: 100%;
+
+  .right-txt {
+    text-align: right;
+  }
+}
+
+.spaced-table__fix {
+  margin: 0 10px;
+  width: calc(100% - 20px) !important;
+}

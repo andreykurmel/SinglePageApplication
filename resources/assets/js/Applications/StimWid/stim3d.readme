@@ -1,0 +1,371 @@
+#Stim 3D App
+Must be: correspondence_apps.code = stim_3d
+
+All works on CorrespondenceTables.
+
+
+//---------
+Application settings (UI Parts.tbl):
+//---------
+- Tab and places for elements are defined by Fields ['Top Tabs', 'Select', 'Accordion', 'Horizontal', 'Vertical'];
+- For correct element placing must be present 'Top Tabs' AND ('Accordion' OR 'Horizontal');
+- Element must have 'Component' and 'Table' ('Data,Table' from "Correspondence Table.tbl" for App '3D');
+- Each combination of 'Top Tabs', 'Select' must have one record with "is_master:true" in 'Options';
+- Tab can be hidden by "is_hidden:true" in 'Options';
+
+For correct working 'Model 3D':
+"3D:Equipment" - no additional settings;
+"3D:Structure" - must be defined 4 tables with 'Inheritance,Table' = ${3d:geometry table} AND
+    'Inheritance,Options' with [3d:sections, 3d:materials, 3d:nodes, 3d:members],
+    //for colors:
+    row with ${3d:geom_colors table} must have 'Inheritance,Table' = ${3d:materials table} AND 'Inheritance,Options' = '3d:geom_color';
+"3D:MA" - the same as "3D:Structure" AND:
+    row with ${3d:geometry table} must have 'Inheritance,Table' = ${3d:ma table} AND 'Inheritance,Options' = '3d:geom',
+    row with ${3d:equipment table} must have 'Inheritance,Table' = ${3d:ma table} AND 'Inheritance,Options' = '3d:eqs',
+    row with ${3d:lcs table} must have 'Inheritance,Table' = ${3d:ma table} AND 'Inheritance,Options' = '3d:lcs',
+    //for colors:
+    row with ${3d:loading table} must have 'Inheritance,Table' = ${3d:ma table} AND 'Inheritance,Options' = '3d:loading',
+    row with ${3d:statuses table} must have 'Inheritance,Table' = ${3d:loading table} AND 'Inheritance,Options' = '3d:colors',
+
+For correct working Popups when node is selected in '3D':
+- ${3d:equipment table} must have table with 'Inheritance,Options' = 'popup:equipment';
+- ${3d:nodes table} must have table with 'Inheritance,Options' = 'popup:nodes';
+- ${3d:members table} must have table with 'Inheritance,Options' = 'popup:members';
+- ${3d:lcs table} must have table with 'Inheritance,Options' = 'popup:lcs';
+
+For correct working Popups when node is selected in '2D':
+- ${2d:eqpt_lib table} must have table with 'Inheritance,Options' = 'popup:equipment';
+- ${2d:line_lib table} must have table with 'Inheritance,Options' = 'popup:feedline';
+- ${2d:eqpt_sett table} must have inheritance to ${3d:loading table};
+//---------
+
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    App,Array: '${table with 3d:eqs}'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        d1, //Float
+        d2, //Float
+        d3, //Float
+        d4, //Float
+        d5, //Float
+        color, //#000000
+        texture, //File
+        texture_type, //String
+        geometryType, //String
+        geometryShapeType, //String
+        has_azm, //0,1
+    ]
+
+    App,Array: '${table with 3d:materials}'
+    APP,Property: [
+        no, //Int (ID)
+        name, //String
+        color_gr, //String
+    ]
+    App,Array: '${table with 3d:nodes}'
+    APP,Property: [
+        no, //Int (ID)
+        node_name, //String
+        x, //Float
+        y, //Float
+        z, //Float
+    ]
+    App,Array: '${table with 3d:sections}'
+    APP,Property: [
+        no, //Int (ID)
+        sec_name, //String
+        shape, //String
+        size1, //String
+        size2, //String
+    ]
+    App,Array: '${table with 3d:members}'
+    APP,Property: [
+        no, //Int (ID)
+        Mbr_Name, //String {$member name}
+        Mbr_Lth, //Int
+        ROT, //String
+        NodeS, //String {$node name}
+        NodeE, //String {$node name}
+        NodeO, //String {$node name}
+        Mat, //String {$material name}
+    ]
+
+    App,Array: '${table with 3d:lcs}'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        equipment, //String {$equipment name}
+        mbr_name, //String {$member name}
+        status, //String
+        tech, //String
+        dx, //Float
+        dy, //Float
+        dz, //Float
+        rotx, //Float
+        roty, //Float
+        rotz, //Float
+        elev_pd, //Float
+        elev_rad, //Float
+        elev_gctr, //Float
+        dist_to_node_s, //Float
+    ]
+
+    App,Array: '${master table for "3D:MA"}'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        structure, //String
+        loading, //String
+        origin_elev, //Float
+    ]
+
+//---------
+For correct colors in 3D Model must be present next records in Correspondence Fields.tbl:
+
+    //For 'Equipments' colors - should be Inherited to MasterTable
+    App,Array: '${table with 3d:colors_eq}'
+    APP,Property: [
+        name, //String
+        color, //#000000
+    ]
+
+    //for 'Members' colors - should be Inherited to MasterTable
+    App,Array: '${table with 3d:colors_mem}'
+    APP,Property: [
+        name, //String
+        color, //#000000
+    ]
+
+//---------
+3D Model Settings
+
+    App,Array: '${table with 3d:wid_sett}'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        curtab, //String
+        planeXY, //0,1
+        planeYZ, //0,1
+        planeZX, //0,1
+        nodes, //0,1
+        nodesName, //0,1
+        wireframe, //0,1
+        wireframeName, //0,1
+        members, //0,1
+        objects, //0,1
+        edges_members, //0,1
+        edges_eqpts, //0,1
+        defaultAngle, //0,1
+        showLabelsEqpt, //0,1
+        fontSize, //Int
+        frameScale, //Int
+        skyboxColor, //String
+        terrainColor, //String
+        gridSize, //String
+        gridShrink, //Int
+        defEqptColor, //String
+        defMemberColor, //String
+    ]
+
+    App,Array: '${table with 3d:secpos}'
+    APP,Property: [
+        usergroup, //String
+        loading, //String
+        sec_name, //String
+        primary_qty, //Int
+        others_qty, //Int
+    ]
+
+    App,Array: '${table with 3d:pos_to_mbr}'
+    APP,Property: [
+        usergroup, //String
+        loading, //String
+        geometry, //String
+        sector, //String
+        pos, //String
+        member, //String
+    ]
+
+//---------
+Each table which is used in 2D Configurator must have special "APP,Property" in Correspondence Fields.tbl:
+
+    App,Array: '${table with 2d:eqpt_lib}'
+    APP,Property: [
+        equipment, //String {$equipment name}
+        model_id, //String
+        scale_x, //Int
+        scale_y, //Int
+        scale_z, //Int
+        ports_qty_top, //Int
+        ports_qty_bot, //Int
+        ports_qty_left, //Int
+        ports_qty_right, //Int
+    ]
+    App,Array: '${table with 2d:data_eqpt}' //NOTE: all sizes in this table must be in 'ft'
+    APP,Property: [
+        equipment, //String {$equipment name}
+        location, //String [air,base]
+        sector, //String {$sector name}
+        pos, //String {$pos name}
+        status, //String
+        elev_pd, //Float
+        elev_g, //Float
+        elev_rad, //Float
+        qty, //Int
+        pos_left, //Float
+        label_side, //String [top,left,bottom,right]
+        label_dir, //String [horizontal,vertical]
+        technology, //String
+    ]
+    App,Array: '${table with 2d:equipment}' //NOTE: all sizes in this table must be in 'inch'
+    APP,Property: [
+        model, //String
+        dx, //Float
+        dy, //Float
+        dz, //Float
+        port_top, //Int
+        port_bot, //Int
+        port_left, //Int
+        port_right, //Int
+        color, //#000000
+    ]
+
+    App,Array: '${table with 2d:sectors}'
+    APP,Property: [
+        sector, //String
+        pos_num, //Int
+        pos_widths, //Array '5,5,5'
+    ]
+    App,Array: '${table with 2d:pos}'
+    APP,Property: [
+        name, //String
+    ]
+
+    App,Array: '${table with 2d:line_lib}'
+    APP,Property: [
+        title, //String
+        gui_name, //String
+        diameter, //Float
+    ]
+    App,Array: '${table with 2d:data_conn}'
+    APP,Property: [
+        line, //String {$line_lib name}
+        status, //String
+        from_eqpt_id, //Int (Eqpt ID)
+        from_port_pos, //String
+        from_port_idx, //Int
+        to_eqpt_id, //Int (Eqpt ID)
+        to_port_pos, //String
+        to_port_idx, //Int
+        pos_top, //Float
+        pos_left, //Float
+        pos_top_back, //Float
+        pos_left_back, //Float
+        qty, //Int
+        control_points, //Json
+        control_points_back, //Json
+        caption_style, //String [abvblw, inline]
+        caption_sect, //String [start, mid, end]
+        caption_orient, //String [horizontal, vertical]
+    ]
+
+    App,Array: '${table with 2d:g_settings}'
+    APP,Property: [
+        background, //#000000
+        top_elev, //Float
+        bot_elev, //Float
+        pd_pos_he, //Float
+        pd_sector_he, //Float
+        pd_rest_he, //Float
+        pd_bot_he, //Float
+        g_pos_he, //Float
+        g_sector_he, //Float
+        g_rest_he, //Float
+        g_bot_he, //Float
+        elev_by, //String [g, pd] -> 'elev_g' or 'elev_pd' in Eqpt
+        shared_sectors, //String "name1,name2..."
+        show_eqpt_size, //0,1
+        show_eqpt_model, //0,1
+        show_eqpt_tech, //0,1
+        show_eqpt_id, //0,1
+        show_line_model, //0,1
+        show_eqpt_tooltip, //0,1
+        show_eqpt_size__font, //String
+        show_eqpt_size__size, //Int
+        show_eqpt_size__color, //#000000
+        show_eqpt_model__font, //String
+        show_eqpt_model__size, //Int
+        show_eqpt_model__color, //#000000
+        show_eqpt_tech__font, //String
+        show_eqpt_tech__size, //Int
+        show_eqpt_tech__color, //#000000
+        show_eqpt_id__font, //String
+        show_eqpt_id__size, //Int
+        show_eqpt_id__color, //#000000
+        show_line_model__font, //String
+        show_line_model__size, //Int
+        show_line_model__color, //#000000
+        air_base_names, //String "AirName,BaseName"
+        use_independent_controls, //0,1
+        full_reflection, //0,1
+    ]
+
+    App,Array: '${table with 2d:tech_list}'
+    APP,Property: [
+        loading, //String
+        technology, //String
+    ]
+
+    App,Array: '${table with 2d:eqpt_colors}'
+    APP,Property: [
+        loading, //String
+        name, //String
+        color, //#000000
+    ]
+
+    App,Array: '${table with popup:feedline}'
+    APP,Property: [
+        model, //String
+        width_diameter, //Float
+    ]
+
+//---------
+Inheritance in Fields.tbl:
+//---------
+For correct data receiving in Linked Tables (depends on Master Table) must be present:
+- ${MasterTable} in "Inheritance,Table"
+- ${compared field} in "Inheritance,Field"
+- Note: all Inheritances for one 'App,Array' in Fields.tbl must be linked only to one Table!
+
+//---------
+AISC table:
+//---------
+For correct drawing sections in 3D must be present:
+- 'App,Array'='AISC' in "Corresp,Table"
+- 'Property'='AISC_Shape' in "Corresp,Field"
+- 'Property'='AISC_Size1' in "Corresp,Field"
+- 'Property'='AISC_Size2' in "Corresp,Field"
+
+
+//---------
+Additional Settings in Correspondence Tables.tbl ("Options"):
+- 'is_public:true' - table will be available for all users (on 'Visitor' permission);
+- 'filter:true' - filters will be available for 'Table' view type;
+- 'download:true' - download will be available for 'Table' view type;
+- 'rts:true' - Rotate,translate,scale popup will be available for 'Table' view type;
+- 'del_icon:hide' - delete row icon will be hidden for 'Table' view type;
+- 'check_icon:hide' - check row icon will be hidden for 'Table' view type;
+
+Additional Settings in Correspondence Fields.tbl ("Options"):
+- 'copy_prefix:true' - when model is copied 'copy_' prefix will be added to this field;
+- 'in_url:true' - this field will be displayed in URL when model is selected;
+- 'display_top:true' - this field will be displayed below the search when model is selected;
+- 'show:true' - this field will be visible in APP;
+- 'is_rts:dx','is_rts:dy','is_rts:dz' - used in RTS popup as x,y,z;
+- 'is_fld:name' - this column is 'name' for rows';

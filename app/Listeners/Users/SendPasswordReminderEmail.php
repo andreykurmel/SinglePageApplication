@@ -1,0 +1,48 @@
+<?php
+
+namespace Vanguard\Listeners\Users;
+
+use Illuminate\Support\Facades\Mail;
+use Vanguard\Events\User\RequestedPasswordResetEmail;
+use Vanguard\Mail\TabldaMail;
+use Vanguard\Repositories\User\UserRepository;
+
+class SendPasswordReminderEmail
+{
+    /**
+     * @var UserRepository
+     */
+    private $users;
+
+    public function __construct(UserRepository $users)
+    {
+        $this->users = $users;
+    }
+
+    /**
+     * Handle the event.
+     *
+     * @param  RequestedPasswordResetEmail  $event
+     * @return void
+     */
+    public function handle(RequestedPasswordResetEmail $event)
+    {
+        $user = $event->getUser();
+        $token = $event->getToken();
+
+        $params = [
+            'from.account' => 'noreply',
+            'subject' => sprintf("%s", trans('app.reset_password')),
+            //'subject' => sprintf("[%s] %s", settings('app_name'), trans('app.reset_password')),
+            'to.address' => $user->email
+        ];
+        $data = [
+            'mail_action' => [
+                'text' => trans('app.reset_password'),
+                'url' => url('password/reset', $token),
+            ]
+        ];
+
+        Mail::to($user->email)->queue( new TabldaMail('tablda.emails.pass-reset', $data, $params) );
+    }
+}

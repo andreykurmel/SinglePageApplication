@@ -1,0 +1,84 @@
+#left-menu {
+  border: 1px solid #d3e0e9;
+  position: relative;
+
+  @media(max-width: 767px) {
+    min-width: 150px;
+  }
+
+  .menu-header {
+    text-align: right;
+    padding: 10px 4px 0 0;
+    background-color: #575c62;
+    button {
+      background-color: #ccc;
+      &.active {
+        background-color: white;
+      }
+      &:not(.active):hover {
+        color: black;
+      }
+    }
+  }
+
+  .menu-body {
+    position: relative;
+    top: -3px;
+    height: calc(100% - 41px);
+    width: 100%;
+    background-color: white;
+    padding: 5px;
+
+    .nav {
+      li {
+        a {
+          cursor: pointer;
+          padding: 8px 6px;
+          color: #555555;
+        }
+        &:not(.active):hover {
+          a {
+            color: black;
+          }
+        }
+      }
+    }
+
+  }
+
+  .modal-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 1500;
+    background: rgba(0, 0, 0, 0.45);
+    overflow: auto;
+
+    .modal {
+      display: block;
+      position: absolute;
+      bottom: auto;
+
+      .modal-header {
+        text-align: center;
+        background-color: #444;
+        padding: 5px;
+
+        .modal-title {
+          font-size: 2em;
+          font-weight: bold;
+          color: #FFF;
+        }
+      }
+
+      .modal-body {
+        .form-group {
+          margin-bottom: 5px;
+        }
+      }
+    }
+  }
+
+}

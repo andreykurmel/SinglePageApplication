@@ -1,0 +1,2579 @@
+diff --git a/app/Http/Controllers/Auth/AuthController.php b/app/Http/Controllers/Auth/AuthController.php
+index 004e55d..84d2288 100644
+--- a/app/Http/Controllers/Auth/AuthController.php
++++ b/app/Http/Controllers/Auth/AuthController.php
+@@ -360,17 +360,16 @@ class AuthController extends Controller
+             ? UserStatus::UNCONFIRMED
+             : UserStatus::ACTIVE;
+ 
++        $role = $roles->findByName('User');
++
+         // Add the user to database
+         $user = $this->users->create(array_merge(
+             $request->only('email', 'username', 'password'),
+-            ['status' => $status]
++            ['status' => $status, 'role_id' => $role->id]
+         ));
+ 
+         $this->users->updateSocialNetworks($user->id, []);
+ 
+-        $role = $roles->findByName('User');
+-        $this->users->setRole($user->id, $role->id);
+-
+         // Check if email confirmation is required,
+         // and if it does, send confirmation email to the user.
+         if (settings('reg_email_confirmation')) {
+diff --git a/app/Http/Controllers/Auth/SocialAuthController.php b/app/Http/Controllers/Auth/SocialAuthController.php
+index a71a898..598e88c 100644
+--- a/app/Http/Controllers/Auth/SocialAuthController.php
++++ b/app/Http/Controllers/Auth/SocialAuthController.php
+@@ -136,24 +136,23 @@ class SocialAuthController extends Controller
+         $user = $this->users->findByEmail($socialUser->getEmail());
+ 
+         if (! $user) {
+-
+             // User with email retrieved from social auth provider does not
+             // exist in our database. That means that we have to create new user here
+             list($firstName, $lastName) = $this->parseUserFullName($socialUser);
+ 
++            $role = $this->roles->findByName('User');
++
+             $user = $this->users->create([
+                 'email' => $socialUser->getEmail(),
+                 'password' => str_random(10),
+                 'first_name' => $firstName,
+                 'last_name' => $lastName,
+                 'status' => UserStatus::ACTIVE,
+-                'avatar' => $socialUser->getAvatar()
++                'avatar' => $socialUser->getAvatar(),
++                'role_id' => $role->id
+             ]);
+ 
+             $this->users->updateSocialNetworks($user->id, []);
+-
+-            $role = $this->roles->findByName('User');
+-            $this->users->setRole($user->id, $role->id);
+         }
+ 
+         // Associate social account with user account inside our application
+@@ -172,7 +171,7 @@ class SocialAuthController extends Controller
+     {
+         $name = $user->getName();
+ 
+-        if (strpos($name, " ") !== FALSE) {
++        if (strpos($name, " ") !== false) {
+             return explode(" ", $name, 2);
+         }
+ 
+@@ -232,5 +231,4 @@ class SocialAuthController extends Controller
+ 
+         return $account;
+     }
+-
+ }
+diff --git a/app/Http/Controllers/ProfileController.php b/app/Http/Controllers/ProfileController.php
+index b40b6b4..065073e 100644
+--- a/app/Http/Controllers/ProfileController.php
++++ b/app/Http/Controllers/ProfileController.php
+@@ -71,8 +71,10 @@ class ProfileController extends Controller
+         $socialLogins = $this->users->getUserSocialLogins($this->theUser->id);
+         $statuses = UserStatus::lists();
+ 
+-        return view('user/profile',
+-            compact('user', 'edit', 'roles', 'countries', 'socialLogins', 'socials', 'statuses'));
++        return view(
++            'user/profile',
++            compact('user', 'edit', 'roles', 'countries', 'socialLogins', 'socials', 'statuses')
++        );
+     }
+ 
+     /**
+@@ -83,7 +85,7 @@ class ProfileController extends Controller
+      */
+     public function updateDetails(UpdateProfileDetailsRequest $request)
+     {
+-        $this->users->update($this->theUser->id, $request->except('role', 'status'));
++        $this->users->update($this->theUser->id, $request->except('role_id', 'status'));
+ 
+         event(new UpdatedProfileDetails);
+ 
+diff --git a/app/Http/Controllers/UsersController.php b/app/Http/Controllers/UsersController.php
+index 90847b9..ea35f23 100644
+--- a/app/Http/Controllers/UsersController.php
++++ b/app/Http/Controllers/UsersController.php
+@@ -11,7 +11,6 @@ use Vanguard\Http\Requests\User\CreateUserRequest;
+ use Vanguard\Http\Requests\User\EnableTwoFactorRequest;
+ use Vanguard\Http\Requests\User\UpdateDetailsRequest;
+ use Vanguard\Http\Requests\User\UpdateLoginDetailsRequest;
+-use Vanguard\Http\Requests\User\UpdateUserRequest;
+ use Vanguard\Repositories\Activity\ActivityRepository;
+ use Vanguard\Repositories\Country\CountryRepository;
+ use Vanguard\Repositories\Role\RoleRepository;
+@@ -125,9 +124,10 @@ class UsersController extends Controller
+             $data['username'] = null;
+         }
+ 
++        $data['role_id'] = $request->role;
++
+         $user = $this->users->create($data);
+         $this->users->updateSocialNetworks($user->id, []);
+-        $this->users->setRole($user->id, $request->get('role'));
+ 
+         return redirect()->route('user.list')
+             ->withSuccess(trans('app.user_created'));
+@@ -150,8 +150,10 @@ class UsersController extends Controller
+         $statuses = UserStatus::lists();
+         $socialLogins = $this->users->getUserSocialLogins($user->id);
+ 
+-        return view('user.edit',
+-            compact('edit', 'user', 'countries', 'socials', 'socialLogins', 'roles', 'statuses'));
++        return view(
++            'user.edit',
++            compact('edit', 'user', 'countries', 'socials', 'socialLogins', 'roles', 'statuses')
++        );
+     }
+ 
+     /**
+@@ -301,7 +303,7 @@ class UsersController extends Controller
+      *
+      * @param User $user
+      * @param EnableTwoFactorRequest $request
+-     * @return $this
++     * @return \Illuminate\Http\RedirectResponse
+      */
+     public function enableTwoFactorAuth(User $user, EnableTwoFactorRequest $request)
+     {
+@@ -326,7 +328,7 @@ class UsersController extends Controller
+      * Disables Authy Two-Factor Authentication for user.
+      *
+      * @param User $user
+-     * @return $this
++     * @return \Illuminate\Http\RedirectResponse
+      */
+     public function disableTwoFactorAuth(User $user)
+     {
+@@ -376,4 +378,4 @@ class UsersController extends Controller
+         return redirect()->route('user.sessions', $user->id)
+             ->withSuccess(trans('app.session_invalidated'));
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Http/Kernel.php b/app/Http/Kernel.php
+index d1cee55..b5c00ff 100644
+--- a/app/Http/Kernel.php
++++ b/app/Http/Kernel.php
+@@ -48,11 +48,11 @@ class Kernel extends HttpKernel
+         'guest' => \Vanguard\Http\Middleware\RedirectIfAuthenticated::class,
+         'registration' => \Vanguard\Http\Middleware\Registration::class,
+         'social.login' => \Vanguard\Http\Middleware\SocialLogin::class,
+-        'role' => \Zizaco\Entrust\Middleware\EntrustRole::class,
+-        'permission' => \Zizaco\Entrust\Middleware\EntrustPermission::class,
+-        'ability' => \Zizaco\Entrust\Middleware\EntrustAbility::class,
++        'role' => \Vanguard\Http\Middleware\CheckRole::class,
++        'permission' => \Vanguard\Http\Middleware\CheckPermissions::class,
+         'session.database' => \Vanguard\Http\Middleware\DatabaseSession::class,
+         'can' => \Illuminate\Auth\Middleware\Authorize::class,
+         'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
++        'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
+     ];
+ }
+diff --git a/app/Http/Middleware/CheckPermissions.php b/app/Http/Middleware/CheckPermissions.php
+new file mode 100644
+index 0000000..5f89b39
+--- /dev/null
++++ b/app/Http/Middleware/CheckPermissions.php
+@@ -0,0 +1,41 @@
++<?php
++
++namespace Vanguard\Http\Middleware;
++
++use Closure;
++use Illuminate\Contracts\Auth\Guard;
++
++class CheckPermissions
++{
++    protected $auth;
++    /**
++     * Creates a new instance of the middleware.
++     *
++     * @param Guard $auth
++     */
++    public function __construct(Guard $auth)
++    {
++        $this->auth = $auth;
++    }
++
++    /**
++     * Handle an incoming request.
++     *
++     * @param  \Illuminate\Http\Request $request
++     * @param  \Closure $next
++     * @param $permissions
++     * @return mixed
++     */
++    public function handle($request, Closure $next, $permissions)
++    {
++        if (! is_array($permissions)) {
++            $permissions = explode("|", $permissions);
++        }
++
++        if ($this->auth->guest() || !$request->user()->hasPermission($permissions)) {
++            abort(403);
++        }
++
++        return $next($request);
++    }
++}
+diff --git a/app/Http/Middleware/CheckRole.php b/app/Http/Middleware/CheckRole.php
+new file mode 100644
+index 0000000..62f1332
+--- /dev/null
++++ b/app/Http/Middleware/CheckRole.php
+@@ -0,0 +1,36 @@
++<?php
++
++namespace Vanguard\Http\Middleware;
++
++use Closure;
++use Illuminate\Contracts\Auth\Guard;
++
++class CheckRole
++{
++    protected $auth;
++    /**
++     * Creates a new instance of the middleware.
++     *
++     * @param Guard $auth
++     */
++    public function __construct(Guard $auth)
++    {
++        $this->auth = $auth;
++    }
++
++    /**
++     * Handle an incoming request.
++     *
++     * @param  \Illuminate\Http\Request  $request
++     * @param  \Closure  $next
++     * @return mixed
++     */
++    public function handle($request, Closure $next, $role)
++    {
++        if ($this->auth->guest() || ! $request->user()->hasRole($role)) {
++            abort(403);
++        }
++
++        return $next($request);
++    }
++}
+diff --git a/app/Listeners/UserWasRegisteredListener.php b/app/Listeners/UserWasRegisteredListener.php
+index 750ec0e..18064b1 100644
+--- a/app/Listeners/UserWasRegisteredListener.php
++++ b/app/Listeners/UserWasRegisteredListener.php
+@@ -33,7 +33,7 @@ class UserWasRegisteredListener
+         if (! settings('notifications_signup_email')) {
+             return;
+         }
+-        
++
+         foreach ($this->users->getUsersWithRole('Admin') as $user) {
+             $user->notify(new UserRegistered($event->getRegisteredUser()));
+         }
+diff --git a/app/Permission.php b/app/Permission.php
+index 15b69aa..1088bd2 100644
+--- a/app/Permission.php
++++ b/app/Permission.php
+@@ -2,9 +2,11 @@
+ 
+ namespace Vanguard;
+ 
+-use Zizaco\Entrust\EntrustPermission;
++use Illuminate\Database\Eloquent\Model;
+ 
+-class Permission extends EntrustPermission
++class Permission extends Model
+ {
++    protected $table = 'permissions';
++
+     protected $fillable = ['name', 'display_name', 'description'];
+-}
+\ No newline at end of file
++}
+diff --git a/app/Presenters/UserPresenter.php b/app/Presenters/UserPresenter.php
+index 6f095c4..baf43c3 100644
+--- a/app/Presenters/UserPresenter.php
++++ b/app/Presenters/UserPresenter.php
+@@ -67,7 +67,7 @@ class UserPresenter extends Presenter
+      */
+     public function labelClass()
+     {
+-        switch($this->entity->status) {
++        switch ($this->entity->status) {
+             case UserStatus::ACTIVE:
+                 $class = 'success';
+                 break;
+@@ -82,4 +82,4 @@ class UserPresenter extends Presenter
+ 
+         return $class;
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Providers/AuthServiceProvider.php b/app/Providers/AuthServiceProvider.php
+index 0ebbd8a..290cfbb 100644
+--- a/app/Providers/AuthServiceProvider.php
++++ b/app/Providers/AuthServiceProvider.php
+@@ -23,6 +23,20 @@ class AuthServiceProvider extends ServiceProvider
+      */
+     public function boot()
+     {
+-        //
++        \Blade::directive('role', function ($expression) {
++            return "<?php if (\\Auth::user()->hasRole({$expression})) : ?>";
++        });
++
++        \Blade::directive('endrole', function ($expression) {
++            return "<?php endif; ?>";
++        });
++
++        \Blade::directive('permission', function ($expression) {
++            return "<?php if (\\Auth::user()->hasPermission({$expression})) : ?>";
++        });
++        
++        \Blade::directive('endpermission', function ($expression) {
++            return "<?php endif; ?>";
++        });
+     }
+ }
+diff --git a/app/Repositories/Role/EloquentRole.php b/app/Repositories/Role/EloquentRole.php
+index 80c9dbb..2fa873b 100644
+--- a/app/Repositories/Role/EloquentRole.php
++++ b/app/Repositories/Role/EloquentRole.php
+@@ -11,8 +11,6 @@ use DB;
+ 
+ class EloquentRole implements RoleRepository
+ {
+-    use CacheFlusherTrait;
+-
+     /**
+      * {@inheritdoc}
+      */
+@@ -28,8 +26,8 @@ class EloquentRole implements RoleRepository
+     {
+         $prefix = DB::getTablePrefix();
+ 
+-        return Role::leftJoin('role_user', 'roles.id', '=', 'role_user.role_id')
+-            ->select('roles.*', DB::raw("count({$prefix}role_user.user_id) as users_count"))
++        return Role::leftJoin('users', 'roles.id', '=', 'users.role_id')
++            ->select('roles.*', DB::raw("count({$prefix}users.id) as users_count"))
+             ->groupBy('roles.id')
+             ->get();
+     }
+@@ -87,9 +85,7 @@ class EloquentRole implements RoleRepository
+     {
+         $role = $this->find($roleId);
+ 
+-        $role->perms()->sync($permissions);
+-
+-        $this->flushRolePermissionsCache($role);
++        $role->syncPermissions($permissions);
+     }
+ 
+     /**
+@@ -107,4 +103,4 @@ class EloquentRole implements RoleRepository
+     {
+         return Role::where('name', $name)->first();
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Repositories/Role/RoleRepository.php b/app/Repositories/Role/RoleRepository.php
+index 4501968..ed6531c 100644
+--- a/app/Repositories/Role/RoleRepository.php
++++ b/app/Repositories/Role/RoleRepository.php
+@@ -78,4 +78,4 @@ interface RoleRepository
+      * @return mixed
+      */
+     public function updatePermissions($roleId, array $permissions);
+-}
+\ No newline at end of file
++}
+diff --git a/app/Repositories/User/EloquentUser.php b/app/Repositories/User/EloquentUser.php
+index bb0ba23..d452460 100644
+--- a/app/Repositories/User/EloquentUser.php
++++ b/app/Repositories/User/EloquentUser.php
+@@ -252,9 +252,7 @@ class EloquentUser implements UserRepository
+      */
+     public function setRole($userId, $roleId)
+     {
+-        $roleId = is_array($roleId) ?: [$roleId];
+-
+-        return $this->find($userId)->roles()->sync($roleId);
++        return $this->find($userId)->setRole($roleId);
+     }
+ 
+     /**
+@@ -270,8 +268,7 @@ class EloquentUser implements UserRepository
+      */
+     public function switchRolesForUsers($fromRoleId, $toRoleId)
+     {
+-        return DB::table('role_user')
+-            ->where('role_id', $fromRoleId)
++        return User::where('role_id', $fromRoleId)
+             ->update(['role_id' => $toRoleId]);
+     }
+ }
+diff --git a/app/Role.php b/app/Role.php
+index f89435e..8425866 100644
+--- a/app/Role.php
++++ b/app/Role.php
+@@ -2,7 +2,6 @@
+ 
+ namespace Vanguard;
+ 
+-use Config;
+ use Illuminate\Database\Eloquent\Model;
+ use Vanguard\Support\Authorization\AuthorizationRoleTrait;
+ 
+@@ -15,23 +14,16 @@ class Role extends Model
+      *
+      * @var string
+      */
+-    protected $table;
++    protected $table = 'roles';
+ 
+     protected $casts = [
+         'removable' => 'boolean'
+     ];
+ 
+-    /**
+-     * Creates a new instance of the model.
+-     *
+-     * @param array $attributes
+-     */
+-    public function __construct(array $attributes = [])
++    protected $fillable = ['name', 'display_name', 'description'];
++
++    public function users()
+     {
+-        parent::__construct($attributes);
+-        $this->table = Config::get('entrust.roles_table');
++        return $this->hasMany(User::class, 'role_id');
+     }
+-
+-
+-    protected $fillable = ['name', 'display_name', 'description'];
+-}
+\ No newline at end of file
++}
+diff --git a/app/Support/Authorization/AuthorizationRoleTrait.php b/app/Support/Authorization/AuthorizationRoleTrait.php
+index cb8e668..2a21c91 100644
+--- a/app/Support/Authorization/AuthorizationRoleTrait.php
++++ b/app/Support/Authorization/AuthorizationRoleTrait.php
+@@ -2,121 +2,72 @@
+ 
+ namespace Vanguard\Support\Authorization;
+ 
+-
+ use Cache;
+ use Config;
++use Vanguard\Permission;
+ 
+ trait AuthorizationRoleTrait
+ {
+-    use CacheFlusherTrait;
+-
+-    //Big block of caching functionality.
++    /**
++     * Get cached permissions for this role.
++     * @return mixed
++     */
+     public function cachedPermissions()
+     {
+-        return Cache::remember('entrust_permissions_for_role_'.$this->{$this->primaryKey}, Config::get('cache.ttl'), function () {
+-            return $this->perms()->get();
++        return Cache::remember($this->getCacheKey(), Config::get('cache.ttl'), function () {
++            return $this->permissions()->get();
+         });
+     }
+ 
++    /**
++     * Override "save" role method to clear role cache.
++     * @param array $options
++     */
+     public function save(array $options = [])
+     {
+-        $this->flushRolePermissionsCache($this);
++        $this->flushCache();
+         parent::save($options);
+     }
+ 
++    /**
++     * Override "delete" role method to clear role cache.
++     * @param array $options
++     */
+     public function delete(array $options = [])
+     {
+-        $this->flushRolePermissionsCache($this);
++        $this->flushCache();
+         parent::delete($options);
+     }
+ 
+-    public function restore()
+-    {
+-        $this->flushRolePermissionsCache($this);
+-        parent::restore();
+-    }
+-
+     /**
+-     * Many-to-Many relations with the user model.
+-     *
+-     * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
++     * Override "restore" role method to clear role cache.
+      */
+-    public function users()
++    public function restore()
+     {
+-        return $this->belongsToMany(
+-            Config::get('auth.providers.users.model'),
+-            Config::get('entrust.role_user_table'),
+-            Config::get('entrust.role_foreign_key'),
+-            Config::get('entrust.user_foreign_key')
+-        );
++        $this->flushCache();
++        parent::restore();
+     }
+ 
+     /**
+      * Many-to-Many relations with the permission model.
+-     * Named "perms" for backwards compatibility. Also because "perms" is short and sweet.
+-     *
+      * @return \Illuminate\Database\Eloquent\Relations\BelongsToMany
+      */
+-    public function perms()
+-    {
+-        return $this->belongsToMany(Config::get('entrust.permission'), Config::get('entrust.permission_role_table'));
+-    }
+-
+-    /**
+-     * Boot the role model
+-     * Attach event listener to remove the many-to-many records when trying to delete
+-     * Will NOT delete any records if the role model uses soft deletes.
+-     *
+-     * @return void|bool
+-     */
+-    public static function boot()
++    public function permissions()
+     {
+-        parent::boot();
+-
+-        static::deleting(function($role) {
+-            if (!method_exists(Config::get('entrust.role'), 'bootSoftDeletes')) {
+-                $role->users()->sync([]);
+-                $role->perms()->sync([]);
+-            }
+-
+-            return true;
+-        });
++        return $this->belongsToMany(Permission::class, 'permission_role', 'role_id');
+     }
+ 
+     /**
+      * Checks if the role has a permission by its name.
+      *
+-     * @param string|array $name       Permission name or array of permission names.
+-     * @param bool         $requireAll All permissions in the array are required.
+-     *
++     * @param string $name Permission name.
+      * @return bool
+      */
+-    public function hasPermission($name, $requireAll = false)
++    public function hasPermission($name)
+     {
+-        if (is_array($name)) {
+-            foreach ($name as $permissionName) {
+-                $hasPermission = $this->hasPermission($permissionName);
+-
+-                if ($hasPermission && !$requireAll) {
+-                    return true;
+-                } elseif (!$hasPermission && $requireAll) {
+-                    return false;
+-                }
+-            }
+-
+-            // If we've made it this far and $requireAll is FALSE, then NONE of the permissions were found
+-            // If we've made it this far and $requireAll is TRUE, then ALL of the permissions were found.
+-            // Return the value of $requireAll;
+-            return $requireAll;
+-        } else {
+-            foreach ($this->cachedPermissions() as $permission) {
+-                if ($permission->name == $name) {
+-                    return true;
+-                }
+-            }
+-        }
++        $perms = $this->cachedPermissions()->pluck('name')->toArray();
+ 
+-        return false;
++        return in_array($name, $perms, true);
+     }
+ 
+     /**
+@@ -128,13 +79,13 @@ trait AuthorizationRoleTrait
+      */
+     public function savePermissions($inputPermissions)
+     {
+-        if (!empty($inputPermissions)) {
+-            $this->perms()->sync($inputPermissions);
++        if (! empty($inputPermissions)) {
++            $this->permissions()->sync($inputPermissions);
+         } else {
+-            $this->perms()->detach();
++            $this->permissions()->detach();
+         }
+ 
+-        $this->flushRolePermissionsCache($this);
++        $this->flushCache();
+     }
+ 
+     /**
+@@ -154,9 +105,9 @@ trait AuthorizationRoleTrait
+             $permission = $permission['id'];
+         }
+ 
+-        $this->perms()->attach($permission);
++        $this->permissions()->attach($permission);
+ 
+-        $this->flushRolePermissionsCache($this);
++        $this->flushCache();
+     }
+ 
+     /**
+@@ -168,15 +119,17 @@ trait AuthorizationRoleTrait
+      */
+     public function detachPermission($permission)
+     {
+-        if (is_object($permission))
++        if (is_object($permission)) {
+             $permission = $permission->getKey();
++        }
+ 
+-        if (is_array($permission))
++        if (is_array($permission)) {
+             $permission = $permission['id'];
++        }
+ 
+-        $this->perms()->detach($permission);
++        $this->permissions()->detach($permission);
+ 
+-        $this->flushRolePermissionsCache($this);
++        $this->flushCache();
+     }
+ 
+     /**
+@@ -206,4 +159,32 @@ trait AuthorizationRoleTrait
+             $this->detachPermission($permission);
+         }
+     }
++
++    /**
++     * Sync role permissions.
++     * @param $permissions array Permission IDs.
++     */
++    public function syncPermissions(array $permissions)
++    {
++        $this->permissions()->sync($permissions);
++
++        $this->flushCache();
++    }
++
++    /**
++     * Get permissions cache key.
++     * @return string
++     */
++    private function getCacheKey()
++    {
++        return 'entrust_permissions_for_role_'.$this->{$this->primaryKey};
++    }
++
++    /**
++     * Flush cached permissions for this role.
++     */
++    private function flushCache()
++    {
++        Cache::forget($this->getCacheKey());
++    }
+ }
+diff --git a/app/Support/Authorization/AuthorizationUserTrait.php b/app/Support/Authorization/AuthorizationUserTrait.php
+index a280d10..23839d8 100644
+--- a/app/Support/Authorization/AuthorizationUserTrait.php
++++ b/app/Support/Authorization/AuthorizationUserTrait.php
+@@ -2,37 +2,56 @@
+ 
+ namespace Vanguard\Support\Authorization;
+ 
+-
+-use Cache;
+-use Config;
+-use Zizaco\Entrust\Traits\EntrustUserTrait;
++use Vanguard\Role;
+ 
+ trait AuthorizationUserTrait
+ {
+-    use EntrustUserTrait, CacheFlusherTrait;
+-
+-    public function cachedRoles()
++    /**
++     * @return mixed
++     */
++    public function role()
+     {
+-        return Cache::remember('entrust_roles_for_user_'.$this->{$this->primaryKey}, Config::get('cache.ttl'), function () {
+-            return $this->roles()->get();
+-        });
++        return $this->belongsTo(Role::class, 'role_id');
+     }
+ 
+-    public function save(array $options = [])
+-    {   //both inserts and updates
+-        parent::save($options);
+-        $this->flushUserRolesCache($this);
++    /**
++     * Check if user has specified role.
++     * @param $role
++     * @return bool
++     */
++    public function hasRole($role)
++    {
++        return $this->role->name === $role;
+     }
+ 
+-    public function delete(array $options = [])
+-    {   //soft or hard
+-        parent::delete($options);
+-        $this->flushUserRolesCache($this);
++    /**
++     * Check if user can perform some action.
++     * @param $permission
++     * @return bool
++     */
++    public function hasPermission($permission)
++    {
++        $permission = (array) $permission;
++        $permissions = $this->role->cachedPermissions()->pluck('name')->toArray();
++
++        foreach ($permission as $perm) {
++            if (! in_array($perm, $permissions, true)) {
++                return false;
++            }
++        }
++
++        return true;
+     }
+ 
+-    public function restore()
+-    {   //soft delete undo's
+-        parent::restore();
+-        $this->flushUserRolesCache($this);
++    /**
++     * Set user's role.
++     * @param Role $role
++     * @return mixed
++     */
++    public function setRole($role)
++    {
++        return $this->forceFill([
++            'role_id' => $role instanceof Role ? $role->id : $role
++        ])->save();
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/app/Support/Authorization/CacheFlusherTrait.php b/app/Support/Authorization/CacheFlusherTrait.php
+deleted file mode 100644
+index 410fe1b..0000000
+--- a/app/Support/Authorization/CacheFlusherTrait.php
++++ /dev/null
+@@ -1,35 +0,0 @@
+-<?php
+-
+-namespace Vanguard\Support\Authorization;
+-
+-
+-use Vanguard\Role;
+-use Vanguard\User;
+-use Cache;
+-
+-/**
+- * Class CacheFlusherTrait
+- * @package Vanguard\Support\Authorization
+- */
+-trait CacheFlusherTrait
+-{
+-    /**
+-     * Clear permissions cache for specified role.
+-     *
+-     * @param Role $role
+-     */
+-    protected function flushRolePermissionsCache(Role $role)
+-    {
+-        Cache::forget("entrust_permissions_for_role_{$role->id}");
+-    }
+-
+-    /**
+-     * Clear roles cache for specified user.
+-     *
+-     * @param User $user
+-     */
+-    protected function flushUserRolesCache(User $user)
+-    {
+-        Cache::forget("entrust_roles_for_user_{$user->id}");
+-    }
+-}
+\ No newline at end of file
+diff --git a/app/User.php b/app/User.php
+index 9182065..317eb0d 100644
+--- a/app/User.php
++++ b/app/User.php
+@@ -36,7 +36,7 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract
+     protected $fillable = [
+         'name', 'email', 'password', 'username', 'first_name', 'last_name', 'phone', 'avatar',
+         'address', 'country_id', 'birthday', 'last_login', 'confirmation_token', 'status',
+-        'group_id', 'remember_token'
++        'group_id', 'remember_token', 'role_id'
+     ];
+ 
+     /**
+diff --git a/composer.lock b/composer.lock
+index ef2ce91..3f36864 100644
+--- a/composer.lock
++++ b/composer.lock
+@@ -168,16 +168,16 @@
+         },
+         {
+             "name": "erusev/parsedown",
+-            "version": "1.6.1",
++            "version": "1.6.2",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/erusev/parsedown.git",
+-                "reference": "20ff8bbb57205368b4b42d094642a3e52dac85fb"
++                "reference": "1bf24f7334fe16c88bf9d467863309ceaf285b01"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/erusev/parsedown/zipball/20ff8bbb57205368b4b42d094642a3e52dac85fb",
+-                "reference": "20ff8bbb57205368b4b42d094642a3e52dac85fb",
++                "url": "https://api.github.com/repos/erusev/parsedown/zipball/1bf24f7334fe16c88bf9d467863309ceaf285b01",
++                "reference": "1bf24f7334fe16c88bf9d467863309ceaf285b01",
+                 "shasum": ""
+             },
+             "require": {
+@@ -206,7 +206,7 @@
+                 "markdown",
+                 "parser"
+             ],
+-            "time": "2016-11-02 15:56:58"
++            "time": "2017-03-29 16:04:15"
+         },
+         {
+             "name": "guzzlehttp/guzzle",
+@@ -323,16 +323,16 @@
+         },
+         {
+             "name": "guzzlehttp/psr7",
+-            "version": "1.4.1",
++            "version": "1.4.2",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/guzzle/psr7.git",
+-                "reference": "0d6c7ca039329247e4f0f8f8f6506810e8248855"
++                "reference": "f5b8a8512e2b58b0071a7280e39f14f72e05d87c"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/guzzle/psr7/zipball/0d6c7ca039329247e4f0f8f8f6506810e8248855",
+-                "reference": "0d6c7ca039329247e4f0f8f8f6506810e8248855",
++                "url": "https://api.github.com/repos/guzzle/psr7/zipball/f5b8a8512e2b58b0071a7280e39f14f72e05d87c",
++                "reference": "f5b8a8512e2b58b0071a7280e39f14f72e05d87c",
+                 "shasum": ""
+             },
+             "require": {
+@@ -384,7 +384,7 @@
+                 "uri",
+                 "url"
+             ],
+-            "time": "2017-02-27 10:51:17"
++            "time": "2017-03-20 17:10:46"
+         },
+         {
+             "name": "intervention/image",
+@@ -496,16 +496,16 @@
+         },
+         {
+             "name": "laravel/framework",
+-            "version": "v5.4.15",
++            "version": "v5.4.17",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/laravel/framework.git",
+-                "reference": "ecc6468b8af30b77566a8519ce8898740ef691d7"
++                "reference": "f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/laravel/framework/zipball/ecc6468b8af30b77566a8519ce8898740ef691d7",
+-                "reference": "ecc6468b8af30b77566a8519ce8898740ef691d7",
++                "url": "https://api.github.com/repos/laravel/framework/zipball/f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b",
++                "reference": "f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b",
+                 "shasum": ""
+             },
+             "require": {
+@@ -621,20 +621,20 @@
+                 "framework",
+                 "laravel"
+             ],
+-            "time": "2017-03-02 14:41:40"
++            "time": "2017-04-03 13:07:39"
+         },
+         {
+             "name": "laravel/socialite",
+-            "version": "v3.0.3",
++            "version": "v3.0.4",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/laravel/socialite.git",
+-                "reference": "01588748beef55ad5dd4f172d235548d3a6be79a"
++                "reference": "441e0d467319044e4913b1748382d427795416e9"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/laravel/socialite/zipball/01588748beef55ad5dd4f172d235548d3a6be79a",
+-                "reference": "01588748beef55ad5dd4f172d235548d3a6be79a",
++                "url": "https://api.github.com/repos/laravel/socialite/zipball/441e0d467319044e4913b1748382d427795416e9",
++                "reference": "441e0d467319044e4913b1748382d427795416e9",
+                 "shasum": ""
+             },
+             "require": {
+@@ -675,7 +675,7 @@
+                 "laravel",
+                 "oauth"
+             ],
+-            "time": "2017-02-01 13:43:56"
++            "time": "2017-03-27 19:43:19"
+         },
+         {
+             "name": "laravelcollective/html",
+@@ -733,16 +733,16 @@
+         },
+         {
+             "name": "league/flysystem",
+-            "version": "1.0.35",
++            "version": "1.0.37",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/thephpleague/flysystem.git",
+-                "reference": "dda7f3ab94158a002d9846a97dc18ebfb7acc062"
++                "reference": "78b5cc4feb61a882302df4fbaf63b7662e5e4ccd"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/dda7f3ab94158a002d9846a97dc18ebfb7acc062",
+-                "reference": "dda7f3ab94158a002d9846a97dc18ebfb7acc062",
++                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/78b5cc4feb61a882302df4fbaf63b7662e5e4ccd",
++                "reference": "78b5cc4feb61a882302df4fbaf63b7662e5e4ccd",
+                 "shasum": ""
+             },
+             "require": {
+@@ -812,7 +812,7 @@
+                 "sftp",
+                 "storage"
+             ],
+-            "time": "2017-02-09 11:33:58"
++            "time": "2017-03-22 15:43:14"
+         },
+         {
+             "name": "league/oauth1-client",
+@@ -879,16 +879,16 @@
+         },
+         {
+             "name": "monolog/monolog",
+-            "version": "1.22.0",
++            "version": "1.22.1",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/Seldaek/monolog.git",
+-                "reference": "bad29cb8d18ab0315e6c477751418a82c850d558"
++                "reference": "1e044bc4b34e91743943479f1be7a1d5eb93add0"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/Seldaek/monolog/zipball/bad29cb8d18ab0315e6c477751418a82c850d558",
+-                "reference": "bad29cb8d18ab0315e6c477751418a82c850d558",
++                "url": "https://api.github.com/repos/Seldaek/monolog/zipball/1e044bc4b34e91743943479f1be7a1d5eb93add0",
++                "reference": "1e044bc4b34e91743943479f1be7a1d5eb93add0",
+                 "shasum": ""
+             },
+             "require": {
+@@ -953,7 +953,7 @@
+                 "logging",
+                 "psr-3"
+             ],
+-            "time": "2016-11-26 00:15:39"
++            "time": "2017-03-13 07:08:03"
+         },
+         {
+             "name": "mtdowling/cron-expression",
+@@ -1054,16 +1054,16 @@
+         },
+         {
+             "name": "paragonie/random_compat",
+-            "version": "v1.4.1",
++            "version": "v1.4.2",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/paragonie/random_compat.git",
+-                "reference": "c7e26a21ba357863de030f0b9e701c7d04593774"
++                "reference": "965cdeb01fdcab7653253aa81d40441d261f1e66"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/paragonie/random_compat/zipball/c7e26a21ba357863de030f0b9e701c7d04593774",
+-                "reference": "c7e26a21ba357863de030f0b9e701c7d04593774",
++                "url": "https://api.github.com/repos/paragonie/random_compat/zipball/965cdeb01fdcab7653253aa81d40441d261f1e66",
++                "reference": "965cdeb01fdcab7653253aa81d40441d261f1e66",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1098,7 +1098,7 @@
+                 "pseudorandom",
+                 "random"
+             ],
+-            "time": "2016-03-18 20:34:03"
++            "time": "2017-03-13 16:22:52"
+         },
+         {
+             "name": "proengsoft/laravel-jsvalidation",
+@@ -1260,30 +1260,30 @@
+         },
+         {
+             "name": "ramsey/uuid",
+-            "version": "3.5.2",
++            "version": "3.6.1",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/ramsey/uuid.git",
+-                "reference": "5677cfe02397dd6b58c861870dfaa5d9007d3954"
++                "reference": "4ae32dd9ab8860a4bbd750ad269cba7f06f7934e"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/ramsey/uuid/zipball/5677cfe02397dd6b58c861870dfaa5d9007d3954",
+-                "reference": "5677cfe02397dd6b58c861870dfaa5d9007d3954",
++                "url": "https://api.github.com/repos/ramsey/uuid/zipball/4ae32dd9ab8860a4bbd750ad269cba7f06f7934e",
++                "reference": "4ae32dd9ab8860a4bbd750ad269cba7f06f7934e",
+                 "shasum": ""
+             },
+             "require": {
+                 "paragonie/random_compat": "^1.0|^2.0",
+-                "php": ">=5.4"
++                "php": "^5.4 || ^7.0"
+             },
+             "replace": {
+                 "rhumsaa/uuid": "self.version"
+             },
+             "require-dev": {
+                 "apigen/apigen": "^4.1",
+-                "codeception/aspect-mock": "1.0.0",
++                "codeception/aspect-mock": "^1.0 | ^2.0",
+                 "doctrine/annotations": "~1.2.0",
+-                "goaop/framework": "1.0.0-alpha.2",
++                "goaop/framework": "1.0.0-alpha.2 | ^1.0 | ^2.1",
+                 "ircmaxell/random-lib": "^1.1",
+                 "jakub-onderka/php-parallel-lint": "^0.9.0",
+                 "mockery/mockery": "^0.9.4",
+@@ -1338,7 +1338,7 @@
+                 "identifier",
+                 "uuid"
+             ],
+-            "time": "2016-11-22 19:21:44"
++            "time": "2017-03-26 20:37:53"
+         },
+         {
+             "name": "swiftmailer/swiftmailer",
+@@ -1396,16 +1396,16 @@
+         },
+         {
+             "name": "symfony/console",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/console.git",
+-                "reference": "0e5e6899f82230fcb1153bcaf0e106ffaa44b870"
++                "reference": "c30243cc51f726812be3551316b109a2f5deaf8d"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/console/zipball/0e5e6899f82230fcb1153bcaf0e106ffaa44b870",
+-                "reference": "0e5e6899f82230fcb1153bcaf0e106ffaa44b870",
++                "url": "https://api.github.com/repos/symfony/console/zipball/c30243cc51f726812be3551316b109a2f5deaf8d",
++                "reference": "c30243cc51f726812be3551316b109a2f5deaf8d",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1455,20 +1455,20 @@
+             ],
+             "description": "Symfony Console Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 14:07:22"
++            "time": "2017-04-04 14:33:42"
+         },
+         {
+             "name": "symfony/css-selector",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/css-selector.git",
+-                "reference": "f0e628f04fc055c934b3211cfabdb1c59eefbfaa"
++                "reference": "a48f13dc83c168f1253a5d2a5a4fb46c36244c4c"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/css-selector/zipball/f0e628f04fc055c934b3211cfabdb1c59eefbfaa",
+-                "reference": "f0e628f04fc055c934b3211cfabdb1c59eefbfaa",
++                "url": "https://api.github.com/repos/symfony/css-selector/zipball/a48f13dc83c168f1253a5d2a5a4fb46c36244c4c",
++                "reference": "a48f13dc83c168f1253a5d2a5a4fb46c36244c4c",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1508,20 +1508,20 @@
+             ],
+             "description": "Symfony CssSelector Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-01-02 20:32:22"
++            "time": "2017-02-21 09:12:04"
+         },
+         {
+             "name": "symfony/debug",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/debug.git",
+-                "reference": "9b98854cb45bc59d100b7d4cc4cf9e05f21026b9"
++                "reference": "56f613406446a4a0a031475cfd0a01751de22659"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/debug/zipball/9b98854cb45bc59d100b7d4cc4cf9e05f21026b9",
+-                "reference": "9b98854cb45bc59d100b7d4cc4cf9e05f21026b9",
++                "url": "https://api.github.com/repos/symfony/debug/zipball/56f613406446a4a0a031475cfd0a01751de22659",
++                "reference": "56f613406446a4a0a031475cfd0a01751de22659",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1565,20 +1565,20 @@
+             ],
+             "description": "Symfony Debug Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 16:34:18"
++            "time": "2017-03-28 21:38:24"
+         },
+         {
+             "name": "symfony/event-dispatcher",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/event-dispatcher.git",
+-                "reference": "9137eb3a3328e413212826d63eeeb0217836e2b6"
++                "reference": "154bb1ef7b0e42ccc792bd53edbce18ed73440ca"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/event-dispatcher/zipball/9137eb3a3328e413212826d63eeeb0217836e2b6",
+-                "reference": "9137eb3a3328e413212826d63eeeb0217836e2b6",
++                "url": "https://api.github.com/repos/symfony/event-dispatcher/zipball/154bb1ef7b0e42ccc792bd53edbce18ed73440ca",
++                "reference": "154bb1ef7b0e42ccc792bd53edbce18ed73440ca",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1625,20 +1625,20 @@
+             ],
+             "description": "Symfony EventDispatcher Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-01-02 20:32:22"
++            "time": "2017-04-04 07:26:27"
+         },
+         {
+             "name": "symfony/finder",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/finder.git",
+-                "reference": "8c71141cae8e2957946b403cc71a67213c0380d6"
++                "reference": "b20900ce5ea164cd9314af52725b0bb5a758217a"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/finder/zipball/8c71141cae8e2957946b403cc71a67213c0380d6",
+-                "reference": "8c71141cae8e2957946b403cc71a67213c0380d6",
++                "url": "https://api.github.com/repos/symfony/finder/zipball/b20900ce5ea164cd9314af52725b0bb5a758217a",
++                "reference": "b20900ce5ea164cd9314af52725b0bb5a758217a",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1674,20 +1674,20 @@
+             ],
+             "description": "Symfony Finder Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-01-02 20:32:22"
++            "time": "2017-03-20 09:32:19"
+         },
+         {
+             "name": "symfony/http-foundation",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/http-foundation.git",
+-                "reference": "a90da6dd679605d88c9803a57a6fc1fb7a19a6e0"
++                "reference": "cb0b6418f588952c9290b3df4ca650f1b7ab570a"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/a90da6dd679605d88c9803a57a6fc1fb7a19a6e0",
+-                "reference": "a90da6dd679605d88c9803a57a6fc1fb7a19a6e0",
++                "url": "https://api.github.com/repos/symfony/http-foundation/zipball/cb0b6418f588952c9290b3df4ca650f1b7ab570a",
++                "reference": "cb0b6418f588952c9290b3df4ca650f1b7ab570a",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1727,20 +1727,20 @@
+             ],
+             "description": "Symfony HttpFoundation Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 22:46:52"
++            "time": "2017-04-04 15:30:56"
+         },
+         {
+             "name": "symfony/http-kernel",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/http-kernel.git",
+-                "reference": "4cd0d4bc31819095c6ef13573069f621eb321081"
++                "reference": "8285ab5faf1306b1a5ebcf287fe91c231a6de88e"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/http-kernel/zipball/4cd0d4bc31819095c6ef13573069f621eb321081",
+-                "reference": "4cd0d4bc31819095c6ef13573069f621eb321081",
++                "url": "https://api.github.com/repos/symfony/http-kernel/zipball/8285ab5faf1306b1a5ebcf287fe91c231a6de88e",
++                "reference": "8285ab5faf1306b1a5ebcf287fe91c231a6de88e",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1809,7 +1809,7 @@
+             ],
+             "description": "Symfony HttpKernel Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 23:59:56"
++            "time": "2017-04-05 12:52:03"
+         },
+         {
+             "name": "symfony/polyfill-mbstring",
+@@ -1872,16 +1872,16 @@
+         },
+         {
+             "name": "symfony/process",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/process.git",
+-                "reference": "0ab87c1e7570b3534a6e51eb4ca8e9f6d7327856"
++                "reference": "57fdaa55827ae14d617550ebe71a820f0a5e2282"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/process/zipball/0ab87c1e7570b3534a6e51eb4ca8e9f6d7327856",
+-                "reference": "0ab87c1e7570b3534a6e51eb4ca8e9f6d7327856",
++                "url": "https://api.github.com/repos/symfony/process/zipball/57fdaa55827ae14d617550ebe71a820f0a5e2282",
++                "reference": "57fdaa55827ae14d617550ebe71a820f0a5e2282",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1917,20 +1917,20 @@
+             ],
+             "description": "Symfony Process Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 14:07:22"
++            "time": "2017-03-27 18:07:02"
+         },
+         {
+             "name": "symfony/routing",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/routing.git",
+-                "reference": "af464432c177dbcdbb32295113b7627500331f2d"
++                "reference": "d6605f9a5767bc5bc4895e1c762ba93964608aee"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/routing/zipball/af464432c177dbcdbb32295113b7627500331f2d",
+-                "reference": "af464432c177dbcdbb32295113b7627500331f2d",
++                "url": "https://api.github.com/repos/symfony/routing/zipball/d6605f9a5767bc5bc4895e1c762ba93964608aee",
++                "reference": "d6605f9a5767bc5bc4895e1c762ba93964608aee",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1992,20 +1992,20 @@
+                 "uri",
+                 "url"
+             ],
+-            "time": "2017-01-28 02:37:08"
++            "time": "2017-03-02 15:58:09"
+         },
+         {
+             "name": "symfony/translation",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/translation.git",
+-                "reference": "d6825c6bb2f1da13f564678f9f236fe8242c0029"
++                "reference": "c740eee70783d2af4d3d6b70d5146f209e6b4d13"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/translation/zipball/d6825c6bb2f1da13f564678f9f236fe8242c0029",
+-                "reference": "d6825c6bb2f1da13f564678f9f236fe8242c0029",
++                "url": "https://api.github.com/repos/symfony/translation/zipball/c740eee70783d2af4d3d6b70d5146f209e6b4d13",
++                "reference": "c740eee70783d2af4d3d6b70d5146f209e6b4d13",
+                 "shasum": ""
+             },
+             "require": {
+@@ -2018,7 +2018,7 @@
+             "require-dev": {
+                 "psr/log": "~1.0",
+                 "symfony/config": "~2.8|~3.0",
+-                "symfony/intl": "~2.8|~3.0",
++                "symfony/intl": "^2.8.18|^3.2.5",
+                 "symfony/yaml": "~2.8|~3.0"
+             },
+             "suggest": {
+@@ -2056,26 +2056,29 @@
+             ],
+             "description": "Symfony Translation Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 22:46:52"
++            "time": "2017-03-21 21:44:32"
+         },
+         {
+             "name": "symfony/var-dumper",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/var-dumper.git",
+-                "reference": "cb50260b674ee1c2d4ab49f2395a42e0b4681e20"
++                "reference": "81dce20f69a8b40427e1f4e6462178df87cafc03"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/var-dumper/zipball/cb50260b674ee1c2d4ab49f2395a42e0b4681e20",
+-                "reference": "cb50260b674ee1c2d4ab49f2395a42e0b4681e20",
++                "url": "https://api.github.com/repos/symfony/var-dumper/zipball/81dce20f69a8b40427e1f4e6462178df87cafc03",
++                "reference": "81dce20f69a8b40427e1f4e6462178df87cafc03",
+                 "shasum": ""
+             },
+             "require": {
+                 "php": ">=5.5.9",
+                 "symfony/polyfill-mbstring": "~1.0"
+             },
++            "conflict": {
++                "phpunit/phpunit": "<4.8.35|<5.4.3,>=5.0"
++            },
+             "require-dev": {
+                 "twig/twig": "~1.20|~2.0"
+             },
+@@ -2119,7 +2122,7 @@
+                 "debug",
+                 "dump"
+             ],
+-            "time": "2017-02-16 22:46:52"
++            "time": "2017-03-12 16:07:05"
+         },
+         {
+             "name": "tijsverkoyen/css-to-inline-styles",
+@@ -3082,16 +3085,16 @@
+         },
+         {
+             "name": "phpunit/php-code-coverage",
+-            "version": "4.0.7",
++            "version": "4.0.8",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/sebastianbergmann/php-code-coverage.git",
+-                "reference": "09e2277d14ea467e5a984010f501343ef29ffc69"
++                "reference": "ef7b2f56815df854e66ceaee8ebe9393ae36a40d"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/sebastianbergmann/php-code-coverage/zipball/09e2277d14ea467e5a984010f501343ef29ffc69",
+-                "reference": "09e2277d14ea467e5a984010f501343ef29ffc69",
++                "url": "https://api.github.com/repos/sebastianbergmann/php-code-coverage/zipball/ef7b2f56815df854e66ceaee8ebe9393ae36a40d",
++                "reference": "ef7b2f56815df854e66ceaee8ebe9393ae36a40d",
+                 "shasum": ""
+             },
+             "require": {
+@@ -3141,7 +3144,7 @@
+                 "testing",
+                 "xunit"
+             ],
+-            "time": "2017-03-01 09:12:17"
++            "time": "2017-04-02 07:44:40"
+         },
+         {
+             "name": "phpunit/php-file-iterator",
+@@ -3331,16 +3334,16 @@
+         },
+         {
+             "name": "phpunit/phpunit",
+-            "version": "5.7.15",
++            "version": "5.7.19",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/sebastianbergmann/phpunit.git",
+-                "reference": "b99112aecc01f62acf3d81a3f59646700a1849e5"
++                "reference": "69c4f49ff376af2692bad9cebd883d17ebaa98a1"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/b99112aecc01f62acf3d81a3f59646700a1849e5",
+-                "reference": "b99112aecc01f62acf3d81a3f59646700a1849e5",
++                "url": "https://api.github.com/repos/sebastianbergmann/phpunit/zipball/69c4f49ff376af2692bad9cebd883d17ebaa98a1",
++                "reference": "69c4f49ff376af2692bad9cebd883d17ebaa98a1",
+                 "shasum": ""
+             },
+             "require": {
+@@ -3409,7 +3412,7 @@
+                 "testing",
+                 "xunit"
+             ],
+-            "time": "2017-03-02 15:22:43"
++            "time": "2017-04-03 02:22:27"
+         },
+         {
+             "name": "phpunit/phpunit-mock-objects",
+@@ -3985,16 +3988,16 @@
+         },
+         {
+             "name": "symfony/class-loader",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/class-loader.git",
+-                "reference": "2847d56f518ad5721bf85aa9174b3aa3fd12aa03"
++                "reference": "c29a5bc6ca14cfff1f5e3d7781ed74b6e898d2b9"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/class-loader/zipball/2847d56f518ad5721bf85aa9174b3aa3fd12aa03",
+-                "reference": "2847d56f518ad5721bf85aa9174b3aa3fd12aa03",
++                "url": "https://api.github.com/repos/symfony/class-loader/zipball/c29a5bc6ca14cfff1f5e3d7781ed74b6e898d2b9",
++                "reference": "c29a5bc6ca14cfff1f5e3d7781ed74b6e898d2b9",
+                 "shasum": ""
+             },
+             "require": {
+@@ -4037,20 +4040,20 @@
+             ],
+             "description": "Symfony ClassLoader Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-01-21 17:06:35"
++            "time": "2017-02-18 17:28:00"
+         },
+         {
+             "name": "symfony/dom-crawler",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/dom-crawler.git",
+-                "reference": "b814b41373fc4e535aff8c765abe39545216f391"
++                "reference": "403944e294cf4ceb3b8447f54cbad88ea7b99cee"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/dom-crawler/zipball/b814b41373fc4e535aff8c765abe39545216f391",
+-                "reference": "b814b41373fc4e535aff8c765abe39545216f391",
++                "url": "https://api.github.com/repos/symfony/dom-crawler/zipball/403944e294cf4ceb3b8447f54cbad88ea7b99cee",
++                "reference": "403944e294cf4ceb3b8447f54cbad88ea7b99cee",
+                 "shasum": ""
+             },
+             "require": {
+@@ -4093,20 +4096,20 @@
+             ],
+             "description": "Symfony DomCrawler Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-01-21 17:14:11"
++            "time": "2017-02-21 09:12:04"
+         },
+         {
+             "name": "symfony/yaml",
+-            "version": "v3.2.4",
++            "version": "v3.2.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/symfony/yaml.git",
+-                "reference": "9724c684646fcb5387d579b4bfaa63ee0b0c64c8"
++                "reference": "62b4cdb99d52cb1ff253c465eb1532a80cebb621"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/symfony/yaml/zipball/9724c684646fcb5387d579b4bfaa63ee0b0c64c8",
+-                "reference": "9724c684646fcb5387d579b4bfaa63ee0b0c64c8",
++                "url": "https://api.github.com/repos/symfony/yaml/zipball/62b4cdb99d52cb1ff253c465eb1532a80cebb621",
++                "reference": "62b4cdb99d52cb1ff253c465eb1532a80cebb621",
+                 "shasum": ""
+             },
+             "require": {
+@@ -4148,7 +4151,7 @@
+             ],
+             "description": "Symfony Yaml Component",
+             "homepage": "https://symfony.com",
+-            "time": "2017-02-16 22:46:52"
++            "time": "2017-03-20 09:45:15"
+         },
+         {
+             "name": "webmozart/assert",
+diff --git a/config/app.php b/config/app.php
+index 41041a5..17a0876 100644
+--- a/config/app.php
++++ b/config/app.php
+@@ -182,7 +182,6 @@ return [
+         Vanguard\Providers\HtmlServiceProvider::class,
+         Webpatser\Countries\CountriesServiceProvider::class,
+         Intervention\Image\ImageServiceProvider::class,
+-        Vanguard\Providers\EntrustServiceProvider::class,
+         anlutro\LaravelSettings\ServiceProvider::class,
+ 
+         /*
+@@ -251,7 +250,6 @@ return [
+         'HTML' => Collective\Html\HtmlFacade::class,
+         'Countries' => Webpatser\Countries\CountriesFacade::class,
+         'Image' => Intervention\Image\Facades\Image::class,
+-        'Entrust' => Zizaco\Entrust\EntrustFacade::class,
+         'Settings' => anlutro\LaravelSettings\Facade::class,
+         'Authy' => Vanguard\Services\Auth\TwoFactor\Facade::class,
+ 
+diff --git a/config/entrust.php b/config/entrust.php
+deleted file mode 100644
+index a0d0b0c..0000000
+--- a/config/entrust.php
++++ /dev/null
+@@ -1,92 +0,0 @@
+-<?php
+-
+-/**
+- * This file is part of Entrust,
+- * a role & permission management solution for Laravel.
+- *
+- * @license MIT
+- * @package Zizaco\Entrust
+- */
+-
+-return [
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust Role Model
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the Role model used by Entrust to create correct relations.  Update
+-    | the role if it is in a different namespace.
+-    |
+-    */
+-    'role' => Vanguard\Role::class,
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust Roles Table
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the roles table used by Entrust to save roles to the database.
+-    |
+-    */
+-    'roles_table' => 'roles',
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust Permission Model
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the Permission model used by Entrust to create correct relations.
+-    | Update the permission if it is in a different namespace.
+-    |
+-    */
+-    'permission' => Vanguard\Permission::class,
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust Permissions Table
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the permissions table used by Entrust to save permissions to the
+-    | database.
+-    |
+-    */
+-    'permissions_table' => 'permissions',
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust permission_role Table
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the permission_role table used by Entrust to save relationship
+-    | between permissions and roles to the database.
+-    |
+-    */
+-    'permission_role_table' => 'permission_role',
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Entrust role_user Table
+-    |--------------------------------------------------------------------------
+-    |
+-    | This is the role_user table used by Entrust to save assigned roles to the
+-    | database.
+-    |
+-    */
+-    'role_user_table' => 'role_user',
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | User Foreign key on Entrust's role_user Table (Pivot)
+-    |--------------------------------------------------------------------------
+-    */
+-    'user_foreign_key' => 'user_id',
+-
+-    /*
+-    |--------------------------------------------------------------------------
+-    | Role Foreign key on Entrust's role_user Table (Pivot)
+-    |--------------------------------------------------------------------------
+-    */
+-    'role_foreign_key' => 'role_id',
+-
+-];
+diff --git a/database/factories/ModelFactory.php b/database/factories/ModelFactory.php
+index 4498b48..53b8aca 100644
+--- a/database/factories/ModelFactory.php
++++ b/database/factories/ModelFactory.php
+@@ -21,6 +21,10 @@ $factory->define(Vanguard\User::class, function (Faker\Generator $faker, array $
+         ? $attrs['country_id']
+         : $faker->randomElement(Country::pluck('id')->toArray());
+ 
++    $roleId = isset($attrs['role_id'])
++        ? $attrs['role_id']
++        : factory(\Vanguard\Role::class)->create()->id;
++
+     return [
+         'email' => $faker->email,
+         'password' => bcrypt(str_random(10)),
+@@ -30,6 +34,7 @@ $factory->define(Vanguard\User::class, function (Faker\Generator $faker, array $
+         'avatar' => null,
+         'address' => $faker->address,
+         'country_id' => $countryId,
++        'role_id' => $roleId,
+         'status' => UserStatus::ACTIVE,
+         'birthday' => $faker->date()
+     ];
+diff --git a/database/migrations/2015_08_25_172600_create_settings_table.php b/database/migrations/2015_08_25_172600_create_settings_table.php
+index 401706a..397ad9f 100644
+--- a/database/migrations/2015_08_25_172600_create_settings_table.php
++++ b/database/migrations/2015_08_25_172600_create_settings_table.php
+@@ -7,37 +7,36 @@ use Illuminate\Support\Facades\Config;
+ 
+ class CreateSettingsTable extends Migration
+ {
+-	public function __construct()
+-	{
+-		if (version_compare(Application::VERSION, '5.0', '>=')) {
+-			$this->tablename = Config::get('settings.table');
+-		} else {
+-			$this->tablename = Config::get('anlutro/l4-settings::table');
+-		}
+-	}
++    public function __construct()
++    {
++        if (version_compare(Application::VERSION, '5.0', '>=')) {
++            $this->tablename = Config::get('settings.table');
++        } else {
++            $this->tablename = Config::get('anlutro/l4-settings::table');
++        }
++    }
+ 
+-	/**
+-	 * Run the migrations.
+-	 *
+-	 * @return void
+-	 */
+-	public function up()
+-	{
+-		Schema::create($this->tablename, function(Blueprint $table)
+-		{
+-			$table->increments('id');
+-			$table->string('key')->index();
+-			$table->text('value');
+-		});
+-	}
++    /**
++     * Run the migrations.
++     *
++     * @return void
++     */
++    public function up()
++    {
++        Schema::create($this->tablename, function (Blueprint $table) {
++            $table->increments('id');
++            $table->string('key')->index();
++            $table->text('value');
++        });
++    }
+ 
+-	/**
+-	 * Reverse the migrations.
+-	 *
+-	 * @return void
+-	 */
+-	public function down()
+-	{
+-		Schema::drop($this->tablename);
+-	}
++    /**
++     * Reverse the migrations.
++     *
++     * @return void
++     */
++    public function down()
++    {
++        Schema::drop($this->tablename);
++    }
+ }
+diff --git a/database/migrations/2015_09_19_191655_setup_countries_table.php b/database/migrations/2015_09_19_191655_setup_countries_table.php
+index 9da3c9c..33f7d0d 100644
+--- a/database/migrations/2015_09_19_191655_setup_countries_table.php
++++ b/database/migrations/2015_09_19_191655_setup_countries_table.php
+@@ -3,46 +3,45 @@
+ use Illuminate\Database\Migrations\Migration;
+ use Illuminate\Database\Schema\Blueprint;
+ 
+-class SetupCountriesTable extends Migration {
++class SetupCountriesTable extends Migration
++{
+ 
+-	/**
+-	 * Run the migrations.
+-	 *
+-	 * @return  void
+-	 */
+-	public function up()
+-	{
+-		// Creates the users table
+-		Schema::create('countries', function(Blueprint $table)
+-		{
+-		    $table->increments('id');
+-		    $table->string('capital', 255)->nullable();
+-		    $table->string('citizenship', 255)->nullable();
+-		    $table->string('country_code', 3)->default('');
+-		    $table->string('currency', 255)->nullable();
+-		    $table->string('currency_code', 255)->nullable();
+-		    $table->string('currency_sub_unit', 255)->nullable();
+-		    $table->string('currency_symbol', 3)->nullable();
+-		    $table->string('full_name', 255)->nullable();
+-		    $table->string('iso_3166_2', 2)->default('');
+-		    $table->string('iso_3166_3', 3)->default('');
+-		    $table->string('name', 255)->default('');
+-		    $table->string('region_code', 3)->default('');
+-		    $table->string('sub_region_code', 3)->default('');
+-		    $table->boolean('eea')->default(0);
+-		    $table->string('calling_code', 3)->nullable();
+-		    $table->string('flag', 6)->nullable();
+-		});
+-	}
+-
+-	/**
+-	 * Reverse the migrations.
+-	 *
+-	 * @return  void
+-	 */
+-	public function down()
+-	{
+-		Schema::drop('countries');
+-	}
++    /**
++     * Run the migrations.
++     *
++     * @return  void
++     */
++    public function up()
++    {
++        // Creates the users table
++        Schema::create('countries', function (Blueprint $table) {
++            $table->increments('id');
++            $table->string('capital', 255)->nullable();
++            $table->string('citizenship', 255)->nullable();
++            $table->string('country_code', 3)->default('');
++            $table->string('currency', 255)->nullable();
++            $table->string('currency_code', 255)->nullable();
++            $table->string('currency_sub_unit', 255)->nullable();
++            $table->string('currency_symbol', 3)->nullable();
++            $table->string('full_name', 255)->nullable();
++            $table->string('iso_3166_2', 2)->default('');
++            $table->string('iso_3166_3', 3)->default('');
++            $table->string('name', 255)->default('');
++            $table->string('region_code', 3)->default('');
++            $table->string('sub_region_code', 3)->default('');
++            $table->boolean('eea')->default(0);
++            $table->string('calling_code', 3)->nullable();
++            $table->string('flag', 6)->nullable();
++        });
++    }
+ 
++    /**
++     * Reverse the migrations.
++     *
++     * @return  void
++     */
++    public function down()
++    {
++        Schema::drop('countries');
++    }
+ }
+diff --git a/database/migrations/2015_10_10_170827_create_users_table.php b/database/migrations/2015_10_10_170827_create_users_table.php
+index 816b1e6..a891803 100644
+--- a/database/migrations/2015_10_10_170827_create_users_table.php
++++ b/database/migrations/2015_10_10_170827_create_users_table.php
+@@ -12,8 +12,7 @@ class CreateUsersTable extends Migration
+      */
+     public function up()
+     {
+-        Schema::create('users', function(Blueprint $table)
+-        {
++        Schema::create('users', function (Blueprint $table) {
+             $table->increments('id');
+             $table->string('email')->unique();
+             $table->string('username')->nullable();
+@@ -24,6 +23,7 @@ class CreateUsersTable extends Migration
+             $table->string('avatar')->nullable();
+             $table->string('address')->default('');
+             $table->unsignedInteger('country_id')->nullable();
++            $table->unsignedInteger('role_id');
+             $table->date('birthday')->nullable();
+             $table->timestamp('last_login')->nullable();
+             $table->string('confirmation_token', 60)->nullable();
+diff --git a/database/migrations/2015_10_10_170911_create_user_social_networks_table.php b/database/migrations/2015_10_10_170911_create_user_social_networks_table.php
+index ded8f68..275160a 100644
+--- a/database/migrations/2015_10_10_170911_create_user_social_networks_table.php
++++ b/database/migrations/2015_10_10_170911_create_user_social_networks_table.php
+@@ -12,7 +12,7 @@ class CreateUserSocialNetworksTable extends Migration
+      */
+     public function up()
+     {
+-        Schema::create('user_social_networks', function(Blueprint $table) {
++        Schema::create('user_social_networks', function (Blueprint $table) {
+             $table->increments('id');
+             $table->unsignedInteger('user_id');
+             $table->string('facebook')->nullable();
+diff --git a/database/migrations/2015_10_10_171049_create_social_login_table.php b/database/migrations/2015_10_10_171049_create_social_login_table.php
+index 5d8bf9d..e2eb0a8 100644
+--- a/database/migrations/2015_10_10_171049_create_social_login_table.php
++++ b/database/migrations/2015_10_10_171049_create_social_login_table.php
+@@ -12,7 +12,7 @@ class CreateSocialLoginTable extends Migration
+      */
+     public function up()
+     {
+-        Schema::create('social_logins', function(Blueprint $table) {
++        Schema::create('social_logins', function (Blueprint $table) {
+             $table->increments('id');
+             $table->unsignedInteger('user_id');
+             $table->string('provider', 50);
+diff --git a/database/migrations/2015_10_10_171734_add_foreign_keys.php b/database/migrations/2015_10_10_171734_add_foreign_keys.php
+deleted file mode 100644
+index b5d2cc1..0000000
+--- a/database/migrations/2015_10_10_171734_add_foreign_keys.php
++++ /dev/null
+@@ -1,56 +0,0 @@
+-<?php
+-
+-use Illuminate\Database\Schema\Blueprint;
+-use Illuminate\Database\Migrations\Migration;
+-
+-class AddForeignKeys extends Migration
+-{
+-    /**
+-     * Run the migrations.
+-     *
+-     * @return void
+-     */
+-    public function up()
+-    {
+-        Schema::table('users', function(Blueprint $table) {
+-            $table->foreign('country_id')
+-                ->references('id')
+-                ->on('countries')
+-                ->onDelete('set null');
+-        });
+-
+-        Schema::table('social_logins', function(Blueprint $table) {
+-            $table->foreign('user_id')
+-                ->references('id')
+-                ->on('users')
+-                ->onDelete('cascade');
+-        });
+-
+-        Schema::table('user_social_networks', function(Blueprint $table) {
+-            $table->foreign('user_id')
+-                ->references('id')
+-                ->on('users')
+-                ->onDelete('cascade');
+-        });
+-    }
+-
+-    /**
+-     * Reverse the migrations.
+-     *
+-     * @return void
+-     */
+-    public function down()
+-    {
+-        Schema::table('users', function(Blueprint $table) {
+-            $table->dropForeign('users_country_id_foreign');
+-        });
+-
+-        Schema::table('social_logins', function(Blueprint $table) {
+-            $table->dropForeign('social_logins_user_id_foreign');
+-        });
+-
+-        Schema::table('user_social_networks', function(Blueprint $table) {
+-            $table->dropForeign('user_social_networks_user_id_foreign');
+-        });
+-    }
+-}
+diff --git a/database/migrations/2015_12_19_191656_charify_countries_table.php b/database/migrations/2015_12_19_191656_charify_countries_table.php
+deleted file mode 100644
+index afa2b64..0000000
+--- a/database/migrations/2015_12_19_191656_charify_countries_table.php
++++ /dev/null
+@@ -1,42 +0,0 @@
+-<?php
+-
+-use Illuminate\Database\Migrations\Migration;
+-
+-class CharifyCountriesTable extends Migration {
+-
+-	/**
+-	 * Run the migrations.
+-	 *
+-	 * @return  void
+-	 */
+-	public function up()
+-	{
+-//            Schema::table(\Config::get('countries.table_name'), function($table)
+-//            {
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY country_code CHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY iso_3166_2 CHAR(2) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY iso_3166_3 CHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY region_code CHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY sub_region_code CHAR(3) NOT NULL DEFAULT ''");
+-//            });
+-    }
+-	
+-
+-	/**
+-	 * Reverse the migrations.
+-	 *
+-	 * @return  void
+-	 */
+-	public function down()
+-	{
+-//            Schema::table(\Config::get('countries.table_name'), function($table)
+-//            {
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY country_code VARCHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY iso_3166_2 VARCHAR(2) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY iso_3166_3 VARCHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY region_code VARCHAR(3) NOT NULL DEFAULT ''");
+-//                DB::statement("ALTER TABLE " . DB::getTablePrefix() . \Config::get('countries.table_name') . " MODIFY sub_region_code VARCHAR(3) NOT NULL DEFAULT ''");
+-//            });
+-	}
+-
+-}
+diff --git a/database/migrations/2015_12_24_080704_entrust_setup_tables.php b/database/migrations/2015_12_24_080704_entrust_setup_tables.php
+deleted file mode 100644
+index 8ec3ee1..0000000
+--- a/database/migrations/2015_12_24_080704_entrust_setup_tables.php
++++ /dev/null
+@@ -1,73 +0,0 @@
+-<?php
+-use Illuminate\Database\Migrations\Migration;
+-use Illuminate\Database\Schema\Blueprint;
+-
+-class EntrustSetupTables extends Migration
+-{
+-    /**
+-     * Run the migrations.
+-     *
+-     * @return  void
+-     */
+-    public function up()
+-    {
+-        // Create table for storing roles
+-        Schema::create('roles', function (Blueprint $table) {
+-            $table->increments('id');
+-            $table->string('name')->unique();
+-            $table->string('display_name')->nullable();
+-            $table->string('description')->nullable();
+-            $table->boolean('removable')->default(true);
+-            $table->timestamps();
+-        });
+-
+-        // Create table for associating roles to users (Many-to-Many)
+-        Schema::create('role_user', function (Blueprint $table) {
+-            $table->integer('user_id')->unsigned();
+-            $table->integer('role_id')->unsigned();
+-
+-            $table->foreign('user_id')->references('id')->on('users')
+-                ->onUpdate('cascade')->onDelete('cascade');
+-            $table->foreign('role_id')->references('id')->on('roles')
+-                ->onUpdate('cascade')->onDelete('cascade');
+-
+-            $table->primary(['user_id', 'role_id']);
+-        });
+-
+-        // Create table for storing permissions
+-        Schema::create('permissions', function (Blueprint $table) {
+-            $table->increments('id');
+-            $table->string('name')->unique();
+-            $table->string('display_name')->nullable();
+-            $table->string('description')->nullable();
+-            $table->boolean('removable')->default(true);
+-            $table->timestamps();
+-        });
+-
+-        // Create table for associating permissions to roles (Many-to-Many)
+-        Schema::create('permission_role', function (Blueprint $table) {
+-            $table->integer('permission_id')->unsigned();
+-            $table->integer('role_id')->unsigned();
+-
+-            $table->foreign('permission_id')->references('id')->on('permissions')
+-                ->onUpdate('cascade')->onDelete('cascade');
+-            $table->foreign('role_id')->references('id')->on('roles')
+-                ->onUpdate('cascade')->onDelete('cascade');
+-
+-            $table->primary(['permission_id', 'role_id']);
+-        });
+-    }
+-
+-    /**
+-     * Reverse the migrations.
+-     *
+-     * @return  void
+-     */
+-    public function down()
+-    {
+-        Schema::drop('permission_role');
+-        Schema::drop('permissions');
+-        Schema::drop('role_user');
+-        Schema::drop('roles');
+-    }
+-}
+diff --git a/database/migrations/2015_12_24_080704_setup_authorization_tables.php b/database/migrations/2015_12_24_080704_setup_authorization_tables.php
+new file mode 100644
+index 0000000..6f6254e
+--- /dev/null
++++ b/database/migrations/2015_12_24_080704_setup_authorization_tables.php
+@@ -0,0 +1,59 @@
++<?php
++use Illuminate\Database\Migrations\Migration;
++use Illuminate\Database\Schema\Blueprint;
++
++class SetupAuthorizationTables extends Migration
++{
++    /**
++     * Run the migrations.
++     *
++     * @return  void
++     */
++    public function up()
++    {
++        // Create table for storing roles
++        Schema::create('roles', function (Blueprint $table) {
++            $table->increments('id');
++            $table->string('name')->unique();
++            $table->string('display_name')->nullable();
++            $table->string('description')->nullable();
++            $table->boolean('removable')->default(true);
++            $table->timestamps();
++        });
++
++        // Create table for storing permissions
++        Schema::create('permissions', function (Blueprint $table) {
++            $table->increments('id');
++            $table->string('name')->unique();
++            $table->string('display_name')->nullable();
++            $table->string('description')->nullable();
++            $table->boolean('removable')->default(true);
++            $table->timestamps();
++        });
++
++        // Create table for associating permissions to roles (Many-to-Many)
++        Schema::create('permission_role', function (Blueprint $table) {
++            $table->integer('permission_id')->unsigned();
++            $table->integer('role_id')->unsigned();
++
++            $table->foreign('permission_id')->references('id')->on('permissions')
++                ->onUpdate('cascade')->onDelete('cascade');
++            $table->foreign('role_id')->references('id')->on('roles')
++                ->onUpdate('cascade')->onDelete('cascade');
++
++            $table->primary(['permission_id', 'role_id']);
++        });
++    }
++
++    /**
++     * Reverse the migrations.
++     *
++     * @return  void
++     */
++    public function down()
++    {
++        Schema::drop('permission_role');
++        Schema::drop('permissions');
++        Schema::drop('roles');
++    }
++}
+diff --git a/database/migrations/2015_12_29_224252_create_user_activity_table.php b/database/migrations/2015_12_29_224252_create_user_activity_table.php
+index e6adb1a..d0c4571 100644
+--- a/database/migrations/2015_12_29_224252_create_user_activity_table.php
++++ b/database/migrations/2015_12_29_224252_create_user_activity_table.php
+@@ -21,7 +21,7 @@ class CreateUserActivityTable extends Migration
+             $table->timestamp('created_at');
+         });
+ 
+-        Schema::table('user_activity', function(Blueprint $table) {
++        Schema::table('user_activity', function (Blueprint $table) {
+             $table->foreign('user_id')
+                 ->references('id')
+                 ->on('users')
+@@ -36,7 +36,7 @@ class CreateUserActivityTable extends Migration
+      */
+     public function down()
+     {
+-        Schema::table('user_activity', function(Blueprint $table) {
++        Schema::table('user_activity', function (Blueprint $table) {
+             $table->dropForeign('user_activity_user_id_foreign');
+         });
+ 
+diff --git a/database/migrations/2015_12_30_171734_add_foreign_keys.php b/database/migrations/2015_12_30_171734_add_foreign_keys.php
+new file mode 100644
+index 0000000..f537c2d
+--- /dev/null
++++ b/database/migrations/2015_12_30_171734_add_foreign_keys.php
+@@ -0,0 +1,61 @@
++<?php
++
++use Illuminate\Database\Schema\Blueprint;
++use Illuminate\Database\Migrations\Migration;
++
++class AddForeignKeys extends Migration
++{
++    /**
++     * Run the migrations.
++     *
++     * @return void
++     */
++    public function up()
++    {
++        Schema::table('users', function (Blueprint $table) {
++            $table->foreign('country_id')
++                ->references('id')
++                ->on('countries')
++                ->onDelete('set null');
++
++            $table->foreign('role_id')
++                ->references('id')
++                ->on('roles');
++        });
++
++        Schema::table('social_logins', function (Blueprint $table) {
++            $table->foreign('user_id')
++                ->references('id')
++                ->on('users')
++                ->onDelete('cascade');
++        });
++
++        Schema::table('user_social_networks', function (Blueprint $table) {
++            $table->foreign('user_id')
++                ->references('id')
++                ->on('users')
++                ->onDelete('cascade');
++        });
++    }
++
++    /**
++     * Reverse the migrations.
++     *
++     * @return void
++     */
++    public function down()
++    {
++        Schema::table('users', function (Blueprint $table) {
++            $table->dropForeign('users_country_id_foreign');
++            $table->dropForeign('users_role_id_foreign');
++        });
++
++        Schema::table('social_logins', function (Blueprint $table) {
++            $table->dropForeign('social_logins_user_id_foreign');
++        });
++
++        Schema::table('user_social_networks', function (Blueprint $table) {
++            $table->dropForeign('user_social_networks_user_id_foreign');
++        });
++    }
++}
+diff --git a/database/seeds/UserSeeder.php b/database/seeds/UserSeeder.php
+index 27dda8a..d5b6230 100644
+--- a/database/seeds/UserSeeder.php
++++ b/database/seeds/UserSeeder.php
+@@ -14,6 +14,8 @@ class UserSeeder extends Seeder
+      */
+     public function run()
+     {
++        $admin = Role::where('name', 'Admin')->first();
++
+         $user = User::create([
+             'first_name' => 'Vanguard',
+             'email' => 'admin@example.com',
+@@ -21,12 +23,10 @@ class UserSeeder extends Seeder
+             'password' => 'admin123',
+             'avatar' => null,
+             'country_id' => null,
++            'role_id' => $admin->id,
+             'status' => UserStatus::ACTIVE
+         ]);
+ 
+-        $admin = Role::where('name', 'Admin')->first();
+-
+-        $user->attachRole($admin);
+         $user->socialNetworks()->create([]);
+     }
+ }
+diff --git a/resources/views/user/partials/details.blade.php b/resources/views/user/partials/details.blade.php
+index 7ffb050..5066b50 100644
+--- a/resources/views/user/partials/details.blade.php
++++ b/resources/views/user/partials/details.blade.php
+@@ -5,7 +5,7 @@
+             <div class="col-md-6">
+                 <div class="form-group">
+                     <label for="first_name">@lang('app.role')</label>
+-                    {!! Form::select('role', $roles, $edit ? $user->roles->first()->id : '',
++                    {!! Form::select('role', $roles, $edit ? $user->role->id : '',
+                         ['class' => 'form-control', 'id' => 'role', $profile ? 'disabled' : '']) !!}
+                 </div>
+                 <div class="form-group">
+diff --git a/storage/settings.json b/storage/settings.json
+index ae9856f..fbb3389 100644
+--- a/storage/settings.json
++++ b/storage/settings.json
+@@ -1 +1 @@
+-{"remember_me":true,"notifications_signup_email":true,"forgot_password":true,"login_reset_token_lifetime":"30","throttle_enabled":true,"throttle_attempts":10,"throttle_lockout_time":2,"reg_enabled":false,"reg_email_confirmation":false,"2fa":{"enabled":true},"app_name":"foo","registration":{"captcha":{"enabled":true}},"tos":"1","captcha":{"enabled":false}}
+\ No newline at end of file
++{"remember_me":true,"notifications_signup_email":true,"forgot_password":true,"login_reset_token_lifetime":"30","throttle_enabled":true,"throttle_attempts":10,"throttle_lockout_time":2,"reg_enabled":false,"reg_email_confirmation":false,"2fa":{"enabled":true},"app_name":"foo","registration":{"captcha":{"enabled":false}},"tos":"1","captcha":{"enabled":false}}
+\ No newline at end of file
+diff --git a/tests/Feature/FunctionalTestCase.php b/tests/Feature/FunctionalTestCase.php
+index 21d4a31..58caf0d 100644
+--- a/tests/Feature/FunctionalTestCase.php
++++ b/tests/Feature/FunctionalTestCase.php
+@@ -125,7 +125,7 @@ class FunctionalTestCase extends TestCase
+     protected function makeSuperUser(User $user = null)
+     {
+         $user = m::mock($user ?: User::class)->makePartial();
+-        $user->shouldReceive('can')->andReturn(true);
++        $user->shouldReceive('hasPermission')->andReturn(true);
+ 
+         return $user;
+     }
+@@ -138,7 +138,7 @@ class FunctionalTestCase extends TestCase
+     public function setRoleForUser(User $user, $role)
+     {
+         $role = Role::where('name', $role)->first();
+-        $user->roles()->attach($role);
++        $user->setRole($role);
+ 
+         return $user;
+     }
+diff --git a/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php b/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
+index e676f84..6eee21d 100644
+--- a/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
++++ b/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
+@@ -199,15 +199,23 @@ class AuthControllerTest extends FunctionalTestCase
+             'registration.captcha.enabled' => false
+         ]);
+ 
+-        $admin1 = factory(User::class)->create(['email' => 'john.doe@test.com']);
+-        $admin2 = factory(User::class)->create(['email' => 'jane.doe@test.com']);
+-        $user = factory(User::class)->create(['email' => 'user.doe@test.com']);
++        $adminRole = Role::where('name', 'Admin')->first();
++        $userRole = Role::where('name', 'User')->first();
+ 
+-        $role = Role::where('name', 'Admin')->first();
+-        $role->users()->attach([$admin1->id, $admin2->id]);
++        $admin1 = factory(User::class)->create([
++            'email' => 'john.doe@test.com',
++            'role_id' => $adminRole->id
++        ]);
++
++        $admin2 = factory(User::class)->create([
++            'email' => 'jane.doe@test.com',
++            'role_id' => $adminRole->id
++        ]);
+ 
+-        $role = Role::where('name', 'User')->first();
+-        $role->users()->attach($user->id);
++        $user = factory(User::class)->create([
++            'email' => 'user.doe@test.com',
++            'role_id' => $userRole->id
++        ]);
+ 
+         $data = $this->getRegistrationFormStubData();
+         $this->registerUser($data);
+diff --git a/tests/Feature/Http/Controllers/PermissionsControllerTest.php b/tests/Feature/Http/Controllers/PermissionsControllerTest.php
+index 415bba6..dca1a50 100644
+--- a/tests/Feature/Http/Controllers/PermissionsControllerTest.php
++++ b/tests/Feature/Http/Controllers/PermissionsControllerTest.php
+@@ -31,15 +31,15 @@ class PermissionsControllerTest extends FunctionalTestCase
+             ->seeInTable('table', $permission->display_name, 1, 1);
+ 
+         $this->assertEquals(1, $this->crawler->filter('table tbody tr')->count());
+-        $this->assertEquals(2, $this->crawler->filter('table tbody tr:nth-child(1) > td')->count());
++        $this->assertEquals(3, $this->crawler->filter('table tbody tr:nth-child(1) > td')->count());
+     }
+ 
+     public function test_permission_list_with_roles()
+     {
+         $permission = factory(Permission::class)->create();
+-        $role = factory(Role::class)->create();
++        $role = Role::first();
+ 
+-        $role->perms()->attach($permission->id);
++        $role->permissions()->attach($permission->id);
+ 
+         $this->visit('permission')
+             ->seeInTable('table', $permission->display_name, 1, 1)
+@@ -56,8 +56,6 @@ class PermissionsControllerTest extends FunctionalTestCase
+         $permission = factory(Permission::class)->create();
+         $role = factory(Role::class)->create();
+ 
+-        $role->perms()->attach($permission->id);
+-
+         $this->visit('permission')
+             ->submitForm('Save Permissions', [
+                 'roles' => [
+@@ -83,8 +81,8 @@ class PermissionsControllerTest extends FunctionalTestCase
+         $role = factory(Role::class)->create();
+         $role2 = factory(Role::class)->create();
+ 
+-        $role->perms()->attach($permission->id);
+-        $role2->perms()->attach($permission2->id);
++        $role->permissions()->attach($permission->id);
++        $role2->permissions()->attach($permission2->id);
+ 
+         $this->visit('permission');
+ 
+diff --git a/tests/Feature/Http/Controllers/ProfileControllerTest.php b/tests/Feature/Http/Controllers/ProfileControllerTest.php
+index c02cf7b..f7b7da7 100644
+--- a/tests/Feature/Http/Controllers/ProfileControllerTest.php
++++ b/tests/Feature/Http/Controllers/ProfileControllerTest.php
+@@ -57,10 +57,10 @@ class ProfileControllerTest extends FunctionalTestCase
+             ->submitForm('Update Details', $extendedData)
+             ->seePageIs('profile')
+             ->see('Profile updated successfully.')
+-            ->seeInDatabase('users', $data + ['id' => $this->user->id, 'status' => UserStatus::ACTIVE])
+-            ->dontSeeInDatabase('role_user', [
+-                'user_id' => $this->user->id,
+-                'role_id' => $extendedData['role']
++            ->seeInDatabase('users', $data + [
++                'id' => $this->user->id,
++                'status' => UserStatus::ACTIVE,
++                'role_id' => $this->user->role_id
+             ]);
+     }
+ 
+diff --git a/tests/Feature/Http/Controllers/RolesControllerTest.php b/tests/Feature/Http/Controllers/RolesControllerTest.php
+index fec51ef..6ee121f 100644
+--- a/tests/Feature/Http/Controllers/RolesControllerTest.php
++++ b/tests/Feature/Http/Controllers/RolesControllerTest.php
+@@ -13,9 +13,6 @@ class RolesControllerTest extends FunctionalTestCase
+ 
+     protected $seed = false;
+ 
+-    /**
+-     * @before
+-     */
+     public function setUp()
+     {
+         parent::setUp();
+@@ -28,7 +25,12 @@ class RolesControllerTest extends FunctionalTestCase
+         $role1 = factory(Role::class)->create(['removable' => true]);
+         $role2 = factory(Role::class)->create(['removable' => false]);
+ 
+-        $this->user->roles()->attach($role2->id);
++        $this->user->setRole($role2);
++
++        // Since there will be one more role created while super
++        // user is created, we want to make sure that only those
++        // two roles exist now.
++        Role::whereNotIn('id', [$role1->id, $role2->id])->delete();
+ 
+         $this->visit('role')
+             ->seeInTable('table', $role1->name, 1, 1)
+@@ -57,10 +59,12 @@ class RolesControllerTest extends FunctionalTestCase
+ 
+     public function test_edit_role()
+     {
+-        $role = factory(Role::class)->create();
++        $role = factory(Role::class)->create([
++            'name' => 'foo'
++        ]);
+ 
+         $this->visit('role')
+-            ->clickOn('a[title="Edit Role"]')
++            ->clickOn('table tbody tr:nth-child(2) > td a[title="Edit Role"]')
+             ->seePageIs("role/{$role->id}/edit")
+             ->seeInField('name', $role->name)
+             ->seeInField('display_name', $role->display_name)
+@@ -97,9 +101,9 @@ class RolesControllerTest extends FunctionalTestCase
+         $this->assertTrue($user->hasRole($role->name));
+ 
+         $this->delete(route('role.delete', $role->id))
+-            ->seeInDatabase('role_user', [
++            ->seeInDatabase('users', [
+                 'role_id' => $userRole->id,
+-                'user_id' => $user->id
++                'id' => $user->id
+             ]);
+ 
+         $user = $user->fresh();
+diff --git a/tests/Feature/Http/Controllers/UsersControllerTest.php b/tests/Feature/Http/Controllers/UsersControllerTest.php
+index d6e5eac..afeb1cd 100644
+--- a/tests/Feature/Http/Controllers/UsersControllerTest.php
++++ b/tests/Feature/Http/Controllers/UsersControllerTest.php
+@@ -193,10 +193,9 @@ class UsersControllerTest extends FunctionalTestCase
+ 
+         $this->submitForm('update-details-btn', $data);
+ 
+-        $expected = array_except($data, 'role') + ['id' => $user->id];
++        $expected = array_except($data, 'role') + ['id' => $user->id, 'role_id' => $data['role']];
+ 
+         $this->seeInDatabase('users', $expected)
+-            ->seeInDatabase('role_user', ['user_id' => $user->id, 'role_id' => $data['role']])
+             ->seePageIs("user/{$user->id}/edit")
+             ->see('User updated successfully.');
+     }
+diff --git a/tests/Feature/Repositories/Role/EloquentRoleTest.php b/tests/Feature/Repositories/Role/EloquentRoleTest.php
+index 26add27..cbc833c 100644
+--- a/tests/Feature/Repositories/Role/EloquentRoleTest.php
++++ b/tests/Feature/Repositories/Role/EloquentRoleTest.php
+@@ -37,7 +37,9 @@ class EloquentRoleTest extends FunctionalTestCase
+     public function test_getAllWithUsersCount()
+     {
+         $roles = factory(Role::class)->times(4)->create();
+-        $users = factory(User::class)->times(3)->create();
++        $users = factory(User::class)->times(3)->create([
++            'role_id' => $roles[0]->id
++        ]);
+ 
+         $this->setRoleForUser($users[0], $roles[0]->name);
+         $this->setRoleForUser($users[1], $roles[0]->name);
+diff --git a/tests/Feature/Repositories/User/EloquentUserTest.php b/tests/Feature/Repositories/User/EloquentUserTest.php
+index 9657392..bc27242 100644
+--- a/tests/Feature/Repositories/User/EloquentUserTest.php
++++ b/tests/Feature/Repositories/User/EloquentUserTest.php
+@@ -322,13 +322,16 @@ class EloquentUserTest extends FunctionalTestCase
+ 
+     public function test_getUsersWithRole()
+     {
+-        $admins = factory(User::class)->times(2)->create();
+-        $role = Role::where('name', 'Admin')->first();
+-        $role->users()->attach($admins->pluck('id')->toArray());
++        $adminRole = Role::where('name', 'Admin')->first();
++        $userRole = Role::where('name', 'User')->first();
+ 
+-        $user = factory(User::class)->create();
+-        $role = Role::where('name', 'User')->first();
+-        $role->users()->attach($user->id);
++        $admins = factory(User::class)->times(2)->create([
++            'role_id' => $adminRole->id
++        ]);
++
++        $user = factory(User::class)->create([
++            'role_id' => $userRole->id
++        ]);
+ 
+         $result = $this->repo->getUsersWithRole('Admin');
+         $this->assertEquals(2, $result->count());
+@@ -347,9 +350,9 @@ class EloquentUserTest extends FunctionalTestCase
+ 
+         $this->repo->setRole($user->id, $role->id);
+ 
+-        $this->seeInDatabase('role_user', [
++        $this->seeInDatabase('users', [
+            'role_id' => $role->id,
+-            'user_id' => $user->id
++           'id' => $user->id
+         ]);
+     }
+ 
+@@ -358,22 +361,27 @@ class EloquentUserTest extends FunctionalTestCase
+         $role = Role::where('name', 'User')->first();
+         $roleAdmin = Role::where('name', 'Admin')->first();
+ 
+-        $user1 = factory(User::class)->create();
+-        $user2 = factory(User::class)->create();
++        $user1 = factory(User::class)->create([
++            'role_id' => $role->id
++        ]);
++
++        $user2 = factory(User::class)->create([
++            'role_id' => $role->id
++        ]);
+ 
+         $this->setRoleForUser($user1, 'User');
+         $this->setRoleForUser($user2, 'User');
+ 
+         $this->repo->switchRolesForUsers($role->id, $roleAdmin->id);
+ 
+-        $this->seeInDatabase('role_user', [
++        $this->seeInDatabase('users', [
+             'role_id' => $roleAdmin->id,
+-            'user_id' => $user1->id
++            'id' => $user1->id
+         ]);
+ 
+-        $this->seeInDatabase('role_user', [
++        $this->seeInDatabase('users', [
+             'role_id' => $roleAdmin->id,
+-            'user_id' => $user2->id
++            'id' => $user2->id
+         ]);
+     }
+ }

@@ -1,0 +1,255 @@
+@font-face {
+  font-family: "Ahron";
+  src: url("./../ahronbd.ttf")
+}
+
+#homepage{
+  position: relative;
+  top: -40px;
+  text-align: center;
+  background-color: #000;
+
+  .mob {
+    color: #FFF;
+    margin-top: 120px;
+  }
+
+  .vs-center-wrap--img {
+    display: block;
+
+    .vs-center--img {
+      height: 100%;
+      display: block;
+
+      .vs-a--img {
+        display: block;
+        height: 100%;
+
+        .vs--img {
+          max-height: 100%;
+          width: auto;
+          max-width: 100%;
+        }
+      }
+    }
+  }
+
+  .dots-wrapper {
+    position: fixed;
+    z-index: 1;
+    display: flex;
+    height: 100%;
+    align-items: center;
+
+    .dots {
+      margin: 0;
+      list-style-type: none;
+      padding: 0 15px;
+
+      li {
+        height: 10px;
+        width: 10px;
+        background: #ccc;
+        border-radius: 50%;
+        cursor: pointer;
+        position: relative;
+        margin: 7px 0;
+
+        a {
+          position: absolute;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          left: 0;
+        }
+
+        &:hover {
+          background:#aaa;
+        }
+
+        &.active {
+          background:#066CB6;
+        }
+      }
+    }
+  }
+
+
+  .buttons{
+    position: fixed;
+    top: 90px;
+    right: 20px;
+    text-align: center;
+    z-index: 100;
+
+    a {
+      margin-left: 15px;
+      cursor: pointer;
+
+      img {
+        width: 20px;
+      }
+
+      &:last-child img{
+        height: 15px;
+      }
+    }
+  }
+
+
+  .home-frame {
+    color: rgb(52,158,219);
+
+    .aharoni {
+      font-family: 'Ahron';
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 54px;
+    }
+
+    h3 {
+      font-size: 36px;
+    }
+
+    a:hover {
+      color: inherit;
+      text-decoration: inherit;
+    }
+
+    img {
+      padding: 5px 0;
+    }
+
+    .img-wrapper {
+      position: relative;
+
+      .on-img-text {
+        position: absolute;
+        padding: 5px;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-weight: bold;
+        font-size: 1.3em;
+        color: #000;
+        background-color: rgba(255, 255, 255, 0.6);
+        text-align: center;
+      }
+
+      .on-img-text--bottom {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        transform: initial;
+      }
+    }
+
+    .txt--left {
+      text-align: left;
+    }
+
+    .txt--white {
+      color: #FFF;
+      font-weight: bold;
+    }
+
+    .home-row {
+      margin: auto;
+      width: 90%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      .home-cell {
+        width: 50%;
+        padding: 20px;
+      }
+      .home--sm {
+        width: 40%;
+      }
+      .home--lg {
+        width: 60%;
+      }
+    }
+  }
+
+
+}
+
+@media all and (max-width: 1680px) {
+  #homepage {
+    .home-frame {
+      h1 {
+        font-size: 46px;
+      }
+
+      h3 {
+        font-size: 30px;
+      }
+    }
+  }
+}
+
+@media all and (max-width: 1366px) {
+  #homepage {
+    .home-frame {
+      h1 {
+        font-size: 36px;
+      }
+
+      h3 {
+        font-size: 24px;
+      }
+    }
+  }
+}
+
+@media all and (max-width: 1024px) {
+  #homepage {
+    .home-frame {
+      h1 {
+        font-size: 27px;
+      }
+
+      h3 {
+        font-size: 18px;
+      }
+    }
+  }
+}
+
+@media all and (max-width: 768px) {
+  #homepage {
+    top: -80px;
+
+    .img-wrapper {
+      width: 49%;
+      display: inline-block;
+    }
+
+    .home-row {
+      flex-wrap: wrap;
+
+      .home-cell, .home--sm, .home--lg {
+        width: 100% !important;
+      }
+    }
+  }
+}
+
+@media all and (max-width: 767px) {
+  #homepage {
+    .vs-center-wrap--img {
+      .vs-center--img {
+        .vs-a--img {
+          display: flex;
+          flex-flow: column;
+          justify-content: center;
+        }
+      }
+    }
+  }
+}

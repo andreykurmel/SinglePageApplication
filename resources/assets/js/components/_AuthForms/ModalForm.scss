@@ -1,0 +1,112 @@
+
+.modal-form{
+  background-color: white;
+  position: fixed;
+  z-index: 1500;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 0;
+  padding: 15px 15px 0 15px;
+  width: 530px;
+  font-size: 14px;
+
+
+  .btn-group-lg > .btn, .btn-lg {
+    padding: 10px 16px;
+    font-size: 18px;
+    line-height: 1.3333333;
+    border-radius: 6px;
+    height: 46px;
+  }
+
+  .col-xs-12 {
+    position: relative;
+    min-height: 1px;
+    padding-right: 15px;
+    padding-left: 15px;
+    float: left;
+    width: 100%;
+  }
+
+  .remind {
+    color: #1fa67b;
+    font-size: 24px;
+    text-align: center;
+    font-weight: bold;
+    padding-bottom: 20px;
+    margin: 10px 0 30px 0;
+  }
+
+  .tablda_logo {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+
+  .form-wrap {
+    padding: 30px;
+    border: 1px solid #CCC;
+    border-radius: 4px;
+
+    .input-icon {
+      position: relative;
+
+      input {
+        padding-left: 30px;
+      }
+      i {
+        position: absolute;
+        padding: 10px 0 10px 12px;
+        color: #666;
+      }
+    }
+
+    .password-field {
+      position: relative;
+
+      .forgot {
+        position: absolute;
+        right: 14px;
+        top: 7px;
+        color: #909090;
+      }
+    }
+
+    .remember-row {
+      label {
+        font-weight: normal;
+      }
+      a {
+        float: right;
+        color: #337ab7;
+      }
+    }
+  }
+
+  .divider-wrapper {
+    position: relative;
+
+    .or-divider:before {
+      content: 'OR';
+      position: absolute;
+      bottom: -15px;
+      left: 44%;
+      padding: 5px 10px;
+      font-size: 16px;
+      color: #ccc;
+      background-color: #fff;
+    }
+  }
+
+  .have-acc {
+    text-align: center;
+    a {
+      color: #337ab7;
+    }
+  }
+
+  .footer {
+    text-align: center;
+    font-size: 12px;
+  }
+}

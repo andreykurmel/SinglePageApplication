@@ -1,0 +1,63 @@
+
+.cell-editing {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    left: 0;
+    top: 0;
+    background-color: inherit;
+}
+
+.checkbox-input {
+    margin: 0 !important;
+}
+
+textarea {
+    resize: none;
+    font-size: 1em;
+}
+.textarea-autosize {
+    padding: 0 5px;
+    resize: none;
+    height: 100%;
+    max-height: 100%;
+}
+
+.disabled {
+    cursor: not-allowed !important;
+}
+
+.has-deleter {
+    display: inline-block;
+    position: relative;
+}
+.has-deleter > .img--deleter {
+    display: none;
+    color: #F00;
+    font-size: 1.6em;
+    font-weight: bold;
+    line-height: 0.8em;
+    position: absolute;
+    top: calc(50% - 8px);
+    left: 100%;
+}
+.has-deleter:hover > .img--deleter {
+    display: inline-block;
+}
+.more_elem {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 0 3px;
+    background-color: #FFF;
+    cursor: pointer;
+}
+
+.img_a {
+    height: 100%;
+    margin-right: 10px;
+
+    ._img_preview {
+        height: 100%;
+    }
+}

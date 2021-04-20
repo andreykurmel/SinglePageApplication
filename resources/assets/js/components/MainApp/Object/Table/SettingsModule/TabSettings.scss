@@ -1,0 +1,36 @@
+.tab-settings {
+  position: relative;
+  height: 100%;
+  background-color: #FFF;
+
+  .menu-header {
+    position: absolute;
+    left: -405px;
+    width: 430px;
+    height: 20px;
+    transform-origin: bottom right;
+    transform: rotate(-90deg);
+
+    button {
+      margin-left: 5px;
+      background-color: #CCC;
+      outline: none;
+      &.active {
+        background-color: #FFF;
+      }
+      &:not(.active):hover {
+        color: black;
+      }
+    }
+  }
+
+  .menu-body {
+    position: absolute;
+    left: 32px;
+    right: 5px;
+    top: 5px;
+    bottom: 5px;
+    background-color: #005fa4;
+    border-radius: 5px;
+  }
+}

@@ -1,0 +1,421 @@
+diff --git a/app/Http/Controllers/ProfileController.php b/app/Http/Controllers/ProfileController.php
+index 065073e..ed391eb 100644
+--- a/app/Http/Controllers/ProfileController.php
++++ b/app/Http/Controllers/ProfileController.php
+@@ -67,7 +67,7 @@ class ProfileController extends Controller
+         $edit = true;
+         $roles = $rolesRepo->lists();
+         $socials = $user->socialNetworks;
+-        $countries = $countryRepository->lists()->toArray();
++        $countries = [0 => 'Select a Country'] + $countryRepository->lists()->toArray();
+         $socialLogins = $this->users->getUserSocialLogins($this->theUser->id);
+         $statuses = UserStatus::lists();
+ 
+diff --git a/app/Repositories/User/EloquentUser.php b/app/Repositories/User/EloquentUser.php
+index d452460..1de4a76 100644
+--- a/app/Repositories/User/EloquentUser.php
++++ b/app/Repositories/User/EloquentUser.php
+@@ -117,8 +117,10 @@ class EloquentUser implements UserRepository
+      */
+     public function update($id, array $data)
+     {
+-        if (! array_get($data, 'country_id')) {
+-            $data['country_id'] = null;
++        if (array_has($data, 'country_id')) {
++            $countryId = array_get($data, 'country_id');
++
++            $data['country_id'] = $countryId ?: null;
+         }
+ 
+         return $this->find($id)->update($data);
+diff --git a/composer.json b/composer.json
+index b23e820..5e44f97 100644
+--- a/composer.json
++++ b/composer.json
+@@ -6,7 +6,7 @@
+     "repositories": [
+         {
+             "type": "vcs",
+-            "url": "https://github.com/reganjohnson/laravel-jsvalidation"
++            "url": "https://github.com/loshmis/laravel-jsvalidation"
+         }
+     ],
+     "require": {
+@@ -19,7 +19,6 @@
+         "webpatser/laravel-countries": "^1.4",
+         "paragonie/random_compat": "~1.4",
+         "intervention/image": "^2.3",
+-        "zizaco/entrust": "^1.5",
+         "anlutro/l4-settings": "^0.4.6",
+         "anhskohbo/no-captcha": "2.*"
+     },
+diff --git a/composer.lock b/composer.lock
+index 3f36864..7ed658c 100644
+--- a/composer.lock
++++ b/composer.lock
+@@ -4,8 +4,8 @@
+         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#composer-lock-the-lock-file",
+         "This file is @generated automatically"
+     ],
+-    "hash": "28886666e80391696ff98779af51ef5b",
+-    "content-hash": "6b90a830cb70d373e1526a81415ffb8a",
++    "hash": "eb556caec1eb7feb299153499208c7db",
++    "content-hash": "f5f4b546f350b676e5d347d566c8ba13",
+     "packages": [
+         {
+             "name": "anhskohbo/no-captcha",
+@@ -388,16 +388,16 @@
+         },
+         {
+             "name": "intervention/image",
+-            "version": "2.3.11",
++            "version": "2.3.13",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/Intervention/image.git",
+-                "reference": "e8881fd99b9804b29e02d6d1c2c15ee459335cf1"
++                "reference": "15a517f052ee15d373ffa145c9642d5fec7ddf5c"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/Intervention/image/zipball/e8881fd99b9804b29e02d6d1c2c15ee459335cf1",
+-                "reference": "e8881fd99b9804b29e02d6d1c2c15ee459335cf1",
++                "url": "https://api.github.com/repos/Intervention/image/zipball/15a517f052ee15d373ffa145c9642d5fec7ddf5c",
++                "reference": "15a517f052ee15d373ffa145c9642d5fec7ddf5c",
+                 "shasum": ""
+             },
+             "require": {
+@@ -446,7 +446,7 @@
+                 "thumbnail",
+                 "watermark"
+             ],
+-            "time": "2017-02-04 10:37:19"
++            "time": "2017-04-23 18:45:36"
+         },
+         {
+             "name": "laracasts/presenter",
+@@ -496,16 +496,16 @@
+         },
+         {
+             "name": "laravel/framework",
+-            "version": "v5.4.17",
++            "version": "v5.4.20",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/laravel/framework.git",
+-                "reference": "f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b"
++                "reference": "851aad458bcc904178ded02954d55d36c2c35f8b"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/laravel/framework/zipball/f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b",
+-                "reference": "f7675d59e3863a58ecdff1a5ee1dcd0cff788f4b",
++                "url": "https://api.github.com/repos/laravel/framework/zipball/851aad458bcc904178ded02954d55d36c2c35f8b",
++                "reference": "851aad458bcc904178ded02954d55d36c2c35f8b",
+                 "shasum": ""
+             },
+             "require": {
+@@ -621,20 +621,20 @@
+                 "framework",
+                 "laravel"
+             ],
+-            "time": "2017-04-03 13:07:39"
++            "time": "2017-04-27 13:04:35"
+         },
+         {
+             "name": "laravel/socialite",
+-            "version": "v3.0.4",
++            "version": "v3.0.5",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/laravel/socialite.git",
+-                "reference": "441e0d467319044e4913b1748382d427795416e9"
++                "reference": "2771ab96004b6149d0974f8a469e08c8e54474a5"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/laravel/socialite/zipball/441e0d467319044e4913b1748382d427795416e9",
+-                "reference": "441e0d467319044e4913b1748382d427795416e9",
++                "url": "https://api.github.com/repos/laravel/socialite/zipball/2771ab96004b6149d0974f8a469e08c8e54474a5",
++                "reference": "2771ab96004b6149d0974f8a469e08c8e54474a5",
+                 "shasum": ""
+             },
+             "require": {
+@@ -675,7 +675,7 @@
+                 "laravel",
+                 "oauth"
+             ],
+-            "time": "2017-03-27 19:43:19"
++            "time": "2017-04-20 16:24:07"
+         },
+         {
+             "name": "laravelcollective/html",
+@@ -733,16 +733,16 @@
+         },
+         {
+             "name": "league/flysystem",
+-            "version": "1.0.37",
++            "version": "1.0.39",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/thephpleague/flysystem.git",
+-                "reference": "78b5cc4feb61a882302df4fbaf63b7662e5e4ccd"
++                "reference": "2474325ee924134bb05848663b12531f6f2e9fbe"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/78b5cc4feb61a882302df4fbaf63b7662e5e4ccd",
+-                "reference": "78b5cc4feb61a882302df4fbaf63b7662e5e4ccd",
++                "url": "https://api.github.com/repos/thephpleague/flysystem/zipball/2474325ee924134bb05848663b12531f6f2e9fbe",
++                "reference": "2474325ee924134bb05848663b12531f6f2e9fbe",
+                 "shasum": ""
+             },
+             "require": {
+@@ -764,12 +764,12 @@
+                 "league/flysystem-azure": "Allows you to use Windows Azure Blob storage",
+                 "league/flysystem-cached-adapter": "Flysystem adapter decorator for metadata caching",
+                 "league/flysystem-copy": "Allows you to use Copy.com storage",
+-                "league/flysystem-dropbox": "Allows you to use Dropbox storage",
+                 "league/flysystem-eventable-filesystem": "Allows you to use EventableFilesystem",
+                 "league/flysystem-rackspace": "Allows you to use Rackspace Cloud Files",
+                 "league/flysystem-sftp": "Allows you to use SFTP server storage via phpseclib",
+                 "league/flysystem-webdav": "Allows you to use WebDAV storage",
+-                "league/flysystem-ziparchive": "Allows you to use ZipArchive adapter"
++                "league/flysystem-ziparchive": "Allows you to use ZipArchive adapter",
++                "spatie/flysystem-dropbox": "Allows you to use Dropbox storage"
+             },
+             "type": "library",
+             "extra": {
+@@ -812,7 +812,7 @@
+                 "sftp",
+                 "storage"
+             ],
+-            "time": "2017-03-22 15:43:14"
++            "time": "2017-04-25 15:24:43"
+         },
+         {
+             "name": "league/oauth1-client",
+@@ -1102,16 +1102,16 @@
+         },
+         {
+             "name": "proengsoft/laravel-jsvalidation",
+-            "version": "v1.6.0",
++            "version": "v1.6.1",
+             "source": {
+                 "type": "git",
+-                "url": "https://github.com/reganjohnson/laravel-jsvalidation.git",
+-                "reference": "e93419ce53132f8d3d8ffaf32600a68a25e54ae8"
++                "url": "https://github.com/loshmis/laravel-jsvalidation.git",
++                "reference": "4f4ca141be93b5572536f11ee85b724b79395d20"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/reganjohnson/laravel-jsvalidation/zipball/e93419ce53132f8d3d8ffaf32600a68a25e54ae8",
+-                "reference": "e93419ce53132f8d3d8ffaf32600a68a25e54ae8",
++                "url": "https://api.github.com/repos/loshmis/laravel-jsvalidation/zipball/4f4ca141be93b5572536f11ee85b724b79395d20",
++                "reference": "4f4ca141be93b5572536f11ee85b724b79395d20",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1157,9 +1157,9 @@
+                 "validator"
+             ],
+             "support": {
+-                "source": "https://github.com/reganjohnson/laravel-jsvalidation/tree/v1.6.0"
++                "source": "https://github.com/loshmis/laravel-jsvalidation/tree/master"
+             },
+-            "time": "2017-01-31 13:50:57"
++            "time": "2017-04-25 10:51:55"
+         },
+         {
+             "name": "psr/http-message",
+@@ -1342,16 +1342,16 @@
+         },
+         {
+             "name": "swiftmailer/swiftmailer",
+-            "version": "v5.4.6",
++            "version": "v5.4.7",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/swiftmailer/swiftmailer.git",
+-                "reference": "81fdccfaf8bdc5d5d7a1ef6bb3a61bbb1a6c4a3e"
++                "reference": "56db4ed32a6d5c9824c3ecc1d2e538f663f47eb4"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/swiftmailer/swiftmailer/zipball/81fdccfaf8bdc5d5d7a1ef6bb3a61bbb1a6c4a3e",
+-                "reference": "81fdccfaf8bdc5d5d7a1ef6bb3a61bbb1a6c4a3e",
++                "url": "https://api.github.com/repos/swiftmailer/swiftmailer/zipball/56db4ed32a6d5c9824c3ecc1d2e538f663f47eb4",
++                "reference": "56db4ed32a6d5c9824c3ecc1d2e538f663f47eb4",
+                 "shasum": ""
+             },
+             "require": {
+@@ -1392,7 +1392,7 @@
+                 "mail",
+                 "mailer"
+             ],
+-            "time": "2017-02-13 07:52:53"
++            "time": "2017-04-20 17:32:18"
+         },
+         {
+             "name": "symfony/console",
+@@ -2272,74 +2272,6 @@
+                 "laravel"
+             ],
+             "time": "2017-01-25 20:26:35"
+-        },
+-        {
+-            "name": "zizaco/entrust",
+-            "version": "1.7.0",
+-            "source": {
+-                "type": "git",
+-                "url": "https://github.com/Zizaco/entrust.git",
+-                "reference": "1fa77fadfbc8840ee1e9a6ce483b39ba985f81d2"
+-            },
+-            "dist": {
+-                "type": "zip",
+-                "url": "https://api.github.com/repos/Zizaco/entrust/zipball/1fa77fadfbc8840ee1e9a6ce483b39ba985f81d2",
+-                "reference": "1fa77fadfbc8840ee1e9a6ce483b39ba985f81d2",
+-                "shasum": ""
+-            },
+-            "require": {
+-                "illuminate/cache": "~5.0",
+-                "illuminate/console": "~5.0",
+-                "illuminate/support": "~5.0",
+-                "php": ">=5.5.0"
+-            },
+-            "require-dev": {
+-                "illuminate/database": "~5.0",
+-                "mockery/mockery": "dev-master",
+-                "phpunit/phpunit": "~4.1",
+-                "sami/sami": "dev-master"
+-            },
+-            "type": "library",
+-            "autoload": {
+-                "classmap": [
+-                    "src/commands"
+-                ],
+-                "psr-4": {
+-                    "Zizaco\\Entrust\\": "src/Entrust/"
+-                }
+-            },
+-            "notification-url": "https://packagist.org/downloads/",
+-            "license": [
+-                "MIT"
+-            ],
+-            "authors": [
+-                {
+-                    "name": "Andrew Elkins",
+-                    "homepage": "http://andrewelkins.com"
+-                },
+-                {
+-                    "name": "Zizaco Zizuini",
+-                    "email": "zizaco@gmail.com"
+-                },
+-                {
+-                    "name": "Ben Batschelet",
+-                    "homepage": "http://github.com/bbatsche"
+-                },
+-                {
+-                    "name": "Michele Angioni",
+-                    "email": "michele.angioni@gmail.com"
+-                }
+-            ],
+-            "description": "This package provides a flexible way to add Role-based Permissions to Laravel",
+-            "keywords": [
+-                "acl",
+-                "auth",
+-                "illuminate",
+-                "laravel",
+-                "permission",
+-                "roles"
+-            ],
+-            "time": "2016-03-09 17:05:35"
+         }
+     ],
+     "packages-dev": [
+@@ -2772,12 +2704,12 @@
+             "version": "0.9.9",
+             "source": {
+                 "type": "git",
+-                "url": "https://github.com/padraic/mockery.git",
++                "url": "https://github.com/mockery/mockery.git",
+                 "reference": "6fdb61243844dc924071d3404bb23994ea0b6856"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/padraic/mockery/zipball/6fdb61243844dc924071d3404bb23994ea0b6856",
++                "url": "https://api.github.com/repos/mockery/mockery/zipball/6fdb61243844dc924071d3404bb23994ea0b6856",
+                 "reference": "6fdb61243844dc924071d3404bb23994ea0b6856",
+                 "shasum": ""
+             },
+@@ -2834,16 +2766,16 @@
+         },
+         {
+             "name": "myclabs/deep-copy",
+-            "version": "1.6.0",
++            "version": "1.6.1",
+             "source": {
+                 "type": "git",
+                 "url": "https://github.com/myclabs/DeepCopy.git",
+-                "reference": "5a5a9fc8025a08d8919be87d6884d5a92520cefe"
++                "reference": "8e6e04167378abf1ddb4d3522d8755c5fd90d102"
+             },
+             "dist": {
+                 "type": "zip",
+-                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/5a5a9fc8025a08d8919be87d6884d5a92520cefe",
+-                "reference": "5a5a9fc8025a08d8919be87d6884d5a92520cefe",
++                "url": "https://api.github.com/repos/myclabs/DeepCopy/zipball/8e6e04167378abf1ddb4d3522d8755c5fd90d102",
++                "reference": "8e6e04167378abf1ddb4d3522d8755c5fd90d102",
+                 "shasum": ""
+             },
+             "require": {
+@@ -2872,7 +2804,7 @@
+                 "object",
+                 "object graph"
+             ],
+-            "time": "2017-01-26 22:05:40"
++            "time": "2017-04-12 18:52:22"
+         },
+         {
+             "name": "phpdocumentor/reflection-common",
+diff --git a/config/app.php b/config/app.php
+index b3ea5c7..651b502 100644
+--- a/config/app.php
++++ b/config/app.php
+@@ -23,7 +23,7 @@ return [
+     | Vanguard Version
+     |--------------------------------------------------------------------------
+     */
+-    'version' => '1.3.2',
++    'version' => '1.3.3',
+ 
+     /*
+     |--------------------------------------------------------------------------
+diff --git a/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php b/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
+index 6eee21d..01be7e0 100644
+--- a/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
++++ b/tests/Feature/Http/Controllers/Auth/AuthControllerTest.php
+@@ -33,6 +33,22 @@ class AuthControllerTest extends FunctionalTestCase
+             ->see("These credentials do not match our records.");
+     }
+ 
++    public function test_country_id_remains_the_same_after_login()
++    {
++        $user = factory(User::class)->create([
++            'username' => 'foo',
++            'password' => 'bar',
++            'country_id' => 688
++        ]);
++
++        $this->loginUser('foo', 'bar')
++            ->seePageIs('/')
++            ->seeInDatabase('users', [
++                'id' => $user->id,
++                'country_id' => 688
++            ]);
++    }
++
+     public function test_throttling()
+     {
+         $this->setSettings([

@@ -1,0 +1,28 @@
+.theme-table {
+    width: 100%;
+    max-width: 100%;
+
+    td {
+        border: 1px solid #CCC;
+        position: relative;
+        text-align: center;
+        background-color: #FFF;
+        padding: 2px 5px;
+    }
+
+    .td-header {
+        color: #555555;
+        background: linear-gradient(to bottom, #efeff4, #d6dadf);
+        border: 1px solid #cccccc;
+    }
+
+    .txt-right {
+        text-align: right;
+    }
+
+    .components-span {
+        display: block;
+        transform: rotate(270deg);
+        transform-origin: center;
+    }
+}

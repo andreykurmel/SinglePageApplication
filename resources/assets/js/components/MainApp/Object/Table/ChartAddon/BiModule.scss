@@ -1,0 +1,126 @@
+.chart-wrapper {
+  position: relative;
+}
+
+.chart-header {
+  position: relative;
+}
+
+.chart-body {
+  position: relative;
+  height: 100%;
+  overflow: auto;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #fff;
+  padding: 5px;
+}
+
+
+.right-elements {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 50;
+
+  .control-inline {
+    display: inline-block;
+    height: 26px;
+    padding: 3px 6px;
+  }
+  span {
+    position: relative;
+    right: 23px;
+    width: 23px;
+    display: inline-block;
+  }
+}
+
+
+.settings-tab {
+  position: relative;
+
+  .left-padding {
+    padding-left: 25px;
+    position: relative;
+
+    .left-label {
+      position: absolute;
+      left: 5px;
+      top: 7px;
+    }
+  }
+
+  .inline-fld {
+    display: inline-block;
+    margin-left: 5px;
+  }
+
+  .label-width {
+    width: 60px;
+    margin-left: 7px;
+  }
+
+  .margin-left-20 {
+    margin-left: 20px;
+  }
+
+  .control-200 {
+    width: 200px;
+    display: inline-block;
+  }
+  .control-130 {
+    width: 130px;
+    display: inline-block;
+  }
+  .control-100 {
+    width: 100px;
+    display: inline-block;
+  }
+
+  .switch_t {
+    display: inline-block;
+    top: 4px;
+  }
+}
+
+.ctrn {
+  text-align: center;
+}
+
+.inner-subtotal--5 {
+  background-color: #BAA;
+  font-weight: bold;
+}
+.inner-subtotal--4 {
+  background-color: #CBB;
+  font-weight: bold;
+}
+.inner-subtotal--3 {
+  background-color: #DCC;
+  font-weight: bold;
+}
+.inner-subtotal--2 {
+  background-color: #EDD;
+  font-weight: bold;
+}
+.inner-subtotal--1 {
+  background-color: #FEE;
+  font-weight: bold;
+}
+
+.subtotal-clr--5 {
+  color: #C88;
+}
+.subtotal-clr--4 {
+  color: #A66;
+}
+.subtotal-clr--3 {
+  color: #944;
+}
+.subtotal-clr--2 {
+  color: #722;
+}
+.subtotal-clr--1 {
+  color: #500;
+}

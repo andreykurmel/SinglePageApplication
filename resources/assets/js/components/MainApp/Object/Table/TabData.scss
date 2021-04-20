@@ -1,0 +1,183 @@
+#import_main_columns {
+    table-layout: auto;
+}
+
+.tab-data {
+    height: 100%;
+    padding: 5px;
+    background-color: #FFF;
+
+    .data-menu {
+        button {
+            background-color: #CCC;
+            outline: 0;
+        }
+        .active {
+            background-color: #FFF;
+        }
+    }
+
+    .data-tab {
+        height: calc(100% - 30px);
+        position: relative;
+        top: -3px;
+        border: 1px solid #CCC;
+        padding: 5px 0;
+        background-color: #005fa4;
+        border-radius: 4px;
+        overflow: auto;
+
+        .fields-wrapper {
+            padding: 0 5px;
+            overflow: auto;
+
+            .wrapper-table {
+                width: 100%;
+
+                tr td {
+                    position: relative;
+                    vertical-align: top;
+                }
+            }
+
+            .table {
+                float: left;
+                margin-bottom: 0;
+
+                .centered {
+                    text-align: center;
+                }
+
+                .right-cell {
+                    text-align: right;
+                    border-right: none;
+                }
+
+                .left-cell {
+                    text-align: left;
+                    border-left: none;
+                }
+
+                tr th, tr td {
+                    border: 1px solid #d3e0e9;
+                    text-align: center;
+                }
+                tr th {
+                    position: relative;
+                    background-color: #CCC;
+                    line-height: 0.7em;
+                    vertical-align: middle;
+                }
+                tr td {
+                    vertical-align: middle;
+                    padding: 0;
+                }
+            }
+        }
+
+        .data-tab-main {
+            height: calc(100% - 60px);
+            overflow: auto;
+
+            .w {
+                display: inline-block;
+                margin-right: 10px;
+            }
+            .w-mid {
+                width: 200px;
+            }
+            .w-long {
+                width: 400px;
+            }
+            .w-msql {
+                width: calc(33% - 60px)
+            }
+            @media (max-width: 425px) {
+                .w-long {
+                    width: 300px;
+                }
+            }
+            .fix-vert {
+                position: relative;
+                top: -2px;
+            }
+            .red {
+                color: #F00;
+            }
+
+            .data-tab-row {
+                margin-bottom: 10px;
+            }
+
+            .fix-btn-h {
+                position: relative;
+                top: -2px;
+            }
+        }
+
+        .data-tab-footer {
+            label {
+                margin: 0;
+            }
+        }
+    }
+
+    .info-icon {
+        display: inline-block;
+        position: relative;
+        top: 1px;
+        left: 6px;
+    }
+
+    .select2-container {
+        height: 30px;
+    }
+}
+
+.import-progressbar-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.45);
+
+    .import-progressbar {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        padding: 15px;
+        background-color: #FFF;
+        text-align: center;
+
+        h1 {
+            margin: 0 0 10px 0;
+        }
+        .progressbar-wrapper {
+            width: 500px;
+            height: 30px;
+            border: 1px solid #777;
+            border-radius: 5px;
+        }
+        .progressbar-wrapper > div {
+            width: 0;
+            height: 100%;
+            background-color: #CCC;
+        }
+    }
+}
+
+.custom-info {
+    position: absolute;
+    bottom: 0;
+    height: 30%;
+    width: 100%;
+
+    textarea {
+        background: #EEA;
+        height: 100% !important;
+        resize: none;
+    }
+}

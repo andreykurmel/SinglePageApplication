@@ -1,0 +1,574 @@
+diff --git a/app/Http/Controllers/Api/Auth/AuthController.php b/app/Http/Controllers/Api/Auth/AuthController.php
+index 1f463aa..a2fea93 100644
+--- a/app/Http/Controllers/Api/Auth/AuthController.php
++++ b/app/Http/Controllers/Api/Auth/AuthController.php
+@@ -8,6 +8,7 @@ use Vanguard\Events\User\LoggedIn;
+ use Vanguard\Events\User\LoggedOut;
+ use Vanguard\Http\Controllers\Api\ApiController;
+ use Vanguard\Http\Requests\Auth\LoginRequest;
++use Vanguard\Services\Auth\Api\JWT;
+ 
+ /**
+  * Class LoginController
+@@ -25,7 +26,7 @@ class AuthController extends ApiController
+      * Attempt to log the user in and generate unique
+      * JWT token on successful authentication.
+      * @param LoginRequest $request
+-     * @return \Illuminate\Http\Response
++     * @return \Illuminate\Http\JsonResponse|\Illuminate\Http\Response
+      */
+     public function login(LoginRequest $request)
+     {
+@@ -39,11 +40,29 @@ class AuthController extends ApiController
+             return $this->errorInternalError('Could not create token.');
+         }
+ 
++        $user = auth()->user();
++
++        if ($user->isBanned()) {
++            $this->invalidateToken($token);
++            return $this->errorUnauthorized('Your account is banned by administrators.');
++        }
++
++        if ($user->isUnconfirmed()) {
++            $this->invalidateToken($token);
++            return $this->errorUnauthorized('Please confirm your email address first.');
++        }
++
+         event(new LoggedIn);
+ 
+         return $this->respondWithArray(compact('token'));
+     }
+ 
++    private function invalidateToken($token)
++    {
++        JWTAuth::setToken($token);
++        JWTAuth::invalidate();
++    }
++
+     /**
+      * Logout user and invalidate token.
+      * @return \Illuminate\Http\JsonResponse
+diff --git a/app/Http/Controllers/Api/Auth/SocialLoginController.php b/app/Http/Controllers/Api/Auth/SocialLoginController.php
+index ef4c436..ec04215 100644
+--- a/app/Http/Controllers/Api/Auth/SocialLoginController.php
++++ b/app/Http/Controllers/Api/Auth/SocialLoginController.php
+@@ -2,9 +2,10 @@
+ 
+ namespace Vanguard\Http\Controllers\Api\Auth;
+ 
++use Auth;
+ use Exception;
+-use JWTAuth;
+ use Socialite;
++use Vanguard\Events\User\LoggedIn;
+ use Vanguard\Http\Controllers\Api\ApiController;
+ use Vanguard\Http\Requests\Auth\Social\ApiAuthenticateRequest;
+ use Vanguard\Repositories\User\UserRepository;
+@@ -57,8 +58,12 @@ class SocialLoginController extends ApiController
+             return $this->errorForbidden("Your account is banned by administrators.");
+         }
+ 
++        $token = Auth::guard('api')->login($user);
++
++        event(new LoggedIn);
++
+         return $this->respondWithArray([
+-            'token' => JWTAuth::fromUser($user)
++            'token' => $token
+         ]);
+     }
+ }
+diff --git a/app/Http/Controllers/Web/Auth/AuthController.php b/app/Http/Controllers/Web/Auth/AuthController.php
+index c1678b2..d727d06 100644
+--- a/app/Http/Controllers/Web/Auth/AuthController.php
++++ b/app/Http/Controllers/Web/Auth/AuthController.php
+@@ -119,9 +119,7 @@ class AuthController extends Controller
+             return $this->logoutAndRedirectToTokenPage($request, $user);
+         }
+ 
+-        $this->users->update($user->id, ['last_login' => Carbon::now()]);
+-
+-        event(new LoggedIn($user));
++        event(new LoggedIn);
+ 
+         if ($request->has('to')) {
+             return redirect()->to($request->get('to'));
+@@ -166,7 +164,7 @@ class AuthController extends Controller
+ 
+         Auth::login($user);
+ 
+-        event(new LoggedIn($user));
++        event(new LoggedIn);
+ 
+         return redirect()->intended('/');
+     }
+diff --git a/app/Http/Controllers/Web/Auth/SocialAuthController.php b/app/Http/Controllers/Web/Auth/SocialAuthController.php
+index cb0d477..39e80c5 100644
+--- a/app/Http/Controllers/Web/Auth/SocialAuthController.php
++++ b/app/Http/Controllers/Web/Auth/SocialAuthController.php
+@@ -3,6 +3,7 @@
+ namespace Vanguard\Http\Controllers\Web\Auth;
+ 
+ use Authy;
++use Vanguard\Events\User\LoggedIn;
+ use Vanguard\Http\Controllers\Controller;
+ use Vanguard\Http\Requests\Auth\Social\SaveEmailRequest;
+ use Vanguard\Repositories\User\UserRepository;
+@@ -153,6 +154,8 @@ class SocialAuthController extends Controller
+ 
+         Auth::login($user);
+ 
++        event(new LoggedIn);
++
+         return redirect()->intended('/');
+     }
+ 
+diff --git a/app/Http/Controllers/Web/UsersController.php b/app/Http/Controllers/Web/UsersController.php
+index d4912dd..1b93327 100644
+--- a/app/Http/Controllers/Web/UsersController.php
++++ b/app/Http/Controllers/Web/UsersController.php
+@@ -211,7 +211,11 @@ class UsersController extends Controller
+     {
+         $this->validate($request, ['avatar' => 'image']);
+ 
+-        $name = $avatarManager->uploadAndCropAvatar($user, $request->file('avatar'));
++        $name = $avatarManager->uploadAndCropAvatar(
++            $user,
++            $request->file('avatar'),
++            $request->get('points')
++        );
+ 
+         if ($name) {
+             $this->users->update($user->id, ['avatar' => $name]);
+diff --git a/app/Listeners/Login/UpdateLastLoginTimestamp.php b/app/Listeners/Login/UpdateLastLoginTimestamp.php
+new file mode 100644
+index 0000000..bb8e682
+--- /dev/null
++++ b/app/Listeners/Login/UpdateLastLoginTimestamp.php
+@@ -0,0 +1,40 @@
++<?php
++
++namespace Vanguard\Listeners\Login;
++
++use Carbon\Carbon;
++use Illuminate\Contracts\Auth\Guard;
++use Vanguard\Events\User\LoggedIn;
++use Vanguard\Repositories\User\UserRepository;
++
++class UpdateLastLoginTimestamp
++{
++    /**
++     * @var UserRepository
++     */
++    private $users;
++    /**
++     * @var Guard
++     */
++    private $guard;
++
++    public function __construct(UserRepository $users, Guard $guard)
++    {
++        $this->users = $users;
++        $this->guard = $guard;
++    }
++
++    /**
++     * Handle the event.
++     *
++     * @param LoggedIn $event
++     * @return void
++     */
++    public function handle(LoggedIn $event)
++    {
++        $this->users->update(
++            $this->guard->id(),
++            ['last_login' => Carbon::now()]
++        );
++    }
++}
+diff --git a/app/Providers/EntrustServiceProvider.php b/app/Providers/EntrustServiceProvider.php
+deleted file mode 100644
+index b696af4..0000000
+--- a/app/Providers/EntrustServiceProvider.php
++++ /dev/null
+@@ -1,62 +0,0 @@
+-<?php
+-
+-namespace Vanguard\Providers;
+-
+-use Zizaco\Entrust\EntrustServiceProvider as BaseEntrustServiceProvider;
+-
+-class EntrustServiceProvider extends BaseEntrustServiceProvider
+-{
+-    /**
+-     * Bootstrap the application events.
+-     *
+-     * @return void
+-     */
+-    public function boot()
+-    {
+-        // Publish config files
+-        $this->publishes([
+-            __DIR__.'/../../vendor/zizaco/entrust/src/config/config.php' => config_path('entrust.php'),
+-        ]);
+-
+-        // Register commands
+-        $this->commands('command.entrust.migration');
+-
+-        // Register blade directives
+-        $this->bladeDirectives();
+-    }
+-
+-    /**
+-     * Register the blade directives
+-     *
+-     * @return void
+-     */
+-    private function bladeDirectives()
+-    {
+-        // Call to Entrust::hasRole
+-        \Blade::directive('role', function($expression) {
+-            return "<?php if (\\Entrust::hasRole({$expression})) : ?>";
+-        });
+-
+-        \Blade::directive('endrole', function($expression) {
+-            return "<?php endif; // Entrust::hasRole ?>";
+-        });
+-
+-        // Call to Entrust::can
+-        \Blade::directive('permission', function($expression) {
+-            return "<?php if (\\Entrust::can({$expression})) : ?>";
+-        });
+-
+-        \Blade::directive('endpermission', function($expression) {
+-            return "<?php endif; // Entrust::can ?>";
+-        });
+-
+-        // Call to Entrust::ability
+-        \Blade::directive('ability', function($expression) {
+-            return "<?php if (\\Entrust::ability({$expression})) : ?>";
+-        });
+-
+-        \Blade::directive('endability', function($expression) {
+-            return "<?php endif; // Entrust::ability ?>";
+-        });
+-    }
+-}
+diff --git a/app/Providers/EventServiceProvider.php b/app/Providers/EventServiceProvider.php
+index 0a3262d..089c4df 100644
+--- a/app/Providers/EventServiceProvider.php
++++ b/app/Providers/EventServiceProvider.php
+@@ -2,13 +2,14 @@
+ 
+ namespace Vanguard\Providers;
+ 
++use Vanguard\Events\User\LoggedIn;
+ use Vanguard\Events\User\Registered;
++use Vanguard\Listeners\Login\UpdateLastLoginTimestamp;
+ use Vanguard\Listeners\PermissionEventsSubscriber;
+ use Vanguard\Listeners\Registration\SendConfirmationEmail;
+ use Vanguard\Listeners\Registration\SendSignUpNotification;
+ use Vanguard\Listeners\RoleEventsSubscriber;
+ use Vanguard\Listeners\UserEventsSubscriber;
+-use Vanguard\Listeners\UserWasRegisteredListener;
+ use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
+ 
+ class EventServiceProvider extends ServiceProvider
+@@ -22,6 +23,9 @@ class EventServiceProvider extends ServiceProvider
+         Registered::class => [
+             SendConfirmationEmail::class,
+             SendSignUpNotification::class,
++        ],
++        LoggedIn::class => [
++            UpdateLastLoginTimestamp::class
+         ]
+     ];
+ 
+diff --git a/app/Repositories/User/EloquentUser.php b/app/Repositories/User/EloquentUser.php
+index 7e4368b..d7b4385 100644
+--- a/app/Repositories/User/EloquentUser.php
++++ b/app/Repositories/User/EloquentUser.php
+@@ -124,6 +124,10 @@ class EloquentUser implements UserRepository
+      */
+     public function update($id, array $data)
+     {
++        if (isset($data['country_id']) && $data['country_id'] == 0) {
++            $data['country_id'] = null;
++        }
++
+         $user = $this->find($id);
+ 
+         $user->update($data);
+diff --git a/config/app.php b/config/app.php
+index c4d974e..eb0f964 100644
+--- a/config/app.php
++++ b/config/app.php
+@@ -23,7 +23,7 @@ return [
+     | Vanguard Version
+     |--------------------------------------------------------------------------
+     */
+-    'version' => '2.0.1',
++    'version' => '2.0.2',
+ 
+     /*
+     |--------------------------------------------------------------------------
+diff --git a/tests/Feature/Http/Controllers/Api/Auth/AuthControllerTest.php b/tests/Feature/Http/Controllers/Api/Auth/AuthControllerTest.php
+index c01fc31..11f0869 100644
+--- a/tests/Feature/Http/Controllers/Api/Auth/AuthControllerTest.php
++++ b/tests/Feature/Http/Controllers/Api/Auth/AuthControllerTest.php
+@@ -6,6 +6,7 @@ use Carbon\Carbon;
+ use Tests\Feature\ApiTestCase;
+ use Tests\MailTrap;
+ use Vanguard\Services\Auth\Api\Token;
++use Vanguard\Support\Enum\UserStatus;
+ use Vanguard\User;
+ 
+ class AuthControllerTest extends ApiTestCase
+@@ -19,8 +20,6 @@ class AuthControllerTest extends ApiTestCase
+             'password' => 'bar'
+         ];
+ 
+-        Carbon::setTestNow(Carbon::now());
+-
+         $user = factory(User::class)->create($credentials);
+ 
+         $this->postJson("/api/login", $credentials);
+@@ -30,6 +29,33 @@ class AuthControllerTest extends ApiTestCase
+         $this->assertJwtTokenContains($token->id);
+     }
+ 
++    public function test_last_login_timestamp_is_updated_after_login()
++    {
++        $credentials = [
++            'username' => 'foo',
++            'password' => 'bar'
++        ];
++
++        $now = Carbon::now();
++
++        Carbon::setTestNow($now);
++
++        $user = factory(User::class)->create($credentials);
++
++        $this->seeInDatabase('users', [
++            'id' => $user->id,
++            'last_login' => null
++        ]);
++
++        $this->postJson("/api/login", $credentials);
++
++        $this->assertResponseOk()
++            ->seeInDatabase('users', [
++                'id' => $user->id,
++                'last_login' => $now
++            ]);
++    }
++
+     public function test_login_with_invalid_credentials()
+     {
+         $credentials = [
+@@ -65,6 +91,46 @@ class AuthControllerTest extends ApiTestCase
+         ]);
+     }
+ 
++    public function test_banned_user_cannot_log_in()
++    {
++        $credentials = [
++            'username' => 'foo',
++            'password' => 'bar'
++        ];
++
++        $user = factory(User::class)->create(array_merge($credentials, [
++            'status' => UserStatus::BANNED
++        ]));
++
++        $this->postJson("/api/login", $credentials);
++
++        $this->assertResponseStatus(401);
++        $this->seeJsonContains([
++            'error' => "Your account is banned by administrators."
++        ]);
++        $this->dontSeeInDatabase('api_tokens', ['user_id' => $user->id]);
++    }
++
++    public function test_unconfirmed_user_cannot_log_in()
++    {
++        $credentials = [
++            'username' => 'foo',
++            'password' => 'bar'
++        ];
++
++        $user = factory(User::class)->create(array_merge($credentials, [
++            'status' => UserStatus::UNCONFIRMED
++        ]));
++
++        $this->postJson("/api/login", $credentials);
++
++        $this->assertResponseStatus(401);
++        $this->seeJsonContains([
++            'error' => "Please confirm your email address first."
++        ]);
++        $this->dontSeeInDatabase('api_tokens', ['user_id' => $user->id]);
++    }
++
+     public function test_logout()
+     {
+         $credentials = [
+diff --git a/tests/Feature/Http/Controllers/Api/Auth/SocialLoginControllerTest.php b/tests/Feature/Http/Controllers/Api/Auth/SocialLoginControllerTest.php
+index fdb446b..67fad6c 100644
+--- a/tests/Feature/Http/Controllers/Api/Auth/SocialLoginControllerTest.php
++++ b/tests/Feature/Http/Controllers/Api/Auth/SocialLoginControllerTest.php
+@@ -2,6 +2,7 @@
+ 
+ namespace Tests\Feature\Http\Controllers\Api\Auth;
+ 
++use Carbon\Carbon;
+ use Laravel\Socialite\Two\FacebookProvider;
+ use Tests\Feature\ApiTestCase;
+ use Vanguard\Repositories\User\UserRepository;
+@@ -23,6 +24,9 @@ class SocialLoginControllerTest extends ApiTestCase
+ 
+         $this->mockFacebookProvider($socialUser);
+ 
++        $now = Carbon::now()->addHours(2);
++        Carbon::setTestNow($now);
++
+         $this->postJson("/api/login/social", [
+             'network' => 'facebook',
+             'social_token' => 'foo'
+@@ -39,7 +43,8 @@ class SocialLoginControllerTest extends ApiTestCase
+             'last_name' => 'Doe',
+             'email' => $socialUser->getEmail(),
+             'status' => UserStatus::ACTIVE,
+-            'avatar' => $socialUser->getAvatar()
++            'avatar' => $socialUser->getAvatar(),
++            'last_login' => $now
+         ]);
+ 
+         $this->seeInDatabase('social_logins', [
+diff --git a/tests/Feature/Http/Controllers/Api/Profile/SessionsControllerTest.php b/tests/Feature/Http/Controllers/Api/Profile/SessionsControllerTest.php
+index e54912d..aa0beb2 100644
+--- a/tests/Feature/Http/Controllers/Api/Profile/SessionsControllerTest.php
++++ b/tests/Feature/Http/Controllers/Api/Profile/SessionsControllerTest.php
+@@ -2,6 +2,7 @@
+ 
+ namespace Tests\Feature\Http\Controllers\Api\Profile;
+ 
++use Carbon\Carbon;
+ use Tests\Feature\ApiTestCase;
+ use Vanguard\Transformers\SessionTransformer;
+ use Vanguard\User;
+@@ -37,7 +38,7 @@ class SessionsControllerTest extends ApiTestCase
+         $sessions = $this->generateNonExpiredSessions($user);
+ 
+         $this->getJson('/api/me/sessions')
+-            ->seeStatusCode(200)
++            ->assertResponseOk()
+             ->seeJson(
+                 $this->transformCollection(collect($sessions), new SessionTransformer)
+             );
+@@ -47,7 +48,6 @@ class SessionsControllerTest extends ApiTestCase
+     {
+         $sessions = [];
+         $faker = $this->app->make(\Faker\Generator::class);
+-        $lifetime = config('session.lifetime') - 1;
+ 
+         for ($i = 0; $i < $count; $i++) {
+             array_push($sessions, [
+@@ -56,7 +56,7 @@ class SessionsControllerTest extends ApiTestCase
+                 'ip_address' => $faker->ipv4,
+                 'user_agent' => $faker->userAgent,
+                 'payload' => str_random(),
+-                'last_activity' => $faker->dateTimeBetween("-{$lifetime} minutes")->getTimestamp()
++                'last_activity' => Carbon::now()->subMinute()->timestamp
+             ]);
+         }
+ 
+diff --git a/tests/Feature/Http/Controllers/Api/SessionsControllerTest.php b/tests/Feature/Http/Controllers/Api/SessionsControllerTest.php
+index b418490..09017fa 100644
+--- a/tests/Feature/Http/Controllers/Api/SessionsControllerTest.php
++++ b/tests/Feature/Http/Controllers/Api/SessionsControllerTest.php
+@@ -44,8 +44,9 @@ class SessionsControllerTest extends ApiTestCase
+ 
+         $session = $this->createSession($user);
+ 
+-        $this->getJson("/api/sessions/{$session->id}")
+-            ->seeStatusCode(200)
++        $this->getJson("/api/sessions/{$session->id}");
++
++        $this->seeStatusCode(200)
+             ->seeJson(
+                 (new SessionTransformer)->transform($session)
+             );
+diff --git a/tests/Feature/Http/Controllers/Web/Auth/AuthControllerTest.php b/tests/Feature/Http/Controllers/Web/Auth/AuthControllerTest.php
+index 0449416..c25c6e3 100644
+--- a/tests/Feature/Http/Controllers/Web/Auth/AuthControllerTest.php
++++ b/tests/Feature/Http/Controllers/Web/Auth/AuthControllerTest.php
+@@ -3,6 +3,7 @@
+ namespace Tests\Feature\Http\Controllers\Web\Auth;
+ 
+ use Authy;
++use Carbon\Carbon;
+ use Mockery;
+ use Settings;
+ use Tests\Feature\FunctionalTestCase;
+@@ -26,6 +27,30 @@ class AuthControllerTest extends FunctionalTestCase
+             ->seePageIs('/');
+     }
+ 
++    public function test_last_login_timestamp_is_updated_after_login()
++    {
++        $testDate = Carbon::now();
++
++        Carbon::setTestNow($testDate);
++
++        $user = factory(User::class)->create([
++            'username' => 'foo',
++            'password' => 'bar'
++        ]);
++
++        $this->seeInDatabase('users', [
++            'id' => $user->id,
++            'last_login' => null
++        ])->loginUser('foo', 'bar')
++            ->seePageIs('/')
++            ->seeInDatabase('users', [
++                'id' => $user->id,
++                'last_login' => $testDate
++            ]);
++
++        Carbon::setTestNow(null);
++    }
++
+     public function test_login_with_wrong_credentials()
+     {
+         $this->loginUser('foo', 'bar')
+diff --git a/tests/Feature/Repositories/User/EloquentUserTest.php b/tests/Feature/Repositories/User/EloquentUserTest.php
+index 0d68c03..5e05b00 100644
+--- a/tests/Feature/Repositories/User/EloquentUserTest.php
++++ b/tests/Feature/Repositories/User/EloquentUserTest.php
+@@ -176,6 +176,23 @@ class EloquentUserTest extends FunctionalTestCase
+         $this->seeInDatabase('users', $data + ['id' => $user->id]);
+     }
+ 
++    public function test_update_when_provided_country_is_zero()
++    {
++        $user = factory(User::class)->create();
++
++        $data = [
++            'first_name' => 'John',
++            'last_name' => 'Doe',
++            'username' => 'foo',
++            'email' => 'test@test.com',
++            'country_id' => 0
++        ];
++
++        $this->repo->update($user->id, $data);
++
++        $this->seeInDatabase('users', array_merge($data, ['id' => $user->id, 'country_id' => null]));
++    }
++
+     public function test_delete()
+     {
+         $user = factory(User::class)->create();

@@ -1,0 +1,90 @@
+.top-text {
+  font-size: 16px;
+  color: #FFF;
+  padding: 10px 0;
+  height: 30px;
+}
+
+.field-loader-wrapper {
+  height: 30px;
+  top: 2px;
+  position: relative;
+  margin: 5px;
+
+  .field-loader {
+    display: inline-block;
+    width: 90px;
+
+    .field-selector {
+      height: 30px;
+      padding: 4px;
+      top: -2px;
+      position: relative;
+    }
+    label {
+      margin: 0;
+      color: #FFF;
+      padding: 0 10px 0 5px;
+      white-space: nowrap;
+    }
+  }
+
+  .field-loader-bg {
+    display: inline-block;
+    margin-right: 5px;
+    width: 275px;
+    height: 30px;
+    top: -2px;
+    position: relative;
+    z-index: 1;
+  }
+
+  button {
+    background-color: #FFF;
+    margin-left: 5px;
+    position: relative;
+    top: -2px;
+  }
+
+  .glyphicon {
+    color: #FFF;
+    height: 25px;
+    font-size: 16px;
+    top: 4px;
+    margin-left: 10px;
+  }
+}
+
+.body-panel {
+  height: calc(100% - 40px);
+  position: relative;
+  padding: 5px;
+  background-color: #FFF;
+
+  .ddl-panel {
+    height: calc(50% - 20px);
+    background-color: #FFF;
+  }
+}
+
+.modal-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  z-index: 1500;
+  background: rgba(0, 0, 0, 0.45);
+
+  .modal {
+    display: block;
+    height: 80%;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0 auto;
+
+    textarea {
+      resize: none;
+    }
+  }
+}

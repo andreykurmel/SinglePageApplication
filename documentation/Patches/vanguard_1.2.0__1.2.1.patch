@@ -1,0 +1,346 @@
+diff --git a/app/Repositories/User/EloquentUser.php b/app/Repositories/User/EloquentUser.php
+index 4372f25..405f89b 100644
+--- a/app/Repositories/User/EloquentUser.php
++++ b/app/Repositories/User/EloquentUser.php
+@@ -61,6 +61,10 @@ class EloquentUser implements UserRepository
+      */
+     public function create(array $data)
+     {
++        if (! array_get($data, 'country_id')) {
++            $data['country_id'] = null;
++        }
++
+         return User::create($data);
+     }
+ 
+@@ -90,7 +94,7 @@ class EloquentUser implements UserRepository
+         }
+ 
+         if ($search) {
+-            $query->where(function ($q) use($search) {
++            $query->where(function ($q) use ($search) {
+                 $q->where('username', "like", "%{$search}%");
+                 $q->orWhere('email', 'like', "%{$search}%");
+                 $q->orWhere('first_name', 'like', "%{$search}%");
+diff --git a/composer.json b/composer.json
+index 56883ee..c992694 100644
+--- a/composer.json
++++ b/composer.json
+@@ -50,10 +50,8 @@
+             "php artisan clear-compiled",
+             "php artisan optimize"
+         ],
+-        "pre-update-cmd": [
+-            "php artisan clear-compiled"
+-        ],
+         "post-update-cmd": [
++            "php artisan clear-compiled",
+             "php artisan optimize"
+         ],
+         "post-root-package-install": [
+diff --git a/database/factories/ModelFactory.php b/database/factories/ModelFactory.php
+index 8afd702..3cf545c 100644
+--- a/database/factories/ModelFactory.php
++++ b/database/factories/ModelFactory.php
+@@ -48,7 +48,7 @@ $factory->define(Vanguard\Permission::class, function (Faker\Generator $faker) {
+     return [
+         'name' => str_random(5),
+         'display_name' => implode(" ", $faker->words(2)),
+-        'description' => $faker->paragraph,
++        'description' => substr($faker->paragraph, 0, 255),
+         'removable' => true
+     ];
+ });
+diff --git a/resources/views/user/list.blade.php b/resources/views/user/list.blade.php
+index cf6f98a..68cecbf 100644
+--- a/resources/views/user/list.blade.php
++++ b/resources/views/user/list.blade.php
+@@ -92,9 +92,9 @@
+                                     data-toggle="tooltip"
+                                     data-placement="top"
+                                     data-method="DELETE"
+-                                    data-confirm-title="@lang('app.please_confirm')'"
++                                    data-confirm-title="@lang('app.please_confirm')"
+                                     data-confirm-text="@lang('app.are_you_sure_delete_user')"
+-                                    data-confirm-delete="@lang('app.yes_delete_him')'">
++                                    data-confirm-delete="@lang('app.yes_delete_him')">
+                                 <i class="glyphicon glyphicon-trash"></i>
+                             </a>
+                         </td>
+diff --git a/resources/views/user/view.blade.php b/resources/views/user/view.blade.php
+index 3be45f8..462ae48 100644
+--- a/resources/views/user/view.blade.php
++++ b/resources/views/user/view.blade.php
+@@ -35,7 +35,7 @@
+             </div>
+             <div class="panel-body panel-profile">
+                 <div class="image">
+-                    <img alt="image" class="img-circle" src="{{ $user->present()->avatar }}">
++                    <img alt="image" class="img-circle avatar" src="{{ $user->present()->avatar }}">
+                 </div>
+                 <div class="name"><strong>{{ $user->present()->name }}</strong></div>
+ 
+diff --git a/storage/settings.json b/storage/settings.json
+index 245ebf4..6b532c6 100644
+--- a/storage/settings.json
++++ b/storage/settings.json
+@@ -1 +1 @@
+-{"remember_me":true,"notifications_signup_email":"1","forgot_password":"1","login_reset_token_lifetime":"30","throttle_enabled":true,"throttle_attempts":3,"throttle_lockout_time":2,"reg_enabled":"1","reg_email_confirmation":"1","2fa":{"enabled":true},"app_name":"Vanguard","registration":{"captcha":{"enabled":false}},"tos":"1"}
+\ No newline at end of file
++{"remember_me":true,"notifications_signup_email":true,"forgot_password":"1","login_reset_token_lifetime":"30","throttle_enabled":true,"throttle_attempts":10,"throttle_lockout_time":2,"reg_enabled":false,"reg_email_confirmation":true,"2fa":{"enabled":true},"app_name":"Vanguard","registration":{"captcha":{"enabled":false}},"tos":"1","captcha":{"enabled":null}}
+\ No newline at end of file
+diff --git a/tests/TestCase.php b/tests/TestCase.php
+index 52804a0..4819724 100644
+--- a/tests/TestCase.php
++++ b/tests/TestCase.php
+@@ -2,6 +2,8 @@
+ 
+ class TestCase extends Illuminate\Foundation\Testing\TestCase
+ {
++    protected $seed = true;
++
+     /**
+      * The base URL to use while testing the application.
+      *
+@@ -25,11 +27,25 @@ class TestCase extends Illuminate\Foundation\Testing\TestCase
+ 
+     protected function refreshAppAndExecuteCallbacks()
+     {
++        $oldSeed = $this->seed;
++        $this->seed = $this->isSQLiteConnection();
++
+         $this->refreshApplication();
++        $this->executeCallbacks();
++
++        $this->seed = $oldSeed;
++    }
+ 
++    protected function executeCallbacks()
++    {
+         foreach ($this->afterApplicationCreatedCallbacks as $callback) {
+             call_user_func($callback);
+         }
+     }
+ 
++    protected function isSQLiteConnection()
++    {
++        return \DB::connection() instanceof \Illuminate\Database\SQLiteConnection;
++    }
+ }
++
+diff --git a/tests/functional/FunctionalTestCase.php b/tests/functional/FunctionalTestCase.php
+index 06d01fa..9fdc688 100644
+--- a/tests/functional/FunctionalTestCase.php
++++ b/tests/functional/FunctionalTestCase.php
+@@ -16,6 +16,10 @@ class FunctionalTestCase extends TestCase
+     public function setUp()
+     {
+         $this->afterApplicationCreated(function () {
++            if ($this->isSQLiteConnection()) {
++                DB::connection()->getPdo()->exec("pragma foreign_keys=1");
++            }
++
+             $this->artisan('migrate');
+ 
+             if ($this->seed) {
+@@ -26,7 +30,10 @@ class FunctionalTestCase extends TestCase
+         });
+ 
+         $this->beforeApplicationDestroyed(function () {
+-            $this->artisan('migrate:rollback');
++            if (Schema::hasTable('migrations')) {
++                $this->artisan('migrate:rollback');
++            }
++            \DB::disconnect();
+         });
+ 
+         $this->beforeApplicationDestroyed(function () {
+diff --git a/tests/functional/Http/Controllers/Auth/AuthControllerTest.php b/tests/functional/Http/Controllers/Auth/AuthControllerTest.php
+index 6e8d746..a8871ca 100644
+--- a/tests/functional/Http/Controllers/Auth/AuthControllerTest.php
++++ b/tests/functional/Http/Controllers/Auth/AuthControllerTest.php
+@@ -29,9 +29,11 @@ class AuthControllerTest extends FunctionalTestCase
+ 
+     public function test_throttling()
+     {
+-        Settings::set('throttle_enabled', true);
+-        Settings::set('throttle_attempts', 3);
+-        Settings::set('throttle_lockout_time', 2); // 2 minutes
++        $this->setSettings([
++            'throttle_enabled' => true,
++            'throttle_attempts' => 3,
++            'throttle_lockout_time' => 2 // 2 minutes
++        ]);
+ 
+         for ($i = 0; $i < 3; $i++) {
+             $this->loginUser('foo', 'bar');
+@@ -102,7 +104,9 @@ class AuthControllerTest extends FunctionalTestCase
+      */
+     public function test_registration_view()
+     {
+-        Settings::set('reg_enabled', false);
++        $this->setSettings([
++            'reg_enabled' => false
++        ]);
+ 
+         $this->visit('login')
+             ->dontSee('You don\'t have an account?');
+@@ -115,7 +119,8 @@ class AuthControllerTest extends FunctionalTestCase
+     {
+         $this->setSettings([
+             'reg_enabled' => true,
+-            'reg_email_confirmation' => true
++            'reg_email_confirmation' => true,
++            'captcha.enabled' => false
+         ]);
+ 
+         $this->expectsEvents(Registered::class);
+@@ -159,7 +164,8 @@ class AuthControllerTest extends FunctionalTestCase
+         $this->setSettings([
+             'reg_enabled' => true,
+             'reg_email_confirmation' => false,
+-            'notifications_signup_email' => false
++            'notifications_signup_email' => false,
++            'captcha.enabled' => false
+         ]);
+ 
+         $this->expectsEvents(Registered::class);
+@@ -183,7 +189,8 @@ class AuthControllerTest extends FunctionalTestCase
+             'app_name' => 'foo',
+             'reg_enabled' => true,
+             'reg_email_confirmation' => false,
+-            'notifications_signup_email' => true
++            'notifications_signup_email' => true,
++            'captcha.enabled' => false
+         ]);
+ 
+         $admin1 = factory(User::class)->create(['email' => 'john.doe@test.com']);
+diff --git a/tests/functional/Http/Controllers/ProfileControllerTest.php b/tests/functional/Http/Controllers/ProfileControllerTest.php
+index 29d4076..6d89bda 100644
+--- a/tests/functional/Http/Controllers/ProfileControllerTest.php
++++ b/tests/functional/Http/Controllers/ProfileControllerTest.php
+@@ -247,7 +247,11 @@ class ProfileControllerTest extends FunctionalTestCase
+     {
+         putenv('SESSION_DRIVER=database');
+ 
+-        $this->refreshAppAndExecuteCallbacks();
++        $this->refreshApplication();
++
++        if ($this->isSQLiteConnection()) {
++            $this->executeCallbacks();
++        }
+ 
+         Carbon::setTestNow(Carbon::now());
+ 
+diff --git a/tests/functional/Http/Controllers/UsersControllerTest.php b/tests/functional/Http/Controllers/UsersControllerTest.php
+index 94cc802..10074f9 100644
+--- a/tests/functional/Http/Controllers/UsersControllerTest.php
++++ b/tests/functional/Http/Controllers/UsersControllerTest.php
+@@ -22,6 +22,8 @@ class UsersControllerTest extends FunctionalTestCase
+         $users = $active->merge($banned);
+         $users = $users->merge($unconfirmed);
+ 
++        $users = $users->reverse();
++
+         $this->visit('user')
+             ->seeInElement("h1.page-header", "Users")
+             ->seeInElement('h1.page-header small', 'list of registered users')
+@@ -102,6 +104,30 @@ class UsersControllerTest extends FunctionalTestCase
+             ->assertTrue(Hash::check('123123', $user->password));
+     }
+ 
++    public function test_add_user_without_country()
++    {
++        $this->beSuperUser();
++
++        $this->visit('user')
++            ->click('Add User')
++            ->seePageIs('user/create');
++
++        $data = $this->stubUserData();
++        $data['country_id'] = 0;
++
++        $this->submitForm('Create User', $data);
++
++        $user = User::where('email', $data['email'])->first();
++
++        $expected = array_except($data, ['role', 'password', 'password_confirmation']);
++        $expected['country_id'] = null;
++
++        $this->seeInDatabase('users', $expected)
++            ->seePageIs('user')
++            ->see('User created successfully.')
++            ->assertTrue(Hash::check('123123', $user->password));
++    }
++
+     public function test_add_user_validation()
+     {
+         $this->beSuperUser();
+@@ -316,7 +342,7 @@ class UsersControllerTest extends FunctionalTestCase
+     {
+         putenv('SESSION_DRIVER=array');
+ 
+-        $this->refreshAppAndExecuteCallbacks();
++        $this->refreshApp();
+ 
+         $user = $this->createAndLoginAdminUser();
+ 
+@@ -332,7 +358,7 @@ class UsersControllerTest extends FunctionalTestCase
+     {
+         putenv('SESSION_DRIVER=database');
+ 
+-        $this->refreshAppAndExecuteCallbacks();
++        $this->refreshApp();
+ 
+         Carbon::setTestNow(Carbon::now());
+ 
+@@ -409,4 +435,13 @@ class UsersControllerTest extends FunctionalTestCase
+ 
+         return $user;
+     }
++
++    private function refreshApp()
++    {
++        $this->refreshApplication();
++
++        if ($this->isSQLiteConnection()) {
++            $this->executeCallbacks();
++        }
++    }
+ }
+diff --git a/tests/functional/Repositories/Session/DbSessionTest.php b/tests/functional/Repositories/Session/DbSessionTest.php
+index fc81cae..07f3508 100644
+--- a/tests/functional/Repositories/Session/DbSessionTest.php
++++ b/tests/functional/Repositories/Session/DbSessionTest.php
+@@ -32,12 +32,19 @@ class DbSessionTest extends FunctionalTestCase
+         DB::table('sessions')->insert($data1);
+         DB::table('sessions')->insert($data2);
+ 
+-        $expected = [
++        $expected = collect([
+             (object) array_except($data1, ['payload', 'user_id']),
+             (object) array_except($data2, ['payload', 'user_id']),
+-        ];
++        ]);
++        $expected = $expected->sortBy('id')->keyBy('id')->toArray();
++
++        $actual = collect($this->repo->getUserSessions($user->id))
++            ->sortBy('id')
++            ->keyBy('id')
++            ->toArray();
++
+ 
+-        $this->assertEquals($expected, $this->repo->getUserSessions($user->id));
++        $this->assertEquals($expected, $actual);
+     }
+ 
+     public function test_invalidateUserSession()
+@@ -65,7 +72,7 @@ class DbSessionTest extends FunctionalTestCase
+             'ip_address' => $faker->ipv4,
+             'user_agent' => $faker->userAgent,
+             'payload' => 'foo',
+-            'last_activity' => Carbon::now()->toDateTimeString()
++            'last_activity' => Carbon::now()->timestamp
+         ];
+     }
+ }
