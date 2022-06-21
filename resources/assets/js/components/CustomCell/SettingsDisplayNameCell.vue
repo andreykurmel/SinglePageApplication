@@ -38,6 +38,7 @@
             }
         },
         props:{
+            tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
             cellHeight: Number,
@@ -56,7 +57,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 
     .td-custom {

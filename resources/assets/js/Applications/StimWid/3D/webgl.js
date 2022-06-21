@@ -17,6 +17,7 @@
     var INTERSECT_ARR = [];
     var mouse = new THREE.Vector3();
 
+    var onDistCalc;
     var onSelected;
     var onRigthClickSelect;
     var onCameraUpdate;
@@ -36,6 +37,7 @@
         eqpt: [],
         member: [],
     };
+    var rl_meshes = [];
 
     /**
      *
@@ -427,42 +429,48 @@
         controls.enablePan = true;
         // controls.reset();
 
-        scene.getObjectByName('gridZX').visible = settings.planeZX;
-        scene.getObjectByName('gridYZ').visible = settings.planeYZ;
-        scene.getObjectByName('gridXY').visible = settings.planeXY;
+        scene.getObjectByName('gridZX').visible = viewSettings.planeZX;
+        scene.getObjectByName('gridYZ').visible = viewSettings.planeYZ;
+        scene.getObjectByName('gridXY').visible = viewSettings.planeXY;
 
         scene.traverse(function (child) {
             if (child instanceof THREE.Sprite) {
                 if (child.type == 'nodeLabel') {
-                    child.visible = settings.nodesName;
+                    child.visible = viewSettings.nodesName;
                 }
 
                 if (child.type == 'memberLabel') {
-                    child.visible = settings.wireframeName;
+                    child.visible = viewSettings.wireframeName;
                 }
 
                 if(child.type === 'equipmentLabel'){
-                    child.visible = settings.showLabelsEqpt;
+                    child.visible = viewSettings.showLabelsEqpt;
                 }
             }
 
             if (child instanceof THREE.Mesh) {
                 if (child.type == 'node') {
-                    child.visible = settings.nodes;
+                    child.visible = viewSettings.nodes;
                 }
 
                 if (child.type == 'member') {
-                    child.visible = settings.members;
+                    child.visible = viewSettings.members;
                 }
 
                 if (child.type == 'equipment') {
-                    child.visible = settings.objects;
+                    child.visible = viewSettings.objects;
+                }
+
+                if (child.single_type == 'rl_bracket') {
+                    child.visible = !!viewSettings.rl_view;
+                    var $clr = Number( String(viewSettings.defRLColor || '#0000ff').replace('#', '0x'), 16);
+                    child.material.color.setHex( $clr );
                 }
             }
 
             if (child instanceof THREE.Line) {
                 if (child.type == 'line') {
-                    child.visible = settings.wireframe;
+                    child.visible = viewSettings.wireframe;
                 }
             }
         });
@@ -809,6 +817,9 @@
             if (!found && type === 'equipment' && elem.parent.lc_id == row_id) {
                 found = elem;
             }
+            if (!found && type === 'rl_bracket' && elem.rl_id == row_id) {
+                found = elem;
+            }
         });
         return found;
     }
@@ -819,7 +830,7 @@
      */
     function meshSelect(INTERSECT_ARR) {
         _.each(INTERSECT_ARR, (INTERSECT) => {
-            if(INTERSECT && INTERSECT.parent && INTERSECT.type != 'node') {
+            if(INTERSECT && INTERSECT.parent && !INTERSECT.single_type) {
                 INTERSECT.parent.children.forEach(function(child) {
                     if (child && child.material && child.type == 'Mesh') {
                         child.currentHex = child.currentHex || child.material.color.getHex();
@@ -847,7 +858,7 @@
      */
     function meshUnselect(INTERSECT_ARR) {
         _.each(INTERSECT_ARR, (INTERSECT) => {
-            if (INTERSECT && INTERSECT.parent && INTERSECT.type != 'node') {
+            if (INTERSECT && INTERSECT.parent && !INTERSECT.single_type) {
                 INTERSECT.parent.children.forEach(function (child) {
                     if (child && child.material && child.type == 'Mesh') {
                         child.material.color.setHex(child.currentHex);
@@ -1049,8 +1060,9 @@
         Event(mode);
     }
 
-    function Draw(cached, objects, state, type, lc_data, shrink, equipments, dc, sectionsInfo) {
+    function Draw(cached, objects, state, type, lc_data, shrink, equipments, dc, sectionsInfo, rls) {
         clearCached(cached);
+        drawRL(ais, equipments, rls);
 
         var temp = [];
         var object = new THREE.Mesh();
@@ -1289,7 +1301,7 @@
                 child.material.side = THREE.DoubleSide;
 
 
-                let wfh = new THREE.EdgesHelper(child, "#ffffff");
+                let wfh = new THREE.EdgesHelper(child, viewSettings.edges_color || "#ffffff");
 
                 wfh.material.opacity = 0.9;
                 wfh.material.transparent = true;
@@ -1381,7 +1393,7 @@
 
                 if (child instanceof THREE.Mesh) {
 
-                    var wfh = new THREE.EdgesHelper(child, "#ffffff");
+                    var wfh = new THREE.EdgesHelper(child, viewSettings.edges_color || "#ffffff");
 
                     wfh.material.opacity = 0.9;
                     wfh.material.transparent = true;
@@ -1585,6 +1597,7 @@
 
                 sphere.position.set(node.x, node.y, node.z);
                 sphere.item = node.no;
+                sphere.single_type = 'node';
                 sphere.type = 'node';
                 sphere.name = 'node' + node.no;
                 sphere.visible = viewSettings.nodes;
@@ -2439,8 +2452,10 @@
                 }
 
                 //calc Dist
+                let dist_changed = false;
                 if ((!to_float(lc.dist_to_node_s) && to_float(lc.elev_gctr) && to_float(lc.elev_gctr) != gctr_for_zero)) {
                     lc.dist_to_node_s = (lc.elev_gctr - lc._ma_gctr - to_float(parent.position.y)) / Math.abs(glob_top.y);
+                    dist_changed = true;
                 }
 
                 axios.post('?method=save_model', {
@@ -2452,6 +2467,10 @@
                         elev_pd: lc.elev_pd,
                         dist_to_node_s: lc.dist_to_node_s,
                     },
+                }).then(({data}) => {
+                    if (dist_changed && typeof onDistCalc == "function") {
+                        onDistCalc.call({}, lc);
+                    }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
@@ -2506,7 +2525,7 @@
         group.traverse(function (child) {
 
             if (child instanceof THREE.Mesh) {
-                let wfh = new THREE.EdgesHelper(child, "#ffffff");
+                let wfh = new THREE.EdgesHelper(child, viewSettings.edges_color || "#ffffff");
 
                 wfh.material.opacity = 0.9;
                 wfh.material.transparent = true;
@@ -2680,6 +2699,10 @@
         onCameraUpdate = callback;
     }
 
+    function onCalcDist(callback) {
+        onDistCalc = callback;
+    }
+
     function addLabel(text, props) {
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -2822,6 +2845,7 @@
     function allClear() {
         if (ais) {
             clearScene(ais);
+            clearRL(ais);
         }
     }
 
@@ -2842,6 +2866,54 @@
         return material;
     }
 
+    /**
+     *
+     * @param ais
+     */
+    function clearRL(ais) {
+        for (var key in rl_meshes) {
+            ais.remove(rl_meshes[key]);
+        }
+        rl_meshes = [];
+    }
+
+    /**
+     *
+     */
+    function drawRL(ais, equipments, rls)
+    {
+        clearRL(ais);
+
+        if (rls) {
+            _.each(rls.rows, (el) => {
+                let eq_vis = _.find(equipments, (eq) => { return eq.lc.equipment == el.equipment });
+                if (el.mbr_node && el.eqpt_node && eq_vis) {
+                    var mbrMat = createPhongMaterial({color: (viewSettings.defRLColor || 'blue')});
+                    var mbrNode = new THREE.Vector3( parseFloat(el.mbr_node.x), parseFloat(el.mbr_node.y), parseFloat(el.mbr_node.z) );
+                    var eqptNode = new THREE.Vector3( parseFloat(el.eqpt_node.x), parseFloat(el.eqpt_node.y), parseFloat(el.eqpt_node.z) );
+                    var RL_line = new THREE.Line3(mbrNode, eqptNode);
+                    var height = mbrNode.distanceTo(eqptNode);
+                    var radius = (viewSettings.rl_size || 1) / 24;
+                    var geometry = new THREE.CylinderGeometry( radius, radius, height, 36 );
+                    var cylinder = new THREE.Mesh( geometry, mbrMat );
+                    cylinder.position.copy( RL_line.center() );
+                    cylinder.lookAt(eqptNode);
+                    cylinder.rotateX(Math.PI/2);
+                    cylinder.rotateY(-Math.PI/2);
+                    cylinder.rl_id = el._id;
+                    cylinder.single_type = 'rl_bracket';
+                    cylinder.visible = !!viewSettings.rl_view;
+                    rl_meshes.push(cylinder);
+                    ais.add( cylinder );
+                }
+            });
+        }
+    }
+
+    /**
+     *
+     * @type {Run}
+     */
     exports.run = Run;
     exports.enableAxesMinimap = EnableAxesMinimap;
     exports.draw = Draw;
@@ -2850,6 +2922,7 @@
     exports.outerSelect = outerSelect;
     exports.cameraUpdate = cameraUpdate;
     exports.cameraChange = changeCamera;
+    exports.onCalcDist = onCalcDist;
     exports.rightClickSelected = RigthClickSelected;
     exports.changeGridSettings = ChangeGridSettings;
     exports.changeCameraPosition = ChangeCameraPosition;

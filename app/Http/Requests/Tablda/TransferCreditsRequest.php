@@ -25,7 +25,8 @@ class TransferCreditsRequest extends FormRequest
     public function rules()
     {
         return [
-            'groups' => 'required|array',
+            'groups' => 'required_without:users|array',
+            'users' => 'required_without:groups|array',
         ];
     }
 }

@@ -18,7 +18,7 @@ class RebuildingUserGroups3 extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_permission_id');
             $table->unsignedInteger('table_field_id');
-            $table->string('default', 1024);
+            $table->string('default', 255);
 
             $table->foreign('table_permission_id', 'table_permission_def_fields_table_permission_id')
                 ->references('id')

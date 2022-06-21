@@ -11,10 +11,12 @@ use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionItemAddRequ
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionItemDeleteRequest;
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionItemUpdateRequest;
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionUpdateRequest;
+use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefIcomingUpdateRequest;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Services\Tablda\TableService;
+use Vanguard\Support\DirectDatabase;
 
 class TableRefConditionController extends Controller
 {
@@ -82,6 +84,24 @@ class TableRefConditionController extends Controller
         $this->authorize('isOwner', [TableData::class, $table]);
 
         return $this->refConditionRepository->deleteRefCondition($ref_cond->id);
+    }
+
+    /**
+     * Update incoming Link
+     *
+     * @param TableRefIcomingUpdateRequest $request
+     * @return array
+     */
+    public function updIncomRef(TableRefIcomingUpdateRequest $request) {
+        $ref_cond = $this->refConditionRepository->getRefCondition($request->table_ref_condition_id);
+        $table = $this->tableService->getTable($ref_cond->ref_table_id);
+
+        $this->authorize('isOwner', [TableData::class, $table]);
+
+        $new_link = $this->refConditionRepository->updateRefCondition($ref_cond->id, ['incoming_allow' => $request->incoming_allow ? 1 : 0]);
+        return [
+            '__incoming_links' => DirectDatabase::loadIncomingLinks($table->id)
+        ];
     }
 
     /**

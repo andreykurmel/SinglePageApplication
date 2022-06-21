@@ -20,6 +20,7 @@ class CreateFilesTable extends Migration
             $table->unsignedInteger('row_id');
             $table->string('filepath');
             $table->string('filename');
+            $table->unsignedInteger('filesize')->nullable();
             $table->tinyInteger('is_img')->default(0);
             $table->string('notes')->nullable();
             $table->string('filehash', 64)->nullable();

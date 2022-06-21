@@ -54,14 +54,22 @@
                             </div>
 
                             <div class="flex__elem-remain popup-tab flex flex--col flex--center-h" v-show="rts_type === 'translate'">
-                                <label>
-                                    <span>Translate for, X:</span>
-                                    <input class="form-control f-inp" v-model="p_settings.translate.dx"/>
-                                    <span>Y:</span>
-                                    <input class="form-control f-inp" v-model="p_settings.translate.dy"/>
-                                    <span>Z:</span>
-                                    <input class="form-control f-inp" v-model="p_settings.translate.dz"/>
-                                </label>
+                                <div class="form-group">
+                                    <label>
+                                        <span>Translate for, X:</span>
+                                        <input class="form-control f-inp" v-model="p_settings.translate.dx"/>
+                                        <span>Y:</span>
+                                        <input class="form-control f-inp" v-model="p_settings.translate.dy"/>
+                                        <span>Z:</span>
+                                        <input class="form-control f-inp" v-model="p_settings.translate.dz"/>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label>Moving origin to</label>
+                                    <select class="form-control f-inp f-inp--2" @change="setTranslates">
+                                        <option v-for="row in metaRows.all_rows" :value="row.id">{{ row[stimLink.name_field] }}</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div class="flex__elem-remain popup-tab flex flex--col flex--center-h" v-show="rts_type === 'scale'">
@@ -130,6 +138,12 @@
             metaRows: MetaTabldaRows,
         },
         methods: {
+            setTranslates(e) {
+                let row = _.find(this.metaRows.all_rows, {id: Number(e.target.value)});
+                this.p_settings.translate.dx = row ? -1 * row[this.stimLink.app_maps.x] : null;
+                this.p_settings.translate.dy = row ? -1 * row[this.stimLink.app_maps.y] : null;
+                this.p_settings.translate.dz = row ? -1 * row[this.stimLink.app_maps.z] : null;
+            },
             rtsRows() {
                 if (!this.is_process) {
                     this.is_process = true;

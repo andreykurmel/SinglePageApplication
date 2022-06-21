@@ -34,9 +34,10 @@ class PostTableDataRequest extends FormRequest
             'table_id' => 'required|integer|exists:tables,id',
             'fields' => 'required|array',
             'get_query' => 'required|array',
-            'table_permission_id' => 'integer|exists:table_permissions,id',
-            'table_permission_pass' => 'string|nullable',
+            'table_dcr_id' => 'integer|exists:table_data_requests,id',
+            'table_dcr_pass' => 'string|nullable',
             'from_link_id' => 'integer|nullable',
+            'dcr_linked_rows' => 'array|nullable',
         ];
     }
 }

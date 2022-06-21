@@ -13,6 +13,7 @@ export class VerticalTableFldObject {
         this.level = 0;
         this.base_subs_lvl = 0;
         this.sub_headers = []; // {Array} of {string}
+        this.dcr_linked = null; // {DcrLinkedTable}->php
     }
 
     /**

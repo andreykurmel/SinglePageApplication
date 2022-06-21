@@ -1,4 +1,6 @@
 <script>
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
     /**
      *  should be present:
      *
@@ -18,6 +20,14 @@
                     'correspondence_fields',
                     'correspondence_stim_3d',
                 ],
+                constant_tables: [
+                    'fees',
+                    'payments',
+                    'sum_usages',
+                    'plans_view',
+                    'plan_features',
+                    'user_subscriptions',
+                ],
             }
         },
         computed: {
@@ -35,9 +45,10 @@
                 }
             },
             canAdd() {
-                if (!this.cve_metaTable || this.$root.user._app_cur_view) {
+                if (!this.cve_metaTable || this.$root.user._app_cur_view || this.inArray(this.cve_metaTable.db_name, this.constant_tables)) {
                     return false;
                 }
+                let for_user = this.cve_metaTable._is_owner ? this.$root.user : this.cve_metaTable._user;
 
                 return (
                         this.cve_metaTable._is_owner
@@ -50,7 +61,7 @@
                     (
                         !this.cve_metaTable._global_rows_count
                         ||
-                        this.$root.checkAvailable(this.$root.user, 'row_table', this.cve_metaTable._global_rows_count)
+                        this.$root.checkAvailable(for_user, 'row_table', this.cve_metaTable._global_rows_count)
                     );
             },
             canSomeEdit() {
@@ -70,7 +81,7 @@
                     this.cve_metaTable.db_name !== 'sum_usages';
             },
             canDelete() {
-                if (!this.cve_metaTable || this.$root.user._app_cur_view) {
+                if (!this.cve_metaTable || this.$root.user._app_cur_view || this.inArray(this.cve_metaTable.db_name, this.constant_tables)) {
                     return false;
                 }
 
@@ -82,13 +93,16 @@
                     /*&&
                     (!this.cve_metaTable.is_system || this.inArray(this.cve_metaTable.db_name, this.system_support_tables));*/
             },
-            hasAttachments() {
-                return _.find(this.cve_metaTable._fields, (hdr) => {
-                    return hdr.f_type === 'Attachment' && this.canViewHdr(hdr);
-                });
+            hasAttachments(fields) {
+                return this.partHasAttachments(this.cve_metaTable._fields);
             },
         },
         methods: {
+            partHasAttachments(fields) {
+                return _.find(fields, (hdr) => {
+                    return hdr.f_type === 'Attachment' && this.canViewHdr(hdr);
+                });
+            },
             //sys methods
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
@@ -116,7 +130,12 @@
                     !this.inArray(tableHeader.field, this.$root.systemFields);
             },
             canDeleteRow(tableRow) {
+                //all needed data present
                 if (!this._all_present(tableRow)) { return false; }
+
+                // manager can edit additionally
+                if (SpecialFuncs.managerOfRow(this.cve_metaTable, tableRow)) { return true; }
+
                 // owner OR user with available rights for delete Row
                 let del_groups = (this.cve_metaTable._current_right ? this.cve_metaTable._current_right.delete_row_groups || [] : []);
                 let has_del_groups = tableRow._applied_row_groups.filter((gr_id) => {
@@ -125,7 +144,12 @@
                 return this.canDelete && (this.cve_metaTable._is_owner || has_del_groups.length);
             },
             canEditRow(tableRow) {
+                //all needed data present
                 if (!this._all_present(tableRow)) { return false; }
+
+                // manager can edit additionally
+                if (SpecialFuncs.managerOfRow(this.cve_metaTable, tableRow)) { return true; }
+
                 //can edit only owner OR RowGroups are not set
                 let rg_present = this.cve_metaTable._current_right
                     && this.cve_metaTable._current_right.view_row_groups

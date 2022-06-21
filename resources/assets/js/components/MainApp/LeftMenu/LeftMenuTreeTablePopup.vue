@@ -5,10 +5,11 @@
             <div class="modal-dialog modal--390">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h4 class="modal-title">{{ tableModal.type === 'new' ? 'New Table' : 'Basic Table Settings' }}</h4>
+                        <h4 class="modal-title">{{ tableModal.type === 'new' ? 'New Table' : 'Edit Table' }}</h4>
                     </div>
                     <div class="modal-body">
                         <table-settings-module
+                                :table-meta="tableModal.tb_meta"
                                 :tb_meta="tableModal.tb_meta"
                                 :tb_theme="tableModal.tb_theme"
                                 :tb_views="tableModal.tb_views"
@@ -60,6 +61,7 @@
                     tb_meta: {
                         name: null,
                         rows_per_page: 50,
+                        enabled_activities: 0,
                         autoload_new_data: null,
                         pub_hidden: null,
                         is_public: null,
@@ -92,7 +94,14 @@
                         _is_owner: false,
                     },
                     tb_theme: {
-                        app_font_size: 12,
+                        appsys_tables_font_family: null,
+                        appsys_tables_font_size: null,
+                        appsys_tables_font_color: null,
+                        appsys_font_family: null,
+                        appsys_font_size: null,
+                        appsys_font_color: null,
+                        app_font_family: null,
+                        app_font_size: null,
                         app_font_color: null,
                         navbar_bg_color: null,
                         table_hdr_bg_color: null,

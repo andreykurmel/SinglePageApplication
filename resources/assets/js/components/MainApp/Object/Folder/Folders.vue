@@ -13,10 +13,13 @@
                         <a @click.prevent="activeTab = 'basics'">Basics</a>
                     </div>
                     <div :class="{active: activeTab === 'permissions'}" v-if="folderMeta">
-                        <a @click.prevent="activeTab = 'permissions'">Sharing</a>
+                        <a @click.prevent="activeTab = 'permissions'">Share</a>
                     </div>
                     <div :class="{active: activeTab === 'views'}" v-if="folderMeta">
                         <a @click.prevent="activeTab = 'views'">Views</a>
+                    </div>
+                    <div :class="{active: activeTab === 'import'}" v-if="folderMeta">
+                        <a @click.prevent="activeTab = 'import'">Import</a>
                     </div>
                 </div>
                 <div class="nav flex flex--center flex--automargin pull-right">
@@ -52,15 +55,19 @@
                 <folder-permissions
                     :folder-meta="folderMeta"
                     :settings-meta="settingsMeta"
-                    :cell-height="$root.cellHeight"
                 ></folder-permissions>
             </div>
             <!--VIEWS TAB-->
             <div class="full-frame" v-if="activeTab === 'views' && folderMeta">
                 <folder-views
                     :folder-meta="folderMeta"
-                    :cell-height="$root.cellHeight"
                 ></folder-views>
+            </div>
+            <!--IMPORT TAB-->
+            <div class="full-frame" v-if="activeTab === 'import' && folderMeta">
+                <folder-import
+                    :folder-meta="folderMeta"
+                ></folder-import>
             </div>
         </div>
     </div>
@@ -71,10 +78,12 @@
 
     import FolderPermissions from './FolderPermissions';
     import FolderViews from "./FolderViews";
+    import FolderImport from "./FolderImport";
 
     export default {
         name: "Folders",
         components: {
+            FolderImport,
             FolderViews,
             FolderPermissions
         },
@@ -116,7 +125,10 @@
                     if (this.$root.user.id) {
                         $('head title').html(this.$root.app_name+': '+this.folderMeta.name);
                     }
+
                     eventBus.$emit('change-folder-meta', this.folderMeta);
+                    eventBus.$emit('re-highlight-menu-tree', true);
+
                     console.log('FolderSettings', this.folderMeta, 'size about: ', JSON.stringify(this.folderMeta).length);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
@@ -133,7 +145,7 @@
                             name: this.folderMeta.name
                         }
                     }).then(({ data }) => {
-                        eventBus.$emit('event-reload-menu-tree');
+                        this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
 
                         let path = window.location.href.replace(this.oldFolderName, this.folderMeta.name);
                         window.history.pushState(this.folderMeta.name, this.folderMeta.name, path);

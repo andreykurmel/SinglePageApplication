@@ -20,13 +20,7 @@
                 <div class="form-group input-icon pwd_wrapper">
                     <i class="fa fa-lock"></i>
                     <input v-model="register_pass" ref="register_pass" type="password" name="password" class="form-control" placeholder="Password">
-                    <div class="pwd_info"
-                         v-show="!register_pass.match(/[A-z]/)
-                             || !register_pass.match(/[A-Z]/)
-                             || !register_pass.match(/\d/)
-                             || !register_pass.match(/[!$#%@]/)
-                             || register_pass.length < 6"
-                    >
+                    <div class="pwd_info" v-show="show_pass_requirements">
                         <h4>Password must meet following requirements:</h4>
                         <ul>
                             <li :class="[register_pass.match(/[A-z]/) ? 'valid-i' : 'invalid-i']"
@@ -46,6 +40,11 @@
                             >At least <strong>6 characters</strong> in length.</li>
                         </ul>
                     </div>
+                    <div class="pwd_info" v-show="show_dont_match" style="top: calc(50% + 20px);">
+                        <ul style="margin-bottom: 0">
+                            <li class="invalid-i" :style="{background: in_valid_i_bg}">Passwords do not match.</li>
+                        </ul>
+                    </div>
                 </div>
                 <div class="form-group input-icon">
                     <i class="fa fa-lock"></i>
@@ -60,7 +59,13 @@
 
                 <div class="form-group">
                     <div class="">
-                        <input type="checkbox" :disabled="!register_check" name="tos" id="tos" value="1"/>
+                        <input type="checkbox"
+                               :disabled="!register_check"
+                               :title="!register_check ? 'Please review the Terms of Service.' : ''"
+                               name="tos"
+                               id="tos"
+                               v-model="accept_tos"
+                               value="1"/>
                         <label for="tos">
                             <span>I accept</span>
                             <a :href="settings.root_url+'/tos'" target="_blank" @click="register_check = true">Terms of Service</a>
@@ -69,9 +74,11 @@
                 </div>
 
                 <div class="form-group">
-                    <button type="submit" class="btn btn-success btn-lg btn-block" id="btn-register" :disabled="!register_check || !register_pass_the_same">
-                        Register
-                    </button>
+                    <button type="submit"
+                            class="btn btn-success btn-lg btn-block"
+                            :title="!accept_tos ? 'Please accept the Terms of Service after reviewing' : ''"
+                            :disabled="!accept_tos || !register_check || !register_pass_the_same"
+                    >Register</button>
                 </div>
 
                 <div class="form-group have-acc">
@@ -102,12 +109,13 @@
         },
         data: function () {
             return {
-                register_email: this.settings.register_old_email,
-                register_name: this.settings.register_old_username,
+                register_email: this.settings.register_old_email || '',
+                register_name: this.settings.register_old_username || '',
                 register_pass: '',
                 register_pass_confirm: '',
                 register_check: false,
                 pass_the_same: false,
+                accept_tos: false,
 
                 valid_i_bg: 'url('+this.settings.root_url+'/assets/img/icons/accept.png) no-repeat 0 50%',
                 in_valid_i_bg: 'url('+this.settings.root_url+'/assets/img/icons/cross.png) no-repeat 0 50%',
@@ -119,20 +127,31 @@
         computed: {
             register_pass_the_same() {
                 return this.register_pass === this.register_pass_confirm;
-            }
+            },
+            show_pass_requirements() {
+                return !this.register_pass.match(/[A-z]/)
+                    || !this.register_pass.match(/[A-Z]/)
+                    || !this.register_pass.match(/\d/)
+                    || !this.register_pass.match(/[!$#%@]/)
+                    || this.register_pass.length < 6;
+            },
+            show_dont_match() {
+                return this.register_pass
+                    && this.register_pass_confirm
+                    && this.register_pass !== this.register_pass_confirm
+                    && !this.show_pass_requirements;
+            },
         },
         methods: {
         },
         mounted() {
-            $(this.$refs.register_email).val('');
-            $(this.$refs.register_name).val('');
-            this.egister_pass = '';
+            this.register_pass = '';
             this.register_pass_confirm = '';
         }
     }
 </script>
 
-<style scoped="" lang="scss">
+<style scoped lang="scss">
     @import "ModalForm";
 
     .pwd_wrapper {

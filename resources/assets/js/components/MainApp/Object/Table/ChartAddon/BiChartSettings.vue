@@ -8,10 +8,10 @@
                     <select
                             class="form-group form-control control-200"
                             v-model="all_settings.dataset.type"
-                            @change="chSettingChanged('dataset.type');"
+                            @change="chSettingChanged('dataset.type')"
                     >
                         <option value="all_table">Dataset</option>
-                        <option value="list_view">Current List View</option>
+                        <option value="list_view">Current Grid View</option>
                     </select>
                 </div>
                 <div class="inline-fld">
@@ -19,11 +19,22 @@
                     <select
                             class="form-group form-control control-200"
                             v-model="all_settings.dataset.rowgr_id"
-                            @change="chSettingChanged('dataset.rowgr_id');"
+                            @change="chSettingChanged('dataset.rowgr_id')"
                     >
                         <option value="0"></option>
                         <option v-for="rg in tableMeta._row_groups" :style="{color: '#444'}" :value="rg.id">{{ rg.name }}</option>
                     </select>
+                </div>
+                <div v-if="all_settings.elem_type === 'pivot_table'" class="inline-fld">
+                    <span class="indeterm_check__wrap">
+                        <span class="indeterm_check"
+                            :class="{'disabled': !canEdit}"
+                            @click="!canEdit ? null : referencedChange()"
+                        >
+                            <i v-if="apt.referenced_tables" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label>&nbsp;Ref'd Tables</label>
                 </div>
             </template>
             <template v-else="">
@@ -63,16 +74,18 @@
                 ></vue-ckeditor>
                 <div v-show="text_tab === 'vars'">
 
-                    <button class="btn btn-default blue-gradient"
-                            :class="[vars_tabs !== 'tables' ? 'opac' : '']"
-                            :style="$root.themeButtonStyle"
-                            @click="vars_tabs = 'tables'"
-                    >Tables</button>
-                    <button class="btn btn-default blue-gradient"
-                            :class="[vars_tabs !== 'charts' ? 'opac' : '']"
-                            :style="$root.themeButtonStyle"
-                            @click="vars_tabs = 'charts'"
-                    >Charts</button>
+                    <div style="padding-top: 5px;">
+                        <button class="btn btn-default blue-gradient"
+                                :class="[vars_tabs !== 'tables' ? 'opac' : '']"
+                                :style="$root.themeButtonStyle"
+                                @click="vars_tabs = 'tables'"
+                        >Tables</button>
+                        <button class="btn btn-default blue-gradient"
+                                :class="[vars_tabs !== 'charts' ? 'opac' : '']"
+                                :style="$root.themeButtonStyle"
+                                @click="vars_tabs = 'charts'"
+                        >Charts</button>
+                    </div>
 
                     <table class="table_settings" v-show="vars_tabs === 'tables'">
                         <colgroup>
@@ -86,7 +99,7 @@
                         <tr>
                             <th rowspan="2">Name</th>
                             <th rowspan="2">Component</th>
-                            <th rowspan="2">Fields/Columns</th>
+                            <th rowspan="2">Row and Column Levels</th>
                             <th rowspan="2">About</th>
                             <th rowspan="2">Action</th>
                         </tr>
@@ -247,17 +260,22 @@
                                 </td>
                                 <td class="td--th">L{{ lvl }}</td>
                                 <td>
-                                    <select class="form-control"
-                                            v-model="apt.horizontal['l'+lvl+'_field']"
-                                            :disabled="!canEdit"
+                                    <select-block
+                                            v-if="apt.referenced_tables"
+                                            :options="getFieldsAndRef()"
+                                            :sel_value="apt.horizontal['l'+lvl+'_reference']"
+                                            :is_disabled="!canEdit"
                                             :style="{color: apt.horizontal['l'+lvl+'_field'] ? '' : '#AAA'}"
-                                            @change="clearExcludedH();chSettingChanged('pivot_table.horizontal.l'+lvl+'_field');"
-                                    >
-                                        <option :style="{color: '#AAA'}" :value="null">Field</option>
-                                        <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
-                                            {{ $root.uniqName( fld.name ) }}
-                                        </option>
-                                    </select>
+                                            @option-select="(opt) => { refFieldChanged(opt,'horizontal',lvl) }"
+                                    ></select-block>
+                                    <select-block
+                                            v-else=""
+                                            :options="getFieldsAndRef()"
+                                            :sel_value="apt.horizontal['l'+lvl+'_field']"
+                                            :is_disabled="!canEdit"
+                                            :style="{color: apt.horizontal['l'+lvl+'_field'] ? '' : '#AAA'}"
+                                            @option-select="(opt) => { refFieldChanged(opt,'horizontal',lvl) }"
+                                    ></select-block>
                                 </td>
                                 <td v-if="apt_fld_meta.some_has_mselect">
                                     <span class="indeterm_check__wrap">
@@ -354,17 +372,22 @@
                                 </td>
                                 <td class="td--th">L{{ lvl }}</td>
                                 <td>
-                                    <select class="form-control"
-                                            v-model="apt.vertical['l'+lvl+'_field']"
-                                            :disabled="!canEdit"
+                                    <select-block
+                                            v-if="apt.referenced_tables"
+                                            :options="getFieldsAndRef()"
+                                            :sel_value="apt.vertical['l'+lvl+'_reference']"
+                                            :is_disabled="!canEdit"
                                             :style="{color: apt.vertical['l'+lvl+'_field'] ? '' : '#AAA'}"
-                                            @change="clearExcludedV();chSettingChanged('pivot_table.vertical.l'+lvl+'_field');"
-                                    >
-                                        <option :style="{color: '#AAA'}" :value="null">Field</option>
-                                        <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
-                                            {{ $root.uniqName( fld.name ) }}
-                                        </option>
-                                    </select>
+                                            @option-select="(opt) => { refFieldChanged(opt,'vertical',lvl) }"
+                                    ></select-block>
+                                    <select-block
+                                            v-else=""
+                                            :options="getFieldsAndRef()"
+                                            :sel_value="apt.vertical['l'+lvl+'_field']"
+                                            :is_disabled="!canEdit"
+                                            :style="{color: apt.vertical['l'+lvl+'_field'] ? '' : '#AAA'}"
+                                            @option-select="(opt) => { refFieldChanged(opt,'vertical',lvl) }"
+                                    ></select-block>
                                 </td>
                                 <td v-if="apt_fld_meta.some_has_mselect">
                                     <span class="indeterm_check__wrap">
@@ -426,19 +449,20 @@
                                         </span>
                                     </span>
                                 </td>
-                                <th :rowspan="apt.vert_l"></th>
+                                <th v-if="lvl === 1" :rowspan="apt.vert_l"></th>
                             </tr>
                             <!--END VERTICAL-->
                         </tbody>
                     </table>
                 </div>
-                <div class="">
+                <div class="form-group">
                     <!--ABOUT SETTINGS-->
                     <table class="table_settings">
                         <colgroup>
                             <col style="width: 75px;">
                             <col style="width: 60px;">
                             <col style="width: 35px;">
+                            <col style="width: 90px;">
                             <col style="width: 215px;">
                             <col style="width: 90px;">
                             <col style="width: 90px;">
@@ -447,7 +471,7 @@
                         <thead>
                         <tr>
                             <th rowspan="2"></th>
-                            <th colspan="2">Level</th>
+                            <th colspan="3">Level</th>
                             <th rowspan="2">
                                 <span>Column</span>
                                 <label v-if="apt.len_about > 1">
@@ -468,16 +492,17 @@
                             <th>Qty</th>
                             <th>#</th>
                             <th>Type</th>
+                            <th>Type</th>
                             <th>Func</th>
                         </tr>
                         </thead>
                         <tbody>
-                            <!--About 1-->
-                            <tr>
-                                <td class="td--th" :rowspan="apt.len_about">
+                            <!--About 1,2,3-->
+                            <tr v-for="lvl in Number(apt.len_about)">
+                                <td v-if="lvl === 1" class="td--th" :rowspan="apt.len_about">
                                     <span>About</span>
                                 </td>
-                                <td class="td--th" :rowspan="apt.len_about">
+                                <td v-if="lvl === 1" class="td--th" :rowspan="apt.len_about">
                                     <select class="form-control p-sm"
                                             v-model="apt.len_about"
                                             :disabled="!canEdit"
@@ -489,14 +514,47 @@
                                         <option>3</option>
                                     </select>
                                 </td>
-                                <td class="td--th">1</td>
+                                <td class="td--th">{{ lvl }}</td>
                                 <td>
                                     <select
                                             class="form-control"
-                                            v-model="apt.about.field"
+                                            v-model="apt[abo(lvl)].abo_type"
                                             :disabled="!canEdit"
-                                            :style="{color: apt.about.field ? '' : '#AAA'}"
-                                            @change="chSettingChanged('pivot_table.about.col');"
+                                            :style="{color: apt[abo(lvl)].abo_type ? '' : '#AAA', padding: 0}"
+                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.abo_type');"
+                                    >
+                                        <option value="field">Field</option>
+                                        <option value="formula">Formula</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <div v-if="apt[abo(lvl)].abo_type === 'formula'" class="full-height" style="position: relative">
+                                        <input type="text"
+                                               v-model="apt[abo(lvl)].formula_string"
+                                               :disabled="!canEdit"
+                                               @keyup="recreateForm(lvl)"
+                                               @focus="formhelper[lvl] = true"
+                                               class="form-control"/>
+                                        <formula-helper
+                                                v-if="formhelper[lvl]"
+                                                :user="$root.user"
+                                                :table-meta="tableMeta"
+                                                :table-row="apt[abo(lvl)]"
+                                                :header-key="'formula_string'"
+                                                :can-edit="canEdit"
+                                                :no-function="true"
+                                                :no_prevent="true"
+                                                :pop_width="'100%'"
+                                                @set-formula="formhelper[lvl] = false;chSettingChanged('pivot_table.'+abo(lvl)+'.formula_string');"
+                                        ></formula-helper>
+                                    </div>
+                                    <select
+                                            v-else=""
+                                            class="form-control"
+                                            v-model="apt[abo(lvl)].field"
+                                            :disabled="!canEdit"
+                                            :style="{color: apt[abo(lvl)].field ? '' : '#AAA'}"
+                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.col')"
                                     >
                                         <option :style="{color: '#AAA'}" disabled :value="null">Field</option>
                                         <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
@@ -506,19 +564,19 @@
                                 </td>
                                 <td>
                                     <select class="form-control"
-                                            :disabled="!canEdit || !apt.about.field"
-                                            v-model="apt.about.calc_val"
-                                            @change="chSettingChanged('pivot_table.about.calc_val');"
+                                            :disabled="!canEdit || !apt[abo(lvl)].field"
+                                            v-model="apt[abo(lvl)].calc_val"
+                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.calc_val');"
                                     >
                                         <option v-for="gr in calc_values" :value="gr.func">{{ gr.show }}</option>
                                     </select>
                                 </td>
                                 <td>
-                                    <select v-show="apt.about.calc_val == 1"
+                                    <select v-show="apt[abo(lvl)].calc_val == 1"
                                             class="form-control"
-                                            :disabled="!canEdit || !apt.about.field"
-                                            v-model="apt.about.group_function"
-                                            @change="chSettingChanged('pivot_table.about.group_function');"
+                                            :disabled="!canEdit || !apt[abo(lvl)].field"
+                                            v-model="apt[abo(lvl)].group_function"
+                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.group_function');"
                                     >
                                         <option v-for="gr in group_functions" :value="gr.func">{{ gr.show }}</option>
                                     </select>
@@ -526,116 +584,37 @@
                                 <td>
                                     <span class="indeterm_check__wrap">
                                         <span class="indeterm_check"
-                                              :class="{'disabled': !canEdit || !apt.about.field}"
-                                              @click="!canEdit || !apt.about.field
+                                              :class="{'disabled': !canEdit || !apt[abo(lvl)].field}"
+                                              @click="!canEdit || !apt[abo(lvl)].field
                                                 ? null
-                                                : chSettingChanged('pivot_table.about.show_zeros',apt.about,'show_zeros');"
+                                                : chSettingChanged('pivot_table.'+abo(lvl)+'.show_zeros',apt[abo(lvl)],'show_zeros');"
                                         >
-                                            <i v-if="apt.about.show_zeros" class="glyphicon glyphicon-ok group__icon"></i>
-                                        </span>
-                                    </span>
-                                </td>
-                            </tr>
-                            <!--About 2-->
-                            <tr v-if="apt.len_about > 1">
-                                <td class="td--th">2</td>
-                                <td>
-                                    <select
-                                            class="form-control"
-                                            v-model="apt.about_2.field"
-                                            :disabled="!canEdit"
-                                            :style="{color: apt.about_2.field ? '' : '#AAA'}"
-                                            @change="chSettingChanged('pivot_table.about_2.col');"
-                                    >
-                                        <option :style="{color: '#AAA'}" disabled :value="null">Field</option>
-                                        <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
-                                            {{ $root.uniqName( fld.name ) }}
-                                        </option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <select class="form-control"
-                                            :disabled="!canEdit || !apt.about_2.field"
-                                            v-model="apt.about_2.calc_val"
-                                            @change="chSettingChanged('pivot_table.about_2.calc_val');"
-                                    >
-                                        <option v-for="gr in calc_values" :value="gr.func">{{ gr.show }}</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <select v-show="apt.about_2.calc_val == 1"
-                                            class="form-control"
-                                            :disabled="!canEdit || !apt.about_2.field"
-                                            v-model="apt.about_2.group_function"
-                                            @change="chSettingChanged('pivot_table.about_2.group_function');"
-                                    >
-                                        <option v-for="gr in group_functions" :value="gr.func">{{ gr.show }}</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <span class="indeterm_check__wrap">
-                                        <span class="indeterm_check"
-                                              :class="{'disabled': !canEdit || !apt.about_2.field}"
-                                              @click="!canEdit || !apt.about_2.field
-                                                ? null
-                                                : chSettingChanged('pivot_table.about_2.show_zeros',apt.about_2,'show_zeros');"
-                                        >
-                                            <i v-if="apt.about_2.show_zeros" class="glyphicon glyphicon-ok group__icon"></i>
-                                        </span>
-                                    </span>
-                                </td>
-                            </tr>
-                            <!--About 3-->
-                            <tr v-if="apt.len_about > 2">
-                                <td class="td--th">3</td>
-                                <td>
-                                    <select
-                                            class="form-control"
-                                            v-model="apt.about_3.field"
-                                            :disabled="!canEdit"
-                                            :style="{color: apt.about_3.field ? '' : '#AAA'}"
-                                            @change="chSettingChanged('pivot_table.about_3.col');"
-                                    >
-                                        <option :style="{color: '#AAA'}" disabled :value="null">Field</option>
-                                        <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
-                                            {{ $root.uniqName( fld.name ) }}
-                                        </option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <select class="form-control"
-                                            :disabled="!canEdit || !apt.about_3.field"
-                                            v-model="apt.about_3.calc_val"
-                                            @change="chSettingChanged('pivot_table.about_3.calc_val');"
-                                    >
-                                        <option v-for="gr in calc_values" :value="gr.func">{{ gr.show }}</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <select v-show="apt.about_3.calc_val == 1"
-                                            class="form-control"
-                                            :disabled="!canEdit || !apt.about_3.field"
-                                            v-model="apt.about_3.group_function"
-                                            @change="chSettingChanged('pivot_table.about_3.group_function');"
-                                    >
-                                        <option v-for="gr in group_functions" :value="gr.func">{{ gr.show }}</option>
-                                    </select>
-                                </td>
-                                <td>
-                                    <span class="indeterm_check__wrap">
-                                        <span class="indeterm_check"
-                                              :class="{'disabled': !canEdit || !apt.about_3.field}"
-                                              @click="!canEdit || !apt.about_3.field
-                                                ? null
-                                                : chSettingChanged('pivot_table.about_3.show_zeros',apt.about_3,'show_zeros');"
-                                        >
-                                            <i v-if="apt.about_3.show_zeros" class="glyphicon glyphicon-ok group__icon"></i>
+                                            <i v-if="apt[abo(lvl)].show_zeros" class="glyphicon glyphicon-ok group__icon"></i>
                                         </span>
                                     </span>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="" style="position: relative;">
+                    <div class="flex flex--center-v">
+                        <button class="btn btn-default blue-gradient"
+                                :disabled="!all_settings.table_to_export"
+                                :style="$root.themeButtonStyle"
+                                @click="exportConfirm()"
+                        >Export</button>
+                        <label style="margin: 0;">&nbsp;to table:&nbsp;</label>
+                        <div class="control-300 bcs-swfs-wrapper">
+                            <select-with-folder-structure
+                                :cur_val="all_settings.table_to_export"
+                                :available_tables="$root.settingsMeta.available_tables"
+                                :user="$root.user"
+                                class="form-control full-height"
+                                @sel-changed="tableToExpUpdate">
+                            </select-with-folder-structure>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- END TABLE PART -->
@@ -911,21 +890,47 @@
             <!-- END CHART PART -->
 
         </div>
+
+        <info-popup v-if="export_confirm_show"
+                    :pop_width="400"
+                    :title_html="'Confirm to Export'"
+                    :content_html="'All existing data in the target table will be erased!'"
+                    :add_btn="'Proceed'"
+                    :cancel_btn="'Cancel'"
+                    @hide="export_confirm_show = false"
+                    @add-click="exportToTable()"
+                    @cancel-click="export_confirm_show = false"
+        ></info-popup>
     </div>
 </template>
 
 <script>
     import {ChartFunctions} from './ChartFunctions';
 
+    import SortFieldsForVerticalMixin from "./../../../../_Mixins/SortFieldsForVerticalMixin.vue";
+    import BiRequestMixin from "./BiRequestMixin.vue";
+
     import VueCkeditor from 'vue-ckeditor2';
     import BiChartSettingsVariable from "./BiChartSettingsVariable";
+    import FormulaHelper from "../../../../CustomCell/InCell/FormulaHelper";
+    import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+    import SelectWithFolderStructure from "../../../../CustomCell/InCell/SelectWithFolderStructure";
+    import InfoPopup from "../../../../CustomPopup/InfoPopup";
 
     export default {
         name: "BiChartSettings",
         components: {
+            InfoPopup,
+            SelectWithFolderStructure,
             BiChartSettingsVariable,
+            SelectBlock,
+            FormulaHelper,
             VueCkeditor,
         },
+        mixins: [
+            SortFieldsForVerticalMixin,
+            BiRequestMixin,
+        ],
         data: function () {
             return {
                 //activeTab: 'table',
@@ -972,12 +977,16 @@
                 var_table: ChartFunctions.empVar('table'),
                 var_chart: ChartFunctions.empVar('chart'),
                 vars_tabs: 'tables',
+                forbiddenColumns: this.$root.systemFields,
+                formhelper: { 1: false, 2: false, 3: false, },
+                export_confirm_show: false,
             }
         },
         props:{
             tableMeta: Object,
             canEdit: Boolean,
             all_settings: Object,
+            request_params: Object,
         },
         computed: {
             apt_fld_meta() {
@@ -1010,6 +1019,15 @@
             },
         },
         methods: {
+            recreateForm(param) {
+                this.formhelper[param] = false;
+                this.$nextTick(() => {
+                    this.formhelper[param] = true;
+                });
+            },
+            abo(lvl) {
+                return lvl === 1 ? 'about' : 'about_'+lvl;
+            },
             //vars
             chobj(ch_id) {
                 return _.find(this.tableMeta._charts_saved, {id: Number(ch_id)});
@@ -1106,6 +1124,131 @@
                 }
                 this.all_settings.excluded_verts = obj;
             },
+
+            //Referenced Tables
+            refFieldChanged(refObj, type, lvl) {
+                if (type === 'horizontal') {
+                    this.clearExcludedH();
+                } else {
+                    this.clearExcludedV();
+                }
+
+                if (this.apt.referenced_tables && to_float(refObj.val)) {//is referenced field with 'id' instead 'field'.
+                    this.apt[type]['l'+lvl+'_reference'] = refObj.val;
+                    this.apt[type]['l'+lvl+'_field'] = refObj.main_fld;
+                    this.apt[type]['l'+lvl+'_ref_link'] = refObj.ref_link;
+                } else {
+                    this.apt[type]['l'+lvl+'_field'] = refObj.val;
+                    this.apt[type]['l'+lvl+'_reference'] = refObj.val;
+                    this.apt[type]['l'+lvl+'_ref_link'] = refObj.ref_link;
+                }
+
+                this.chSettingChanged('pivot_table.'+type+'.l'+lvl+'_field');
+            },
+            referencedChange() {
+                this.apt.referenced_tables = !this.apt.referenced_tables;
+                if (this.apt.referenced_tables) {
+                    for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
+                        this.apt.vertical['l'+i+'_reference'] = this.apt.vertical['l'+i+'_field'];
+                        this.apt.horizontal['l'+i+'_reference'] = this.apt.horizontal['l'+i+'_field'];
+                    }
+                } else {
+                    for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
+                        this.apt.vertical['l'+i+'_field'] = this.apt.vertical['l'+i+'_reference'] == this.apt.vertical['l'+i+'_field'] ? this.apt.vertical['l'+i+'_field'] : null;
+                        this.apt.horizontal['l'+i+'_field'] = this.apt.horizontal['l'+i+'_reference'] == this.apt.horizontal['l'+i+'_field'] ? this.apt.horizontal['l'+i+'_field'] : null;
+                        this.apt.vertical['l'+i+'_reference'] = null;
+                        this.apt.horizontal['l'+i+'_reference'] = null;
+                        this.apt.vertical['l'+i+'_ref_link'] = null;
+                        this.apt.horizontal['l'+i+'_ref_link'] = null;
+                    }
+                }
+                this.chSettingChanged('pivot_table.referenced_tables');
+            },
+            getFieldsAndRef() {
+                let sorted_main = this.sortAndFilterFields(this.tableMeta, this.tableMeta._fields, {}, true);
+                let fields = _.map(sorted_main, (ff) => {
+                    return {
+                        val: ff.field,
+                        show: this.$root.uniqName( ff.name ),
+                        style: { color: '#00F' },
+                    };
+                });
+
+                fields.unshift({
+                    val: null,
+                    show: 'Field',
+                    style: { color: '#AAA' },
+                    main_fld: null,
+                    ref_link: null,
+                });//empty val
+
+                if (this.apt.referenced_tables) {
+                    _.each(this.tableMeta._fields, (source_fld) => {
+                        if (source_fld.input_type !== 'Input' && source_fld.ddl_id) {
+                            let ddl = _.find(this.tableMeta._ddls, {id: Number(source_fld.ddl_id)});
+                            if (ddl && ddl._references && ddl._references.length) {
+                                fields.push({
+                                    val: null,
+                                    show: ddl.name,
+                                    style: { color: '#777', backgroundColor: '#448' },
+                                    isTitle: true,
+                                });
+                                _.each(ddl._references, (ref) => {
+                                    let rc = _.find(this.tableMeta._ref_conditions, {id: Number(ref.table_ref_condition_id)});
+                                    let ref_tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(rc ? rc.ref_table_id : null)});
+                                    //Just for DDL 'id/show'
+                                    if (!rc.target_field_id && ref_tb && ref_tb._fields) {
+                                        let sorted_ref = _.sortBy(ref_tb._fields, 'order');
+                                        sorted_ref = this.sortAndFilterFields(ref_tb, sorted_ref, {}, true);
+                                        _.each(sorted_ref || [], (ref_fld) => {
+                                            let ref_link = _.find(ref_tb._fields, {id: Number(ref.target_field_id)});
+                                            fields.push({
+                                                val: ref_fld.id,
+                                                show: this.$root.uniqName( ref_fld.name ),
+                                                style: { color: '#444' },
+                                                main_fld: source_fld.field,
+                                                ref_link: ref_link ? ref_link.field : 'id',
+                                            });
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+                return fields;
+            },
+
+            //export
+            exportConfirm() {
+                this.export_confirm_show = true;
+            },
+            exportToTable() {
+                this.$root.sm_msg_type = 1;
+                axios.post('/ajax/table/chart/export', {
+                    chart_settings: this.all_settings,
+                    target_table_id: this.all_settings.table_to_export,
+                    request_params: this.getRequestParams(this.all_settings, this.tableMeta, this.request_params),
+                }).then(({ data }) => {
+                    Swal('', 'Export is finished!');
+                    this.all_settings.table_to_export = data.new_id;
+                    this.$emit('settings-changed', this.all_settings, false);
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                }).finally(() => {
+                    this.$root.sm_msg_type = 0;
+                });
+                this.export_confirm_show = false;
+            },
+            tableToExpUpdate(val) {
+                this.all_settings.table_to_export = val;
+                this.$emit('settings-changed', this.all_settings, false);
+
+                axios.put('/ajax/table/chart/settings', {
+                    chart_id: this.all_settings.id,
+                    chart_settings: {table_to_export: val},
+                });
+            },
         },
         created() {
         },
@@ -1132,9 +1275,9 @@
         width: 70px;
     }
     .table_settings {
+        width: calc(100% - 1px);
         border-collapse: collapse;
         table-layout: fixed;
-        width: 1px;
 
         th,td {
             vertical-align: middle;
@@ -1164,5 +1307,24 @@
     }
     .p-sm {
         padding: 5px;
+    }
+    select {
+        .ref-option {
+            &:hover {
+                text-decoration: underline;
+            }
+        }
+    }
+</style>
+
+<style lang="scss">
+    .bcs-swfs-wrapper {
+        .select2-container {
+            height: 36px !important;
+            z-index: 1000;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 32px;
+        }
     }
 </style>

@@ -19,6 +19,23 @@ class EloquentActivity implements ActivityRepository
     /**
      * {@inheritdoc}
      */
+    public function logWhere($data, $find)
+    {
+        return Activity::where($find)->update($data);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function find(array $where, bool $first = true)
+    {
+        $sql = Activity::where($where);
+        return $first ? $sql->first() : $sql->get();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function paginateActivitiesForUser($userId, $perPage = 20, $search = null)
     {
         $query = Activity::where('user_id', $userId);

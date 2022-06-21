@@ -7,8 +7,9 @@
         </div>
         <!--Pictures Tab-->
         <div class="flex__elem-remain popup-tab" v-show="activeAttachTab === 'pictures'" :style="tab_style">
-            <div v-for="(tableHeader, index) in tableMeta._fields" v-if="tableHeader.f_type === 'Attachment' && canViewHdr(tableHeader)">
-                <label>{{ getHeader(tableHeader.name) }}</label>
+            <div v-for="(tableHeader, index) in tableMeta._fields"
+                 v-if="headerAvailToShow(tableHeader, '_images_for_')">
+                <label>{{ getHeader(tableHeader, '_images_for_') }}</label>
                 <table class="table">
                     <colgroup>
                         <col width="40%">
@@ -18,10 +19,10 @@
                     </colgroup>
                     <thead>
                     <tr>
-                        <th>File</th>
+                        <th>Picture</th>
                         <th>Rename</th>
                         <th>Notes</th>
-                        <th>Actions</th>
+                        <th>Action</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -35,20 +36,23 @@
                             </a>
                         </td>
                         <td>
-                            <button class="btn btn-success btn-sm" @click="selRename(image, idx)">GO</button>
+                            <button class="btn btn-success btn-sm"
+                                    :disabled="!canChangeFile(tableHeader)"
+                                    @click="selRename(image, idx)"
+                            >GO</button>
                         </td>
                         <td>
                             <input class="form-control"
                                    :disabled="!canChangeFile(tableHeader)"
                                    type="text"
-                                   @change="updateFile(tableRow['_images_for_'+tableHeader.field], idx)"
+                                   @change="updateFile(image)"
                                    v-model="image.notes"
                             />
                         </td>
                         <td>
                             <button class="btn btn-danger"
                                     v-if="canChangeFile(tableHeader)"
-                                    @click="deleteFile(tableRow['_images_for_'+tableHeader.field], idx, tableHeader)"
+                                    @click="deleteFile('img', idx, tableHeader)"
                             >×</button>
                         </td>
                     </tr>
@@ -58,8 +62,9 @@
         </div>
         <!--Files Tab-->
         <div class="flex__elem-remain popup-tab" v-show="activeAttachTab === 'files'" :style="tab_style">
-            <div v-for="(tableHeader, index) in tableMeta._fields" v-if="tableHeader.f_type === 'Attachment' && canViewHdr(tableHeader)">
-                <label>{{ getHeader(tableHeader.name) }}</label>
+            <div v-for="(tableHeader, index) in tableMeta._fields"
+                 v-if="headerAvailToShow(tableHeader, '_files_for_')">
+                <label>{{ getHeader(tableHeader, '_files_for_') }}</label>
                 <table class="table">
                     <colgroup>
                         <col width="40%">
@@ -72,7 +77,7 @@
                         <th>File</th>
                         <th>Rename</th>
                         <th>Notes</th>
-                        <th>Actions</th>
+                        <th>Action</th>
                     </tr>
                     </thead>
                     <tbody>
@@ -81,20 +86,23 @@
                             <a target="_blank" :href="$root.fileUrl(file)">{{ file.filename }}</a>
                         </td>
                         <td>
-                            <button class="btn btn-success btn-sm" @click="selRename(file, idx)">GO</button>
+                            <button class="btn btn-success btn-sm"
+                                    :disabled="!canChangeFile(tableHeader)"
+                                    @click="selRename(file, idx)"
+                            >GO</button>
                         </td>
                         <td>
                             <input class="form-control"
                                    :disabled="!canChangeFile(tableHeader)"
                                    type="text"
-                                   @change="updateFile(tableRow['_files_for_'+tableHeader.field], idx)"
+                                   @change="updateFile(file)"
                                    v-model="file.notes"
                             />
                         </td>
                         <td>
                             <button class="btn btn-danger"
                                     v-if="canChangeFile(tableHeader)"
-                                    @click="deleteFile(tableRow['_files_for_'+tableHeader.field], idx, tableHeader)"
+                                    @click="deleteFile('file', idx, tableHeader)"
                             >×</button>
                         </td>
                     </tr>
@@ -110,15 +118,16 @@
                     v-for="(tableHeader, index) in tableMeta._fields"
                     v-if="canChangeFile(tableHeader)"
                 >
-                    <label>{{ getHeader(tableHeader.name) }}</label>
+                    <label>{{ getHeader(tableHeader) }}</label>
                     <div class="form-group upload-group">
                         <file-uploader-block
                                 v-if="!recreate_dropzones"
+                                :format="tableHeader.f_format"
                                 :header-index="index"
                                 :table_id="tableMeta.id"
                                 :field_id="tableHeader.id"
                                 :row_id="role === 'add' ? tableRow._temp_id : tableRow.id"
-                                :special_params="special_params"
+                                :special_params="local_spec_params"
                                 @uploaded-file="insertedFile"
                         ></file-uploader-block>
                     </div>
@@ -148,6 +157,8 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../classes/SpecialFuncs';
+
     import CanEditMixin from '../_Mixins/CanViewEditMixin';
 
     import FileUploaderBlock from './FileUploaderBlock';
@@ -203,7 +214,10 @@
             },
             total_id() {
                 return this.tableMeta.id + '_' + this.tableRow.id;
-            }
+            },
+            local_spec_params() {
+                return this.special_params || SpecialFuncs.specialParams();
+            },
         },
         props:{
             tableMeta: Object,
@@ -214,7 +228,7 @@
             reqest_edit: Boolean,
             forbiddenColumns: Array,
             availableColumns: Array,
-            special_params: String|Object,
+            special_params: Object,
         },
         watch: {
             total_id(val) {
@@ -225,55 +239,66 @@
             }
         },
         methods: {
+            headerAvailToShow(tableHeader, file_or_image) {
+                return tableHeader.f_type === 'Attachment'
+                    && this.canViewHdr(tableHeader)
+                    && this.tableRow[file_or_image + tableHeader.field]
+                    && this.tableRow[file_or_image + tableHeader.field].length
+            },
+
             canChangeFile(tableHeader) {
                 return tableHeader.f_type === 'Attachment'
                     && (
-                        (this.role === 'update' && this.canEditHdr(tableHeader))
+                        (this.role === 'update' && this.canEditCell(tableHeader, this.tableRow))
                         ||
                         (this.role === 'add' && this.canAdd && this.canViewHdr(tableHeader))
                     )
                     &&
                     (this.behavior !== 'request_view' || this.reqest_edit); //if embed request -> can edit only newly added rows
             },
-            getHeader(name) {
-                let arr = name.split(',');
-                return arr[ arr.length-1 ];
+            getHeader(tableHeader, file_or_image) {
+                let size = '';
+                if (
+                    file_or_image
+                    && this.tableRow[file_or_image + tableHeader.field]
+                    && this.tableRow[file_or_image + tableHeader.field].length
+                ) {
+                    let total = 0;
+                    _.each(this.tableRow[file_or_image + tableHeader.field], (file) => {
+                        total += file.filesize || 0;
+                    });
+                    total = total / (1024*1024);
+                    size = ' ('+Number(total).toFixed(1)+' MB)';
+                }
+                let arr = tableHeader.name.split(',');
+                return arr[ arr.length-1 ] + size;
             },
             //working with files
             insertedFile(idx, file) {
                 let tableHeader = this.tableMeta._fields[idx];
-                let row_images = this.tableRow['_images_for_'+tableHeader.field];
-                let row_files = this.tableRow['_files_for_'+tableHeader.field];
-
-                //add uploaded file to the row
-                if (file.is_img) {
-                    (row_images ? row_images.push(file) : this.$set(this.tableRow, '_images_for_'+tableHeader.field, [file]));
-                } else {
-                    (row_files ? row_files.push(file) : this.$set(this.tableRow, '_files_for_'+tableHeader.field, [file]));
-                }
-
-                if (tableHeader) {
-                    this.tableRow[tableHeader.field] = file.filepath + file.filename;
-                }
+                this.$root.attachFileToRow(this.tableRow, tableHeader, file);
             },
-            updateFile(files, idx) {
-                let file = files[idx];
+            updateFile(file) {
                 axios.put('/ajax/files', {
                     id: file.id,
                     table_id: file.table_id,
+                    table_field_id: file.table_field_id,
                     filename: file.filename,
-                    notes: file.notes
+                    notes: file.notes,
+                    special_params: this.local_spec_params,
                 }).then(({ data }) => {
                     if (data.file) {
                         file.filename = data.file.filename;
+                        this.$emit('updated-cell');
                     }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
                 });
             },
-            deleteFile(files, idx, tableHeader) {
-                let file = files[idx];
+            deleteFile(type, idx, tableHeader) {
+                let key = (type === 'file' ? '_files_for_' : '_images_for_') + tableHeader.field;
+                let file = this.tableRow[key][idx];
                 $.LoadingOverlay('show');
                 axios.delete('/ajax/files', {
                     params: {
@@ -281,10 +306,12 @@
                         table_id: file.table_id,
                         table_field_id: file.table_field_id,
                         row_id: this.tableRow.id,
+                        special_params: this.local_spec_params,
                     }
                 }).then(({ data }) => {
-                    files.splice(idx, 1);
+                    this.tableRow[key].splice(idx, 1);
                     this.tableRow[tableHeader.field] = '';
+                    this.$emit('updated-cell');
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -299,7 +326,7 @@
             },
             fRename(new_name) {
                 this.fileRenamer.filename = new_name;
-                this.updateFile([this.fileRenamer], 0);
+                this.updateFile(this.fileRenamer);
                 this.fileRenamer = null;
             },
             imageClick(images, idx) {

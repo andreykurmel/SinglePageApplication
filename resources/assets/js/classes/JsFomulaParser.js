@@ -12,9 +12,9 @@ export class JsFomulaParser {
         this.field_name_links = {};
         if (tableMeta) {
             _.each(tableMeta._fields, ($tf) => {
-                this.field_name_links['{' + this.tf_name($tf.name) + '}'] = $tf;
+                this.field_name_links[ this.tf_name($tf.name) ] = $tf;
                 if ($tf.formula_symbol) {
-                    this.field_name_links['{' + this.tf_name($tf.formula_symbol) + '}'] = $tf;
+                    this.field_name_links[ this.tf_name($tf.formula_symbol) ] = $tf;
                 }
             });
         } else {
@@ -30,8 +30,8 @@ export class JsFomulaParser {
      */
     tf_name($name, $nolower = false)
     {
-        $name = String($name).replace(/\\/gi, '');//sanitize
-        return ($nolower ? $name : String($name).toLowerCase());
+        $name = String($name).replace(/\W/gi, '');//sanitize
+        return '{' + ($nolower ? $name : String($name).toLowerCase()) + '}';
     }
 
     /**
@@ -51,7 +51,7 @@ export class JsFomulaParser {
                 let $data = String($row[$fld.field] || '').replace(/["]/gi, '');//sanitize
                 $data = String($data).replace(/(\d),(\d)/i, '$1$2');//prepare for number calcs
                 $data = SpecialFuncs.showhtml($fld, $row, $data, unitConv);
-                $data = String($data).match('/[^\d\.]/i')
+                $data = !String($data) || String($data).match('/[^\d\.]/i')
                     ? ($data || '') //String if not only digits
                     : ($data || 0); //Number if only digits
                 //---

@@ -189,7 +189,7 @@
                 about = about > 1 ? 'about_'+about : 'about';
                 let abo = this.all_settings.pivot_table[about] || {};
                 let y_axis_col = _.find(this.table_meta._fields, {field: abo.field});
-                return SpecialFuncs.showhtml(y_axis_col, {}, val);
+                return SpecialFuncs.showhtml(y_axis_col, {__no_html:true}, val);
             },
 
             //SUM CALCS

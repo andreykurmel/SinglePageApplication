@@ -8,11 +8,11 @@
         data() {
             return {
                 object_id:  this.init_object_id,
-                table_permission:  this.init_table_permission,
+                data_request:  this.init_data_request,
             }
         },
         props: {
-            init_table_permission: Object,
+            init_data_request: Object,
             init_object_id: Number,
             settingsMeta: Object,
         },

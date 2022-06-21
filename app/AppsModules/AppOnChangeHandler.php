@@ -43,7 +43,7 @@ class AppOnChangeHandler
         try {
             $app_tb = CorrespTable::where('data_table', $this->table->db_name)
                 ->isActive()
-                ->whereNotNull('on_change_app_id')
+                ->where('on_change_app_id', '>', 0)
                 ->first();
             if ($app_tb) {
                 $corr_app = CorrespApp::onlyActive()->where('id', $app_tb->on_change_app_id)->first();

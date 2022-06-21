@@ -135,10 +135,10 @@ class PlanRepository
     /**
      * Update all PlanFeatures for all rows in PlansView table.
      *
-     * @param array $plans_view_ids
+     * @param Table $table_info
      * @return mixed
      */
-    public function updateAllFeaturesForAllRows(Table $table_info, Array $plans_view_ids)
+    public function updateAllFeaturesForAllRows(Table $table_info)
     {
         $all_rows = (new TableDataQuery($table_info))->getQuery()->get();
         foreach ($all_rows as $row) {
@@ -173,8 +173,8 @@ class PlanRepository
     public function planFeatureChanged(Plan $plan, $col, $val)
     {
         $user_ids = User::whereHas('_all_subs', function ($q) use ($plan) {
-            $q->where('plan_code', '=', $plan->code);
-        })
+                $q->where('plan_code', '=', $plan->code);
+            })
             ->get()
             ->pluck('id');
 
@@ -185,12 +185,12 @@ class PlanRepository
         //update plan itself
         PlanFeature::where('type', '=', 'plan')
             ->where('object_id', '=', $plan->id)
-            ->update(array_merge([$col => $val], $this->service->getModified()));
+            ->update([$col => $val]);
 
         //update features for all users
         return PlanFeature::where('type', '=', 'user')
             ->whereIn('object_id', $user_ids)
-            ->update(array_merge([$col => $val], $this->service->getModified()));
+            ->update([$col => $val]);
     }
 
     /**

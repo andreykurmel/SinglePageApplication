@@ -9,10 +9,11 @@
                     </div>
                     <div class="modal-body">
                         <div>
-                            <label class="l-inl-label" :style="{width: ($root.themeTextFontSize*7.5)+'px', color: $root.themeTextFontColor}">Name:</label>
+                            <label class="l-inl-label" :style="{width: (themeTextFontSize*7.5)+'px', color: themeTextFontColor}">Name:</label>
                             <input class="form-control form-group l-inl-control"
                                    type="text"
                                    v-model="f_name"
+                                   @change="fixName()"
                                    :style="textStyle">
                         </div>
                     </div>
@@ -27,6 +28,8 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../../classes/SpecialFuncs";
+
     import CellStyleMixin from "./../../_Mixins/CellStyleMixin.vue";
 
     export default {
@@ -45,6 +48,9 @@
         methods: {
             addFolder() {
                 this.$emit('store-folder', this.f_name, this.folderPopup);
+            },
+            fixName() {
+                this.f_name = SpecialFuncs.safeTableName(this.f_name);
             },
         },
         mounted() {

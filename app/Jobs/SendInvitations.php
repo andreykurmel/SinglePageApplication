@@ -9,7 +9,9 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Mail\UsersInvite;
 use Vanguard\User;
 
@@ -47,22 +49,27 @@ class SendInvitations implements ShouldQueue
             ->where('status', '!=', 2);
         if (count($this->invit_ids)) {
             $all_invitations->whereIn('id', $this->invit_ids);
+        } else {
+            $all_invitations->where('status', '!=', 1);
         }
         $all_invitations = $all_invitations->get();
 
         $lines = $all_invitations->count();
         foreach ($all_invitations as $i => $invitation) {
+            try {
+                $mailer = new EmailWithSettings('user_invitation', $invitation->email);
+                $mailer->userInvitation($this->user, $invitation);
 
-            Mail::to($invitation->email)
-                ->send(new UsersInvite($this->user, $invitation));
+                DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+                    'complete' => (int)(($i / $lines) * 100)
+                ]);
 
-            DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
-                'complete' => (int)(($i / $lines) * 100)
-            ]);
-
-            $invitation->date_send = Carbon::now();
-            $invitation->status = 1;
-            $invitation->save();
+                $invitation->date_send = Carbon::now();
+                $invitation->status = 1;
+                $invitation->save();
+            } catch (\Exception $e) {
+                Log::channel('jobs')->info($e->getMessage());
+            }
         }
 
         DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([

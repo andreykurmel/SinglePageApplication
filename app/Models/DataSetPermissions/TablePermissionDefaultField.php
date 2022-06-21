@@ -8,6 +8,31 @@ use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserGroup2TablePermission;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\DataSetPermissions\TablePermissionDefaultField
+ *
+ * @property int $id
+ * @property int $table_permission_id
+ * @property int $table_field_id
+ * @property string $default
+ * @property int|null $user_group_id
+ * @property-read \Vanguard\User $_created_user
+ * @property-read \Vanguard\Models\Table\TableField $_field
+ * @property-read \Vanguard\User $_modified_user
+ * @property-read \Vanguard\Models\DataSetPermissions\TablePermission $_table_permission
+ * @property-read \Vanguard\Models\User\UserGroup|null $_user_group
+ * @property-read \Vanguard\Models\User\UserGroup2TablePermission|null $_user_group_2_permissions
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField hasUserGroupForUser($user_id)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField whereDefault($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField whereTableFieldId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField whereTablePermissionId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField whereUserGroupId($value)
+ * @mixin \Eloquent
+ */
 class TablePermissionDefaultField extends Model
 {
     protected $table = 'table_permission_def_fields';
@@ -28,8 +53,6 @@ class TablePermissionDefaultField extends Model
             $wh->whereHas('_user_group_2_permissions', function ($ug) use ($user_id) {
                 $ug->where('is_active', 1);
             });
-            //or def field is for DataRequest for all users
-            $wh->orWhereNull('user_group_id');
         });
     }
 

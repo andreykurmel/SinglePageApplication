@@ -4,24 +4,48 @@
             <label>Addon is unavailable!</label>
         </div>
         <div v-else="" class="full-height">
-            <div class="menu-header">
-                <button class="btn btn-default btn-sm left-btn"
-                        :class="{active : mapsTab === 'maps'}"
-                        @click="mapsTab = 'maps'"
-                >Map</button>
-                <button v-if="canEdit"
-                        class="btn btn-default btn-sm left-btn"
-                        :class="{active : mapsTab === 'basics'}"
-                        @click="mapsTab = 'basics';redraw_table++"
-                >Basics</button>
-                <button v-if="canEdit"
-                        class="btn btn-default btn-sm left-btn"
-                        :class="{active : mapsTab === 'icons'}"
-                        @click="mapsTab = 'icons'"
-                >Icons</button>
+            <div class="menu-header" :style="textSysStyle">
+                <div class="left-elm">
+                    <button class="btn btn-default btn-sm left-btn"
+                            :class="{active : mapsTab === 'maps'}"
+                            :style="textSysStyle"
+                            @click="mapsTab = 'maps';shouldRedrawMap();"
+                    >Map</button>
+                    <button v-if="canEdit"
+                            class="btn btn-default btn-sm left-btn"
+                            :class="{active : mapsTab === 'basics'}"
+                            :style="textSysStyle"
+                            @click="mapsTab = 'basics'"
+                    >Settings</button>
+                    <button v-if="canEdit"
+                            class="btn btn-default btn-sm left-btn"
+                            :class="{active : mapsTab === 'icons'}"
+                            :style="textSysStyle"
+                            @click="mapsTab = 'icons'"
+                    >Icons</button>
+                </div>
 
-                <div class="right-elm" v-if="isVisible" v-show="mapsTab === 'maps'">
-                    <map-radius-button :table_id="table_id" :table-meta="tableMeta" :radius-object="radiusObject"></map-radius-button>
+                <div v-if="mapsTab === 'basics'" class="left-elm flex flex--center-v" style="margin-left: 10px;">
+                    <label class="no-margin" style="white-space: nowrap;">Lat./Long. source:</label>
+                    <select class="form-control input-sm" v-model="tableMeta.map_position_refid" @change="updateTable('map_position_refid')">
+                        <option :value="null">This table</option>
+                        <option disabled>Tables ref'd by RCs:</option>
+                        <option v-for="rc in tableMeta._ref_conditions" :value="rc.id">{{ rc.name +": "+ (rc._ref_table ? rc._ref_table.name : '') }}</option>
+                    </select>
+                    <label class="no-margin" style="white-space: nowrap;">&nbsp;&nbsp;&nbsp;Info Panel Header:</label>
+                    <select class="form-control input-sm" v-model="tableMeta.map_popup_hdr_id" @change="updateTable()">
+                        <option :value="null">This table</option>
+                        <option disabled>Tables ref'd by RCs:</option>
+                        <option v-if="positionRef" :value="positionRef.id">{{ positionRef.name +": "+ (positionRef._ref_table ? positionRef._ref_table.name : '') }}</option>
+                    </select>
+                </div>
+
+                <div class="right-elm" v-if="firstVisible && mapsTab === 'maps'">
+                    <map-radius-button
+                            :table-meta="tableMeta"
+                            :radius-object="radiusObject"
+                            @clear-radius="newRadiusObject()"
+                    ></map-radius-button>
                 </div>
                 <div class="right-elm flex flex--center" v-if="isVisible" v-show="mapsTab === 'maps'" style="height: 32px;">
                     <label style="margin: 0">
@@ -43,7 +67,7 @@
                             v-if="!full_map_rebuild"
                             :table-meta="tableMeta"
                             :radius-object="radiusObject"
-                            :column-values="columnValues"
+                            :column-values="columnValues[mapBasicTab]"
                             :request_params="request_params"
                             :user="user"
                             @show-src-record="showSrcRecord"
@@ -53,48 +77,71 @@
                 <!--BASICS TAB-->
 
                 <div class="full-frame" v-show="canEdit && mapsTab === 'basics'">
-                    <custom-table
-                            :cell_component_name="'custom-cell-settings-display'"
-                            :global-meta="tableMeta"
-                            :table-meta="settingsMeta['table_fields']"
-                            :settings-meta="settingsMeta"
-                            :all-rows="tableMeta._fields"
-                            :rows-count="tableMeta._fields.length"
-                            :cell-height="$root.cellHeight"
-                            :is-full-width="true"
-                            :user="user"
-                            :behavior="'settings_display'"
-                            :redraw_table="redraw_table"
-                            :available-columns="$root.availableMapColumns"
-                            @updated-row="updateRow"
-                            @row-index-clicked="rowIndexClicked"
-                    ></custom-table>
-                    <for-settings-pop-up
-                            v-if="settingsMeta['table_fields'] && editPopUpRow"
-                            :global-meta="tableMeta"
-                            :table-meta="settingsMeta['table_fields']"
-                            :settings-meta="settingsMeta"
-                            :table-row="editPopUpRow"
-                            :ext-avail-tabs="['map_tab']"
-                            :user="user"
-                            :cell-height="$root.cellHeight"
-                            @popup-update="updateRow"
-                            @popup-close="closePopUp"
-                            @another-row="anotherRowPopup"
-                    ></for-settings-pop-up>
+                    <div class="menu-header vert-menu">
+                        <button class="btn btn-default btn-sm left-btn pull-right"
+                                :style="textSysStyle"
+                                :class="{active : mapBasicTab === 'current'}"
+                                @click="setmapBasicTab('current')"
+                        >This</button>
+                        <button class="btn btn-default btn-sm left-btn pull-right"
+                                v-if="positionRef"
+                                :class="{active : mapBasicTab === 'rc_'+positionRef.id}"
+                                :style="textSysStyle"
+                                @click="setmapBasicTab('rc_'+positionRef.id)"
+                        >
+                            <span>{{ positionRef.name }}</span>
+                            <span style="color: #F00; cursor: pointer;" @click.prevent.stop="removeRC()">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="menu-body vert-body" style="background: #FFF; height: 60%;">
+                        <map-basic-settings
+                                v-if="mapBasicTab && refMetaTables[mapBasicTab]"
+                                :table-meta="refMetaTables[mapBasicTab]"
+                                :limit-columns="availAll"
+                                @upd-settings-row="updateRow"
+                        ></map-basic-settings>
+                        <div v-else="" class="full-frame flex flex--center" style="background: #FFF;font-size: 2em;">Loading...</div>
+                    </div>
+                    <div class="menu-body vert-body" style="top: auto; height: calc(40% - 15px);">
+                        <div class="top-text top-text--height" :style="textSysStyle">Additional Settings</div>
+                        <additional-map-settings
+                            :table-meta="tableMeta"
+                            @upd-table="updateTable"
+                        ></additional-map-settings>
+                    </div>
                 </div>
 
                 <!--ICONS TAB-->
 
                 <div class="full-frame" v-show="canEdit && mapsTab === 'icons'">
-                    <map-icons
-                            :table-meta="tableMeta"
-                            :settings-meta="settingsMeta"
-                            :table_id="table_id"
-                            :user="user"
-                            :column-values="columnValues"
-                            @icons-changed="iconsChanged"
-                    ></map-icons>
+                    <div class="menu-header vert-menu">
+                        <button class="btn btn-default btn-sm left-btn pull-right"
+                                :class="{active : mapBasicTab === 'current'}"
+                                :style="textSysStyle"
+                                @click="setmapBasicTab('current')"
+                        >This</button>
+                        <button class="btn btn-default btn-sm left-btn pull-right"
+                                v-if="positionRef"
+                                :class="{active : mapBasicTab === 'rc_'+positionRef.id}"
+                                :style="textSysStyle"
+                                @click="setmapBasicTab('rc_'+positionRef.id)"
+                        >
+                            <span>{{ positionRef.name }}</span>
+                            <span style="color: #F00; cursor: pointer;" @click.prevent.stop="removeRC()">&times;</span>
+                        </button>
+                    </div>
+
+                    <div class="menu-body vert-body" style="background: #FFF;">
+                        <map-icons
+                                v-if="mapBasicTab && refMetaTables[mapBasicTab]"
+                                :table-meta="refMetaTables[mapBasicTab]"
+                                :column-values="columnValues[mapBasicTab]"
+                                @icons-changed="iconsChanged"
+                        ></map-icons>
+                        <div v-else="" class="full-frame flex flex--center" style="background: #FFF;font-size: 2em;">Loading...</div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -102,36 +149,41 @@
 </template>
 
 <script>
-    import CustomTable from './../../../CustomTable/CustomTable';
-    import ForSettingsPopUp from "../../../CustomPopup/ForSettingsPopUp";
+    import {eventBus} from '../../../../app';
+
+    import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
+
     import MapRadiusButton from './../../../Buttons/MapRadiusButton';
     import MapElem from './MapAddon/MapElem';
     import MapIcons from './MapAddon/MapIcons';
+    import MapBasicSettings from "./MapAddon/MapBasicSettings";
+    import AdditionalMapSettings from "./MapAddon/AdditionalMapSettings";
 
-    import {eventBus} from './../../../../app';
+    import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "TabMapView",
         components: {
-            ForSettingsPopUp,
-            CustomTable,
+            AdditionalMapSettings,
+            MapBasicSettings,
             MapRadiusButton,
             MapElem,
             MapIcons,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
+                firstVisible: false,
                 full_map_rebuild: false,
-                redraw_table: 0,
                 should_map_redraw: false,
-                should_reload_rows: false,
-                editPopUpRow: null,
-                radiusObject: this.newRadiusObject(),
+                radiusObject: null,
                 mapsTab: 'maps',
-                columnValues: [],
 
-                lat_header: _.find(this.tableMeta._fields, {is_lat_field: 1}) || {id: 0},
-                long_header: _.find(this.tableMeta._fields, {is_long_field: 1}) || {id: 0}
+                mapBasicTab: '',
+                refMetaTables: { current: this.tableMeta },
+                columnValues: { current: [] },
             }
         },
         props:{
@@ -149,14 +201,21 @@
             shouldRedrawAndActive() {
                 return this.isVisible && this.should_map_redraw && this.mapsTab === 'maps';
             },
+            positionRef() {
+                return _.find(this.tableMeta._ref_conditions, { id: Number(this.tableMeta.map_position_refid) });
+            },
+            availAll() {
+                let selmaptab = this.tableMeta.map_position_refid ? 'rc_'+this.tableMeta.map_position_refid : 'current';
+                return selmaptab !== this.mapBasicTab;
+            },
         },
         watch: {
-            table_id: function(val) {
-                this.radiusObject = this.newRadiusObject();
+            table_id(val) {
+                this.newRadiusObject();
                 this.shouldRedrawMap();
             },
             //should redraw Map
-            shouldRedrawAndActive: function(val) {
+            shouldRedrawAndActive(val) {
                 if (val) {
                     this.$nextTick(() => {
                         //new markerRows should be transferred before redrawing
@@ -165,34 +224,70 @@
                     this.should_map_redraw = false;
                 }
             },
+            isVisible(val) {
+                this.firstVisible = this.firstVisible || val;
+            },
         },
         methods: {
+            setmapBasicTab(val) {
+                this.mapBasicTab = '';
+                this.$nextTick(() => {
+                    this.mapBasicTab = val;
+                    if (!this.refMetaTables[val]) {
+                        this.loadRefHeaders(val);
+                    }
+                });
+            },
+            loadRefHeaders(str_ref_id) {
+                axios.post('/ajax/table-data/get-headers', {
+                    ref_cond_id: String(str_ref_id).replace(/[^\d]/gi,''),
+                    user_id: !this.$root.user.see_view ? this.$root.user.id : null,
+                }).then(({ data }) => {
+                    this.$set(this.refMetaTables, str_ref_id, data);
+                    this.$forceUpdate();
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                });
+            },
+            removeRC(del_idx) {
+                this.tableMeta.map_position_refid = null;
+                this.setmapBasicTab('current');
+                this.updateTable();
+            },
             newRadiusObject() {
-                return {
+                this.radiusObject = {
+                    entered_address: null,
                     distance: null,
-                        type: '',
-                        address: {
+                    type: '',
+                    address: {//hidden
+                        _number: null,
+                        full: null,
                         street: null,
-                            city: null,
-                            state: null,
-                            county: null,
-                            zip: null,
-                    },
-                    dms: {
-                        lat_d: null,
-                            lat_m: null,
-                            lat_s: null,
-                            long_d: null,
-                            long_m: null,
-                            long_s: null,
-                    },
-                    decimal: {
+                        city: null,
+                        state: null,
+                        county: null,
+                        zip: null,
                         lat: null,
-                            long: null,
+                        long: null,
+                    },
+                    dms: {//visible
+                        lat_d: null,
+                        lat_m: null,
+                        lat_s: null,
+                        long_d: null,
+                        long_m: null,
+                        long_s: null,
+                    },
+                    decimal: {//visible
+                        lat: null,
+                        long: null,
                     }
                 };
             },
-            updateTable() {
+            updateTable(changed) {
+                if (changed === 'map_position_refid') {
+                    this.tableMeta.map_popup_hdr_id = this.tableMeta.map_position_refid;
+                }
                 this.tableMeta.map_multiinfo = !this.tableMeta.map_multiinfo;
                 this.$root.sm_msg_type = 1;
 
@@ -210,67 +305,30 @@
                     this.$root.sm_msg_type = 0;
                 });
             },
-            updateRow(tableRow) {
-                this.$root.sm_msg_type = 1;
-                axios.put('/ajax/settings/data', {
-                    table_field_id: tableRow.id,
-                    field: tableRow._changed_field,
-                    val: tableRow[tableRow._changed_field],
-                }).then(({ data }) => {
-                    if ($.inArray(tableRow._changed_field, this.$root.columnSettRadioFields) > -1)
-                    {
-                        eventBus.$emit('reload-meta-tb__fields');
-                    }
-                    let new_lat_header = _.find(this.tableMeta._fields, {is_lat_field: 1}) || {id: 0};
-                    let new_long_header = _.find(this.tableMeta._fields, {is_long_field: 1}) || {id: 0};
-                    //reload rows only if changed lat/long headers
-                    if ((this.lat_header.id !== new_lat_header.id) || (this.long_header.id !== new_long_header.id)) {
-                        this.lat_header = new_lat_header;
-                        this.long_header = new_long_header;
-                    }
+            updateRow(tableMeta, tableRow) {
+                this.$root.updateSettingsColumn(tableMeta, tableRow).then(({ data }) => {
                     this.shouldRedrawMap();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
                 });
             },
-            rowIndexClicked(index) {
-                this.editPopUpRow = this.tableMeta._fields[index];
-            },
-            closePopUp() {
-                this.editPopUpRow = null;
-            },
             iconsChanged(data) {
-                this.columnValues = data;
+                this.$set(this.columnValues, this.mapBasicTab, data);
                 this.shouldRedrawMap();
             },
             shouldRedrawMap() {
                 this.should_map_redraw = true;
             },
-            fullMapRebuild() {
-                this.full_map_rebuild = true;
-                this.$nextTick(() => {
-                    this.full_map_rebuild = false;
-                });
-            },
-
             newRequestParamsHandler(type) {
                 if ($.inArray(type, ['load', 'filter', 'search', 'circle', 'rows-changed']) > -1) {
                     this.shouldRedrawMap();
                 }
             },
-
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow, 'map');
             },
-            //change rows in popup
-            anotherRowPopup(is_next) {
-                let row_id = (this.editPopUpRow ? this.editPopUpRow.id : null);
-                this.$root.anotherPopup(this.tableMeta._fields, row_id, is_next, this.rowIndexClicked);
-            },
         },
         mounted() {
+            this.newRadiusObject();
+            this.setmapBasicTab(this.tableMeta.map_position_refid ? 'rc_'+this.tableMeta.map_position_refid : 'current');
             eventBus.$on('new-request-params', this.newRequestParamsHandler);
         },
         beforeDestroy() {
@@ -306,6 +364,11 @@
                 }
             }
 
+            .left-elm {
+                float: left;
+                margin-right: 10px;
+            }
+
             .right-elm {
                 float: right;
                 margin-left: 10px;
@@ -322,12 +385,45 @@
             border-radius: 5px;
         }
 
+        .vert-menu {
+            position: absolute;
+            top: -10px;
+            left: -220px;
+            width: 230px;
+            height: 20px;
+            transform-origin: bottom right;
+            transform: rotate(-90deg);
+
+            .left-btn {
+                margin-left: 5px;
+            }
+        }
+        .vert-body {
+            left: 32px;
+            top: 5px;
+        }
+
+        .top-text {
+            font-size: 16px;
+            color: #FFF;
+            padding: 5px 0;
+            height: 30px;
+        }
+        .top-text--height {
+            height: 30px;
+            overflow: hidden;
+        }
+
         .addon-view {
             width: 130px;
             padding: 3px;
             display: inline-block;
             height: 30px;
             margin-right: 5px;
+        }
+
+        .btn-default {
+            height: 30px;
         }
     }
 </style>

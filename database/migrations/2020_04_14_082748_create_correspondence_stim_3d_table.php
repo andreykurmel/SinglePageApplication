@@ -19,6 +19,7 @@ class CreateCorrespondenceStim3dTable extends Migration
                 $table->string('row_hash', 32)->nullable();
                 $table->integer('row_order')->default(0);
 
+                $table->string('avail_to_user', 32)->nullable();
                 $table->string('top_tab', 32)->nullable();
                 $table->string('select', 32)->nullable();
                 $table->string('accordion', 32)->nullable();

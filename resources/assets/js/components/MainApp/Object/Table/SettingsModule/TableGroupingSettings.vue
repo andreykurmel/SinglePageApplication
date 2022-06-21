@@ -3,20 +3,22 @@
         <div class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="full-height col-xs-6" :style="{paddingRight: 0, width: '40%'}">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span v-if="is_popup_type">Group Type: {{ activeLeftTab === 'rows' ? 'Rows' : 'Columns' }}</span>
-                    <span v-else="">Defining Groups</span>
+                    <span v-else="">Define Row and Column Groups</span>
                 </div>
                 <div class="permissions-panel">
                     <div class="permissions-menu-header">
                         <button class="btn btn-default btn-sm"
                                 :class="{active : activeLeftTab === 'rows'}"
+                                :style="textSysStyle"
                                 :disabled="!$root.checkAvailable(user, 'group_rows')"
                                 @click="activeLeftTab = 'rows'">
                             Rows
                         </button>
                         <button class="btn btn-default btn-sm"
                                 :class="{active : activeLeftTab === 'columns'}"
+                                :style="textSysStyle"
                                 :disabled="!$root.checkAvailable(user, 'group_columns')"
                                 @click="activeLeftTab = 'columns'">
                             Columns
@@ -33,8 +35,8 @@
                                 :table-meta="settingsMeta['table_row_groups']"
                                 :all-rows="tableMeta._row_groups"
                                 :rows-count="tableMeta._row_groups.length"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :behavior="'data_sets'"
                                 :user="user"
@@ -59,8 +61,8 @@
                                 :table-meta="settingsMeta['table_column_groups']"
                                 :all-rows="tableMeta._column_groups"
                                 :rows-count="tableMeta._column_groups.length"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :behavior="'data_sets'"
                                 :user="user"
@@ -87,9 +89,9 @@
                 <div v-show="activeLeftTab === 'rows' && $root.checkAvailable(user, 'group_rows')"
                      class="full-height"
                 >
-                    <div class="top-text">
-                        <span v-if="selectedRowGroup < 0">You should select RowGroup</span>
-                        <span v-else="">Conditions ( <span>{{ tableMeta._row_groups[selectedRowGroup] ? tableMeta._row_groups[selectedRowGroup].name : '' }}</span> )</span>
+                    <div class="top-text" :style="textSysStyle">
+                        <span v-if="!tableMeta._row_groups[selectedRowGroup]">You should select RowGroup</span>
+                        <span v-else="">Row Group: <span>{{ tableMeta._row_groups[selectedRowGroup].name || '' }}</span></span>
 
                         <info-sign-link
                                 class="right-elem"
@@ -98,10 +100,11 @@
                         ></info-sign-link>
                     </div>
                     <div class="permissions-panel no-padding" :class="[selectedRowGroup > -1 ? 'inherit-bg' : '']">
-                        <div v-if="selectedRowGroup > -1" class="full-frame flex flex--col flex--space">
+                        <div class="full-frame flex flex--col flex--space">
 
                             <div class="full-frame data-set-panel-sm">
                                 <vertical-table
+                                        v-if="tableMeta._row_groups[selectedRowGroup]"
                                         class="spaced-table__fix"
                                         :td="'custom-cell-col-row-group'"
                                         :global-meta="tableMeta"
@@ -109,9 +112,8 @@
                                         :settings-meta="settingsMeta"
                                         :table-row="tableMeta._row_groups[selectedRowGroup]"
                                         :user="user"
-                                        :fixed_ddl_pos="true"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :behavior="'data_sets'"
                                         :available-columns="['row_ref_condition_id']"
                                         :widths="{name: '35%', col: '65%', history: 0, no_margins: true}"
@@ -121,7 +123,7 @@
                             </div>
 
                             <div class="field-loader-wrapper">
-                                <div class="field-loader">
+                                <div class="field-loader" v-if="tableMeta && tableMeta._row_groups[selectedRowGroup]">
                                     <label>Listing field:</label>
                                     <select class="form-control field-selector"
                                             v-model="tableMeta._row_groups[selectedRowGroup].listing_field"
@@ -134,6 +136,7 @@
 
                             <div class="full-frame data-set-panel-lg">
                                 <custom-table
+                                        v-if="tableMeta._row_groups[selectedRowGroup]"
                                         :cell_component_name="'custom-cell-col-row-group'"
                                         :global-meta="tableMeta"
                                         :table-meta="settingsMeta['table_row_group_regulars']"
@@ -143,8 +146,8 @@
                                         :rows-count="tableMeta._row_groups[selectedRowGroup].listing_field
                                             ? tableMeta._row_groups[selectedRowGroup]._regulars.length
                                             : 0"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :is-full-width="true"
                                         :user="user"
                                         :behavior="'data_sets_items'"
@@ -165,22 +168,23 @@
                 <div v-show="activeLeftTab === 'columns' && $root.checkAvailable(user, 'group_columns')"
                      class="full-height"
                 >
-                    <div class="top-text">
-                        <span>Columns for <span>{{ (selectedColGroup > -1 ? tableMeta._column_groups[selectedColGroup].name : '') }}</span></span>
+                    <div class="top-text" :style="textSysStyle">
+                        <span>Columns for Group: <span>{{ (tableMeta._column_groups[selectedColGroup] ? tableMeta._column_groups[selectedColGroup].name : '') }}</span></span>
                     </div>
                     <div class="permissions-panel">
                         <custom-table
+                                v-if="tableMeta"
                                 :cell_component_name="'custom-cell-col-row-group'"
                                 :global-meta="tableMeta"
                                 :table-meta="settingsMeta['table_column_groups_2_table_fields']"
                                 :all-rows="selectedColGroup > -1 ? tableMeta._fields : null"
                                 :rows-count="selectedColGroup > -1 ? tableMeta._fields.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :user="user"
                                 :behavior="'data_sets_columns'"
-                                :condition-array="selectedColGroup > -1 ? tableMeta._column_groups[selectedColGroup]._fields : null"
+                                :condition-array="tableMeta._column_groups[selectedColGroup] ? tableMeta._column_groups[selectedColGroup]._fields : null"
                                 :headers-with-check="headersWithCheck"
                                 :forbidden-columns="$root.systemFields"
                                 :use_theme="true"
@@ -195,11 +199,15 @@
 </template>
 
 <script>
+    import {eventBus} from '../../../../../app';
+
+    import {RefCondHelper} from "../../../../../classes/helpers/RefCondHelper";
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     import CustomTable from '../../../../CustomTable/CustomTable';
     import VerticalTable from '../../../../CustomTable/VerticalTable';
     import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink";
-
-    import {eventBus} from '../../../../../app';
 
     export default {
         name: "TableGroupingSettings",
@@ -208,11 +216,14 @@
             CustomTable,
             VerticalTable
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 activeLeftTab: '',
-                selectedRowGroup: -1,
-                selectedColGroup: -1,
+                selectedRowGroup: 0,
+                selectedColGroup: 0,
                 addingRow: {
                     active: true,
                     position: 'bottom'
@@ -222,7 +233,7 @@
         },
         computed: {
             regularsHeadersChanger() {
-                let vl = this.selectedRowGroup > -1 ?
+                let vl = this.tableMeta && this.tableMeta._row_groups[this.selectedRowGroup] ?
                     _.find(this.tableMeta._fields, {field: this.tableMeta._row_groups[this.selectedRowGroup].listing_field})
                     : null;
 
@@ -234,8 +245,6 @@
         props:{
             tableMeta: Object,
             settingsMeta: Object,
-            cellHeight: Number,
-            maxCellRows: Number,
             table_id: Number|null,
             user: Object,
             is_popup_type: String,
@@ -286,12 +295,18 @@
                     this.$root.sm_msg_type = 0;
                 });
             },
+            eventUpdateRowGroup(table_id, tableRow) {
+                if (this.tableMeta.id == table_id) {
+                    this.updateRowGroup(tableRow);
+                }
+            },
             updateRowGroup(tableRow) {
                 this.$root.sm_msg_type = 1;
 
                 let group_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
+                RefCondHelper.setUses(this.tableMeta);
 
                 axios.put('/ajax/row-group', {
                     table_row_group_id: group_id,
@@ -369,6 +384,7 @@
 
                         eventBus.$emit('reload-page');
                     }
+                    RefCondHelper.setUses(this.tableMeta);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -484,7 +500,7 @@
                 });
                 let dcr_found = false;
                 _.each(this.tableMeta._table_requests, (permis) => {
-                    dcr_found = _.find(permis._permission_columns, {table_column_group_id: Number(tableRow.id)})
+                    dcr_found = _.find(permis._data_request_columns, {table_column_group_id: Number(tableRow.id)})
                         ? true
                         : dcr_found;
                 });
@@ -531,7 +547,7 @@
                         });
                         //sync with DCR module
                         _.each(this.tableMeta._table_requests, (permis) => {
-                            _.remove(permis._permission_columns, {table_column_group_id: Number(tableRow.id)});
+                            _.remove(permis._data_request_columns, {table_column_group_id: Number(tableRow.id)});
                         });
                     }
                 }).catch(errors => {
@@ -612,10 +628,12 @@
                 }
             }
 
+            eventBus.$on('event-update-row-group', this.eventUpdateRowGroup);
             eventBus.$on('clear-selected-settings-groups', this.clearSelected);
             eventBus.$on('empty-sel', this.clearSelected);
         },
         beforeDestroy() {
+            eventBus.$off('event-update-row-group', this.eventUpdateRowGroup);
             eventBus.$off('clear-selected-settings-groups', this.clearSelected);
             eventBus.$off('empty-sel', this.clearSelected);
         }
@@ -624,6 +642,10 @@
 
 <style lang="scss" scoped>
     @import "TabSettingsPermissions";
+
+    .btn-sm {
+        height: 30px;
+    }
 
     .permissions-tab {
         .field-loader-wrapper {

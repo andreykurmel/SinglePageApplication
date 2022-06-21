@@ -10,28 +10,21 @@ use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 class UnitConversionSeeder extends Seeder
 {
     private $permissionsService;
+    private $permissionsRepository;
     private $DDLRepository;
     private $service;
     private $viewRepository;
 
     /**
      * UnitConversionSeeder constructor.
-     *
-     * @param \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService
-     * @param DDLRepository $DDLRepository
-     * @param \Vanguard\Services\Tablda\HelperService $service
      */
-    public function __construct(
-        \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService,
-        \Vanguard\Repositories\Tablda\DDLRepository $DDLRepository,
-        \Vanguard\Services\Tablda\HelperService $service,
-        \Vanguard\Repositories\Tablda\TableViewRepository $tableViewRepository
-    )
+    public function __construct()
     {
-        $this->permissionsService = $permissionsService;
-        $this->DDLRepository = $DDLRepository;
-        $this->service = $service;
-        $this->viewRepository = $tableViewRepository;
+        $this->permissionsService = new \Vanguard\Services\Tablda\Permissions\TablePermissionService();
+        $this->permissionsRepository = new \Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository();
+        $this->DDLRepository = new \Vanguard\Repositories\Tablda\DDLRepository();
+        $this->service = new \Vanguard\Services\Tablda\HelperService();
+        $this->viewRepository = new \Vanguard\Repositories\Tablda\TableViewRepository();
     }
 
     /**
@@ -54,10 +47,10 @@ class UnitConversionSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
+
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+
                 'modified_on' => now(),
             ]);
 
@@ -105,7 +98,7 @@ class UnitConversionSeeder extends Seeder
                 'option' => 'Formula Reverse',
             ]);
 
-            $op_field->input_type = 'Selection';
+            $op_field->input_type = 'S-Select';
             $op_field->ddl_id = $ddl->id;
             $op_field->save();
 
@@ -117,10 +110,10 @@ class UnitConversionSeeder extends Seeder
                 'operator' => 'Multiple',
                 'factor' => 1.6,
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
+
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+
                 'modified_on' => now()
             ]);
             \Illuminate\Support\Facades\DB::table('unit_conversion')->insert([
@@ -129,10 +122,10 @@ class UnitConversionSeeder extends Seeder
                 'operator' => 'Divide',
                 'factor' => 1.6,
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
+
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+
                 'modified_on' => now()
             ]);
         }
@@ -153,10 +146,12 @@ class UnitConversionSeeder extends Seeder
         //add right to Visitor
         $this->permissionsService->addSystemRights($table->id);
         $this->viewRepository->addSys($table);
+        $permis = $this->permissionsRepository->getSysPermission($table->id, 1);
+        $permis->update(['can_edit_tb' => 1]);
     }
 
     private function create($field, $name, $table, $user, $type = 'String', $required = 0, $default = '', $inp_type = 'Input') {
-        $present = $table->_fields->where('field', $field)->first();
+        $present = $table->_fields()->where('field', $field)->first();
         if (!$present) {
             $present = TableField::create([
                 'table_id' => $table->id,

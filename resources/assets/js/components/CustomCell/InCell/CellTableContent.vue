@@ -10,11 +10,16 @@
                         :html-value="showField(str, tableHeader)"
                         :real-value="str"
                         :user="user"
+                        :behavior="behavior"
+                        :is_def_fields="is_def_fields"
+                        :is_td_single="is_td_single"
+                        :no_height_limit="no_height_limit"
                         :is_select="true"
                         :is-vert-table="isVertTable"
                         :style="{display: inline ? 'inline' : null}"
                         @open-app-as-popup="openAppAsPopup"
                         @show-src-record="showSrcRecord"
+                        @full-size-image="imgFromEmit"
                         @unselect-val="unselectVal(str)"
                 ></cell-table-content-data>
             </span>
@@ -28,39 +33,30 @@
                     :html-value="showField(editValue, tableHeader)"
                     :real-value="editValue"
                     :user="user"
+                    :behavior="behavior"
+                    :is_def_fields="is_def_fields"
+                    :is_td_single="is_td_single"
+                    :no_height_limit="no_height_limit"
                     :is_select="fldTypeSelect"
                     :is-vert-table="isVertTable"
                     :style="{display: inline ? 'inline' : null}"
                     @open-app-as-popup="openAppAsPopup"
                     @show-src-record="showSrcRecord"
+                    @full-size-image="imgFromEmit"
             ></cell-table-content-data>
         </template>
-
-        <button v-if="can_edit && tableHeader.f_type === 'Color' && editValue && tableHeader.input_type !== 'Formula'"
-                class="btn btn-danger btn-sm btn-deletable flex flex--center"
-                @click.stop.prevent="$emit('unselect-val', null)">
-            <span>×</span>
-        </button>
     </div>
 </template>
 
 <script>
-    import {SpecialFuncs} from "./../../../classes/SpecialFuncs";
+import CellTableContentData from "./CellTableContentData.vue";
 
-    import CellTableContentData from "./CellTableContentData.vue";
-
-    export default {
+export default {
         name: "CellTableContent",
         mixins: [
         ],
         components: {
             CellTableContentData
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -82,6 +78,10 @@
             isVertTable: Boolean,
             inline: Boolean,
             can_edit: Boolean,
+            behavior: String,
+            is_def_fields: Boolean,
+            is_td_single: Boolean,
+            no_height_limit: Boolean,
         },
         watch: {
             maxCellRows(val) {
@@ -108,15 +108,6 @@
         computed: {
             tdContent() {
                 let st = {
-                    /*maxWidth: this.reactive_provider && this.reactive_provider.fullWidthCell
-                        ? (this.$root.max_cell_width-4) + 'px'
-                        : '',
-                    width: this.reactive_provider && this.reactive_provider.fullWidthCell
-                        ? 'max-content'
-                        : '',
-                    display: this.reactive_provider && this.reactive_provider.fullWidthCell
-                        ? 'inline-block'
-                        : '',*/
                     position: 'relative',
                     backgroundColor: this.tableHeader.f_type === 'Color' ? this.editValue : null,
                 };
@@ -151,7 +142,7 @@
                 if (this.inArray(tableHeader.f_type, ['Color'])) {
                     res = '';
                 }
-                return String(res || '');
+                return res;
             },
 
             //show link popup
@@ -163,6 +154,9 @@
             },
             unselectVal(m_select_part) {
                 this.$emit('unselect-val', m_select_part);
+            },
+            imgFromEmit(images, idx) {
+                this.$emit('full-size-image', images, idx);
             },
 
             //content sizes
@@ -180,7 +174,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     div {
         text-decoration: inherit;
     }

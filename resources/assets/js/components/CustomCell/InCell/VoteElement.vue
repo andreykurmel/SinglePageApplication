@@ -26,7 +26,7 @@
 <script>
     import {eventBus} from './../../../app';
 
-    import MixinSmartPosition from './../Selects/MixinSmartPosition';
+    import MixinSmartPosition from '../../_Mixins/MixinSmartPosition';
 
     export default {
         name: "VoteElement",

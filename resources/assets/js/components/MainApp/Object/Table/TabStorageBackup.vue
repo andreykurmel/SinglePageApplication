@@ -1,34 +1,76 @@
 <template>
-    <div class="storage-backup full-frame" v-if="tableMeta && settingsMeta">
-        <div class="full-frame bkp_top" style="height: calc(40% - 18px)">
-            <custom-table
-                    :cell_component_name="'custom-cell-connection'"
-                    :global-meta="settingsMeta.table_backups"
-                    :table-meta="settingsMeta.table_backups"
-                    :settings-meta="settingsMeta"
-                    :all-rows="tableMeta._backups"
-                    :rows-count="tableMeta._backups.length"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
-                    :is-full-width="true"
-                    :use_theme="true"
-                    :user="user"
-                    :behavior="'user_conn'"
-                    :adding-row="addingRow"
-                    :available-columns="ava_bkp_cols"
-                    :forbidden-columns="$root.systemFields"
-                    @row-index-clicked="bkpClick"
-                    @added-row="addStorageRow"
-                    @updated-row="updateStorageRow"
-                    @delete-row="deleteStorageRow"
-            ></custom-table>
-        </div>
-        <div class="section-text">Notifications - Email:</div>
-        <div class="bkp_bot" style="height: calc(60% - 18px)">
-            <backup-add-settings
-                    :table-meta="tableMeta"
-                    :tb-backup="tbBackup"
-            ></backup-add-settings>
+    <div class="container-fluid full-height" v-if="tableMeta && settingsMeta">
+        <div class="row full-height permissions-tab">
+
+            <!--LEFT SIDE-->
+            <div class="col-xs-6 full-height" style="padding-right: 0;">
+                <div class="top-text" :style="textSysStyle">
+                    <span>List</span>
+                </div>
+                <div class="full-frame bkp_top" style="height: calc(40% - 30px)">
+                    <custom-table
+                            :cell_component_name="'custom-cell-connection'"
+                            :global-meta="settingsMeta.table_backups"
+                            :table-meta="settingsMeta.table_backups"
+                            :settings-meta="settingsMeta"
+                            :all-rows="tableMeta._backups"
+                            :rows-count="tableMeta._backups.length"
+                            :selected-row="tbBkpIdx"
+                            :cell-height="1"
+                            :max-cell-rows="0"
+                            :is-full-width="true"
+                            :use_theme="true"
+                            :user="user"
+                            :behavior="'user_conn'"
+                            :adding-row="addingRow"
+                            :available-columns="ava_table_bkp_cols"
+                            :forbidden-columns="$root.systemFields"
+                            @row-index-clicked="bkpClick"
+                            @added-row="addStorageRow"
+                            @updated-row="updateStorageRow"
+                            @delete-row="deleteStorageRow"
+                    ></custom-table>
+                </div>
+
+                <div class="top-text" :style="textSysStyle">
+                    <span>Notifications - Email</span>
+                </div>
+                <div class="bkp_bot" style="height: calc(60% - 35px)">
+                    <backup-add-settings
+                            v-if="tbBackup"
+                            :table-meta="tableMeta"
+                            :tb-backup="tbBackup"
+                            :style="textSysStyle"
+                    ></backup-add-settings>
+                </div>
+            </div>
+
+            <!--RIGHT SIDE-->
+            <div class="col-xs-6 full-height">
+                <div class="top-text" :style="textSysStyle">
+                    <span>Settings {{ tbBackup ? ' - '+tbBackup.name : '' }}</span>
+                </div>
+                <div class="permissions-panel" style="height: calc(100% - 35px); overflow: auto;">
+                    <vertical-table
+                            v-if="tbBackup"
+                            :td="'custom-cell-connection'"
+                            :global-meta="settingsMeta.table_backups"
+                            :table-meta="settingsMeta.table_backups"
+                            :settings-meta="settingsMeta"
+                            :table-row="tbBackup"
+                            :cell-height="1"
+                            :max-cell-rows="0"
+                            :user="user"
+                            :behavior="'user_conn'"
+                            :disabled_sel="true"
+                            :tooltip_pos="'right'"
+                            :available-columns="ava_vert_bkp_cols"
+                            :forbidden-columns="$root.systemFields"
+                            @updated-cell="updateStorageRow"
+                    ></vertical-table>
+                </div>
+            </div>
+
         </div>
     </div>
 </template>
@@ -36,21 +78,32 @@
 <script>
     import CustomTable from './../../../CustomTable/CustomTable';
     import BackupAddSettings from "./BackupAddSettings";
+    import NoteBlock from "../../../CommonBlocks/NoteBlock";
+    import VerticalTable from "../../../CustomTable/VerticalTable";
+
+    import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "TabStorageBackup",
+        mixins: [
+            CellStyleMixin,
+        ],
         components: {
+            VerticalTable,
+            NoteBlock,
             BackupAddSettings,
             CustomTable,
         },
         data: function () {
             return {
+                tbBkpIdx: -1,
                 tbBackup: null,
                 addingRow: {
                     active: true,
                     position: 'bottom'
                 },
-                ava_bkp_cols: ['name','user_cloud_id','day','timezone','time','mysql','csv','attach',],
+                ava_table_bkp_cols: ['name','user_cloud_id','is_active'],
+                ava_vert_bkp_cols: ['root_folder','overwrite','day','timezone','time','mysql','csv','attach','ddl_attach','notes'],
             }
         },
         props:{
@@ -62,7 +115,12 @@
         },
         methods: {
             bkpClick(idx) {
-                this.tbBackup = this.tableMeta._backups[idx];
+                this.tbBkpIdx = -1;
+                this.tbBackup = null;
+                this.$nextTick(() => {
+                    this.tbBkpIdx = idx;
+                    this.tbBackup = this.tableMeta._backups[idx];
+                });
             },
             //Connections Functions
             addStorageRow(tableRow) {
@@ -119,10 +177,15 @@
                 });
             },
         },
+        mounted() {
+            this.bkpClick(0);
+        },
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
+    @import "./SettingsModule/TabSettingsPermissions";
+
     .section-text {
         padding: 5px 10px;
         font-size: 16px;
@@ -133,6 +196,6 @@
         background-color: #FFF;
     }
     .bkp_bot {
-        padding: 15px 0 15px 15px;
+        padding: 0 0 10px 10px;
     }
 </style>

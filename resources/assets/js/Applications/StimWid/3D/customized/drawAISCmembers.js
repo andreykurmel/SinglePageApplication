@@ -1040,9 +1040,11 @@ function drawAISCmember(XD, approach, app_p1, app_p2, app_p3, dbSRC, Shape, Size
 
     if (XD == "3D" || XD == "23D") {
 
-        for (var idir = 0; idir < 3; idir++) {
-            app_p1[idir] = app_p1[idir] * zoomscale;
-            app_p2[idir] = app_p2[idir] * zoomscale;
+        if (zoomscale) {
+            for (var idir = 0; idir < 3; idir++) {
+                app_p1[idir] = app_p1[idir] * zoomscale;
+                app_p2[idir] = app_p2[idir] * zoomscale;
+            }
         }
 
         mesh = new draw_3D(Shape, approach, app_p1, app_p2, app_p3, nodes, nodes_hole, nodes_ctrl, material, mat_color, mode, shrink_p);

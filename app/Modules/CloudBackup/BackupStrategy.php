@@ -9,5 +9,5 @@ interface BackupStrategy
 {
     public function __construct(UserCloud $cloud);
 
-    public function upload(string $source_path, string $file_name, string $target_path);
+    public function upload(string $source_filepath, string $target_filepath);
 }

@@ -44,18 +44,20 @@
                 '#registration-form__init_validation',
                 '#remind-password-form__init_validation'
             ]"
+            :no_settings="{{ !empty($no_settings) ? 1 : 0 }}"
             v-cloak=""
         >
             <div v-if="$root.settingsMeta.is_loaded">
                 @if(!$embed)
-                    @guest
+                    @if(auth()->guest())
                     <auth-forms
+                        v-bind:show_register="show_register"
                         v-bind:show_login="show_login"
                         v-bind:settings="{
                             root_url: '{{ config('app.url') }}',
                             app_name: '{{ config('app.name') }}',
                             errors: {{ json_encode($errors->all()) }},
-                            session_success: {{ json_encode(Session::get('success', false)) }},
+                            session_success: {{ json_encode(Session::get('success', '')) }},
                             year: {{ date('Y') }},
                             social_provider: {{ !!$socialProviders }},
                             csrf_token: '{{ csrf_token() }}',
@@ -85,18 +87,19 @@
                         </div>
                     </div>
                 </div>
+
             </div>
         </main-app-wrapper>
         <div class="div-print">
             <print-table v-if="printHeaders" :print-headers="printHeaders" :print-rows="printRows" :all-showed="allShowed"></print-table>
         </div>
-        <form action="{{ route('downloader') }}" method="post" id="downloader_form">
+        <form action="{{ $clear_url . route('downloader', [], false) }}" method="post" id="downloader_form">
             {{ csrf_field() }}
             <input type="hidden" name="filename" id="downloader_method" value="">
             <input type="hidden" name="data" id="downloader_data" value="">
             <input type="hidden" name="time_zone" id="downloader_time" value="">
         </form>
-        <form action="{{ route('dwn_chart') }}" method="post" id="dwn_chart">
+        <form action="{{ $clear_url . route('dwn_chart', [], false) }}" method="post" id="dwn_chart">
             {{ csrf_field() }}
             <input type="hidden" name="chart_headers" id="dwn_chart_headers" value="">
             <input type="hidden" name="chart_rows" id="dwn_chart_rows" value="">
@@ -104,6 +107,13 @@
             <input type="hidden" name="file_name" id="dwn_filename" value="">
         </form>
         <textarea id="for_paste_get" style="position: fixed;top:100%;"></textarea>
+
+        @if(!config('app.debug'))
+            @if(auth()->guest())
+                <iframe src="{{ $discourse_start_login }}" id="discourse_iframe" width="1" height="1" style="position: absolute" v-on:load="saveDiscourse"></iframe>
+            @endif
+            <iframe v-if="discourse_login_iframe" :src="discourse_login_iframe" width="1" height="1" style="position: absolute"></iframe>
+        @endif
 
         <hover-block v-if="$root.hover_html && $root.hover_show"
                      :html_str="$root.hover_html"

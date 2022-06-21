@@ -2,9 +2,8 @@
 
 namespace Vanguard\Listeners\Users;
 
-use Illuminate\Support\Facades\Mail;
 use Vanguard\Events\User\RequestedPasswordResetEmail;
-use Vanguard\Mail\TabldaMail;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Repositories\User\UserRepository;
 
 class SendPasswordReminderEmail
@@ -22,7 +21,7 @@ class SendPasswordReminderEmail
     /**
      * Handle the event.
      *
-     * @param  RequestedPasswordResetEmail  $event
+     * @param RequestedPasswordResetEmail $event
      * @return void
      */
     public function handle(RequestedPasswordResetEmail $event)
@@ -43,6 +42,7 @@ class SendPasswordReminderEmail
             ]
         ];
 
-        Mail::to($user->email)->queue( new TabldaMail('tablda.emails.pass-reset', $data, $params) );
+        $mailer = new EmailWithSettings('password_reset', $user->email);
+        $mailer->queue($params, $data);
     }
 }

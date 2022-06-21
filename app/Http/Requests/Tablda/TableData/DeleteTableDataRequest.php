@@ -26,8 +26,8 @@ class DeleteTableDataRequest extends FormRequest
         return [
             'table_id' => 'required|integer|exists:tables,id',
             'row_id' => 'required|integer',
-            'table_permission_id' => 'integer|exists:table_permissions,id',
-            'table_permission_pass' => 'string|nullable',
+            'table_dcr_id' => 'integer|exists:table_data_requests,id',
+            'table_dcr_pass' => 'string|nullable',
         ];
     }
 }

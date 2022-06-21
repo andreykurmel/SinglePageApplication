@@ -13,9 +13,9 @@ class TableBackupsSeeder extends Seeder
 
     /**
      * TableBackupsSeeder constructor.
-     *
      * @param \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService
      * @param \Vanguard\Services\Tablda\HelperService $service
+     * @param \Vanguard\Repositories\Tablda\TableViewRepository $tableViewRepository
      */
     public function __construct(
         \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService,
@@ -48,10 +48,10 @@ class TableBackupsSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
+
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+
                 'modified_on' => now(),
             ]);
         }
@@ -59,13 +59,17 @@ class TableBackupsSeeder extends Seeder
         //headers for 'User Connections'
         $this->create('name', 'Name', $table_sub, $user, 'String', 1);
         $this->create('user_cloud_id', 'Cloud', $table_sub, $user, 'String', 1);
-        $this->create('day', 'Day', $table_sub, $user, 'String', 1);
+        $this->create('is_active', 'Status', $table_sub, $user, 'Boolean');
+        $this->create('day', 'Frequency', $table_sub, $user, 'String');
+        $this->create('overwrite', 'Overwritten', $table_sub, $user, 'Boolean', 0, '', '* If turned OFF, a "_yyyymmdd" will be added to the end of saved files.');
+        $this->create('root_folder', 'Subfolder', $table_sub, $user, 'String', 0, 'TablDA_AutoBackup', '* A subfolder will be added under "Dropbox/ Apps/ TablDA_AutoBackup" for Storage & Backup. If left empty,  the account`s username will be used for the subfolder.');
         $this->create('timezone', 'Timezone', $table_sub, $user, 'Timezone');
         $this->create('time', 'Time', $table_sub, $user, 'Time');
         $this->create('mysql', 'MySQL', $table_sub, $user, 'Boolean');
         $this->create('csv', 'CSV', $table_sub, $user, 'Boolean');
         $this->create('attach', 'Attachments', $table_sub, $user, 'Boolean');
-        $this->create('_eml_pop', 'Notifications,Email', $table_sub, $user);
+        $this->create('ddl_attach', 'DDL Images', $table_sub, $user, 'Boolean', 0, '', '* If turned ON, the images for individual DDL options will be saved in the backup.');
+        $this->create('notes', 'Note', $table_sub, $user, 'String');
 
         $this->create('bkp_email_field_id','Recipients', $table_sub, $user);
         $this->create('bkp_email_field_static','And', $table_sub, $user);
@@ -84,8 +88,8 @@ class TableBackupsSeeder extends Seeder
         $this->viewRepository->addSys($table_sub);
     }
 
-    private function create($field, $name, $table, $user, $type = 'String', $required = 0, $default = '') {
-        $present = $table->_fields->where('field', $field)->first();
+    private function create($field, $name, $table, $user, $type = 'String', $required = 0, $default = '', $tooltip = '') {
+        $present = $table->_fields()->where('field', $field)->first();
         if (!$present) {
             TableField::create([
                 'table_id' => $table->id,
@@ -94,11 +98,11 @@ class TableBackupsSeeder extends Seeder
                 'f_type' => $type,
                 'f_default' => $default,
                 'f_required' => $required,
+                'tooltip' => $tooltip,
+                'tooltip_show' => $tooltip ? 1 : 0,
                 'created_by' => $user->id,
-
                 'created_on' => now(),
                 'modified_by' => $user->id,
-
                 'modified_on' => now()
             ]);
         } else {
@@ -106,6 +110,8 @@ class TableBackupsSeeder extends Seeder
             $present->f_type = $type;
             $present->f_default = $default;
             $present->f_required = $required;
+            $present->tooltip = $tooltip;
+            $present->tooltip_show = $tooltip ? 1 : 0;
             $present->save();
         }
     }

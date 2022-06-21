@@ -1,21 +1,24 @@
 <template>
     <div class="statics_container container-fluid">
         <div class="row full-height">
-            <div class="statics_left full-height" ref="static_menu" v-show="isLeftMenu">
+            <div class="statics_left full-height flex flex--col" ref="static_menu" v-show="isLeftMenu">
 
-                <div v-for="(links, type) in pages" :redraw="redraw" class="pages-section">
-                    <a @click.prevent="showSection(type)" class="section__header" :ref="'btn_section_'+type">
+                <template v-for="(links, type) in pages">
+                    <a @click.prevent="showSection(type)" class="pages-section section__header" :ref="'btn_section_'+type">
                         {{ sectionName(type) }}
                         <span class="state-shower">{{ type === currentType ? '-' : '+' }}</span>
                     </a>
-                    <div :style="{height: (type === currentType ? sectionHeight : 0)}" class="section__content">
+                    <div :style="{height: (type === currentType ? 'auto' : 0)}"
+                         :class="[type === currentType ? 'flex__elem-remain' : '']"
+                         class="section__content"
+                    >
                         <pages-tree :tree="links"
                                     :type="type"
                                     :page_id="currentPage.id"
                                     @selected-page="loadPage"
                         ></pages-tree>
                     </div>
-                </div>
+                </template>
 
             </div>
             <div class="full-height" :class="[isLeftMenu ? 'statics_right' : 'statics_right_full']">
@@ -99,7 +102,6 @@
 
                 currentType: null,
                 currentPage: {},
-                sectionHeight: null,
                 redraw: 0,
                 btnOuterHeight: 0,
                 editing_content: false,
@@ -125,7 +127,6 @@
             showSection(type) {
                 let staticMenuHeight = $(this.$refs.static_menu).height();
                 this.btnOuterHeight = $(this.$refs['btn_section_'+type]).outerHeight() + 2;
-                this.sectionHeight = (staticMenuHeight - (this.btnOuterHeight * 4)) + 'px';
                 this.currentType = type !== this.currentType ? type : null;
 
                 this.ck_config.height = $(this.$refs.cont_wrapper).outerHeight();
@@ -232,86 +233,86 @@
 
 <style lang="scss" scoped>
     .statics_container {
-        padding: 15px;
+        padding: 5px;
         height: 100%;
 
         .pages-section {
             border: 1px solid #CCC;
             background-color: #EEE;
             transition: all 0.5s ease-out;
+        }
 
-            .section__header {
-                display: block;
-                cursor: pointer;
-                text-decoration: none;
-                color: #EEE;
-                padding: 5px 10px;
-                background-color: #575c62;
-                font-weight: bold;
-                font-size: 1.2em;
+        .section__header {
+            display: block;
+            cursor: pointer;
+            text-decoration: none;
+            color: #EEE;
+            padding: 5px 10px;
+            background-color: #575c62;
+            font-weight: bold;
+            font-size: 1.2em;
 
-                &:hover {
-                    color: #FFF;
-                }
-            }
-            .section__header--selected {
-                cursor: default;
-                background-color: #005fa4;
+            &:hover {
                 color: #FFF;
+            }
+        }
+        .section__header--selected {
+            cursor: default;
+            background-color: #005fa4;
+            color: #FFF;
 
-                &:hover {
-                    color: #FFF;
-                }
-
-                .menu-toggler {
-                    position: relative;
-                    top: 2px;
-                    color: #FFF;
-                    cursor: pointer;
-                }
-
-                .form-ctr-fixed {
-                    display: inline-block;
-                    width: 100px;
-                    height: 26px;
-                    padding: 3px;
-                }
-
-                .node-span {
-                    margin: 0 15px;
-                }
+            &:hover {
+                color: #FFF;
             }
 
-            .section__content {
+            .menu-toggler {
+                position: relative;
+                top: 2px;
+                color: #FFF;
+                cursor: pointer;
+            }
+
+            .form-ctr-fixed {
+                display: inline-block;
+                width: 100px;
+                height: 26px;
+                padding: 3px;
+            }
+
+            .node-span {
+                margin: 0 15px;
+            }
+        }
+
+        .section__content {
+            overflow: auto;
+            transition: all 0.5s ease-out;
+
+            ul {
+                margin: 12px 0;
+                padding-right: 10px;
+            }
+            label {
+                margin-bottom: 0;
+            }
+            .content_textarea {
                 overflow: auto;
-                transition: all 0.5s ease-out;
+                margin-bottom: 10px;
+                width: 100%;
+                height: calc(100% - 50px);
+            }
+            .selected_a {
+                color: #222;
+                cursor: default;
+                text-decoration: none;
+            }
+        }
+        .section__content--selected {
+            padding: 5px 10px;
+        }
 
-                ul {
-                    margin: 12px 0;
-                    padding-right: 10px;
-                }
-                label {
-                    margin-bottom: 0;
-                }
-                .content_textarea {
-                    overflow: auto;
-                    margin-bottom: 10px;
-                    width: 100%;
-                    height: calc(100% - 50px);
-                }
-                .selected_a {
-                    color: #222;
-                    cursor: default;
-                    text-decoration: none;
-                }
-            }
-            .section__content--selected {
-                padding: 5px 10px;
-            }
-
-            .btn-sm {
-                padding: 3px 7px;
-            }
+        .btn-sm {
+            padding: 3px 7px;
         }
 
         .row {

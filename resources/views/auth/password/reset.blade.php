@@ -18,7 +18,7 @@
             @include('partials.messages')
 
             <form role="form" action="{{ url('password/reset') }}" method="POST" id="reset-password-form" autocomplete="off" class="p-4">
-                <input type="hidden" name="token" value="{{ $token }}">
+                <input type="hidden" name="token" value="{{ $resetter['web_token'] }}">
                 {{ csrf_field() }}
 
                 <p class="text-muted mb-4 text-center font-weight-light px-2">
@@ -27,7 +27,7 @@
 
                 <div class="form-group">
                     <label for="password" class="sr-only">@lang('app.your_email')</label>
-                    <input type="email" name="email" id="email" class="form-control" placeholder="@lang('app.your_email')">
+                    <input type="email" name="email" id="email" readonly="readonly" class="form-control" placeholder="@lang('app.your_email')" value="{{ $resetter['email'] }}">
                 </div>
 
                 <div class="form-group">

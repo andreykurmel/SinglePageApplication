@@ -1,60 +1,59 @@
 <template>
     <div class="full-height">
+        <label v-if="mapWarning" class="map-warning">{{ mapWarning }}</label>
         <div :style="{zIndex: loading ? 500 : -1}" ref="loader" class="loader"></div>
         <div ref="map_google" class="full-height"></div>
 
         <template v-for="(marker_row,idx) in marker_rows_all">
             <div :ref="'marker_info_'+marker_row._row_id" class="iw-wrapper flex flex--col">
-                <h4 v-if="marker_hdr && marker_row" class="iw-header">
-                    <span>{{ $root.uniqName(marker_hdr.name) + ': ' }}</span>
-                    <span style="display: inline;">
-                        <cell-table-content
-                                :global-meta="tableMeta"
-                                :table-meta="tableMeta"
-                                :table-row="marker_row"
-                                :table-header="marker_hdr"
-                                :cell-value="marker_row[marker_hdr.field]"
-                                :user="user"
-                                :inline="true"
-                                @show-src-record="showSrcRecord"
-                        ></cell-table-content>
-                    </span>
+                <h4 v-if="marker_hdr_tb && marker_header && marker_row"
+                    class="iw-header flex flex--center-v"
+                    :style="hdrBgClr"
+                >
+                    <div style="max-width: 35%">{{ $root.uniqName(marker_header.name) }}:&nbsp;</div>
+                    <single-td-field
+                            :table-meta="marker_hdr_tb"
+                            :table-header="marker_header"
+                            :td-value="marker_row[marker_header.field]"
+                            :ext-row="marker_row"
+                            :no_width="true"
+                            :with_edit="false"
+                            style="display: inline-block;background-color: transparent;"
+                            @show-src-record="showSrcRecord"
+                    ></single-td-field>
                 </h4>
 
-                <div v-if="marker_fields.length && marker_row" class="iw-body flex flex--elem_remain">
-                    <table>
-                        <colgroup>
-                            <col :width="widths_name">
-                            <col :width="widths_col">
-                        </colgroup>
-                        <template v-for="i_hdr in marker_fields">
-                            <tr v-if="getSubHeaders(i_hdr.name)">
-                                <td><div v-html="getSubHeaders(i_hdr.name)"></div></td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td style="text-align: right">
-                                    <label :style="textStyle" style="padding-left: 10px;">{{ getHeader(i_hdr.name) }}:&nbsp;</label>
-                                </td>
-                                <td :is="$root.tdCellComponent(tableMeta.is_system)"
-                                    :global-meta="tableMeta"
-                                    :table-meta="tableMeta"
-                                    :settings-meta="$root.settingsMeta"
-                                    :table-row="marker_row"
-                                    :table-header="i_hdr"
-                                    :cell-value="marker_row[i_hdr.field]"
-                                    :user="user"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
-                                    :row-index="-1"
-                                    :table_id="tableMeta.id"
-                                    :behavior="'list_view'"
-                                    :with_edit="false"
-                                    @show-src-record="showSrcRecord"
-                                ></td>
-                            </tr>
-                        </template>
-                    </table>
+                <div v-if="marker_fields_meta && marker_row"
+                     class="iw-body flex flex--elem_remain"
+                     :style="{ height: tableMeta.map_popup_height+'px', width: tableMeta.map_popup_width+'px' }"
+                >
+                    <div class="table_part" :style="tablePartStyle">
+                        <vertical-table
+                            :td="$root.tdCellComponent(marker_fields_meta.is_system)"
+                            :table-meta="marker_fields_meta"
+                            :settings-meta="$root.settingsMeta"
+                            :table-row="marker_row"
+                            :user="user"
+                            :cell-height="$root.cellHeight"
+                            :max-cell-rows="$root.maxCellRows"
+                            :behavior="'map_view'"
+                            :is_small_spacing="'yes'"
+                            :with_edit="false"
+                            style="background-color: transparent; table-layout: fixed;"
+                            @show-src-record="showSrcRecord"
+                        ></vertical-table>
+                    </div>
+
+                    <div v-if="imgHeader" class="attach_part" :style="{width: (tableMeta.map_picture_width)+'%'}">
+                        <show-attachments-block
+                            :show-type="tableMeta.map_picture_style"
+                            :table-header="imgHeader"
+                            :table-meta="tableMeta"
+                            :table-row="marker_row"
+                            :just-first="true"
+                        ></show-attachments-block>
+                    </div>
+
                 </div>
             </div>
         </template>
@@ -63,39 +62,28 @@
 </template>
 
 <script>
-    import {eventBus} from '../../../../../app';
+import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
 
-    import CellStyleMixin from '../../../../_Mixins/CellStyleMixin.vue';
-    import TableLinkMixin from '../../../../_Mixins/TableLinkMixin.vue';
+import {eventBus} from '../../../../../app';
 
-    import LinkIcon from "../../../../CustomCell/InCell/LinkIcon.vue";
-    import CellTableContent from "../../../../CustomCell/InCell/CellTableContent.vue";
-    import VerticalTable from "../../../../CustomTable/VerticalTable";
-    import CustomCellTableData from '../../../../CustomCell/CustomCellTableData.vue';
-    import CustomCellSystemTableData from '../../../../CustomCell/CustomCellSystemTableData.vue';
-    import CustomCellCorrespTableData from '../../../../CustomCell/CustomCellCorrespTableData.vue';
+import CellStyleMixin from '../../../../_Mixins/CellStyleMixin.vue';
+import TableLinkMixin from '../../../../_Mixins/TableLinkMixin.vue';
 
-    export default {
+import VerticalTable from "../../../../CustomTable/VerticalTable";
+import SingleTdField from "../../../../CommonBlocks/SingleTdField";
+import ShowAttachmentsBlock from "../../../../CommonBlocks/ShowAttachmentsBlock";
+
+export default {
         name: "MapElem",
         components: {
-            CustomCellTableData,
-            CustomCellSystemTableData,
-            CustomCellCorrespTableData,
+            ShowAttachmentsBlock,
+            SingleTdField,
             VerticalTable,
-            CellTableContent,
-            LinkIcon,
         },
         mixins: [
             CellStyleMixin,
             TableLinkMixin,
         ],
-        provide() {
-            return {
-                reactive_provider: {
-                    behavior: 'list_view'
-                }
-            };
-        },
         data: function () {
             return {
                 map: null,
@@ -103,11 +91,12 @@
                 addressCenter: null,
                 radius_circle: null,
                 markerRows: [],
+                mapWarning: '',
                 loading: false,
 
-                marker_hdr: null,
+                marker_hdr_tb: null,
                 marker_rows_all: [],
-                marker_fields: [],
+                marker_fields_tb: null,
 
                 uuid: uuidv4(),
                 headerArr: [],
@@ -123,6 +112,39 @@
             },
             widths_col() {
                 return this.tableMeta.vert_tb_hdrwidth ? (100 - this.tableMeta.vert_tb_hdrwidth)+'%' : this.widths.col;
+            },
+            marker_header() {
+                return this.marker_hdr_tb && this.marker_hdr_tb._fields
+                    ? _.first(this.marker_hdr_tb._fields)
+                    : null;
+            },
+            tablePartStyle() {
+                if (this.imgHeader) {
+                    return {
+                        paddingRight: '10px',
+                        width: (100 - this.tableMeta.map_picture_width)+'%',
+                    };
+                } else {
+                    return {};
+                }
+            },
+            imgHeader() {
+                return _.find(this.tableMeta._fields, {id: Number(this.tableMeta.map_picture_field)});
+            },
+            marker_fields_meta() {
+                let fields = this.tableMeta.map_position_refid ? this.marker_fields_tb : this.tableMeta._fields;
+                return {
+                    _fields: _.filter(fields, (fld) => {
+                        return fld.info_box && !fld.is_info_header_field;
+                    }),
+                }
+            },
+            hdrBgClr() {
+                let bg = this.tableMeta.map_popup_header_color || '#CCC';
+                return {
+                    backgroundColor: bg,
+                    color: SpecialFuncs.smartTextColorOnBg(bg)
+                };
             },
         },
         props:{
@@ -143,21 +165,17 @@
 
             //Build and Draw Map functions
             loadBounds() {
-                let request = _.cloneDeep(this.request_params);
-                request.page = 1;
-                request.rows_per_page = 0;
-                request.sort = [];
-
+                let request = this.requestObject();
                 axios.post('/ajax/table-data/get-map-bounds', request).then(({data}) => {
                     let can_apply = 0;
                     let bounds = new google.maps.LatLngBounds();
                     //left-top data corner
-                    if (data.top && data.left) {
+                    if (isNumber(data.top) && isNumber(data.left)) {
                         can_apply++;
                         bounds.extend( new google.maps.LatLng(data.top, data.left) );
                     }
                     //bottom-right data corner
-                    if (data.bottom && data.right) {
+                    if (isNumber(data.bottom) && isNumber(data.right)) {
                         can_apply++;
                         bounds.extend( new google.maps.LatLng(data.bottom, data.right) );
                     }
@@ -176,33 +194,47 @@
                         this.map.panToBounds(bounds);
                         this.map.fitBounds(bounds);
                     }
-                    //this.loadRows(); will be applied on 'Zoom Changed'
+                    //applied in 'zoom_changed'
+                    //this.loadRows();
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
             },
             loadRows() {
-                let request = _.cloneDeep(this.request_params);
-                request.page = 1;
-                request.rows_per_page = 0;
-                request.sort = [];
-
-                let bnds = this.map.getBounds();
-                request.map_bounds = {
-                    zoom: this.map.getZoom(),
-                    left_bottom: bnds.getSouthWest(),
-                    right_top: bnds.getNorthEast()
-                };
+                let request = this.requestObject();
+                //transfer zoom for clustering
+                request.map_bounds = { zoom: this.map.getZoom() };
 
                 this.loadingIcon(true);
                 axios.post('/ajax/table-data/get-map-markers', request).then(({data}) => {
                     this.loadingIcon(false);
-                    this.markerRows = data;
+                    this.markerRows = data.markers;
+                    this.mapWarning = data.warning;
                     this.buildMap();
                 }).catch(errors => {
                     $(this.$refs.loader).LoadingOverlay('hide');
                     Swal('', getErrors(errors));
                 });
+            },
+            requestObject() {
+                let request = _.cloneDeep(this.request_params);
+                request.special_params = SpecialFuncs.specialParams();
+                request.page = 1;
+                request.rows_per_page = 0;
+                request.sort = [];
+
+                if (this.radiusObject.distance && this.addressCenter) {
+                    request.radius_search = {
+                        km: this.radiusObject.distance * 1.6,
+                        center_lat: this.addressCenter.lat(),
+                        center_long: this.addressCenter.lng(),
+                    };
+                }
+
+                //for caching on backend
+                request.special_params.list_view_hash = justHash(JSON.stringify(request));
+
+                return request;
             },
             buildMap() {
 
@@ -236,102 +268,91 @@
                 //for auto zoom and center
                 let bounds = new google.maps.LatLngBounds();
 
-                let lat_header = _.find(this.tableMeta._fields, {is_lat_field: 1});
-                let long_header = _.find(this.tableMeta._fields, {is_long_field: 1});
-
-                //get headers for info-box
-                this.marker_hdr = _.find(this.tableMeta._fields, {is_info_header_field: 1});
-                this.marker_fields = [];
-                _.each(this.tableMeta._fields, (hdr) => {
-                    if (hdr.info_box && !hdr.is_info_header_field) {
-                        this.marker_fields.push(hdr);
-                    }
-                });
-
                 //draw markers
-                if (lat_header && long_header) {
-                    _.each(this.markerRows, (markerRow) => {
-                        let lat_val = parseFloat(markerRow['lat']);
-                        let long_val = parseFloat(markerRow['lng']);
-                        if (lat_val && long_val/* && this.markerAvailable(lat_val, long_val)*/) {
-                            //set settings for marker
-                            let m_settings = {
-                                position: {lat: lat_val, lng: long_val},
-                                map: this.map
-                            };
+                _.each(this.markerRows, (markerRow) => {
+                    let lat_val = parseFloat(markerRow['lat']);
+                    let long_val = parseFloat(markerRow['lng']);
+                    if (lat_val && long_val/* && this.markerAvailable(lat_val, long_val)*/) {
+                        //set settings for marker
+                        let m_settings = {
+                            position: {lat: lat_val, lng: long_val},
+                            map: this.map
+                        };
 
-                            //add special icon for marker
-                            if (markerRow['id']) {
-                                if (this.tableMeta.map_icon_style === 'dist' && this.columnValues.length) {
-                                    let map_fld = _.find(this.columnValues, {row_val: markerRow['icon']});
-                                    map_fld = (map_fld && map_fld.icon_path) ? map_fld : _.find(this.columnValues, {row_val: 'Default'});
+                        //add special icon for marker
+                        if (markerRow['id']) {
+                            if (this.tableMeta.map_icon_style === 'dist' && this.columnValues.length) {
+                                let map_fld = _.find(this.columnValues, {row_val: markerRow['icon']});
+                                map_fld = (map_fld && map_fld.icon_path) ? map_fld : _.find(this.columnValues, {row_val: 'Default'});
 
-                                    if (map_fld && map_fld.icon_path) {
-                                        m_settings.icon = {
-                                            url: this.$root.fileUrl({url:map_fld.icon_path})
-                                        };
+                                if (map_fld && map_fld.icon_path) {
+                                    m_settings.icon = {
+                                        url: this.$root.fileUrl({url:map_fld.icon_path})
+                                    };
 
-                                        let height = Number(map_fld.height) || 0;
-                                        let width = Number(map_fld.width) || 0;
-                                        if (height && width) {
-                                            m_settings.icon.scaledSize = new google.maps.Size(width, height);
-                                        }
+                                    let height = Number(map_fld.height) || 0;
+                                    let width = Number(map_fld.width) || 0;
+                                    if (height && width) {
+                                        m_settings.icon.scaledSize = new google.maps.Size(width, height);
                                     }
                                 }
-                                if (this.tableMeta.map_icon_style === 'comp' && markerRow['icon']) {
-                                    m_settings.icon = {
-                                        url: this.$root.fileUrl({url:markerRow['icon']})
-                                    };
-                                    m_settings.icon.scaledSize = new google.maps.Size(50, 50);
-                                }
                             }
-                            //add icon for clusters
-                            else {
-                                m_settings.label = String(markerRow['cnt']);
+                            if (this.tableMeta.map_icon_style === 'comp' && markerRow['icon']) {
                                 m_settings.icon = {
-                                    url: this.$root.app_url + markerRow['icon']
+                                    url: this.$root.fileUrl({url:markerRow['icon']})
                                 };
+                                m_settings.icon.scaledSize = new google.maps.Size(50, 50);
                             }
-
-                            let marker = new google.maps.Marker(m_settings);
-
-                            bounds.extend( new google.maps.LatLng(marker.position.lat(), marker.position.lng()) );
-
-                            //set info popup for marker
-                            if (markerRow['id'] && (this.marker_fields.length || this.marker_hdr)) {
-                                marker._row_id = markerRow['id'];
-                                marker.addListener('click', () => {
-                                    axios.get('/ajax/table-data/marker-popup', {
-                                        params: {
-                                            table_id: this.tableMeta.id,
-                                            row_id: markerRow['id']
-                                        }
-                                    }).then(({ data }) => {
-                                        if (!this.tableMeta.map_multiinfo) {
-                                            this.marker_rows_all = [];
-                                        }
-                                        data._row_id = marker._row_id;
-                                        this.marker_rows_all.push(data);
-                                        this.$nextTick(() => {
-                                            this.markerInfoWindow(marker, data);
-                                        });
-
-                                    });
-                                });
-                            } else {
-                                //add zoom on cluster click
-                                marker.addListener('click', () => {
-                                    let pt = new google.maps.LatLng(lat_val, long_val);
-                                    this.map.setCenter(pt);
-                                    this.map.setZoom( this.map.getZoom()+3 );
-                                });
-                            }
-
-                            this.markers.push(marker);
                         }
-                    });
-                    this.reopenMarkers();
-                }
+                        //add icon for clusters
+                        else {
+                            m_settings.label = String(markerRow['cnt']);
+                            m_settings.icon = {
+                                url: this.$root.app_url + markerRow['icon']
+                            };
+                        }
+
+                        let marker = new google.maps.Marker(m_settings);
+
+                        bounds.extend( new google.maps.LatLng(marker.position.lat(), marker.position.lng()) );
+
+                        //set info popup for marker
+                        if (markerRow['id']) {
+                            marker._row_id = markerRow['id'];
+                            marker.addListener('click', () => {
+                                axios.get('/ajax/table-data/marker-popup', {
+                                    params: {
+                                        table_id: this.tableMeta.id,
+                                        row_id: markerRow['id'],
+                                        special_params: SpecialFuncs.specialParams(),
+                                    }
+                                }).then(({ data }) => {
+                                    if (!this.tableMeta.map_multiinfo) {
+                                        this.marker_rows_all = [];
+                                    }
+                                    data.marker_row._row_id = marker._row_id;
+                                    this.marker_rows_all.push(data.marker_row);
+                                    this.marker_fields_tb = data.marker_fields_tb;
+                                    this.marker_hdr_tb = data.marker_hdr_tb;
+                                    this.$nextTick(() => {
+                                        this.markerInfoWindow(marker, data.marker_row);
+                                    });
+
+                                });
+                            });
+                        } else {
+                            //add zoom on cluster click
+                            marker.addListener('click', () => {
+                                let pt = new google.maps.LatLng(lat_val, long_val);
+                                this.map.setCenter(pt);
+                                this.map.setZoom( this.map.getZoom()+3 );
+                            });
+                        }
+
+                        this.markers.push(marker);
+                    }
+                });
+                this.reopenMarkers();
 
             },
             markerInfoWindow(marker, m_row) {
@@ -348,7 +369,7 @@
             },
             reopenMarkers() {
                 _.each(this.markers, (marker) => {
-                    if (marker._row_id && (this.marker_fields.length || this.marker_hdr)) {
+                    if (marker._row_id) {
                         //reopen all marker's InfoWindow
                         _.each(this.marker_rows_all, (m_row, mi) => {
                             if (marker._row_id == m_row._row_id) {
@@ -395,45 +416,16 @@
             },
 
             //recalc Address Center functions (Only for RadiusButton)
-            recalcAddressCenter() {
+            recalcSearchCenter() {
                 //prepare center Address for searching
-                this.addressCenter = null;
-                if (this.radiusObject.distance && this.radiusObject.type) {
+                if (this.radiusObject.decimal.lat === null && this.radiusObject.decimal.long === null) {
+                    this.addressCenter = null;
+                } else {
                     let center_lat = this.$root.getFloat(this.radiusObject.decimal.lat);
                     let center_long = this.$root.getFloat(this.radiusObject.decimal.long);
-                    let query = '';
-                    if (!center_lat || !center_long) {
-
-                        query = String(this.radiusObject.address.street)
-                            + (this.radiusObject.address.city ? ', '+String(this.radiusObject.address.city) : '')
-                            + (this.radiusObject.address.state ? ', '+String(this.radiusObject.address.state) : '')
-                            + (this.radiusObject.address.county ? ', '+String(this.radiusObject.address.county) : '')
-                            + (this.radiusObject.address.zip ? ', '+String(this.radiusObject.address.zip) : '');
-
-                        if (query && this.$root.user.__google_table_api) {
-                            let request = {
-                                query: query,
-                                fields: ['name', 'geometry'],
-                            };
-                            let service = new google.maps.places.PlacesService(this.map);
-                            service.findPlaceFromQuery(request, (results, status) => {
-                                if (status === google.maps.places.PlacesServiceStatus.OK && results.length) {
-                                    this.addressCenter = results[0].geometry.location;
-                                } else {
-                                    Swal('Address not found');
-                                }
-                                eventBus.$emit('new-address-center', this.addressCenter);
-                            });
-                        }
-
-                    } else {
-                        this.addressCenter = new google.maps.LatLng(center_lat, center_long);
-                        eventBus.$emit('new-address-center', this.addressCenter);
-                    }
-
-                } else {
-                    eventBus.$emit('new-address-center', this.addressCenter);
+                    this.addressCenter = new google.maps.LatLng(center_lat, center_long);
                 }
+                this.loadBounds();
             },
 
             showSrcRecord(lnk, header, tableRow) {
@@ -488,12 +480,12 @@
             });
 
             eventBus.$on('should-redraw-map', this.loadBounds);
-            eventBus.$on('recalc-address-center', this.recalcAddressCenter);
+            eventBus.$on('run-search-on-map', this.recalcSearchCenter);
             eventBus.$on('global-keydown', this.globalKeyHandler);
         },
         beforeDestroy() {
             eventBus.$off('should-redraw-map', this.loadBounds);
-            eventBus.$off('recalc-address-center', this.recalcAddressCenter);
+            eventBus.$off('run-search-on-map', this.recalcSearchCenter);
             eventBus.$off('global-keydown', this.globalKeyHandler);
         }
     }
@@ -506,5 +498,23 @@
         width: 50px;
         height: 50px;
         right: 0;
+    }
+    .map-warning {
+        position: absolute;
+        right: 60px;
+        z-index: 150;
+        top: 7px;
+    }
+
+    .iw-body {
+        .table_part {
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+        .attach_part {
+            background-color: #EEE;
+            position: relative;
+            overflow: auto;
+        }
     }
 </style>

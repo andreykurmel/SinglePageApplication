@@ -1,23 +1,34 @@
 <template>
-    <div class="full-frame canvas_wrapper">
+    <div class="full-frame canvas_wrapper flex">
         <!--Filters-->
-        <div class="float-settings left-bottom bottom--up canv__settings flex flex--col" v-show="EqptStatuses.filters_show">
-            <label v-for="(filter, key) in EqptStatuses.colors"
-                   v-if="filter.show"
-                   class="status-filter"
-                   :style="{backgroundColor: filter.model_val}"
-            >
-                <span class="indeterm_check__wrap">
-                    <span class="indeterm_check" @click="filter.checked = !filter.checked;changedFilter()">
-                        <i v-if="filter.checked" class="glyphicon glyphicon-ok group__icon"></i>
-                    </span>
-                </span>
-                <span>{{key}}</span>
-            </label>
+        <div v-if="eqpt_tablda_table && eqpt_tablda_table.is_loaded && EqptStatuses.eqpt_filters"
+             class="filters-wrapper"
+             :style="{width: EqptStatuses.filters_show ? '250px' : '0px', padding: EqptStatuses.filters_show ? '5px' : '0px'}"
+        >
+            <div class="filters-wrapper--head">
+                <span v-show="EqptStatuses.filters_show">Filters</span>
+                <span class="glyphicon"
+                      :class="[EqptStatuses.filters_show ? 'glyphicon-triangle-left' : 'glyphicon-triangle-right']"
+                      :style="{right: EqptStatuses.filters_show ? '0px' : '-22px'}"
+                      @click="EqptStatuses.filters_show = !EqptStatuses.filters_show"
+                ></span>
+            </div>
+            <div class="filters-wrapper--body" v-show="EqptStatuses.filters_show">
+                <filters-block
+                    :table-meta="eqpt_tablda_table.params"
+                    :input_filters="EqptStatuses.eqpt_filters"
+                    :available-columns="eqpt_avail_filters"
+                    @changed-filter="changedFilter"
+                    @filter-status-toggle="load2Dfilters"
+                ></filters-block>
+            </div>
         </div>
         <!--Filters-->
+
         <!--Settings-->
-        <div class="float-settings left-bottom canv__settings flex flex--automargin" :style="{backgroundColor: params.background}">
+        <div class="float-settings left-bottom canv__settings flex flex--automargin"
+             :style="{backgroundColor: params.background, left: EqptStatuses.filters_show ? '255px' : '5px'}"
+        >
             <canv-settings :settings="params" @redraw-signal="redrawAll" @changed-heights="reheightEqpts"></canv-settings>
             <div class="edges-setting-button" ref="grid_button">
                 <i class="fas fa-border-all" @click="EqptStatuses.show_grids._visible = !EqptStatuses.show_grids._visible"></i>
@@ -61,9 +72,6 @@
             </div>
             <div class="wid_camera">
                 <img src="/assets/img/icons/camera.png" height="28" @click="make_screen()">
-            </div>
-            <div class="wid_filter">
-                <img src="/assets/img/icons/filter.png" @click="EqptStatuses.filters_show = !EqptStatuses.filters_show" height="28" width="28">
             </div>
             <div class="wid_status_color">
                 <img src="/assets/img/icons/status_color.png"
@@ -401,7 +409,7 @@
 </template>
 
 <script>
-    import { eventBus } from './../../../app';
+    import { eventBus } from '../../../app';
 
     import {Settings} from "./Settings";
     import {MetaTabldaRows} from '../../../classes/MetaTabldaRows';
@@ -419,6 +427,7 @@
     import CanvGroupLine from "./CanvGroupLine";
     import CustomEditPopUp from "../../../components/CustomPopup/CustomEditPopUp";
     import SliderBlock from "../../../components/CommonBlocks/SliderBlock";
+    import FiltersBlock from "../../../components/CommonBlocks/FiltersBlock";
 
     export default {
         name: 'ConfiguratorComponent',
@@ -428,6 +437,7 @@
             ConfiguratorDataDragPopMixin,
         ],
         components: {
+            FiltersBlock,
             SliderBlock,
             CustomEditPopUp,
             CanvGroupLine,
@@ -479,6 +489,9 @@
                 tech_list: [],
                 status_list: [],
                 popup_tables: {},
+                eqpt_tablda_table: null,
+                eqpt_all_rows: null,
+                eqpt_avail_filters: [],
 
                 //colors
                 EqptStatuses: {
@@ -490,6 +503,7 @@
                         bound: true,
                     },
                     filters_show: false,
+                    eqpt_filters: null,
                     view_enabled: true,
                     colors: {
                         "status": {
@@ -543,7 +557,13 @@
                     (val ? this.load2D() : null);
                 },
                 immediate: true,
-            }
+            },
+            'master_row.id': {
+                handler(val) {
+                    this.EqptStatuses.eqpt_filters = null;
+                },
+                immediate: true,
+            },
         },
         methods: {
             //heights edits
@@ -558,6 +578,9 @@
                 });
             },
             heightsChaged(key, e) {
+                this.settings[key] = to_float(e.target.value);
+                this.settings.saveSettings();
+                //disabled
                 let affected = '';
                 switch (key) {
                     case 'top_elev': affected = 'pos,sec,rest'; break;
@@ -685,12 +708,13 @@
             reheightEqpts(affected, diff) {
                let app_tb = this.popup_tables.eqptdata_2d;
                let affected_eqpts = this.params.filter_eqpts(this.data_eqpt, affected);
-               _.each(affected_eqpts, (eqpt) => {
+               /*_.each(affected_eqpts, (eqpt) => {
                    let old = eqpt.elevVal(this.params.elev_by);
                    eqpt.elevVal(this.params.elev_by, old + diff);
                    eqpt.quickSave(app_tb);
-               });
+               });*/
                this.redrawAll();
+               this.load2Dfilters();
             },
             alignEqpts() {
                 let app_tb = this.popup_tables.eqptdata_2d;
@@ -708,6 +732,7 @@
                     }
                 });
                 this.redrawAll();
+                this.load2Dfilters();
             },
             topLvL(lvl) {
                 switch (lvl) {
@@ -727,6 +752,7 @@
                 });
                 this.redrawAll();
                 this.reloadTablda(app_tb);
+                this.load2Dfilters();
             },*/
 
             //scale
@@ -842,7 +868,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .canvas_wrapper {
         border: 1px solid #777;
 
@@ -989,6 +1015,38 @@
 
         .fa-align-justify {
             transform: rotate(90deg);
+        }
+
+
+        .filters-wrapper {
+            position: relative;
+            width: 220px;
+            flex-shrink: 0;
+            padding: 5px;
+            border: 1px solid #CCC;
+
+            .filters-wrapper--head {
+                position: relative;
+                height: 30px;
+                font-size: 18px;
+                font-weight: bold;
+                text-align: center;
+                background-color: #DDD;
+                border: 1px solid #AAA;
+
+                .glyphicon {
+                    position: absolute;
+                    right: 0;
+                    top: 5px;
+                    cursor: pointer;
+                    z-index: 1700;
+                }
+            }
+
+            .filters-wrapper--body {
+                height: calc(100% - 30px);
+                position: relative;
+            }
         }
     }
 </style>

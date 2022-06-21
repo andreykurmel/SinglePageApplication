@@ -24,18 +24,21 @@ class ModifyTableRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
+            'new_table' => 'nullable|array',
+            'table_id' => 'required_without:new_table|integer|exists:tables,id',
             'columns' => 'required|array',
             'present_cols_idx' => 'required|integer',
             'import_type' => 'required|string',
             'import_action' => 'required|string',
             'csv_settings' => 'required|array',
-            'mysql_settings' => 'required|array',
-            'paste_settings' => 'required|array',
+            'mysql_settings' => 'nullable|array',
+            'paste_settings' => 'nullable|array',
             'paste_file' => 'nullable|string',
             'html_xml' => 'nullable|array',
-            'g_sheet' => 'nullable|array',
-            'referenced_table' => 'nullable',
+            'g_sheets' => 'nullable|array',
+            'ocr_data' => 'nullable|array',
+            'airtable_data' => 'nullable|array',
+            'referenced_table' => 'nullable|integer',
         ];
     }
 }

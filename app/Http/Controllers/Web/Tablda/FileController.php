@@ -2,12 +2,10 @@
 
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
-use Illuminate\Http\Request;
-use Vanguard\Classes\TabldaUser;
 use Vanguard\Http\Controllers\Controller;
+use Vanguard\Http\Requests\Tablda\File\DeleteFileRequest;
 use Vanguard\Http\Requests\Tablda\File\PostFileRequest;
 use Vanguard\Http\Requests\Tablda\File\PutFileRequest;
-use Vanguard\Http\Requests\Tablda\File\DeleteFileRequest;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
@@ -18,7 +16,6 @@ use Vanguard\User;
 class FileController extends Controller
 {
     private $tableService;
-    private $fieldRepository;
     private $fileRepository;
 
     /**
@@ -26,10 +23,9 @@ class FileController extends Controller
      *
      * @param tableService $tableService
      */
-    public function __construct(TableService $tableService, TableFieldRepository $fieldRepository, FileRepository $fileRepository)
+    public function __construct(TableService $tableService, FileRepository $fileRepository)
     {
         $this->tableService = $tableService;
-        $this->fieldRepository = $fieldRepository;
         $this->fileRepository = $fileRepository;
     }
 
@@ -37,21 +33,17 @@ class FileController extends Controller
      * Get user`s table rows
      *
      * @param PostFileRequest $request
-     * @return array
+     * @return array|string
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function insert(PostFileRequest $request) {
-        if ($request->special_params) {
-            $user = auth()->user() ?: new User();
-            $table_t = $this->tableService->getTable($request->table_id);
-            $req_array = $request->all();
-            $req_array['special_params'] = json_decode($req_array['special_params'], true);
-            $this->authorizeForUser($user, 'load', [TableData::class, $table_t, HelperService::webHashFromReq($req_array)]);
+    public function insert(PostFileRequest $request)
+    {
+        if ($request->table_id == 'temp') {
+            return $this->fileRepository->saveInTemp($request->all(), $request->file('file'));
         } else {
             $request->table_field_id ? $this->canModifyTableColumn($request) : $this->canModifyTable($request);
+            return $this->fileRepository->insertFile($request->all(), $request->file('file'));
         }
-
-        return $this->fileRepository->insertFile($request->all(), $request->file('file'));
     }
 
     /**
@@ -61,10 +53,11 @@ class FileController extends Controller
      * @return array
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function update(PutFileRequest $request) {
+    public function update(PutFileRequest $request)
+    {
         $request->table_field_id ? $this->canModifyTableColumn($request) : $this->canModifyTable($request);
 
-        return [ 'file' => $this->fileRepository->updateFile($request->all()) ];
+        return ['file' => $this->fileRepository->updateFile($request->all())];
     }
 
     /**
@@ -74,7 +67,8 @@ class FileController extends Controller
      * @return array
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function delete(DeleteFileRequest $request) {
+    public function delete(DeleteFileRequest $request)
+    {
         $request->table_field_id ? $this->canModifyTableColumn($request) : $this->canModifyTable($request);
 
         return ['status' => $this->fileRepository->deleteFile($request->all())];
@@ -86,9 +80,9 @@ class FileController extends Controller
      * @param $request
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    private function canModifyTableColumn($request) {
-        $table = $this->tableService->getTable($request->table_id);
-        $this->authorize('update', [TableData::class, $table]);
+    protected function canModifyTableColumn($request)
+    {
+        $this->canModify('update', $request);
     }
 
     /**
@@ -97,8 +91,31 @@ class FileController extends Controller
      * @param $request
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    private function canModifyTable($request) {
-        $table = $this->tableService->getTable($request->table_id);
-        $this->authorize('isOwner', [TableData::class, $table]);
+    protected function canModifyTable($request)
+    {
+        $this->canModify('isOwner', $request);
     }
+
+    /**
+     * @param $type
+     * @param $request
+     */
+    protected function canModify($type, $request)
+    {
+        $user = auth()->user() ?: new User();
+        $table_t = $this->tableService->getTable($request->table_id);
+
+        if (in_array($table_t->db_name, ['stim_app_view_feedback_results'])) {
+            return true; //files are available
+        }
+
+        $req_array = $request->all();
+        $req_array['special_params'] = $req_array['special_params'] ?? [];
+        if (!is_array($req_array['special_params'])) {
+            $req_array['special_params'] = json_decode($req_array['special_params'], true);
+        }
+        $this->authorizeForUser($user, $type, [TableData::class, $table_t, $req_array]);
+    }
+
+
 }

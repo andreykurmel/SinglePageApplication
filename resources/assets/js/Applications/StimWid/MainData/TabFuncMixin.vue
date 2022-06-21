@@ -76,6 +76,7 @@
                 this.deleteModelMixin(this.found_model, this.tab_object.master_table, this.del_additional_tbls).then(({data}) => {
                     this.found_model.setSelectedRow(null);
                     this.SET_SELECTED_MODEL_ROW(null);
+                    eventBus.$emit('recheck-backend', this.found_model.meta.table_id);
                 });
                 this.pre_delete_master_popup = false;
             },
@@ -128,14 +129,17 @@
             fillEqptAttachments(tb) {
                 this.handlers[this.tbkey(tb)].fill_attachments_clicked++;
             },
+            doRLCalculation(tb) {
+                this.handlers[this.tbkey(tb)].rl_calculation_clicked++;
+            },
             afterInsertRow(data) {
-                this.REDRAW_3D(); //The same functions work in 'Watcher'
+                //this.REDRAW_3D('soft'); //The same functions work in 'Three3dWid::intervalTickHandler'
             },
             afterUpdateRow(data) {
-                this.REDRAW_3D();
+                //this.REDRAW_3D('soft');
             },
             afterDeleteRow(data) {
-                this.REDRAW_3D();
+                //this.REDRAW_3D('soft');
             },
 
             //Permissions
@@ -152,6 +156,13 @@
             },
 
             //sys
+            is_visible(tb) {
+                let available_tables = this.vuex_settings._app_cur_view && this.vuex_settings._app_cur_view.visible_tab_ids
+                    ? JSON.parse(this.vuex_settings._app_cur_view.visible_tab_ids)
+                    : null;
+
+                return !available_tables || available_tables.indexOf(tb.id) > -1;
+            },
             no_hidden(tb) {
                 return !tb.options || tb.options.indexOf('is_hidden:true') === -1;
             },

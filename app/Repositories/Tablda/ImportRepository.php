@@ -3,11 +3,14 @@
 namespace Vanguard\Repositories\Tablda;
 
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Vanguard\Models\Table\Table;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Watchers\RefCondTargetFieldWatcher;
 use Vanguard\Services\Tablda\HelperService;
 
@@ -36,8 +39,9 @@ class ImportRepository
                 $table->increments('id');
                 $table->integer('refer_tb_id')->default(0);
                 $table->string('row_hash', 64)->nullable();
+                $table->string('static_hash', 64)->nullable();
                 $table->integer('row_order')->default(0);
-                $table->integer('request_id')->default(0);
+                $table->string('request_id', 32)->default('0');
                 $table->integer('created_by')->nullable();
                 $table->dateTime('created_on')->nullable();
                 $table->integer('modified_by')->nullable();
@@ -67,13 +71,12 @@ class ImportRepository
      * ]
      * @return string - error message
      */
-    public function modifyTableColumns(Table $table, array $data) {
-        $columns = $data['columns'];
-
+    public function modifyTableColumns(Table $table, array &$data)
+    {
         //remove if columns already deleted
-        foreach ($columns as $idx => $col) {
+        foreach ($data['columns'] as $idx => $col) {
             if ($col['status'] == 'del' && !Schema::connection('mysql_data')->hasColumn($table->db_name, $col['field'])) {
-                unset($columns[$idx]);
+                unset($data['columns'][$idx]);
             }
         }
 
@@ -81,8 +84,8 @@ class ImportRepository
 
         //modify table
         try {
-            Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($columns) {
-                foreach ($columns as $col) {
+            Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($data) {
+                foreach ($data['columns'] as $col) {
                     $col_size = $this->get_col_size($col['f_size']);
 
                     //for deleting columns
@@ -224,28 +227,6 @@ class ImportRepository
         foreach ($columns as $idx => $col) {
             $oldCol = $table_fields->where('field', $col['field'])->first();
 
-            //create helper 'formula column' for columns with type = 'Formula'
-            /*if ($col['f_type'] == 'Formula') {
-                if (
-                    !Schema::connection('mysql_data')->hasColumn($table->db_name, $col['field'].'_formula')
-                    ||
-                    (DB::connection('mysql_data')->getDoctrineColumn($table->db_name, $col['field'].'_formula')->getDefault() != $col['f_default'])
-                ) {
-                    //drop old 'formula column'
-                    if (Schema::connection('mysql_data')->hasColumn($table->db_name, $col['field'].'_formula')) {
-                        Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $table) use ($col) {
-                            $table->dropColumn($col['field'] . '_formula');
-                        });
-                    }
-                    //create new 'formula column'
-                    Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $table) use ($col) {
-                        $table->string($col['field'] . '_formula', 255)
-                            ->default(addslashes($col['f_default'] ?: ''))
-                            ->nullable();
-                    });
-                }
-            }*/
-
             if (!in_array($data['import_type'], ['csv', 'mysql', 'reference', 'paste'])) {
                 //prepare data for edited columns
                 if ($col['status'] == 'edit' && $col['field'] && !in_array($col['field'], $this->service->system_fields)) {
@@ -254,22 +235,6 @@ class ImportRepository
                     if ($oldCol && $oldCol->name != $col['name']) {
                         (new RefCondTargetFieldWatcher())->watchRename($table->id, $oldCol->name, $col['name']);
                     }
-
-                    //Formula type is changed to another type
-                    /*if ($oldCol && $oldCol->f_type == 'Formula' && $col['f_type'] != 'Formula') {
-                        $db->table($table->db_name)->update([
-                            $col['field'] => DB::raw($col['field'].'_formula')
-                        ]);
-                    }
-                    //Any type is changed to Formula type
-                    if ($oldCol && $oldCol->f_type != 'Formula' && $col['f_type'] == 'Formula') {
-                        $db->table($table->db_name)->update([
-                            $col['field'].'_formula' => DB::raw($col['field'])
-                        ]);
-                        $db->table($table->db_name)->update([
-                            $col['field'] => ''
-                        ]);
-                    }*/
 
                     //delete commas ',' as thousand dividers
                     if (in_array($col['f_type'], ['Integer','Decimal','Currency','Percentage'])) {
@@ -285,22 +250,41 @@ class ImportRepository
 
                 //set default values for 'edit' columns
                 if (in_array($col['status'], ['edit']) && !empty($col['f_default'])) {
-                    //if ($col['f_type'] != 'Formula') {
-                        $db->table($table->db_name)
-                            ->whereNull($col['field'])
-                            ->orWhere($col['field'], '')
-                            ->update([
-                                $col['field'] => $col['f_default']
-                            ]);
-                    /*} else {
-                        $db->table($table->db_name)
-                            ->update([
-                                $col['field'].'_formula' => $col['f_default']
-                            ]);
-                    }*/
+                    $db->table($table->db_name)
+                        ->whereNull($col['field'])
+                        ->orWhere($col['field'], '')
+                        ->update([
+                            $col['field'] => $col['f_default']
+                        ]);
                 }
             }
 
+        }
+    }
+
+    /**
+     * @param Table $table
+     * @param array $col
+     */
+    public function fillEmptyAutoRows(Table $table, array $col)
+    {
+        $tbQuery = (new TableDataQuery($table))->getQuery();
+        $conn = $this->service->getConnectionForTable($table);
+        $sql = $conn->table($table->db_name)
+            ->whereNull($col['field'])
+            ->orWhere($col['field'], '=', '');
+
+        $lines = $sql->count();
+        for ($cur = 0; ($cur * 100) < $lines; $cur++) {
+            $all_rows = $sql->offset($cur * 100)->limit(100)->get();
+            foreach ($all_rows as $row) {
+                $row = (array)$row;
+                if ($col['f_type'] == 'Auto String' && empty($row[$col['field']])) {
+                    $upd = [];
+                    $upd[$col['field']] = $this->service->oneAutoString($table, $col['field'], $col['f_format'] ?? '');
+                    (clone $tbQuery)->where('id', '=', $row['id'])->update($upd);
+                }
+            }
         }
     }
 
@@ -313,7 +297,7 @@ class ImportRepository
     protected function defineColumnType(array $col, Blueprint $table, array $col_size)
     {
         //Strings
-        if (in_array($col['f_type'], ['Attachment',/*'Formula',*/'Address','User'])) {
+        if (in_array($col['f_type'], ['Attachment','Auto String','Address','User'])) {
             $t = $table->string($col['field'], 128);
         }
         elseif (in_array($col['f_type'], ['String','App'])) {
@@ -340,7 +324,7 @@ class ImportRepository
         elseif (in_array($col['f_type'], ['Decimal','Currency','Percentage','Progress Bar'])) {
             $t = $table->decimal($col['field'], $col_size[0], $col_size[1]);
         }
-        elseif (in_array($col['f_type'], ['Auto Number','Integer','Star Rating','Progress Bar','Boolean','Duration'])) {
+        elseif (in_array($col['f_type'], ['Auto Number','Integer','Rating','Progress Bar','Boolean','Duration'])) {
             $t = $table->integer($col['field']);
         }
         else {

@@ -6,6 +6,64 @@ use Illuminate\Database\Eloquent\Model;
 use Vanguard\Models\Table\Table;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\DataSetPermissions\CondFormat
+ *
+ * @property int $id
+ * @property string $name
+ * @property int $table_id
+ * @property int $user_id
+ * @property int $is_system
+ * @property int|null $table_column_group_id
+ * @property int|null $table_row_group_id
+ * @property string|null $color
+ * @property string|null $font
+ * @property string|null $activity
+ * @property int $status
+ * @property int|null $created_by
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string $modified_on
+ * @property string|null $bkgd_color
+ * @property int|null $font_size
+ * @property int|null $row_order
+ * @property int $show_table_data
+ * @property int $show_form_data
+ * @property-read \Vanguard\Models\DataSetPermissions\TableColumnGroup|null $_column_group
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Vanguard\Models\DataSetPermissions\TableRowGroup|null $_row_group
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermission[] $_table_permissions
+ * @property-read int|null $_table_permissions_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\CondFormatUserSetting[] $_user_settings
+ * @property-read int|null $_user_settings_count
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat activeForUser($user_id = null, $table_permission_id = null)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereActivity($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereBkgdColor($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereColor($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereCreatedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereFont($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereFontSize($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereIsSystem($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereModifiedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereModifiedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereRowOrder($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereShowFormData($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereShowTableData($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereTableColumnGroupId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereTableId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereTableRowGroupId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\CondFormat whereUserId($value)
+ * @mixin \Eloquent
+ */
 class CondFormat extends Model
 {
     protected $table = 'cond_formats';

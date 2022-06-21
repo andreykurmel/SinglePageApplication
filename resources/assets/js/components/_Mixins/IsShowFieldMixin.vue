@@ -9,29 +9,29 @@
         data: function () {
             return {
                 actionArray: [
-                    'settings_ddl', 'settings_ddl_items',
+                    'settings_ddl', 'settings_ddl_items', 'dcr_group', 'dcr_linked_tb',
                     'table_permission_group','permission_group_col', 'permission_group_row',
                     'data_sets', 'data_sets_items', 'sett_usergroup_conds', 'data_sets_ref_condition_items',
-                    'cond_format', 'plans', 'plan_items', 'settings_display_links',
+                    'cond_format', 'plans', 'plan_items', 'settings_display_links', 'alert_anr', 'alert_ufv',
                     'user_conn', 'invite_module', 'link_popup', 'folder_permission_group', 'stim_views',
-                    'settings_display_add','folder_view', 'alert_notif', 'table_views','settings_kanban_add',
+                    'settings_display_add','folder_view', 'alert_notif', 'alert_notif_autom', 'table_views','settings_kanban_add',
                 ],
                 actionDelArray: [
-                    'settings_ddl', 'settings_ddl_items',
+                    'settings_ddl', 'settings_ddl_items', 'dcr_group', 'dcr_linked_tb',
                     'table_permission_group','permission_group_col', 'permission_group_row',
                     'data_sets', 'data_sets_items', 'sett_usergroup_conds', 'data_sets_ref_condition_items',
-                    'cond_format', 'settings_display_links',
+                    'cond_format', 'settings_display_links', 'alert_anr', 'alert_ufv',
                     'user_conn', 'invite_module', 'link_popup', 'folder_permission_group', 'stim_views',
-                    'settings_display_add','folder_view', 'alert_notif', 'table_views','settings_kanban_add',
+                    'settings_display_add','folder_view', 'alert_notif', 'alert_notif_autom', 'table_views','settings_kanban_add',
                 ],
                 actionDelSystem: [
                     'permission_group_col', 'permission_group_row',
                 ],
                 linkArray: [
-                    'list_view', 'favorite', 'request_view', 'settings_display', 'settings_display_add',
+                    'list_view', 'favorite', 'request_view', 'settings_display', 'settings_display_add', 'dcr_linked_tb',
                     'settings_ddl', 'table_permission_group', 'folder_permission_group','settings_kanban_add',
-                    'data_sets', 'plans', 'data_sets_ref_condition_items', 'settings_display_links',
-                    'folder_view', 'alert_notif', 'link_popup', 'table_views', 'stim_views', 'user_conn',
+                    'data_sets', 'plans', 'data_sets_ref_condition_items', 'settings_display_links', 'alert_anr', 'alert_ufv',
+                    'folder_view', 'alert_notif', 'alert_notif_autom', 'link_popup', 'table_views', 'stim_views', 'user_conn',
                 ],
                 popupArray: [
                     'list_view', 'favorite', 'link_popup', 'settings_display',

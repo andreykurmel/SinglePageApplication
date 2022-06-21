@@ -5,7 +5,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../../app';
+    import {eventBus} from '../../../../../app';
 
     export default {
         name: "BiChart",
@@ -214,6 +214,10 @@
             // DRAW
             buildChart() {
                 this.$nextTick(function () {
+                    if (!this.$refs.chart) {
+                        return;
+                    }
+
                     let chart_settings = this.all_settings.bi_chart;
 
                     let y_label = '';

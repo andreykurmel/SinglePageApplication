@@ -1,6 +1,6 @@
 <template>
-    <div :style="textStyle">
-        <div v-if="(isOwner || type === 'new') && !filter_for_field"
+    <div :style="textSysStyle">
+        <div v-if="(isOwner || type) && !filter_for_field"
              class="flex flex--center flex--space form-group"
              :style="{width: max_set_len+'px'}"
         >
@@ -9,7 +9,7 @@
                    type="text"
                    @change="propChanged('name')"
                    v-model="tb_meta.name"
-                   :style="textStyle">
+                   :style="textSysStyle">
         </div>
 
         <template v-if="isOwner">
@@ -21,7 +21,7 @@
                     <select class="form-control l-inl-control"
                             @change="propChanged('rows_per_page')"
                             v-model="tb_meta.rows_per_page"
-                            :style="textStyle">
+                            :style="textSysStyle">
                         <option>10</option>
                         <option>20</option>
                         <option>50</option>
@@ -46,7 +46,7 @@
                 <span class="indeterm_check__wrap pub-check">
                     <span class="indeterm_check"
                           @click="tb_meta.edit_one_click = !tb_meta.edit_one_click;propChanged('edit_one_click')"
-                          :style="$root.checkBoxStyle"
+                          :style="checkboxSys"
                     >
                         <i v-if="tb_meta.edit_one_click" class="glyphicon glyphicon-ok group__icon"></i>
                     </span>
@@ -58,23 +58,34 @@
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.autoload_new_data = !tb_meta.autoload_new_data;propChanged('autoload_new_data')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.autoload_new_data" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <label> Auto-reload "List View" when change(s) made by others.</label>
+                    <label> Auto-reload "Grid View" when change(s) made by others.</label>
                 </div>
-                <div class="form-group" :style="{width: max_set_len+'px'}">
+                <div class="form-group--min" :style="{width: max_set_len+'px'}">
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.pub_hidden = !tb_meta.pub_hidden;propChanged('pub_hidden')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.pub_hidden" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                     <label> Hidden for "Public" sharing.</label>
+                </div>
+                <div class="form-group" :style="{width: max_set_len+'px'}">
+                    <span class="indeterm_check__wrap pub-check">
+                        <span class="indeterm_check"
+                              @click="tb_meta.enabled_activities = !tb_meta.enabled_activities;propChanged('enabled_activities')"
+                              :style="checkboxSys"
+                        >
+                            <i v-if="tb_meta.enabled_activities" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label> Turn on "Activities".</label>
                 </div>
 
                 <div class="input-left-items form-group" :style="{width: max_set_len+'px'}">
@@ -87,7 +98,7 @@
                                       @click="!userHasAddon('map')
                                           ? null
                                           : propChanged('add_map',tb_meta)"
-                                      :style="$root.checkBoxStyle"
+                                      :style="checkboxSys"
                                 >
                                     <i v-if="tb_meta.add_map" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
@@ -101,7 +112,7 @@
                             <select class="form-control l-inl-control"
                                     @change="propChanged('api_key_mode')"
                                     v-model="tb_meta.api_key_mode"
-                                    :style="textStyle"
+                                    :style="textSysStyle"
                                     style="width: 130px;padding: 0;"
                             >
                                 <option value="table">Table specific</option>
@@ -114,7 +125,7 @@
                                 <select class="form-control l-inl-control"
                                         @change="propChanged('account_api_key_id')"
                                         v-model="tb_meta.account_api_key_id"
-                                        :style="textStyle"
+                                        :style="textSysStyle"
                                         style="width: 100px;padding: 0;"
                                 >
                                     <option :value="null">No API Key</option>
@@ -129,7 +140,7 @@
                                    @click="hide_api = false"
                                    @change="propChanged('google_api_key');setApidots();hide_api = true;"
                                    v-model="hide_api ? api_dots : tb_meta.google_api_key"
-                                   :style="textStyle"/>
+                                   :style="textSysStyle"/>
                             <button v-if="tb_meta.google_api_key" class="btn btn-danger btn-sm" @click="removeGlApi()">&times;</button>
                             <i class="fa fa-eye" :style="{color: hide_api ? '' : '#F00'}" @click="hide_api = !hide_api"></i>
                             <i class="fa fa-info-circle" ref="fahelp" @click="showHover"></i>
@@ -150,7 +161,7 @@
                                       @click="!userHasAddon('bi')
                                           ? null
                                           : propChanged('add_bi',tb_meta)"
-                                      :style="$root.checkBoxStyle"
+                                      :style="checkboxSys"
                                 >
                                     <i v-if="tb_meta.add_bi" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
@@ -166,7 +177,7 @@
                                       @click="!userHasAddon('request')
                                           ? null
                                           : propChanged('add_request',tb_meta)"
-                                      :style="$root.checkBoxStyle"
+                                      :style="checkboxSys"
                                 >
                                     <i v-if="tb_meta.add_request" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
@@ -182,12 +193,12 @@
                                       @click="!userHasAddon('alert')
                                           ? null
                                           : propChanged('add_alert',tb_meta)"
-                                      :style="$root.checkBoxStyle"
+                                      :style="checkboxSys"
                                 >
                                     <i v-if="tb_meta.add_alert" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
                             </span>
-                            <span>A&amp;N (Alerts &amp; Notifications)</span>
+                            <span>Alerts, Notifications & Automations (ANA)</span>
                         </label>
                     </div>
                     <div class="form-group--min m_l flex flex--center-v">
@@ -199,7 +210,7 @@
                                           @click="!userHasAddon('kanban')
                                               ? null
                                               : propChanged('add_kanban',tb_meta)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_meta.add_kanban" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -215,7 +226,7 @@
                                           @click="!userHasAddon('kanban')
                                               ? null
                                               : propChanged('add_gantt',tb_meta)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_meta.add_gantt" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -224,43 +235,45 @@
                             </label>
                         </div>
                     </div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('email')}"
-                                      @click="!userHasAddon('email')
-                                          ? null
-                                          : propChanged('add_email',tb_meta)"
-                                      :style="$root.checkBoxStyle"
-                                >
-                                    <i v-if="tb_meta.add_email" class="glyphicon glyphicon-ok group__icon"></i>
+                    <div class="form-group--min m_l flex flex--center-v">
+                        <div>
+                            <label>
+                                <span class="indeterm_check__wrap pub-check">
+                                    <span class="indeterm_check"
+                                          :class="{'disabled': !userHasAddon('email')}"
+                                          @click="!userHasAddon('email')
+                                              ? null
+                                              : propChanged('add_email',tb_meta)"
+                                          :style="checkboxSys"
+                                    >
+                                        <i v-if="tb_meta.add_email" class="glyphicon glyphicon-ok group__icon"></i>
+                                    </span>
                                 </span>
-                            </span>
-                            <span>Email</span>
-                        </label>
-                    </div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('calendar')}"
-                                      @click="!userHasAddon('calendar')
-                                          ? null
-                                          : propChanged('add_calendar',tb_meta)"
-                                      :style="$root.checkBoxStyle"
-                                >
-                                    <i v-if="tb_meta.add_calendar" class="glyphicon glyphicon-ok group__icon"></i>
+                                <span>Email</span>
+                            </label>
+                        </div>
+                        <div class="m_l">
+                            <label>
+                                <span class="indeterm_check__wrap pub-check">
+                                    <span class="indeterm_check"
+                                          :class="{'disabled': !userHasAddon('calendar')}"
+                                          @click="!userHasAddon('calendar')
+                                              ? null
+                                              : propChanged('add_calendar',tb_meta)"
+                                          :style="checkboxSys"
+                                    >
+                                        <i v-if="tb_meta.add_calendar" class="glyphicon glyphicon-ok group__icon"></i>
+                                    </span>
                                 </span>
-                            </span>
-                            <span>Calendar</span>
-                        </label>
+                                <span>Calendar</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </template>
         </template><!-- is owner -->
 
-        <div v-if="isOwnerOrCanEdit && type !== 'new'"
+        <div v-if="isOwnerOrCanEdit"
              class="flex flex--center flex--space form-group"
              :style="{width: max_set_len+'px'}"
         >
@@ -268,7 +281,7 @@
             <select class="form-control l-inl-control"
                     @change="propChanged('initial_view_id')"
                     v-model="tb_cur_settings.initial_view_id"
-                    :style="textStyle">
+                    :style="textSysStyle">
                 <option :value="-2" style="color: #00F">Blank (No Data)</option>
                 <option :value="-1" style="color: #00F">Entire Table (Available Range)</option>
                 <option :value="0" style="color: #00F">Last Exit State</option>
@@ -284,7 +297,7 @@
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check"
                               @click="propChanged('vert_tb_bgcolor',tb_meta)"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.vert_tb_bgcolor" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -297,14 +310,14 @@
                            type="number"
                            @change="propChanged('vert_tb_hdrwidth')"
                            v-model="tb_meta.vert_tb_hdrwidth"
-                           :style="textStyle">
+                           :style="textSysStyle">
                     <span>%</span>
                 </div>
                 <div class="m_l">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check"
                               @click="propChanged('vert_tb_floating',tb_meta)"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.vert_tb_floating" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -313,7 +326,7 @@
                 </div>
             </div>
 
-            <div v-if="hasUserField || hasVoteField" class="form-group" :style="{width: max_set_len+'px'}">
+            <div class="form-group" :style="{width: max_set_len+'px'}">
                 <div><b>"User" value display settings:</b></div>
                 <div>
                     <table class="tablda-like m_l">
@@ -331,13 +344,14 @@
                             <th>First</th>
                             <th>Last</th>
                         </tr>
-                        <tr v-if="hasUserField">
+                        <!--<tr v-if="hasUserField">-->
+                        <tr>
                             <th>Table Field</th>
                             <td class="center">
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('user_fld_show_image',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.user_fld_show_image" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -347,7 +361,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('user_fld_show_first',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.user_fld_show_first" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -357,7 +371,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('user_fld_show_last',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.user_fld_show_last" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -367,7 +381,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('user_fld_show_email',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.user_fld_show_email" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -377,20 +391,21 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('user_fld_show_username',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.user_fld_show_username" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
                                 </span>
                             </td>
                         </tr>
-                        <tr v-if="hasUserField">
+                        <!--<tr v-if="hasUserField">-->
+                        <tr>
                             <th>Data History</th>
                             <td class="center">
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('history_user_show_image',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.history_user_show_image" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -400,7 +415,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('history_user_show_first',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.history_user_show_first" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -410,7 +425,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('history_user_show_last',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.history_user_show_last" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -420,7 +435,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('history_user_show_email',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.history_user_show_email" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -430,20 +445,21 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('history_user_show_username',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.history_user_show_username" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
                                 </span>
                             </td>
                         </tr>
-                        <tr v-if="hasVoteField">
+                        <!--<tr v-if="hasVoteField">-->
+                        <tr>
                             <th>Vote</th>
                             <td class="center">
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('vote_user_show_image',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.vote_user_show_image" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -453,7 +469,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('vote_user_show_first',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.vote_user_show_first" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -463,7 +479,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('vote_user_show_last',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.vote_user_show_last" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -473,7 +489,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('vote_user_show_email',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.vote_user_show_email" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -483,7 +499,7 @@
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
                                           @click="propChanged('vote_user_show_username',tb_cur_settings,sunc_settings)"
-                                          :style="$root.checkBoxStyle"
+                                          :style="checkboxSys"
                                     >
                                         <i v-if="tb_cur_settings.vote_user_show_username" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -509,7 +525,7 @@
                                    type="number"
                                    @change="propChanged('max_rows_in_link_popup')"
                                    v-model="tb_meta.max_rows_in_link_popup"
-                                   :style="textStyle">
+                                   :style="textSysStyle">
                         </td>
                     </tr>
                     <template v-if="!filter_for_field">
@@ -522,7 +538,7 @@
                                        type="number"
                                        @change="propChanged('search_results_len')"
                                        v-model="tb_meta.search_results_len"
-                                       :style="textStyle">
+                                       :style="textSysStyle">
                             </td>
                         </tr>
                         <tr>
@@ -534,7 +550,7 @@
                                        type="number"
                                        @change="propChanged('max_filter_elements')"
                                        v-model="tb_meta.max_filter_elements"
-                                       :style="textStyle">
+                                       :style="textSysStyle">
                             </td>
                         </tr>
                     </template>
@@ -549,7 +565,7 @@
                                 :disabled="!presentAddress"
                                 @change="propChanged('address_fld__source_id')"
                                 v-model="tb_meta.address_fld__source_id"
-                                :style="textStyle">
+                                :style="textSysStyle">
                             <option :value="null"></option>
                             <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type === 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                         </select>
@@ -562,7 +578,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__street_address')"
                                     v-model="tb_meta.address_fld__street_address"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -573,7 +589,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__street')"
                                     v-model="tb_meta.address_fld__street"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -586,7 +602,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__city')"
                                     v-model="tb_meta.address_fld__city"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -597,7 +613,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__state')"
                                     v-model="tb_meta.address_fld__state"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -610,7 +626,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__zipcode')"
                                     v-model="tb_meta.address_fld__zipcode"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -621,7 +637,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__country')"
                                     v-model="tb_meta.address_fld__country"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -634,7 +650,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__lat')"
                                     v-model="tb_meta.address_fld__lat"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -645,7 +661,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__long')"
                                     v-model="tb_meta.address_fld__long"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -658,7 +674,7 @@
                                     :disabled="!tb_meta.address_fld__source_id"
                                     @change="propChanged('address_fld__countyarea')"
                                     v-model="tb_meta.address_fld__countyarea"
-                                    :style="textStyle">
+                                    :style="textSysStyle">
                                 <option :value="null"></option>
                                 <option v-for="hdr in tb_meta._fields" v-if="hdr.f_type !== 'Address'" :value="hdr.id">{{ hdr.name }}</option>
                             </select>
@@ -669,12 +685,15 @@
                 </div>
             </template>
 
-            <div class="unit-conv-items form-group" v-show="presentUnitConv" :style="{width: max_set_len+'px'}">
+            <div class="unit-conv-items form-group"
+                 v-show="presentUnitConv && $root.checkAvailable($root.user, 'unit_conversions')"
+                 :style="{width: max_set_len+'px'}"
+            >
                 <div class="form-group--min">
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.unit_conv_is_active = !tb_meta.unit_conv_is_active;propChanged('unit_conv_is_active')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.unit_conv_is_active" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -685,7 +704,7 @@
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.unit_conv_by_user = !tb_meta.unit_conv_by_user;propChanged('unit_conv_by_user')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.unit_conv_by_user" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -713,7 +732,10 @@
                                             class="form-control"
                                     ></select-with-folder-structure>
 
-                                    <a v-else="" target="_blank" :href="showUnitTb('link')" @click.stop="">{{ showUnitTb() }}</a>
+                                    <div v-else="" >
+                                        <a target="_blank" :href="showUnitTb('__visiting_url')" @click.stop="">{{ showUnitTb() }}</a>
+                                        <a v-if="refIsOwner" target="_blank" :href="showUnitTb('__url')" @click.stop="">(Table)</a>
+                                    </div>
 
                                 </td>
                             </tr>
@@ -745,7 +767,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_from_fld_id')"
                                                 v-model="tb_meta.unit_conv_from_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -757,7 +779,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_to_fld_id')"
                                                 v-model="tb_meta.unit_conv_to_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -769,7 +791,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_operator_fld_id')"
                                                 v-model="tb_meta.unit_conv_operator_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -781,7 +803,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_factor_fld_id')"
                                                 v-model="tb_meta.unit_conv_factor_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -793,7 +815,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_formula_fld_id')"
                                                 v-model="tb_meta.unit_conv_formula_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -805,7 +827,7 @@
                                                 :disabled="!unitConvTable"
                                                 @change="propChanged('unit_conv_formula_reverse_fld_id')"
                                                 v-model="tb_meta.unit_conv_formula_reverse_fld_id"
-                                                :style="textStyle">
+                                                :style="textSysStyle">
                                             <option :value="null"></option>
                                             <template v-if="unitConvTable">
                                                 <option v-for="hdr in unitConvTable._fields" :value="hdr.id">{{ hdr.name }}</option>
@@ -821,7 +843,7 @@
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.unit_conv_by_system = !tb_meta.unit_conv_by_system;propChanged('unit_conv_by_system')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.unit_conv_by_system" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -836,7 +858,7 @@
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.unit_conv_by_lib = !tb_meta.unit_conv_by_lib;propChanged('unit_conv_by_lib')"
-                              :style="$root.checkBoxStyle"
+                              :style="checkboxSys"
                         >
                             <i v-if="tb_meta.unit_conv_by_lib" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -853,6 +875,8 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
     import CellStyleMixin from "./../_Mixins/CellStyleMixin.vue";
 
     import TableSettingsColorsTable from "./TableSettingsColorsTable.vue";
@@ -905,14 +929,22 @@
                 }
             },
             isOwner() {
-                return this.tb_meta._is_owner;
+                return this.tb_meta._is_owner && !this.type;
             },
             isOwnerOrCanEdit() {
+                if (this.type) {
+                    return false;
+                }
                 return this.tb_meta._is_owner
                     || (this.tb_meta._current_right && this.tb_meta._current_right.can_edit_tb);
             },
+            refIsOwner() {
+                let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tb_meta.unit_conv_table_id)});
+                return tb && tb.user_id == this.$root.user.id;
+            },
         },
         props: {
+            tableMeta: Object,//style mixin
             tb_meta: Object,
             tb_theme: Object,
             tb_cur_settings: Object,
@@ -939,9 +971,9 @@
                 let res = this.tb_meta.unit_conv_table_id;
                 let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tb_meta.unit_conv_table_id)});
                 if (link) {
-                    res = tb ? tb.__visiting_url : res;
+                    res = tb ? tb[link] : res;
                 } else {
-                    res = tb ? tb.__url || tb.name : res;
+                    res = tb ? tb.name : res;
                 }
                 return res;
             },
@@ -979,6 +1011,9 @@
                 if (prop_name === 'max_filter_elements') {
                     this.tb_meta.max_filter_elements = Math.max(this.tb_meta.max_filter_elements, 100);
                     this.tb_meta.max_filter_elements = Math.min(this.tb_meta.max_filter_elements, 3000);
+                }
+                if (prop_name === 'name') {
+                    this.tb_meta.name = SpecialFuncs.safeTableName(this.tb_meta.name);
                 }
                 this.$emit('prop-changed', prop_name);
             },

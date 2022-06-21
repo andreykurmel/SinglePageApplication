@@ -9,6 +9,32 @@ use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableViewRight;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\User\UserGroup
+ *
+ * @property int $id
+ * @property int $user_id
+ * @property string $name
+ * @property string|null $notes
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroupCondition[] $_conditions
+ * @property int|null $_conditions_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\Folder[] $_folders
+ * @property int|null $_folders_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\User[] $_individuals
+ * @property int|null $_individuals_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\User[] $_individuals_all
+ * @property int|null $_individuals_all_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroupLink[] $_links
+ * @property int|null $_links_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermission[] $_table_permissions
+ * @property int|null $_table_permissions_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_tables
+ * @property int|null $_tables_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup2TablePermission[] $_tables_shared
+ * @property int|null $_tables_shared_count
+ * @property \Vanguard\User $_user
+ * @mixin \Eloquent
+ */
 class UserGroup extends Model
 {
     protected $table = 'user_groups';

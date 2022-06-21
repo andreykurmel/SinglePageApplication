@@ -31,8 +31,8 @@ class RtsRotate implements RtsInterface
     public function __construct(array $params)
     {
         $this->axis = $params['axis'] ?? 'y';
-        $this->about_id = floatval($params['about_id'] ?? 0);
-        $this->deg = floatval($params['deg'] ?? 0) * -1/*reverse rotation*/;
+        $this->about_id = $this->parse_param($params['about_id'] ?? 0);
+        $this->deg = $this->parse_param($params['deg'] ?? 0) * -1/*reverse rotation*/;
     }
 
     /**
@@ -51,16 +51,16 @@ class RtsRotate implements RtsInterface
                 ->first();
 
             if ($node) {
-                $this->px = floatval( $node->{$this->fld_dx} );
-                $this->py = floatval( $node->{$this->fld_dy} );
-                $this->pz = floatval( $node->{$this->fld_dz} );
+                $this->px = $this->parse_param( $node->{$this->fld_dx} );
+                $this->py = $this->parse_param( $node->{$this->fld_dy} );
+                $this->pz = $this->parse_param( $node->{$this->fld_dz} );
             }
         }
 
         switch ($this->axis) {
-            case 'x': $this->angle_x = floatval( $this->deg ) * 3.1415 / 180; break;
-            case 'y': $this->angle_y = floatval( $this->deg ) * 3.1415 / 180; break;
-            case 'z': $this->angle_z = floatval( $this->deg ) * 3.1415 / 180; break;
+            case 'x': $this->angle_x = $this->parse_param( $this->deg ) * 3.1415 / 180; break;
+            case 'y': $this->angle_y = $this->parse_param( $this->deg ) * 3.1415 / 180; break;
+            case 'z': $this->angle_z = $this->parse_param( $this->deg ) * 3.1415 / 180; break;
         }
 
         return $err;
@@ -94,9 +94,9 @@ class RtsRotate implements RtsInterface
         $Azy = $cosb*$sinc;
         $Azz = $cosb*$cosc;
 
-        $loc_x = floatval($row[$this->fld_dx]) - $this->px;
-        $loc_y = floatval($row[$this->fld_dy]) - $this->py;
-        $loc_z = floatval($row[$this->fld_dz]) - $this->pz;
+        $loc_x = $this->parse_param($row[$this->fld_dx]) - $this->px;
+        $loc_y = $this->parse_param($row[$this->fld_dy]) - $this->py;
+        $loc_z = $this->parse_param($row[$this->fld_dz]) - $this->pz;
 
         $row[$this->fld_dx] = $Axx*$loc_x + $Axy*$loc_y + $Axz*$loc_z + $this->px;
         $row[$this->fld_dy] = $Ayx*$loc_x + $Ayy*$loc_y + $Ayz*$loc_z + $this->py;

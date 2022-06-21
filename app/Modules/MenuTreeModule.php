@@ -2,6 +2,7 @@
 
 namespace Vanguard\Modules;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Folder\Folder2Table;
@@ -72,6 +73,8 @@ class MenuTreeModule
      */
     public function build()
     {
+        $this->clearOldSharedForUserFolders();
+
         $folders = $this->loadFoldersWithTables(false);
         $folders = $this->setAllTabs($folders);
         $root_tables = $this->getRootTablesForMenu();
@@ -115,7 +118,7 @@ class MenuTreeModule
      * @param bool $is_app
      * @return Collection of Folder grouped by 'structure' ('public','private','favorite','account')
      */
-    private function loadFoldersWithTables($is_app = false)
+    protected function loadFoldersWithTables($is_app = false)
     {
         $folders_table = (new Folder())->getTable();
         $AuthUserModule = $this->AuthUserModule;
@@ -126,11 +129,16 @@ class MenuTreeModule
             $folders = $folders
                 //owned folder 'APPs'
                 ->where("$folders_table.id", $AuthUserModule->getAppsFolder()->id)
+                //owned folders with 'username' in 'APPs'
+                ->orWhere(function ($q) use ($folders_table, $AuthUserModule) {
+                    $q->where("$folders_table.user_id", $AuthUserModule->user->id);
+                    $q->where("$folders_table.in_shared", '=', 2);
+                })
                 //shared folders in 'APPs'
                 ->orWhereIn("$folders_table.id", $this->getSharedFoldersIds(true));
         } else {
             $folders = $folders
-                //public folders
+                //public folders (and some 'Account' folders)
                 ->whereNull("$folders_table.user_id")
                 //owned folders no system 'APPs'
                 ->orWhere(function ($q) use ($folders_table, $AuthUserModule) {
@@ -146,22 +154,39 @@ class MenuTreeModule
             //link shared folders
             if ($key == 'private') {
                 $folderTab = $this->linkSharedFolders($folderTab, $is_app);
+            } else {
+                $this->fillTableParams($folderTab);
             }
 
             //sort by 'is_system', 'menutree_order', 'name'.
             $folders[$key] = $folderTab->sort(function ($a, $b) {
-                if ($a->is_system == $b->is_system) {
-                    if ($a->menutree_order == $b->menutree_order) {
-                        return $a->name <=> $b->name;
+                    if ($a->is_system == $b->is_system) {
+                        if ($a->menutree_order == $b->menutree_order) {
+                            return $a->name <=> $b->name;
+                        }
+                        return $a->menutree_order <=> $b->menutree_order;
                     }
-                    return $a->menutree_order <=> $b->menutree_order;
-                }
-                return $a->is_system <=> $b->is_system;
-            })
+                    return $a->is_system <=> $b->is_system;
+                })
                 ->values();
         }
 
         return $folders;
+    }
+
+    /**
+     * @param Collection $folderTab
+     */
+    protected function fillTableParams(Collection $folderTab)
+    {
+        foreach ($folderTab as $folder) {
+            foreach ($folder->_tables as $table) {
+                $table->_permis_can_public_copy = $table->_table_permissions->where('can_public_copy', '=', 1)->count();
+                $table->_permis_hide_folder_structure = $table->_table_permissions->where('hide_folder_structure', '=', 1)->count();
+                $folder->_hide_structure = $table->_permis_hide_folder_structure;
+                unset($table->_table_permissions);
+            }
+        }
     }
 
     /**
@@ -170,29 +195,44 @@ class MenuTreeModule
      * @param bool $is_app
      * @return array
      */
-    private function withTablesRelation($is_app = false)
+    protected function withTablesRelation($is_app = false)
     {
         $AuthUserModule = $this->AuthUserModule;
+        $admin_supports = $this->service->admin_support;
 
         return [
             //get owned or shared tables
-            '_tables' => function ($t) use ($AuthUserModule, $is_app) {
+            '_tables' => function ($t) use ($AuthUserModule, $is_app, $admin_supports) {
                 $tables_tb = (new Table())->getTable();
+                $pivots = (new Folder2Table())->getTable();
 
-                $t->wherePivot('structure', '!=', 'private');
-                $t->orWhere("$tables_tb.user_id", $AuthUserModule->user->id);
-                $t->orWhereIn("$tables_tb.id", $AuthUserModule->sharedTablesIds($is_app ? 'apps' : 'shared'));
+                //conditions
+                if (!$AuthUserModule->user->isAdmin()) {
+                    $t->whereNotIn("$tables_tb.db_name", $admin_supports);
+                }
+                $t->where(function ($inner) use ($tables_tb, $pivots, $AuthUserModule, $is_app) {
+                    $inner->where("$pivots.structure", '!=', 'private');
+                    $inner->orWhere("$tables_tb.user_id", '=', $AuthUserModule->user->id);
+                    $inner->orWhereIn("$tables_tb.id", $AuthUserModule->sharedTablesIds($is_app ? 'apps' : 'shared'));
+                });
+
+                //order
                 $t->orderBy("$tables_tb.menutree_order");
                 $t->orderBy("$tables_tb.name");
 
                 $t->with([
                     '_shared_names' => function ($sn) use ($AuthUserModule) {
-                        $sn->where('user_id', $AuthUserModule->user->id);
+                        $sn->where('user_id', '=', $AuthUserModule->user->id);
                     },
-                    '_table_permissions' => function ($sn) {
-                        $sn->applyIsActiveForUserOrPermission();
-                        $sn->where('can_edit_tb', 1);
-                    }
+                    '_table_permissions' => function ($tb) {
+                        $tb->where(function ($sub) {
+                            $sub->isActiveForUserOrVisitor();
+                        });
+                        $tb->where(function ($sub) {
+                            $sub->where('can_public_copy', '=', 1);
+                            $sub->orWhere('hide_folder_structure', '=', 1);
+                        });
+                    },
                 ]);
             }
         ];
@@ -205,7 +245,7 @@ class MenuTreeModule
      * @param bool $is_app
      * @return array
      */
-    private function getSharedFoldersIds($is_app = false)
+    protected function getSharedFoldersIds($is_app = false)
     {
         //get shared tables
         $shared_tables = $this->AuthUserModule->sharedTablesIds($is_app ? 'apps' : 'shared');
@@ -238,41 +278,66 @@ class MenuTreeModule
      * @param bool $is_app
      * @return Collection of Folder
      */
-    private function linkSharedFolders(Collection $folderTab, $is_app = false)
+    protected function linkSharedFolders(Collection $folderTab, $is_app = false)
     {
-        $share_folder = $folderTab->where('is_system', 1)
-            ->where('user_id', $this->user_id)
-            ->where('name', ($is_app ? 'APPs' : 'SHARED'))
+        $share_folder = $folderTab->where('is_system', '=', 1)
+            ->where('user_id', '=', $this->user_id)
+            ->where('name', '=', ($is_app ? 'APPs' : 'SHARED'))
             ->first();
 
         $folderTab = $this->createSharedForUsersFolders($folderTab, $is_app);
+        $this->fillTableParams($folderTab);
 
         //Note: is User shared folders to self as 'Is App' -> system should put this folders to 'App' shared folder.
         $shared_ids = $is_app ? $this->getSharedFoldersIds(true) : [];
         //If shared folders to self are not 'Is App' -> folders will not showed in 'SHARED' folder.
 
+        $folder_hide = [];
         foreach ($folderTab as $fld) {
             if ($fld->user_id != $this->user_id || in_array($fld->id, $shared_ids)) {
                 $fld->in_shared = ($is_app ? 2 : 1);
 
+                //Folder with username from which data is shared
+                $shared_user_folder = $folderTab->where('for_shared_user_id', '=', $fld->user_id)
+                    ->where('in_shared', '=', $share_folder->in_shared)
+                    ->first();
+
+                //link to Folder with shared user name.
                 if (!$fld->parent_id) {
-                    $shared_user_folder = $folderTab->where('for_shared_user_id', $fld->user_id)
-                        ->where('in_shared', $share_folder->in_shared)
-                        ->first();
-                    //link to Folder with shared user name.
                     $fld->parent_id = $shared_user_folder ? $shared_user_folder->id : 0;
                 }
 
                 //fix link names and additional permissions
                 foreach ($fld->_tables as $tb) {
                     $tb->name = $tb->_shared_names->count() ? $tb->_shared_names[0]->name : $tb->name;
-                    $tb->_shared_edit_tb = $tb->_table_permissions->count();
                     $tb->_in_shared = ($is_app ? 2 : 1);
                     $tb->_in_app = ($is_app ? 1 : 0);
                 }
 
+                //Show shared tables without folder structure
+                if ($fld->_hide_structure) {
+                    foreach ($fld->_tables as $tb) {
+                        $shared_user_folder->_tables
+                            ? $shared_user_folder->_tables->push($tb)
+                            : $shared_user_folder->_tables = collect([$tb]);
+                    }
+                    $folder_hide[] = $fld->id;
+                }
+
             }
         }
+
+        //remove all parent folders from 'hidden shared folders'
+        while ($folder_hide) {
+            $parents = $folderTab->whereIn('id', $folder_hide)
+                ->pluck('parent_id')
+                ->toArray();
+            $folderTab = $folderTab->filter(function ($fold) use ($folder_hide) {
+                return $fold->user_id == $this->user_id || !in_array($fold->id, $folder_hide);
+            });
+            $folder_hide = $parents;
+        }
+
         return $folderTab;
     }
 
@@ -284,37 +349,37 @@ class MenuTreeModule
      * @param bool $is_app
      * @return Collection of Folder
      */
-    private function createSharedForUsersFolders(Collection $folderTab, $is_app = false)
+    protected function createSharedForUsersFolders(Collection $folderTab, $is_app = false)
     {
         $share_folder = $folderTab->where('is_system', 1)
-            ->where('user_id', $this->user_id)
-            ->where('name', ($is_app ? 'APPs' : 'SHARED'))
+            ->where('user_id', '=', $this->user_id)
+            ->where('name', '=', ($is_app ? 'APPs' : 'SHARED'))
             ->first();
 
         $shared_user_ids = $this->AuthUserModule->getUserGroupsMember()
             ->filter(function ($ug) use ($is_app) {
-                return $ug->_tables_shared->where('is_app', ($is_app ? 1 : 0))->count();
+                return $ug->_tables_shared->where('is_app', '=', ($is_app ? 1 : 0))->count();
             })
             ->pluck('user_id')
             ->unique();
 
         $present_user_ids = $folderTab->where('for_shared_user_id', '!=', null)
-            ->where('in_shared', $share_folder->in_shared)
+            ->where('in_shared', '=', $share_folder->in_shared)
             ->pluck('for_shared_user_id')
             ->unique();
 
         //add needed folders
         $not_added_user_ids = $shared_user_ids->diff($present_user_ids);
         if ($not_added_user_ids->count() && $share_folder) {
-            $folderTab = $folderTab->merge($this->createFolders($not_added_user_ids, $share_folder));
+            $folderTab = $folderTab->merge( $this->createFolders($not_added_user_ids, $share_folder) );
         }
 
         //delete already not shared folders
         $extra_user_ids = $present_user_ids->diff($shared_user_ids);
         if ($extra_user_ids->count()) {
-            Folder::where('user_id', $this->user_id)
+            Folder::where('user_id', '=', $this->user_id)
                 ->whereIn('for_shared_user_id', $extra_user_ids)
-                ->where('in_shared', $share_folder->in_shared)
+                ->where('in_shared', '=', $share_folder->in_shared)
                 ->delete();
             $folderTab = $folderTab->filter(function ($fld) use ($extra_user_ids) {
                 return !$extra_user_ids->contains($fld->for_shared_user_id);
@@ -325,17 +390,28 @@ class MenuTreeModule
     }
 
     /**
+     * Remove shared folders which are old (for update names)
+     */
+    protected function clearOldSharedForUserFolders()
+    {
+        Folder::where('user_id', '=', $this->user_id)
+            ->whereNotNull('for_shared_user_id')
+            ->where('created_on', '<', Carbon::now()->subDay(1))
+            ->delete();
+    }
+
+    /**
      * @param $not_added_user_ids
      * @param Folder $share_folder
      * @return Folder Collection
      */
-    private function createFolders($not_added_user_ids, Folder $share_folder)
+    protected function createFolders($not_added_user_ids, Folder $share_folder)
     {
         $repo = new FolderRepository();
         $users = User::whereIn('id', $not_added_user_ids)->get();
         $added_ids = [];
         foreach ($not_added_user_ids as $shared_user_id) {
-            $usr = $users->where('id', $shared_user_id)->first();
+            $usr = $users->where('id', '=', $shared_user_id)->first();
             $f_name = '@' . ($usr->first_name ? $usr->first_name.' '.$usr->last_name : $usr->username);
             $f = $repo->insertFolder($share_folder->id, $this->user_id, $f_name, 'private', [
                 'in_shared' => $share_folder->in_shared,
@@ -353,7 +429,7 @@ class MenuTreeModule
      * @param Collection $folders
      * @return Collection
      */
-    private function setAllTabs(Collection $folders)
+    protected function setAllTabs(Collection $folders)
     {
         foreach ($this->tabs as $tab) {
             if (empty($folders[$tab])) {
@@ -368,7 +444,7 @@ class MenuTreeModule
      *
      * @return Collection of Table grouped by 'structure' ('public','private','favorite','account')
      */
-    private function getRootTablesForMenu()
+    protected function getRootTablesForMenu()
     {
         $tb_table = (new Table())->getTable();
         $f2_table = (new Folder2Table())->getTable();
@@ -377,16 +453,17 @@ class MenuTreeModule
         $root_tables = (new Folder())
             ->_tables()
             //owned root Tables
-            ->where("$tb_table.user_id", $this->user_id)
+            ->where("$tb_table.user_id", '=', $this->user_id)
             //shared root Tables
             ->orWhere(function ($q) use ($tb_table, $f2_table, $AuthUserModule) {
                 $q->whereIn("$tb_table.id", $AuthUserModule->sharedTablesIds('shared'));
-                $q->where("$f2_table.folder_id", null);
+                $q->where("$f2_table.folder_id", '=', null);
             })
             //has in favorite
             ->orWhere(function ($q) use ($tb_table, $f2_table, $AuthUserModule) {
-                $q->where("$f2_table.user_id", $AuthUserModule->user->id);
-                $q->where("$f2_table.structure", 'favorite');
+                $q->where("$f2_table.user_id", '=', $AuthUserModule->user->id);
+                $q->where("$f2_table.folder_id", '=', null);
+                $q->where("$f2_table.structure", '=', 'favorite');
             })
             ->get();
 
@@ -404,7 +481,8 @@ class MenuTreeModule
         }
 
         //add forbidden owned tables
-        $root_tables['private'] = Table::where('user_id', $this->user_id)
+        $root_tables['private'] = Table::where('user_id', '=', $this->user_id)
+            ->whereNotIn('id', HelperService::sysTbIds())
             ->whereDoesntHave('_folders')
             ->get()
             ->map(function ($tb) {
@@ -428,7 +506,7 @@ class MenuTreeModule
      * @param $tables
      * @return Collection
      */
-    private function attachSharedRootTables(Collection $folders, $tables)
+    protected function attachSharedRootTables(Collection $folders, $tables)
     {
         $shared_tables = $tables->where('user_id', '!=', $this->user_id)->groupBy('user_id');
 
@@ -467,7 +545,7 @@ class MenuTreeModule
      * @param int $parentId
      * @return array
      */
-    private function buildFolderTree($elements, $tab, $link, $parentId = 0)
+    protected function buildFolderTree($elements, $tab, $link, $parentId = 0)
     {
         $branch = [
             'tree' => [],
@@ -506,7 +584,7 @@ class MenuTreeModule
      * @param $tab
      * @return array
      */
-    private function generateTablesElements($parent_folder_id, $tables, $path, $tab)
+    protected function generateTablesElements($parent_folder_id, $tables, $path, $tab)
     {
         $arr = [];
         foreach ($tables as $table) {
@@ -525,7 +603,7 @@ class MenuTreeModule
      * @param $table
      * @return string
      */
-    private function getLinkType($table)
+    protected function getLinkType($table)
     {
         if ($table->_in_app) {
             return 'cloud';
@@ -547,7 +625,7 @@ class MenuTreeModule
      * @param $tab
      * @return array
      */
-    private function addRootTablesToTree(array $menutree_tab, $tables, $root_link, $tab)
+    protected function addRootTablesToTree(array $menutree_tab, $tables, $root_link, $tab)
     {
         //$owned_tables = $tables->where('user_id', $this->user_id);
         return array_merge(

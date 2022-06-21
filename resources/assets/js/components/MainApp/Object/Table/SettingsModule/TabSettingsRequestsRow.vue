@@ -3,21 +3,24 @@
         <div class="row full-height permissions-tab">
             <div class="permissions-panel full-height">
                 <div class="permissions-menu-header">
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'overall'}" @click="activeTab = 'overall'">
+                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'overall'}" :style="textSysStyle" @click="activeTab = 'overall'">
                         Overall
                     </button>
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'title'}" @click="activeTab = 'title'">
+                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'title'}" :style="textSysStyle" @click="activeTab = 'title'">
                         Title
                     </button>
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'form'}" @click="activeTab = 'form'">
+                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'form'}" :style="textSysStyle" @click="activeTab = 'form'">
                         Form
+                    </button>
+                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'top_msg'}" :style="textSysStyle" @click="activeTab = 'top_msg'">
+                        Top Message
                     </button>
 
                     <div class="pull-right flex" v-if="with_edit" style="position: relative;top: -2px;">
                         <div class="flex flex--center">
                             <span class="indeterm_check__wrap">
                                 <span class="indeterm_check" @click="templateClick">
-                                    <i v-if="requestRow['is_request'] == 2" class="glyphicon glyphicon-ok group__icon"></i>
+                                    <i v-if="requestRow['is_template'] == 1" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
                             </span>
                             <label style="margin: 0;">&nbsp;Template</label>
@@ -43,9 +46,14 @@
                             <tbody v-if="requestFields">
                                 <tr>
                                     <td :style="getTdStyle">
-                                        <div class="flex flex--center-v td td--33 h-32" :style="getTdStyle">
+                                        <div class="flex flex--center-v td td--20 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_sec_scroll_style'].name) }}&nbsp;:&nbsp;</label>
-                                            <select class="form-control" :disabled="!with_edit" v-model="requestRow['dcr_sec_scroll_style']" @change="updatedCell">
+                                            <select class="form-control"
+                                                    :style="textSysStyle"
+                                                    :disabled="!with_edit"
+                                                    v-model="requestRow['dcr_sec_scroll_style']"
+                                                    style="max-width: 110px;"
+                                                    @change="updatedCell">
                                                 <option value="scroll">Scroll</option>
                                                 <option value="flow">Flow</option>
                                             </select>
@@ -72,7 +80,6 @@
                                             <div class="color-wrapper clr-min">
                                                 <tablda-colopicker
                                                         :init_color="requestRow['dcr_sec_line_color']"
-                                                        :saved_colors="$root.color_palette"
                                                         :fixed_pos="true"
                                                         :can_edit="with_edit"
                                                         :avail_null="true"
@@ -84,11 +91,12 @@
 
                                             <label>{{ $root.uniqName(requestFields['dcr_sec_line_thick'].name) }}:&nbsp;</label>
                                             <input type="number"
+                                                   :style="textSysStyle"
                                                    v-model="requestRow['dcr_sec_line_thick']"
                                                    :disabled="!with_edit"
                                                    @change="updatedCell"
                                                    class="form-control"
-                                                   style="max-width: 100px"/>
+                                                   style="max-width: 60px"/>
                                             <label>px</label>
                                         </div>
                                     </td>
@@ -96,9 +104,14 @@
 
                                 <tr>
                                     <td :style="getTdStyle">
-                                        <div class="flex flex--center-v td td--40 h-32" :style="getTdStyle">
+                                        <div class="flex flex--center-v td td--30 h-32" :style="getTdStyle">
                                             <label ref="sec_tooltip_bgc" @mouseover="showSecBGC">{{ $root.uniqName(requestFields['dcr_sec_background_by'].name) }}:&nbsp;&nbsp;</label>
-                                            <select class="form-control" :disabled="!with_edit" v-model="requestRow['dcr_sec_background_by']" @change="updatedCell">
+                                            <select class="form-control"
+                                                    :style="textSysStyle"
+                                                    :disabled="!with_edit"
+                                                    v-model="requestRow['dcr_sec_background_by']"
+                                                    @change="updatedCell"
+                                            >
                                                 <option value="color">Color</option>
                                                 <option value="image">Image</option>
                                             </select>
@@ -117,7 +130,6 @@
                                                 <div class="color-wrapper clr-min">
                                                     <tablda-colopicker
                                                             :init_color="requestRow['dcr_sec_bg_top']"
-                                                            :saved_colors="$root.color_palette"
                                                             :fixed_pos="true"
                                                             :can_edit="with_edit"
                                                             :avail_null="true"
@@ -129,7 +141,6 @@
                                                 <div class="color-wrapper clr-min">
                                                     <tablda-colopicker
                                                             :init_color="requestRow['dcr_sec_bg_bot']"
-                                                            :saved_colors="$root.color_palette"
                                                             :fixed_pos="true"
                                                             :can_edit="with_edit"
                                                             :avail_null="true"
@@ -153,7 +164,7 @@
                                                      :src="$root.fileUrl({url:requestRow['dcr_sec_bg_img']})"
                                                      class="img-preview h-32"
                                                 />
-                                                <input type="file" ref="bg_img_sec" :disabled="!with_edit" @change="uploadSecFile" class="form-control"/>
+                                                <input type="file" :style="textSysStyle" ref="bg_img_sec" :disabled="!with_edit" @change="uploadSecFile" class="form-control"/>
                                                 <button
                                                         v-if="requestRow['dcr_sec_bg_img']"
                                                         class="btn flex flex--center btn-danger btn-del-bg"
@@ -161,7 +172,7 @@
                                                         @click="delSecFile"
                                                 >&times;</button>
                                                 <label>&nbsp;{{ $root.uniqName(requestFields['dcr_sec_bg_img_fit'].name) }}:&nbsp;</label>
-                                                <select v-model="requestRow['dcr_sec_bg_img_fit']" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                                                <select v-model="requestRow['dcr_sec_bg_img_fit']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
                                                     <option>Height</option>
                                                     <option>Width</option>
                                                     <option>Fill</option>
@@ -182,7 +193,7 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--100 h-32" :style="getTdStyle">
                                             <!--<label>{{ $root.uniqName(requestFields['dcr_title'].name) }}:&nbsp;</label>-->
-                                            <input type="text" ref="dcr_title_input" v-model="requestRow['dcr_title']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="text" :style="textSysStyle" ref="dcr_title_input" v-model="requestRow['dcr_title']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <cell-table-data-expand
                                                     v-if="dcr_title_expand"
                                                     style="background-color: #FFF; bottom: 5px; right: 3px;"
@@ -202,13 +213,13 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--25 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_title_font_type'].name) }}:&nbsp;</label>
-                                            <select v-model="requestRow['dcr_title_font_type']" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                                            <select v-model="requestRow['dcr_title_font_type']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
                                                 <option v-for="fnt in avail_fonts">{{ fnt }}</option>
                                             </select>
                                         </div>
                                         <div class="flex flex--center-v td td--25 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_title_font_size'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_title_font_size']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_title_font_size']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>pt</label>
                                         </div>
                                         <div class="flex flex--center-v td td--25 h-32" :style="getTdStyle">
@@ -216,7 +227,6 @@
                                             <div class="color-wrapper clr-min">
                                                 <tablda-colopicker
                                                         :init_color="requestRow['dcr_title_font_color']"
-                                                        :saved_colors="$root.color_palette"
                                                         :fixed_pos="true"
                                                         :can_edit="with_edit"
                                                         :avail_null="true"
@@ -252,11 +262,11 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--75 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_title_width'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_title_width']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_title_width']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>px</label>
 
                                             <label>&nbsp;&nbsp;{{ $root.uniqName(requestFields['dcr_title_height'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_title_height']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_title_height']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>px</label>
                                         </div>
                                     </td>
@@ -266,7 +276,7 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--40 h-32" :style="getTdStyle">
                                             <label ref="sec_tooltip_bgc" @mouseover="showSecBGC">{{ $root.uniqName(requestFields['dcr_title_background_by'].name) }}:&nbsp;&nbsp;</label>
-                                            <select class="form-control" :disabled="!with_edit" v-model="requestRow['dcr_title_background_by']" @change="updatedCell">
+                                            <select class="form-control" :style="textSysStyle" :disabled="!with_edit" v-model="requestRow['dcr_title_background_by']" @change="updatedCell">
                                                 <option value="color">Color</option>
                                                 <option value="image">Image</option>
                                             </select>
@@ -285,7 +295,6 @@
                                                 <div class="color-wrapper">
                                                     <tablda-colopicker
                                                             :init_color="requestRow['dcr_title_bg_color']"
-                                                            :saved_colors="$root.color_palette"
                                                             :fixed_pos="true"
                                                             :can_edit="with_edit"
                                                             :avail_null="true"
@@ -308,7 +317,7 @@
                                                      :src="$root.fileUrl({url:requestRow['dcr_title_bg_img']})"
                                                      class="img-preview h-32"
                                                 />
-                                                <input type="file" ref="bg_img" :disabled="!with_edit" @change="uploadFile" class="form-control"/>
+                                                <input type="file" :style="textSysStyle" ref="bg_img" :disabled="!with_edit" @change="uploadFile" class="form-control"/>
                                                 <button
                                                         v-if="requestRow['dcr_title_bg_img']"
                                                         class="btn flex flex--center btn-danger btn-del-bg"
@@ -317,7 +326,7 @@
                                                 >&times;</button>
 
                                                 <label>&nbsp;{{ $root.uniqName(requestFields['dcr_title_bg_fit'].name) }}:&nbsp;</label>
-                                                <select v-model="requestRow['dcr_title_bg_fit']" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                                                <select v-model="requestRow['dcr_title_bg_fit']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
                                                     <option>Height</option>
                                                     <option>Width</option>
                                                     <option>Fill</option>
@@ -338,7 +347,7 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--100 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_form_width'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_form_width']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_width']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>&nbsp;px&nbsp;</label>
 
                                             <hover-block v-if="form_tooltip_bgc && requestFields['dcr_form_bg_color'].tooltip"
@@ -353,7 +362,6 @@
                                             <div class="color-wrapper">
                                                 <tablda-colopicker
                                                         :init_color="requestRow['dcr_form_bg_color']"
-                                                        :saved_colors="$root.color_palette"
                                                         :fixed_pos="true"
                                                         :can_edit="with_edit"
                                                         :avail_null="true"
@@ -363,7 +371,7 @@
                                             </div>
 
                                             <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_transparency'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_form_transparency']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_transparency']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>&nbsp;%</label>
                                         </div>
                                     </td>
@@ -373,7 +381,7 @@
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--100 h-32" :style="getTdStyle">
                                             <label>{{ $root.uniqName(requestFields['dcr_form_line_type'].name) }}:&nbsp;</label>
-                                            <select v-model="requestRow['dcr_form_line_type']" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                                            <select v-model="requestRow['dcr_form_line_type']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
                                                 <option value="line">Line</option>
                                                 <option value="space">Space</option>
                                             </select>
@@ -394,7 +402,6 @@
                                                 <div class="color-wrapper clr-min">
                                                     <tablda-colopicker
                                                             :init_color="requestRow['dcr_form_line_color']"
-                                                            :saved_colors="$root.color_palette"
                                                             :fixed_pos="true"
                                                             :can_edit="with_edit"
                                                             :avail_null="true"
@@ -406,12 +413,12 @@
 
                                             <template v-if="requestRow['dcr_form_line_type'] === 'space'">
                                                 <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_line_radius'].name) }}:&nbsp;</label>
-                                                <input type="number" v-model="requestRow['dcr_form_line_radius']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                                <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_line_radius']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                                 <label>px</label>
                                             </template>
 
                                             <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_line_thick'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_form_line_thick']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_line_thick']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
                                             <label>px</label>
                                         </div>
                                     </td>
@@ -430,7 +437,6 @@
                                             <div class="color-wrapper clr-min">
                                                 <tablda-colopicker
                                                         :init_color="requestRow['dcr_form_shadow_color']"
-                                                        :saved_colors="$root.color_palette"
                                                         :fixed_pos="true"
                                                         :can_edit="with_edit"
                                                         :avail_null="true"
@@ -439,7 +445,7 @@
                                             </div>
 
                                             <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_shadow_dir'].name) }}:&nbsp;</label>
-                                            <select v-model="requestRow['dcr_form_shadow_dir']" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                                            <select v-model="requestRow['dcr_form_shadow_dir']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
                                                 <option value="BR">BR</option>
                                                 <option value="BL">BL</option>
                                             </select>
@@ -450,82 +456,28 @@
                                 <tr>
                                     <td :style="getTdStyle">
                                         <div class="flex flex--center-v td td--100 h-32" :style="getTdStyle">
-                                            <label>{{ $root.uniqName(requestFields['dcr_form_message_font'].name) }}:&nbsp;</label>
-                                            <select v-model="requestRow['dcr_form_message_font']" :disabled="!with_edit" @change="updatedCell" class="form-control">
-                                                <option v-for="fnt in avail_fonts">{{ fnt }}</option>
-                                            </select>
+                                            <label>{{ $root.uniqName(requestFields['dcr_form_line_height'].name) }}:&nbsp;</label>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_line_height']" :disabled="!with_edit" @change="updatedCell" class="form-control max-sm"/>
+                                            <label>&nbsp;px&nbsp;</label>
 
-                                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_message_size'].name) }}:&nbsp;</label>
-                                            <input type="number" v-model="requestRow['dcr_form_message_size']" :disabled="!with_edit" @change="updatedCell" class="form-control"/>
-                                            <label>pt&nbsp;</label>
-
-                                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_message_color'].name) }}:&nbsp;</label>
-                                            <div class="color-wrapper clr-min">
-                                                <tablda-colopicker
-                                                        :init_color="requestRow['dcr_form_message_color']"
-                                                        :saved_colors="$root.color_palette"
-                                                        :fixed_pos="true"
-                                                        :can_edit="with_edit"
-                                                        :avail_null="true"
-                                                        @set-color="updateColorMsgFont"
-                                                ></tablda-colopicker>
-                                            </div>
-
-                                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_form_message_style'].name) }}:&nbsp;</label>
-                                            <div class="full-height full-width" style="position:relative;">
-                                                <tablda-select-simple
-                                                        :options="[
-                                                            {val: 'Normal', show: 'Normal'},
-                                                            {val: 'Italic', show: 'Italic'},
-                                                            {val: 'Bold', show: 'Bold'},
-                                                            {val: 'Strikethrough', show: 'Strikethrough'},
-                                                            {val: 'Overline', show: 'Overline'},
-                                                            {val: 'Underline', show: 'Underline'},
-                                                        ]"
-                                                        :table-row="requestRow"
-                                                        :hdr_field="'dcr_form_message_style'"
-                                                        :fld_input_type="'M-Select'"
-                                                        :style="getEditStyle"
-                                                        :is_disabled="!with_edit"
-                                                        @selected-item="(item) => {updateMSelect(item, 'dcr_form_message_style')}"
-                                                ></tablda-select-simple>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td :style="getTdStyle">
-                                        <div class="flex flex--center-v td td--100" :style="getTdStyle">
-                                            <label>{{ $root.uniqName(requestFields['dcr_form_message'].name) }}:&nbsp;</label>
-                                        </div>
-                                    </td>
-                                </tr>
-
-                                <tr>
-                                    <td :style="getTdStyle">
-                                        <div class="flex flex--center-v td td--100 h-56" :style="getTdStyle">
-                                            <textarea ref="dcr_form_message_input"
-                                                      rows="2"
-                                                      v-model="requestRow['dcr_form_message']"
-                                                      :disabled="!with_edit"
-                                                      @change="updatedCell"
-                                                      class="form-control"></textarea>
-                                            <cell-table-data-expand
-                                                    style="background-color: #FFF; bottom: 5px; right: 3px;"
-                                                    :table-meta="$root.settingsMeta['table_permissions']"
-                                                    :table-row="requestRow"
-                                                    :table-header="requestFields['dcr_form_message']"
-                                                    :html="requestRow['dcr_form_message']"
-                                                    :uniqid="topmsguniqid"
-                                                    :can-edit="with_edit"
-                                                    :user="$root.user"
-                                            ></cell-table-data-expand>
+                                            <label>&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields['dcr_form_font_size'].name) }}:&nbsp;</label>
+                                            <input type="number" :style="textSysStyle" v-model="requestRow['dcr_form_font_size']" :disabled="!with_edit" @change="updatedCell" class="form-control max-sm"/>
+                                            <label>&nbsp;px&nbsp;</label>
                                         </div>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+
+                    <!--FORM-->
+                    <div class="full-frame defaults-tab" v-if="activeTab === 'top_msg'">
+                        <tab-ckeditor
+                                :table-meta="tableMeta"
+                                :target-row="requestRow"
+                                :field-name="'dcr_form_message'"
+                                @save-row="updatedCell"
+                        ></tab-ckeditor>
                     </div>
 
                 </div>
@@ -536,9 +488,9 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../../../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
 
-    import {eventBus} from './../../../../../app';
+    import {eventBus} from '../../../../../app';
 
     import CellStyleMixin from "../../../../_Mixins/CellStyleMixin.vue";
     import ReqRowMixin from "./ReqRowMixin.vue";
@@ -547,9 +499,11 @@
     import HoverBlock from "../../../../CommonBlocks/HoverBlock";
     import TabldaSelectSimple from "../../../../CustomCell/Selects/TabldaSelectSimple";
     import CellTableDataExpand from "../../../../CustomCell/InCell/CellTableDataExpand";
+    import TabCkeditor from "../../../../CommonBlocks/TabCkeditor";
 
     export default {
         components: {
+            TabCkeditor,
             CellTableDataExpand,
             TabldaSelectSimple,
             HoverBlock,
@@ -581,6 +535,7 @@
             getTdStyle() {
                 return {
                     height: this.tdCellHGT+'px',
+                    ...this.textSysStyle,
                 };
             },
             dcr_title_expand() {
@@ -603,10 +558,10 @@
         methods: {
             copyDcrDesign() {
                 this.$root.sm_msg_type = 1;
-                axios.post('/ajax/table-permission/copy', {
-                    from_permis_id: this.from_dcr_id,
-                    to_permis_id: this.requestRow.id,
-                    as_template: true,
+                axios.post('/ajax/table-data-request/copy', {
+                    from_data_request_id: this.from_dcr_id,
+                    to_data_request_id: this.requestRow.id,
+                    as_template: false,
                 }).then(({ data }) => {
                     if (data && _.first(data)) {
                         SpecialFuncs.assignProps(this.requestRow, _.first(data));
@@ -618,8 +573,8 @@
                 });
             },
             templateClick() {
-                this.requestRow['is_request'] = this.requestRow['is_request'] == 2 ? 1 : 2;
-                if (this.requestRow['is_request'] == 2) {
+                this.requestRow['is_template'] = this.requestRow['is_template'] == 1 ? 0 : 1;
+                if (this.requestRow['is_template'] == 2) {
                     let permis = _.clone(this.requestRow);
                     permis._table = _.clone(this.tableMeta);
                     this.$root.settingsMeta.template_dcrs.push(permis);
@@ -654,4 +609,30 @@
 <style lang="scss" scoped>
     @import "./TabSettingsPermissions";
     @import "./ReqRowStyle";
+
+    .ck_textarea {
+        margin-top: 5px;
+        height: 300px;
+    }
+
+    .add_link {
+        white-space: nowrap;
+        margin-bottom: 10px;
+
+        label {
+            margin: 0;
+        }
+        select {
+            max-width: 250px;
+            height: 30px;
+            padding: 3px 6px;
+        }
+    }
+
+    .max-sm {
+        max-width: 75px;
+    }
+    .btn-default {
+        height: 30px;
+    }
 </style>

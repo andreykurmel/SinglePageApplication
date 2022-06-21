@@ -10,6 +10,7 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Vanguard\Models\Table\TableBackup;
 use Vanguard\Modules\CloudBackup\CloudBackuper;
+use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\UserCloudRepository;
 use Vanguard\Services\Tablda\TableBackupService;
 
@@ -38,24 +39,27 @@ class UsersBackups implements ShouldQueue
     {
         set_time_limit(300);
 
+        (new FileRepository())->fixDDLfiles();
+
         //get activated backups
         $time = date('H:i', time());
         $day = date('l', time());
 
         $backups = $this->bkpService->getbyTime($day, $time);
         $backups->load([
-            '_cloud' => function ($q) {
-                $q->with('_user');
-            },
-            '_table'
+            '_cloud',
+            '_table',
+            '_user',
         ]);
         //-----
 
         foreach ($backups as $backup) {
             if ($backup->_cloud->gettoken() && $backup->_table) {
                 try {
-                    (new CloudBackuper($backup))->sendToCloud();
-                    $this->bkpService->notifyUser($backup);
+                    if ($backup->is_active) {
+                        (new CloudBackuper($backup))->sendToCloud();
+                        $this->bkpService->notifyUser($backup);
+                    }
                 } catch (\Exception $e) {
                 }
             }

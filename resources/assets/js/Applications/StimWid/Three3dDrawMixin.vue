@@ -24,6 +24,7 @@
 
                 drawed_geometry: null,
                 drawed_equipments: null,
+                drawed_rls: null,
 
                 sectionsSizes: [],
                 sectionsInfo: [
@@ -131,12 +132,20 @@
                 this.cached[cacher] = _.map(array || [], '_row_hash');//
             },
 
-            tdm_draw(geometry, shrink, equipments, dc, sectionsInfo) {
+            tdm_draw(geometry, shrink, equipments, dc, sectionsInfo, rls) {
                 let objects = [];
                 let members = this.fix_row_hash(geometry.members);
                 let nodes = this.fix_row_hash(geometry.nodes);
                 let sections = this.fix_row_hash(geometry.sections);
                 let materials = this.fix_row_hash(geometry.materials);
+
+                //change link in Eqpt: pos2mbr => member
+                _.each(equipments, (elem) => {
+                    elem._row_hash = elem.eq._row_hash + elem.lc._row_hash;
+                    elem.eq.color = this.getMaColor(elem.lc.status);
+                    let p2m = _.find(this.pos_to_mbrs, (pos2) => { return pos2._id == elem.lc.mbr_id });
+                    elem.lc.mbr_name = p2m ? p2m.member : '';
+                });
 
                 if (members) {
                     _.each(members, (data) => {
@@ -161,12 +170,8 @@
 
                         _.each(nodes, (nod) => {//
                             if (data.NodeS == nod.node_name) {
-                                x = to_float(nod.x);
-                                y = to_float(nod.y);
-                                z = to_float(nod.z);
-
                                 NodeS = nod.no;
-                                Nodes.s = [x, y, z];
+                                Nodes.s = [to_float(nod.x), to_float(nod.y), to_float(nod.z)];
                             }
 
                             if (data.NodeE == nod.node_name) {
@@ -206,7 +211,7 @@
 
                         let attached_eqpts = [];
                         _.each(equipments, (obj) => {
-                            if(data['Mbr_Name'] == obj.lc.mbr_name) {
+                            if(data['_id'] == obj.lc.mbr_id) {
                                 attached_eqpts.push(obj.lc._id);
                             }
                         });
@@ -253,17 +258,12 @@
 
                 webgl.draw(this.cached, nodes, "draw", "nodes");//
 
-                _.each(equipments, (lc) => {
-                    lc._row_hash = lc.eq._row_hash + lc.lc._row_hash;
-                    lc.eq.color = this.getMaColor(lc.lc.status);
-                });
-
                 //limit for Equpments is 50
                 /*if (equipments.length > 50) {
                     equipments = equipments.slice(0, 50);
                 }*/
 
-                webgl.draw(this.cached, objects, "draw", "wid_objects", {}, shrink, equipments, dc, sectionsInfo);
+                webgl.draw(this.cached, objects, "draw", "wid_objects", {}, shrink, equipments, dc, sectionsInfo, rls);
             },
             fix_row_hash(array) {
                 if (array) {
@@ -300,11 +300,12 @@
                     : null;
             },
 
-            Three3dRedraw(geometry, drawMode, eqs, data_eqs) {
+            Three3dRedraw(geometry, drawMode, eqs, data_eqs, rls) {
                 try {
                     let equipments = eqs ? eqs.collection : [];
                     this.drawed_geometry = geometry;
                     this.drawed_equipments = eqs;
+                    this.drawed_rls = rls;
 
                     if (data_eqs) {
                         this.eqpt_lib = _.map(data_eqs.eqpt_lib, (eq) => { return new Eqpt(eq); });
@@ -326,6 +327,7 @@
                     tabldas.node = geometry ? geometry._nodes_tb : null;
                     tabldas.sect = geometry ? geometry._sections_tb : null;
                     tabldas.memb = geometry ? geometry._members_tb : null;
+                    tabldas.rls = rls ? rls._rl_tb : null;
                     this.tabldas = tabldas;
 
                     //cache system
@@ -347,20 +349,20 @@
                                 sizes_array: this.sectionsSizes
                             }).then(({data}) => {
                                 this.sectionsInfo = data.aisc || [];
-                                this.Three3dRedraw_Inner(geometry, drawMode, equipments);
+                                this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
                             })
                         } else {
-                            this.Three3dRedraw_Inner(geometry, drawMode, equipments);
+                            this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
                         }
                     } else {
-                        this.Three3dRedraw_Inner(geometry, drawMode, equipments);
+                        this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
                     }
                 } catch ($e) {
                     console.log($e);
                 }
                 this.sync_in_process = false;
             },
-            Three3dRedraw_Inner(geometry, drawMode, equipments) {//
+            Three3dRedraw_Inner(geometry, drawMode, equipments, rls) {//
                 let drawed = false;
                 let t1 = + new Date();
 
@@ -538,7 +540,7 @@
                 else if (geometry && drawMode === 'geometry')
                 {
                     drawed = true;
-                    this.tdm_draw(geometry, this.viewSettings.shrink, equipments, this.TR, this.sectionsInfo);
+                    this.tdm_draw(geometry, this.viewSettings.shrink, equipments, this.TR, this.sectionsInfo, rls);
                 }
 
                 if (!drawed) {

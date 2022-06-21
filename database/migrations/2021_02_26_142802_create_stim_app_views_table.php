@@ -24,12 +24,14 @@ class CreateStimAppViewsTable extends Migration
                 $table->unsignedInteger('master_row_id');
                 $table->string('name', 64);
                 $table->string('hash', 64);
+                $table->string('state', 64)->nullable();
                 $table->string('side_top', 16)->default('');
                 $table->string('side_left', 16)->default('');
                 $table->string('side_right', 16)->default('');
                 $table->tinyInteger('is_active')->default(0);
                 $table->tinyInteger('is_locked')->default(0);
                 $table->string('lock_pass', 64)->nullable();
+                $table->string('visible_tab_ids', 512)->nullable();
             });
     }
 

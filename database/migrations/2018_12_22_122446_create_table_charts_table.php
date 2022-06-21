@@ -15,6 +15,7 @@ class CreateTableChartsTable extends Migration
     {
         Schema::create('table_charts', function (Blueprint $table) {
             $table->increments('id');
+            $table->string('name', 128)->nullable();
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('user_id');
             $table->unsignedInteger('col_idx')->default(0);

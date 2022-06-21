@@ -1,6 +1,7 @@
 <template>
 
-    <a v-if="showLink(link, 'Record')"
+    <a v-if="showLink(link, 'Record') && (!link.link_display || link.link_display == 'Popup')"
+       :title="link ? link.tooltip : ''"
        @mouseenter="showLinkPrev"
        @mouseleave="$root.leaveLinkPreview"
        @mousedown.stop=""
@@ -11,7 +12,8 @@
         <link-icon v-else="" :icon="link.icon"></link-icon>
     </a>
 
-    <a v-else-if="showLink(link, 'Table')"
+    <a v-else-if="showLink(link, 'Record') && link.link_display == 'Table'"
+       :title="link ? link.tooltip : ''"
        @mouseenter="showLinkPrev"
        @mouseleave="$root.leaveLinkPreview"
        @mousedown.stop=""
@@ -24,7 +26,8 @@
         <link-icon v-else="" :icon="link.icon"></link-icon>
     </a>
 
-    <a v-else-if="showLink(link, 'RorT')"
+    <a v-else-if="showLink(link, 'Record') && link.link_display == 'RorT'"
+       :title="link ? link.tooltip : ''"
        @mouseenter="showLinkPrev"
        @mouseleave="$root.leaveLinkPreview"
        @mousedown.stop=""
@@ -35,7 +38,8 @@
         <link-icon v-else="" :icon="link.icon"></link-icon>
     </a>
 
-    <a v-else-if="showLink(link, 'Web')"
+    <a v-else-if="showLink(link, 'Web') && (web_link || !link.hide_empty_web)"
+       :title="link ? link.tooltip : ''"
        @mousedown.stop=""
        @mouseup.stop=""
        @click.stop=""
@@ -48,6 +52,7 @@
 
     <a v-else-if="showLink(link, 'App')"
        target="_blank"
+       :title="link ? link.tooltip : ''"
        :href="tb_app && tb_app.open_as_popup ? null : app_link"
        @mousedown.stop=""
        @mouseup.stop=""
@@ -58,22 +63,24 @@
     </a>
 
     <a v-else-if="showLink(link, 'GMap')"
+       target="_blank"
+       :title="link ? link.tooltip : ''"
+       :href="gmap_link(false)"
        @mousedown.stop=""
        @mouseup.stop=""
        @click.stop=""
-       target="_blank"
-       :href="gmap_link(false)"
     >
         <span v-if="showField" v-html="showField"></span>
         <link-icon v-else="" :icon="'GoogleMap'"></link-icon>
     </a>
 
     <a v-else-if="showLink(link, 'GEarth')"
+       target="_blank"
+       :title="link ? link.tooltip : ''"
+       :href="gmap_link(true)"
        @mousedown.stop=""
        @mouseup.stop=""
        @click.stop=""
-       target="_blank"
-       :href="gmap_link(true)"
     >
         <span v-if="showField" v-html="showField"></span>
         <link-icon v-else="" :icon="'GoogleEarth'"></link-icon>
@@ -84,16 +91,16 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from '../../../classes/SpecialFuncs';
+import {SpecialFuncs} from '../../../classes/SpecialFuncs';
 
-    import {eventBus} from '../../../app';
+import {eventBus} from '../../../app';
 
-    import TableLinkMixin from '../../_Mixins/TableLinkMixin';
-    import ShowLinkMixin from '../../_Mixins/ShowLinkMixin';
+import TableLinkMixin from '../../_Mixins/TableLinkMixin';
+import ShowLinkMixin from '../../_Mixins/ShowLinkMixin';
 
-    import LinkIcon from './LinkIcon';
+import LinkIcon from './LinkIcon';
 
-    export default {
+export default {
         name: "LinkObject",
         mixins: [
             TableLinkMixin,
@@ -119,7 +126,7 @@
             tableRow: Object,
             cellValue: String|Number,
             link: Object,
-            showField: String,
+            showField: String|Number,
             user: Object,
         },
         computed: {
@@ -127,9 +134,11 @@
                 let res = (this.link.web_prefix || '');
                 if (this.link.address_field_id) {
                     let fld = _.find(this.tableMeta._fields, {id: Number(this.link.address_field_id)});
-                    res += this.tableRow[fld.field];
+                    if (fld && this.tableRow[fld.field]) {
+                        res += this.tableRow[fld.field];
+                    }
                 }
-                return res || '#';
+                return res;
             },
             tb_app() {
                 let tb_app = null;

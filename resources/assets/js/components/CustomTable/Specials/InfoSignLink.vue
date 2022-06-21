@@ -1,6 +1,21 @@
 <template>
     <div class="sign_wrapper flex flex--center" ref="sign_wrapper" :style="{height: (hgt || 40)+'px'}">
-        <a target="_blank"
+        <div v-if="use_hover"
+             class="btn btn-primary btn-sm blue-gradient flex flex--center"
+             :style="btnStyle"
+             @click="showHover"
+        >
+            <i class="fas fa-info" ref="hover_ref"></i>
+            <hover-block v-if="h_tooltip"
+                         :html_str="help_link"
+                         :p_left="h_left"
+                         :p_top="h_top"
+                         :c_offset="h_offset"
+                         @another-click="h_tooltip = false"
+            ></hover-block>
+        </div>
+        <a v-else
+           target="_blank"
            class="btn btn-primary btn-sm blue-gradient flex flex--center"
            :href="help_link || 'javascript:void(0)'"
            :style="btnStyle"
@@ -38,11 +53,17 @@
             return {
                 show_edit: false,
                 help_link: null,
+
+                h_tooltip: false,
+                h_left: 0,
+                h_top: 0,
+                h_offset: 0,
             }
         },
         props:{
             app_sett_key: String,
             hgt: Number,
+            use_hover: Boolean,
         },
         computed: {
             btnStyle() {
@@ -55,6 +76,15 @@
             },
         },
         methods: {
+            showHover(e) {
+                let bounds = this.$refs.hover_ref ? this.$refs.hover_ref.getBoundingClientRect() : {};
+                let px = (bounds.left + bounds.right) / 2;
+                let py = (bounds.top + bounds.bottom) / 2;
+                this.h_tooltip = true;
+                this.h_left = px || e.clientX;
+                this.h_top = py || e.clientY;
+                this.h_offset = Math.abs(bounds.top - bounds.bottom) || 0;
+            },
             rightClick() {
                 if (this.$root.user.is_admin || this.$root.user.role_id == 3) {
                     this.show_edit = true;

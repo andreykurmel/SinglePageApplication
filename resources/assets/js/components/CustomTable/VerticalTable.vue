@@ -27,7 +27,7 @@
                     <td v-if="hasUnits"></td>
                     <td v-if="canSeeHistory && widths.history"></td>
                 </tr>
-                <tr v-if="vertTableFieldObject.single.is_topbot_in_popup">
+                <tr v-if="nameNotHidden(vertTableFieldObject.single, true)">
                     <td colspan="2" :style="{backgroundColor: vert_bg_avail ? vertTableFieldObject.single.header_background || vert_bg_color : null}">
                         <vertical-table-border :level="vertTableFieldObject.level"></vertical-table-border>
                         <label :style="getLabelStyle(vertTableFieldObject.level)">
@@ -38,7 +38,7 @@
                     <td v-if="hasUnits"></td>
                     <td v-if="canSeeHistory && widths.history"></td>
                 </tr>
-                <tr v-if="vertTableFieldObject.single.tooltip_show && vertTableFieldObject.single.tooltip ">
+                <tr v-if="tooltip_pos === 'up' && vertTableFieldObject.single.tooltip_show && vertTableFieldObject.single.tooltip ">
                     <td><vertical-table-border :level="vertTableFieldObject.level"></vertical-table-border></td>
                     <td>
                         <span class="tooltip-class" :style="headerTitleStyle(vertTableFieldObject)">{{ vertTableFieldObject.single.tooltip }}</span>
@@ -47,7 +47,7 @@
                     <td v-if="canSeeHistory && widths.history"></td>
                 </tr>
                 <tr>
-                    <td v-if="!vertTableFieldObject.single.is_topbot_in_popup"
+                    <td v-if="nameNotHidden(vertTableFieldObject.single, false)"
                         :style="{backgroundColor: vert_bg_avail ? vertTableFieldObject.single.header_background || vert_bg_color : null}"
                     >
                         <vertical-table-border :level="vertTableFieldObject.level"></vertical-table-border>
@@ -56,7 +56,9 @@
                             <span v-if="vertTableFieldObject.single.f_required" class="required-wildcart">*</span>
                         </label>
                     </td>
-                    <td :is="td"
+
+                    <td v-if="valueNotHidden(vertTableFieldObject.single)"
+                        :is="td"
                         :global-meta="globalMeta"
                         :table-meta="tableMeta"
                         :settings-meta="settingsMeta"
@@ -76,14 +78,21 @@
                         :is-vert-table="true"
                         :with_edit="with_edit"
                         :is-add-row="isAddRow"
+                        :is_def_fields="is_def_fields"
+                        :no_height_limit="no_height_limit"
+                        :parent-row="parentRow"
                         :class="vertTableFieldObject.single.f_type !== 'Boolean' ? 'edit-cell' : ''"
-                        :colspan="vertTableFieldObject.single.is_topbot_in_popup ? 2 : 1"
+                        :colspan="nameNotHidden(vertTableFieldObject.single, false) ? 1 : 2"
+                        :style="checkNoBorder(vertTableFieldObject.single)"
                         @show-add-ref-cond="showAddRefCond"
                         @show-src-record="showSrcRecord"
                         @updated-cell="updatedCell"
                         @show-add-ddl-option="showAddDDLOption"
                         @show-def-val-popup="showDefValPopup"
+                        @cell-menu="showRowMenu"
                     ></td>
+                    <td v-else :colspan="nameNotHidden(vertTableFieldObject.single, false) ? 1 : 2"></td>
+
                     <td v-if="hasUnits">
                         <label class="label-padding">{{ getCurUnit(vertTableFieldObject.single) }}</label>
                     </td>
@@ -94,6 +103,14 @@
                                 title="History"
                         ><img src="/assets/img/history.png" width="20" height="20"></button>
                     </td>
+                </tr>
+                <tr v-if="tooltip_pos === 'down' && vertTableFieldObject.single.tooltip_show && vertTableFieldObject.single.tooltip ">
+                    <td><vertical-table-border :level="vertTableFieldObject.level"></vertical-table-border></td>
+                    <td>
+                        <span class="tooltip-class" :style="headerTitleStyle(vertTableFieldObject)">{{ vertTableFieldObject.single.tooltip }}</span>
+                    </td>
+                    <td v-if="hasUnits"></td>
+                    <td v-if="canSeeHistory && widths.history"></td>
                 </tr>
             </template>
             <!--SINGLE COLUMN-->
@@ -122,6 +139,7 @@
                                     :no_ddl_colls="no_ddl_colls"
                                     :with_edit="with_edit"
                                     :is-add-row="isAddRow"
+                                    :hide-names="hideNames"
                                     @show-add-ref-cond="showAddRefCond"
                                     @show-src-record="showSrcRecord"
                                     @updated-cell="updatedCell"
@@ -136,51 +154,97 @@
             </template>
             <!--COLUMNS ARE GROUPED IN TABLE-->
 
+            <!--DCR LINKED TABLE-->
+            <template v-if="vertTableFieldObject.dcr_linked">
+                <tr v-if="vertTableFieldObject.dcr_linked.header">
+                    <td colspan="2" :style="{backgroundColor: vert_bg_avail ? vertTableFieldObject.single.header_background || vert_bg_color : null}">
+                        <vertical-table-border
+                            v-if="vertTableFieldObject.dcr_linked.style == 'Default'"
+                            :level="vertTableFieldObject.level"
+                        ></vertical-table-border>
+                        <label :style="getLabelStyle(vertTableFieldObject.level)">
+                            <span>{{ vertTableFieldObject.dcr_linked.header }}</span>
+                        </label>
+                    </td>
+                    <td v-if="hasUnits"></td>
+                    <td v-if="canSeeHistory && widths.history"></td>
+                </tr>
+                <tr>
+                    <td v-if="vertTableFieldObject.dcr_linked.style == 'Default'">
+                        <vertical-table-border :level="vertTableFieldObject.level"></vertical-table-border>
+                    </td>
+                    <td :colspan="vertTableFieldObject.dcr_linked.style == 'Default' ? 1 : 2">
+                        <vertical-linked-table
+                            :parent-row-id="tableRow.id"
+                            :linked-rows-object="dcrLinkedRows"
+                            :dcr-linked-table="vertTableFieldObject.dcr_linked"
+                            :with_edit="with_edit"
+                            @linked-update="$emit('linked-update')"
+                        ></vertical-linked-table>
+                    </td>
+                    <td v-if="hasUnits"></td>
+                    <td v-if="canSeeHistory && widths.history"></td>
+                </tr>
+            </template>
+            <!--DCR LINKED TABLE-->
+
         </template>
         </tbody>
+
+        <div v-if="row_menu_show && row_menu.row && row_menu.hdr"
+             ref="row_menu"
+             class="float-rom-menu"
+             :style="rowMenuStyle"
+        >
+            <a v-if="row_menu.hdr" @click="copyCell(row_menu.row, row_menu.hdr);row_menu_show = false;">Copy Cell</a>
+        </div>
     </table>
 </template>
 
 <script>
-    import {UnitConversion} from './../../classes/UnitConversion';
-    import {SelectedCells} from './../../classes/SelectedCells';
-    import {VerticalTableFldObject} from './VerticalTableFldObject';
+import {UnitConversion} from '../../classes/UnitConversion';
+import {SelectedCells} from '../../classes/SelectedCells';
+import {VerticalTableFldObject} from './VerticalTableFldObject';
 
-    import ReactiveProviderMixin from '../_CommonMixins/ReactiveProviderMixin.vue';
-    import SortFieldsForVerticalMixin from '../_Mixins/SortFieldsForVerticalMixin.vue';
-    import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import SortFieldsForVerticalMixin from '../_Mixins/SortFieldsForVerticalMixin.vue';
+import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import CellMenuMixin from "../_Mixins/CellMenuMixin";
 
-    import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
-    import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
-    import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
-    import CustomCellCorrespTableData from "../CustomCell/CustomCellCorrespTableData.vue";
-    import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
-    import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
-    import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
-    import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
-    import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
-    import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
-    import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
-    import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
-    import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
-    import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
-    import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
-    import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
-    import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
-    import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
-    import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
+import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
+import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
+import CustomCellCorrespTableData from "../CustomCell/CustomCellCorrespTableData.vue";
+import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
+import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
+import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
+import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
+import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
+import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
+import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
+import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
+import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
+import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
+import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
+import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
+import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
 
-    import VerticalTableBorder from "./VerticalTableBorder";
-    import VerticalTableGroupedTb from "./VerticalTableGroupedTb";
+import VerticalTableBorder from "./VerticalTableBorder";
+import VerticalTableGroupedTb from "./VerticalTableGroupedTb";
+import VerticalLinkedTable from "./VerticalLinkedTable";
 
-    export default {
+import {eventBus} from "../../app";
+
+export default {
         name: "VerticalTable",
         mixins: [
-            ReactiveProviderMixin,
             SortFieldsForVerticalMixin,
             CellStyleMixin,
+            CellMenuMixin,
         ],
         components: {
+            VerticalLinkedTable,
             VerticalTableGroupedTb,
             VerticalTableBorder,
             CustomCellTableData,
@@ -190,6 +254,7 @@
             CustomCellDisplayLinks,
             CustomCellSettingsDdl,
             CustomCellSettingsPermission,
+            CustomCellSettingsDcr,
             CustomCellColRowGroup,
             CustomCellKanbanSett,
             CustomCellRefConds,
@@ -209,11 +274,6 @@
                 hdr_margin_lft: 15,
             };
         },
-        provide() {
-            return {
-                reactive_provider: this.reactive_provider,
-            }
-        },
         props:{
             tb_id: String,
             settingsMeta: {
@@ -230,6 +290,10 @@
                 type: Number,
                 default: 0
             },
+            tooltip_pos: {
+                type: String,
+                default: 'up'
+            },
             user: Object,
             forbiddenColumns: {
                 type: Array,
@@ -238,6 +302,8 @@
                 }
             },
             availableColumns: Array,
+            hideNames: Array,
+            hideBorders: Array,
             td: String,
             behavior: String,
             widths: {
@@ -246,8 +312,8 @@
                     return {
                         name: '30%',
                         col: '60%',
-                        history: '5%',
-                        unit: '5%',
+                        history: '35px',
+                        unit: '45px',
                     };
                 }
             },
@@ -261,17 +327,17 @@
                 type: Boolean,
                 default: true
             },
-            fixed_ddl_pos: {
-                type: Boolean,
-                default: true
-            },
             disabled_sel: Boolean,
             no_height_limit: Boolean,
+            dcrObject: Object,
+            dcrLinkedRows: Object,
+            parentRow: Object,
         },
         watch: {
             tableRow: {
                 handler(val) {
-                    this.sortedTableMetaFields = this.createSortedTableMetaFields(this.tableMeta._fields);
+                    let vertObjects = this.createSortedTableMetaFields(this.tableMeta._fields);
+                    this.sortedTableMetaFields = this.prepareDcrLinked(vertObjects);
                     this.$emit('showed-elements', this.sortedTableMetaFields.length);
                 },
                 immediate: true,
@@ -309,9 +375,24 @@
             },
         },
         methods: {
+            nameNotHidden(tableHeader, targettopbot) {
+                return (targettopbot === !!tableHeader.is_topbot_in_popup)
+                    &&
+                    tableHeader.fld_display_name
+                    &&
+                    (!this.hideNames || this.hideNames.indexOf(tableHeader.field) > -1);
+            },
+            valueNotHidden(tableHeader) {
+                return !!tableHeader.fld_display_value;
+            },
+            checkNoBorder(tableHeader) {
+                let noborder = !tableHeader.fld_display_border
+                    || (this.hideBorders && this.hideBorders.indexOf(tableHeader.field) > -1);
+                return noborder ? {border: 'none'} : null;
+            },
             headerTitleStyle(vertTableFieldObject) {
                 let style = _.cloneDeep(this.textStyle);
-                style.fontSize = Number(this.$root.themeTextFontSize-2) + 'px';
+                style.fontSize = Number(this.themeTextFontSize-2) + 'px';
                 style.textAlign = 'left' /* || vertTableFieldObject.single.col_align || 'right'*/;
                 return style;
             },
@@ -325,7 +406,7 @@
              */
             createSortedTableMetaFields(fields) {
                 let fld_objects = this.sortAndFilterFields(this.tableMeta, fields, this.tableRow, !!this.is_def_fields);
-                let all_is_single = this.behavior === 'kanban_view' && !this.tableMeta.kanban_form_table;
+                let all_is_single = (this.behavior === 'kanban_view' && !this.tableMeta.kanban_form_table);
                 //level headers
                 return VerticalTableFldObject.buildSubHeaders(fld_objects, all_is_single);
             },
@@ -346,7 +427,7 @@
             },
             getSubHdrStyle(level) {
                 let style = _.cloneDeep(this.textStyle);
-                style.fontSize = Number(this.$root.themeTextFontSize+4) + 'px';
+                style.fontSize = Number(this.themeTextFontSize+4) + 'px';
                 return style;
             },
             //sys methods
@@ -370,6 +451,43 @@
             showAddDDLOption(tableHeader, tableRow) {
                 this.$emit('show-add-ddl-option', tableHeader, tableRow);
             },
+
+            //Dcr Linked tables
+            /**
+             *
+             * @param vertObjects {Array} of {VerticalTableFldObject}
+             * @returns {Array} of {VerticalTableFldObject}
+             */
+            prepareDcrLinked(vertObjects) {
+                _.each(vertObjects, (verticalTableFldObject) => {
+                    verticalTableFldObject.dcr_linked = this.foundLinkedDcr(verticalTableFldObject);
+                });
+                return vertObjects;
+            },
+            /**
+             *
+             * @param verticalTableFldObject {VerticalTableFldObject}
+             */
+            foundLinkedDcr(verticalTableFldObject) {
+                if (!this.dcrObject || !this.dcrLinkedRows || !this.dcrObject._dcr_linked_tables) {
+                    return null;
+                }
+
+                let ids = null;
+                if (verticalTableFldObject) {
+                    ids = verticalTableFldObject.single
+                        ? [verticalTableFldObject.single.id]
+                        : _.map(verticalTableFldObject.group || [], 'id');
+                }
+
+                return _.find(this.dcrObject._dcr_linked_tables, (link_tb) => {
+                    return link_tb.is_active
+                        && link_tb.linked_table_id
+                        && (!ids
+                            ? !link_tb.position_field_id
+                            : ids.indexOf(link_tb.position_field_id) > -1);
+                });
+            },
         },
         mounted() {
             this.$set(this.tableRow, '_check_sign', uuidv4());
@@ -386,19 +504,22 @@
                 this.updatedCell(this.tableRow);
             }
 
-            this.reactive_provider_watcher(['behavior', 'allRows', 'is_def_fields', 'fixed_ddl_pos', 'no_height_limit']);
+            eventBus.$on('global-click', this.clickHandler);
         },
         beforeDestroy() {
+            eventBus.$off('global-click', this.clickHandler);
         }
     }
 </script>
 
 <style lang="scss" scoped>
     .spaced-table {
+        height: min-content;
         width: 100%;
         border-collapse: separate;
         border-spacing: 0 7px;
         position: relative;
+        table-layout: fixed;
 
         td {
             padding: 0;
@@ -417,6 +538,10 @@
             border: 1px solid #CCC;
             border-radius: 4px;
         }
+        .cell-btn {
+            max-width: 100%;
+            padding: 5px;
+        }
     }
     .tooltip-class {
         position: relative;
@@ -425,5 +550,24 @@
         line-height: 1;
         color: #333;
         display: block;
+    }
+
+    .float-rom-menu {
+        position: fixed;
+        z-index: 5000;
+        text-align: left;
+        background-color: #333;
+
+        a {
+            display: block;
+            color: #FFF;
+            padding: 1px 5px;
+            cursor: pointer;
+            text-decoration: none;
+
+            &:hover {
+                background-color: #555;
+            }
+        }
     }
 </style>

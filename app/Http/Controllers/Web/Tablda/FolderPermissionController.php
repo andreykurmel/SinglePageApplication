@@ -10,6 +10,8 @@ use Vanguard\Http\Requests\Tablda\FolderPermission\FolderPermissionDeleteRequest
 use Vanguard\Http\Requests\Tablda\FolderPermission\SetFolderPermissionsRequest;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Repositories\Tablda\Permissions\FolderPermissionRepository;
+use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
+use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\FolderService;
 use Vanguard\User;
 
@@ -35,6 +37,9 @@ class FolderPermissionController extends Controller
         $user_group = $this->folderPermissionRepository->getUserGroup($request->user_group_id);
         if (auth()->id() == $user_group->user_id)
         {
+            $user_ids = (new UserGroupRepository())->getGroupUsrFields($user_group->id, 'id');
+            (new UserRepository())->newMenutreeHash($user_ids);
+
             $this->folderPermissionRepository->updatePermissions($user_group, $request->is_active, $request->is_app, $request->old_tables, $request->checked_tables);
             return $user_group->_tables_shared()->get();
         } else {

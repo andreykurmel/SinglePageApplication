@@ -2,7 +2,6 @@
     <div
         ref="formula_button"
         class="formula-helper"
-        :class="[show_big_popup ? 'popup-wrapper' : '']"
         :style="wrapStyle"
         @click.self="hide()"
         @contextmenu.stop=""
@@ -177,7 +176,7 @@
                                         <label>{{ param.name }}:</label>
                                         <div v-if="param.type == 'fld' || param.type == 'all'">
                                             <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="param.use_column_name = !param.use_column_name;">
+                                                <span class="indeterm_check" @click="useColumnNameChecked(param)">
                                                     <i v-if="param.use_column_name" class="glyphicon glyphicon-ok group__icon"></i>
                                                 </span>
                                             </span>
@@ -187,12 +186,12 @@
                                     <div class="flex flex--center">
                                         <select v-if="param.type.indexOf('fld') > -1"
                                                 class="form-control"
-                                                v-model="param.fld_val"
+                                                v-model="param.fld_name"
                                                 @change="fldValueOption(param)"
                                         >
-                                            <option v-for="fld in getTableFields()"
-                                                    :value="(fld.formula_symbol && !param.use_column_name ? fld.formula_symbol : fld.name)"
-                                            >{{ fld.name + (fld.formula_symbol ? '('+fld.formula_symbol+')' : '') }}</option>
+                                            <option v-for="fld in getTableFields()" :value="prepName(fld.name)">
+                                                <span>{{ fld.name + (fld.formula_symbol ? '('+fld.formula_symbol+')' : '') }}</span>
+                                            </option>
                                         </select>
 
                                         <label style="margin: 0" v-if="param.type.indexOf(',') > -1"> OR </label>
@@ -249,7 +248,7 @@
     import {eventBus} from '../../../app';
 
     import PopupAnimationMixin from './../../_Mixins/PopupAnimationMixin';
-    import MixinSmartPosition from './../Selects/MixinSmartPosition';
+    import MixinSmartPosition from '../../_Mixins/MixinSmartPosition';
 
     import SelectWithFolderStructure from "./SelectWithFolderStructure";
     import TextareaAutosize from "./TextareaAutosize";
@@ -272,7 +271,7 @@
         ],
         data: function () {
             return {
-                clear_text: false,
+                clear_text: true,
                 available_math_methods: {
                     'sqrt': 'Sqrt ($Number)',
                     'pow': 'Pow ($Number, $Pow)',
@@ -285,8 +284,11 @@
                     'today': 'Today ($Timezone, $Format)',
                     'timechange': 'TimeChange ($Timestart, $Change, $Amount)',
                     'duration': 'Duration ($Timefrom, $Timeto)',
+                    'andx': 'ANDX ($Condition1, $Condition2, ...)',
+                    'orx': 'ORX ($Condition1, $Condition2, ...)',
                     'if': 'If ($Condition, $Do_if_true, $Do_if_false)',
                     'switch': 'Switch ($Condition, [$Case1, $Case2, ...], [$Do1, $Do2, ...])',
+                    'isempty': 'Isempty ($Field1, $Value1, $Value2)',
                     'asum': 'ASUM ($Field1, $Field2, ...)',
                     'amin': 'AMIN ($Field1, $Field2, ...)',
                     'amax': 'AMAX ($Field1, $Field2, ...)',
@@ -318,7 +320,6 @@
                 selectionStart: -1,
 
                 oldFuncValue: null,
-                use_column_name: false,
                 add_type: 'field',
                 filter_str: '',
                 filter_elem_val: '',
@@ -327,6 +328,7 @@
                 prevent_one: !this.no_prevent,
 
                 //PopupAnimationMixin
+                getPopupHeight: 'auto',
                 getPopupWidth: this.pop_width || 500,
                 anim_opac: 1,
                 idx: 0,
@@ -339,11 +341,13 @@
             tableHeader: Object,
             headerKey: String,
             canEdit: Boolean,
-            fixedPos: Boolean,
+            fixed_pos: Boolean,
+            foreign_element: HTMLElement,
             noFunction: Boolean,
             uuid: String,
             pop_width: String,
             no_prevent: Boolean,
+            no_uniform: Boolean,
         },
         watch: {
             tableRow(val) {
@@ -354,7 +358,7 @@
         computed: {
             wrapStyle() {
                 let style = this.ItemsListStyle();
-                style.position = (this.fixedPos || this.show_big_popup ? 'fixed' : 'absolute');
+                style.position = (this.fixed_pos || this.show_big_popup ? 'fixed' : 'absolute');
                 return style;
             },
             funcString() {
@@ -413,7 +417,8 @@
                 return String(name).replace(/[^\w\d]/gi,'');
             },
             isSelData(data, fld) {
-                return this.prepName(data) === this.prepName(fld.formula_symbol || fld.name);
+                return this.prepName(data) == this.prepName(fld.formula_symbol)
+                    || this.prepName(data) == this.prepName(fld.name);
             },
             showPopupBig() {
                 this.show_big_popup = true;
@@ -431,8 +436,8 @@
                 return !this.$root.in_array(fld.field, this.$root.systemFieldsNoId)
                     && (
                         !this.filter_str
-                        || this.prepName(fld.formula_symbol).indexOf(this.filter_str) === 0
-                        || this.prepName(fld.name).indexOf(this.filter_str) === 0
+                        || this.prepName(fld.formula_symbol).toLowerCase().indexOf(this.filter_str) === 0
+                        || this.prepName(fld.name).toLowerCase().indexOf(this.filter_str) === 0
                     );
             },
             filterFunc(func) {
@@ -441,17 +446,27 @@
             },
 
             //Preparers
-            ckbValueOption(param) {
-                if (param.fld_val) {
-                    this.fldValueOption(param);
-                }
+            useColumnNameChecked(param) {
+                param.use_column_name = !param.use_column_name;
+                this.fldValueOption(param);
             },
             fldValueOption(param) {
-                param.input_val = '';
-                param.val = '{'+param.fld_val+'}';
+                _.each(this.getTableFields(), (fld) => {
+                    if (
+                        param.fld_name == this.prepName(fld.formula_symbol)
+                        || param.fld_name == this.prepName(fld.name)
+                    ) {
+                        param.fld_name = this.prepName(fld.name);
+                        param.fld_symb = this.prepName(fld.formula_symbol);
+                    }
+                });
+
+                let sign = (param.fld_symb && !param.use_column_name ? param.fld_symb : param.fld_name);
+                param.val = '{'+sign+'}';
+                param.input_val = '{'+sign+'}';
             },
             inputValueOption(param) {
-                param.fld_val = null;
+                param.fld_name = null;
                 param.val = '"'+(param.input_val)+'"';
             },
             mselectChanged(item, param) {
@@ -462,20 +477,24 @@
                     arrays.push(item);
                 }
                 param.input_val = JSON.stringify(arrays);
-                param.fld_val = null;
+                param.fld_name = null;
                 param.val = this.jsonPrepared(param.input_val);
             },
 
             //Formula Helper Functions
-            getParam(name,val,type,options) {
+            getParam(name,val,type,additionals) {
+                additionals = additionals || {};
                 return {
                     name: name,
-                    fld_val: null,
+                    fld_name: null,
+                    fld_symb: null,
                     input_val: val || '',
-                    val: val ? '"'+val+'"' : undefined,
-                    type: type || 'fld', //avail: 'fld','input','select'
+                    val: additionals.force_val
+                        ? '"'+val+'"'
+                        : (val ? '"'+val+'"' : undefined),
+                    type: type || 'fld', //avail: 'fld','input','select','multi-sel'
                     use_column_name: false,
-                    sel_options: options || [],
+                    sel_options: additionals.options || [],
                 };
             },
             changedFunction() {
@@ -484,7 +503,10 @@
                         this.formulaParams = [ this.getParam('Number') ];
                         break;
                     case 'pow':
-                        this.formulaParams = [ this.getParam('Number'), this.getParam('Pow',2,'input') ];
+                        this.formulaParams = [
+                            this.getParam('Number'),
+                            this.getParam('Pow',2,'input')
+                        ];
                         break;
                     case 'yrday':
                     case 'moday':
@@ -494,22 +516,54 @@
                         break;
                     case 'month':
                     case 'wkday':
-                        this.formulaParams = [ this.getParam('Date'), this.getParam('Argument','Number','select',['Number','Name']) ];
+                        this.formulaParams = [
+                            this.getParam('Date'),
+                            this.getParam('Argument','Number','select',{options: ['Number','Name']})
+                        ];
                         break;
                     case 'today':
-                        this.formulaParams = [ this.getParam('Timezone',this.user.timezone,'input'), this.getParam('Format','Y-m-d','input') ];
+                        this.formulaParams = [
+                            this.getParam('Timezone',this.user.timezone,'input'),
+                            this.getParam('Format','Y-m-d','input')
+                        ];
                         break;
                     case 'timechange':
-                        this.formulaParams = [ this.getParam('Timestart'), this.getParam('Change','Add','select',['Add','Substract']), this.getParam('Amount') ];
+                        this.formulaParams = [
+                            this.getParam('Timestart'),
+                            this.getParam('Change','Add','select',{options: ['Add','Substract']}),
+                            this.getParam('Amount')
+                        ];
                         break;
                     case 'duration':
-                        this.formulaParams = [ this.getParam('Timefrom'), this.getParam('Timeto') ];
+                        this.formulaParams = [
+                            this.getParam('Timefrom'),
+                            this.getParam('Timeto')
+                        ];
+                        break;
+                    case 'isempty':
+                        this.formulaParams = [
+                            this.getParam('Field'),
+                            this.getParam('Value1','','input', {force_val: true}),
+                            this.getParam('Value2','','input', {force_val: true})
+                        ];
                         break;
                     case 'if':
-                        this.formulaParams = [ this.getParam('Condition','','input'), this.getParam('If True','','input'), this.getParam('If False','','input') ];
+                        this.formulaParams = [
+                            this.getParam('Condition','','input'),
+                            this.getParam('If True','','input'),
+                            this.getParam('If False','','input')
+                        ];
                         break;
                     case 'switch':
-                        this.formulaParams = [ this.getParam('Condition','','input'), this.getParam('Cases','["first"]','input'), this.getParam('Methods','[Today()]','input') ];
+                        this.formulaParams = [
+                            this.getParam('Condition','','input'),
+                            this.getParam('Cases','["first"]','input'),
+                            this.getParam('Methods','[Today()]','input')
+                        ];
+                        break;
+                    case 'andx':
+                    case 'orx':
+                        this.formulaParams = [ this.getParam('Conditions','','multi-sel') ];
                         break;
                     case 'asum':
                     case 'amin':
@@ -535,7 +589,7 @@
                     default: this.formulaParams = [];
                 }
             },
-            getTableFields(type) {
+            getTableFields() {
                 if (!this.formulaFunc) {
                     return [];
                 }
@@ -593,6 +647,7 @@
                 let is_header_sett = this.headerKey === 'f_formula';
                 if (
                     !is_header_sett
+                    && !this.no_uniform
                     && this.tableMeta._is_owner
                     && this.tableHeader
                     && this.tableHeader.is_uniform_formula
@@ -701,7 +756,10 @@
                 this.add_type = 'function';
                 this.formulaFunc = String(eve.data).replace(/[\s]*\(.*\)/gi, '').toLowerCase();
                 this.changedFunction();
-                let argums = String(eve.data).replace(/[^\(]*\(/, '').replace(')', '');
+                let argums = String(eve.data)
+                    .replace(/,(?=[^\{]*\})/, '') //remove ',' in {field,Nested}
+                    .replace(/[^\(]*\(/, '')
+                    .replace(')', '');
                 _.each(this.formulaParams, (prm, i) => {
                     let vVal = this.formulaParams.length == 1
                         ? _.trim( argums )
@@ -710,23 +768,21 @@
                         if (this.isRefFunction) {
                             vVal = this.prepName(vVal);
                             if (i == 0) {
-//                                this.formulaRefCond = (vVal === '$this'
-//                                    ? {name: '$this', _ref_table: tableMeta}
-//                                    : _.find(this.tableMeta._ref_conditions, {name: vVal}));
                                 this.formulaRefCond = _.find(this.tableMeta._ref_conditions, {name: vVal});
                             }
                             if (this.formulaRefCond && i == 1) {
-                                this.formulaField = _.find(this.formulaRefCond._ref_table._fields, (fld) => {
+                                let fnd = _.find(this.formulaRefCond._ref_table._fields, (fld) => {
+                                    console.log(this.prepName(fld.name) , vVal);
                                     return this.prepName(fld.name) === vVal;
                                 });
+                                this.formulaField = fnd ? '{'+fnd.name+'}' : null;
                             }
                         } else {
                             if (prm.type === 'multi-sel') {
                                 vVal = this.jsonPrepared(vVal, true);
                             }
-                            prm.val = vVal;
-                            prm.fld_val = vVal.substr(1, vVal.length-2);
-                            prm.input_val = vVal.substr(1, vVal.length-2);
+                            prm.fld_name = vVal.substr(1, vVal.length-2);
+                            this.fldValueOption(prm);
                         }
                     }
                 });
@@ -767,6 +823,9 @@
                 return html;
             },
             contentPress(eve) {
+                if ([8,16].indexOf(eve.keyCode) > -1) {
+                    return; // ignore: 'backspace','shift'.
+                }
                 if (eve.ctrlKey) {
                     if (eve.key === 'c') {
                         SpecialFuncs.strToClipboard( this.getNodesValue() );
@@ -777,18 +836,20 @@
                 let bnode = sel ? sel.baseNode : {};
                 let key = eve.key.length == 1 ? eve.key : '';
                 let node_val = String( (bnode.nodeValue || bnode.value || bnode.innerText) ).substr( 0, sel.baseOffset ) + key;
-                let match = String(node_val).match(/[^{a-zA-z]*([{a-zA-z]*)$/i);
+                let match = String(node_val).match(/[^\{a-zA-Z]*([\{a-zA-Z]*)$/i);
                 if (match && match[1]) {
                     if (match[1][0] == '{') {
                         //column
                         this.add_type = 'field';
                         this.filter_str = String(match[1]).substr(1).toLowerCase();
-                    } else {
+                    } else if( String(match[1][0] || '').match(/[a-z]/i) ) {
                         //funcs
                         this.add_type = 'function';
                         this.filter_str = String(match[1]).toLowerCase();
                     }
                     this.filter_elem_val = String(node_val);
+                } else {
+                    this.filter_str = '';
                 }
             },
         },
@@ -798,7 +859,7 @@
         },
         mounted() {
             this.smart_wrapper = 'formula_button';
-            this.smart_limit = 60;
+            this.smart_limit = this.foreign_element ? 190 : 60;
             this.showItemsList();
         },
         beforeDestroy() {
@@ -824,6 +885,7 @@
 
         .content_input {
             overflow: auto;
+            text-align: left;
 
              select {
                  font-family: monospace;

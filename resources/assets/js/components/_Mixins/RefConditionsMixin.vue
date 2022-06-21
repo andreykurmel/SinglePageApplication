@@ -12,8 +12,8 @@
         data: function () {
             return {
                 rc_for_copy: null,
-                selectedRefGroup: -1,
-                selectedRefItem: -1,
+                selectedRefGroup: 0,
+                selectedRefItem: 0,
                 selectedRefColumns: _.concat([
                     'table_field_id',
                     'compared_operator',
@@ -40,7 +40,11 @@
                 let arr = ['item_type','logic_operator','table_field_id',
                     'compared_operator','compared_field_id','compared_value',
                     'group_clause','group_logic'];
-                if (this.selectedRefGroup > -1 && this.selectedRefItem > -1 && this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
+                if (
+                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]
+                    &&
+                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items[this.selectedRefItem]
+                ) {
                     switch (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items[this.selectedRefItem].item_type) {
                         case 'P2S': arr = ['item_type','logic_operator','compared_value','group_clause','group_logic'];
                             break;
@@ -52,13 +56,13 @@
             },
             refRow() {
                 let res = {};
-                if (this.selectedRefGroup > -1 && this.selectedRefItem > -1) {
+                if (this.selectedRefCondItems[this.selectedRefItem]) {
                     res = this.selectedRefCondItems[this.selectedRefItem];
                 }
                 return res;
             },
             ref_tb_from_refcond() {
-                if (this.selectedRefGroup > -1 && this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
+                if (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
                     return this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._ref_table;
                 } else {
                     return {_fields: []};
@@ -66,7 +70,7 @@
             },
             selectedRefCondItems() {
                 let sel_items = [];
-                if (this.selectedRefGroup > -1 && this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
+                if (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
                     sel_items = _.orderBy(this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items, ['group_clause']);
                 }
                 return sel_items;
@@ -107,7 +111,7 @@
 
             //Table Ref Condition Functions
             addRefGroup(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
 
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
@@ -123,11 +127,11 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
             updateRefGroup(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
 
                 let group_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
@@ -141,19 +145,6 @@
                     if (idx > -1) {
                         if (tableRow._changed_field === 'ref_table_id') {
                             eventBus.$emit('reload-meta-table');
-                            /*this.rcm_tableMeta._row_groups = _.filter(this.rcm_tableMeta._row_groups, (rg) => {
-                                return rg.row_ref_condition_id != data.id;
-                            });
-                            _.each(this.rcm_tableMeta._fields, (fld) => {
-                                fld._links = _.filter(fld._links, (rg) => {
-                                    return rg.table_ref_condition_id != data.id;
-                                });
-                            });
-                            _.each(this.rcm_tableMeta._ddls, (ddl) => {
-                                ddl._references = _.filter(ddl._references, (rg) => {
-                                    return rg.table_ref_condition_id != data.id;
-                                });
-                            });*/
                         }
                         this.rcm_tableMeta._ref_conditions[idx] = data;
                     }
@@ -166,11 +157,11 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
             deleteRefGroup(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
                 axios.delete('/ajax/ref-condition', {
                     params: {
                         table_ref_condition_id: tableRow.id
@@ -208,13 +199,13 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
 
             //Table Ref Condition Item Functions
             addRefGroupItem(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
 
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
@@ -228,11 +219,11 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
             updateRefGroupItem(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
 
                 let group_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
@@ -250,11 +241,11 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
             deleteRefGroupItem(tableRow) {
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
                 axios.delete('/ajax/ref-condition/item', {
                     params: {
                         table_ref_condition_item_id: tableRow.id
@@ -266,7 +257,7 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
 

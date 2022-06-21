@@ -16,6 +16,7 @@ class AddActiveLinksToTableFields extends Migration
         Schema::table('table_fields', function (Blueprint $table) {
             $table->tinyInteger('active_links')->default(0);
             $table->tinyInteger('kanban_group')->default(0);
+            $table->string('kanban_field_name', 128)->nullable();
         });
     }
 
@@ -29,6 +30,7 @@ class AddActiveLinksToTableFields extends Migration
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('active_links');
             $table->dropColumn('kanban_group');
+            $table->dropColumn('kanban_field_name');
         });
     }
 }

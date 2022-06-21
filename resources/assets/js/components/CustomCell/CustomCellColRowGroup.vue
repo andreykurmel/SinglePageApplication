@@ -17,7 +17,10 @@
                         </span>
                     </span>
 
-                    <a v-else-if="tableHeader.field === 'row_ref_condition_id'" @click.stop="showAddRefCond(tableRow.row_ref_condition_id)">{{ showField() }}</a>
+                    <a v-else-if="tableHeader.field === 'row_ref_condition_id'"
+                       title="Open ref condition in popup."
+                       @click.stop="showAddRefCond(tableRow.row_ref_condition_id)"
+                    >{{ showField() }}</a>
 
                     <div v-else="">{{ showField() }}</div>
 
@@ -38,7 +41,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="isVertTable ? 'Add New' : ''"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -48,7 +51,7 @@
 
             <!--Other Cells-->
             <input
-                    v-else-if="inArray(tableHeader.field, ['name', 'notes'])"
+                    v-else-if="inArray(tableHeader.field, ['name', 'description', 'notes'])"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit();updateValue()"
                     ref="inline_input"
@@ -64,13 +67,13 @@
 </template>
 
 <script>
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    export default {
+export default {
         name: "CustomCellColRowGroup",
         mixins: [
             Select2DDLMixin,
@@ -79,12 +82,6 @@
         components: {
             TabldaSelectSimple,
             SelectWithFolderStructure,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -217,7 +214,7 @@
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 
     .folder-option {

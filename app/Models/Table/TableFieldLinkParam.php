@@ -5,6 +5,17 @@ namespace Vanguard\Models\Table;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableFieldLinkParam
+ *
+ * @property int $id
+ * @property int $table_field_link_id
+ * @property string $param
+ * @property string|null $value
+ * @property int|null $column_id
+ * @property-read \Vanguard\Models\Table\TableFieldLink $_field
+ * @mixin \Eloquent
+ */
 class TableFieldLinkParam extends Model
 {
     protected $table = 'table_field_link_params';

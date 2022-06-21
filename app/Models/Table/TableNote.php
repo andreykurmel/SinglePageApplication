@@ -5,6 +5,25 @@ namespace Vanguard\Models\Table;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableNote
+ *
+ * @property int $id
+ * @property int $user_id
+ * @property int $table_id
+ * @property string $notes
+ * @property int|null $created_by
+ * @property string|null $created_name
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string|null $modified_name
+ * @property string $modified_on
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Vanguard\User $_user
+ * @mixin \Eloquent
+ */
 class TableNote extends Model
 {
     protected $table = 'table_notes';

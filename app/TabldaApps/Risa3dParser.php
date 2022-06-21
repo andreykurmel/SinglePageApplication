@@ -149,9 +149,11 @@ class Risa3dParser
 
     /**
      * Risa3dParser constructor.
+     * @param string $file_content
      */
-    public function __construct()
+    public function __construct(string $file_content = '')
     {
+        $this->file_text = $file_content;
         $this->matFromSection = array_flip($this->sectionFromMat);
     }
 
@@ -273,9 +275,10 @@ class Risa3dParser
      * Parse provided segment.
      *
      * @param string $subsegment
+     * @param bool $light
      * @return array
      */
-    protected function subsegment_parse(string $subsegment)
+    public function subsegment_parse(string $subsegment, bool $light = false)
     {
         $subsegment = strtoupper($subsegment);
         $parse_params = $this->getParseParams($subsegment);
@@ -291,6 +294,10 @@ class Risa3dParser
                 preg_match($parse_params, $record . " ", $matchs) and trim($record) != ""
             ) {
                 $matchs = $this->clearNumericMatches($matchs);
+                if ($light) {
+                    $result[] = $matchs;
+                    continue;
+                }
 
                 //additional functions
                 switch ($subsegment) {
@@ -356,7 +363,7 @@ class Risa3dParser
      * @param string $text
      * @return null|string
      */
-    protected function get_record_value($key, $text = "")
+    public function get_record_value($key, $text = "")
     {
         $text = $text ?: $this->file_text;
 
@@ -530,7 +537,7 @@ class Risa3dParser
      * @return string
      * @throws \Exception
      */
-    protected function getParseParams(string $subsegment)
+    public function getParseParams(string $subsegment)
     {
         switch ($subsegment) {
             case 'VERSION_NUMBER':
@@ -1307,7 +1314,7 @@ class Risa3dParser
                     . "(?P<g>-?\d+) +"
                     . "(?P<h>-?\d+) +"
                     . "(?P<i>-?\d+) +"
-                    . "(?P<j>..*?) #";
+                    . "(?P<j>.*) #";
                 break;
 
 
@@ -1425,7 +1432,7 @@ class Risa3dParser
                     . "(?P<s>[-0-9+eE\.]+) +"
                     . "(?P<t>[-0-9+eE\.]+) +"
                     . "(?P<u>[-0-9+eE\.]+) +"
-                    . "(?P<v>..*?) #";
+                    . "(?P<v>.*) #";
                 break;
 
 
@@ -1440,7 +1447,7 @@ class Risa3dParser
                     . "(?P<f>..*?) +"
                     . "(?P<g>-?\d+) +"
                     . "(?P<h>..*?) +"
-                    . "(?P<i>..*?) #";
+                    . "(?P<i>.*) #";
                 break;
 
 
@@ -1474,7 +1481,7 @@ class Risa3dParser
                     . "(?P<x3>[-0-9+eE\.]+) +"
                     . "(?P<x4>[-0-9+eE\.]+) +"
                     . "(?P<x5>[-0-9+eE\.]+)+"
-                    . "(?P<x6> ..*)#";
+                    . "(?P<x6>.*) #";
                 break;
 
 
@@ -1488,7 +1495,7 @@ class Risa3dParser
                     . "(?P<e>-?\d+) +"
                     . "(?P<f_ff>[-0-9+eE\.]+) +"
                     . "(?P<g_gg>[-0-9+eE\.]+) +"
-                    . "(?P<h_hh>..*?) #";
+                    . "(?P<h_hh>.*) #";
                 break;
 
 

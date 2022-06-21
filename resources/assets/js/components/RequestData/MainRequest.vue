@@ -1,86 +1,97 @@
 <template>
     <div id="tables" class="full-frame" :style="{overflow: scrlFlow ? 'auto' : 'hidden'}">
-        <template v-if="tablePermission.pass && !pass">
+        <template v-if="dcrObject.pass && !pass">
 
-            <request-pass-pop-up :table_permission_id="tablePermission.id" @pass-popup-close="setPass"></request-pass-pop-up>
+            <request-pass-pop-up :table_request_id="dcrObject.id" @pass-popup-close="setPass"></request-pass-pop-up>
 
         </template>
         <template v-else>
 
             <div v-if="$root.tableMeta.id" class="dcr_wrap flex flex--col" :style="{backgroundColor: getBgCol('dcr_sec_bg_bot')}">
 
-                <img v-if="tablePermission.dcr_sec_bg_img"
+                <img v-if="dcrObject.dcr_sec_bg_img"
                      class="dcr-title--item item__img"
-                     :src="$root.fileUrl({url:tablePermission.dcr_sec_bg_img})"
+                     :src="$root.fileUrl({url:dcrObject.dcr_sec_bg_img})"
                      style="z-index: auto;position: fixed;"
                      :style="{
-                        height: (['Height','Fill'].indexOf(tablePermission.dcr_sec_bg_img_fit) > -1 ? '100%' : null),
-                        width: (['Width','Fill'].indexOf(tablePermission.dcr_sec_bg_img_fit) > -1 ? '100%' : null),
-                        objectFit: (tablePermission.dcr_sec_bg_img_fit === 'Fill' ? 'cover' : null),
+                        height: (['Height','Fill'].indexOf(dcrObject.dcr_sec_bg_img_fit) > -1 ? '100%' : null),
+                        width: (['Width','Fill'].indexOf(dcrObject.dcr_sec_bg_img_fit) > -1 ? '100%' : null),
+                        objectFit: (dcrObject.dcr_sec_bg_img_fit === 'Fill' ? 'cover' : null),
                      }"
                 />
 
                 <div class="navbar navbar-default no-border"
-                     v-if="(tablePermission.dcr_title || tablePermission.dcr_title_bg_img) && !is_embed"
+                     v-if="(dcrObject.dcr_title || dcrObject.dcr_title_bg_img) && !is_embed"
                      :style="{ backgroundColor: getBgCol('dcr_sec_bg_top'), }"
                 >
+                    <!--TITLE-->
                     <div class="flex flex--center-h">
                         <div class="dcr-title"
                              :style="{
-                                width: (tablePermission.dcr_title_width+'px' || null),
-                                height: (tablePermission.dcr_title_height+'px' || null),
+                                width: (dcrObject.dcr_title_width+'px' || null),
+                                height: (dcrObject.dcr_title_height+'px' || null),
                                 backgroundColor: getBgCol('dcr_title_bg_color', true),
                                 boxShadow: getBgCol('dcr_title_bg_color', true) ? getBoxShad : null,
-                                borderTopLeftRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                                borderTopRightRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                                borderBottomLeftRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                                borderBottomRightRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
+                                borderTopLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                                borderTopRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                                borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                                borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
                             }"
                         >
-                            <h1 class="hid item__h1" :style="fontStyleObj('dcr_title_font')" v-html="tablePermission.dcr_title"></h1>
-                            <h1 class="dcr-title--item item__h1" :style="fontStyleObj('dcr_title_font')" v-html="tablePermission.dcr_title"></h1>
-                            <img v-if="tablePermission.dcr_title_bg_img"
+                            <h1 class="hid item__h1" :style="fontStyleObj('dcr_title_font')" v-html="dcrObject.dcr_title"></h1>
+                            <h1 class="dcr-title--item item__h1" :style="fontStyleObj('dcr_title_font')" v-html="dcrObject.dcr_title"></h1>
+                            <img v-if="dcrObject.dcr_title_bg_img"
                                  class="dcr-title--item item__img"
-                                 :src="$root.fileUrl({url:tablePermission.dcr_title_bg_img})"
+                                 :src="$root.fileUrl({url:dcrObject.dcr_title_bg_img})"
                                  :style="{
-                                    height: (['Height','Fill'].indexOf(tablePermission.dcr_title_bg_fit) > -1 ? '100%' : null),
-                                    width: (['Width','Fill'].indexOf(tablePermission.dcr_title_bg_fit) > -1 ? '100%' : null),
-                                    objectFit: (tablePermission.dcr_title_bg_fit === 'Fill' ? 'cover' : null),
+                                    height: (['Height','Fill'].indexOf(dcrObject.dcr_title_bg_fit) > -1 ? '100%' : null),
+                                    width: (['Width','Fill'].indexOf(dcrObject.dcr_title_bg_fit) > -1 ? '100%' : null),
+                                    objectFit: (dcrObject.dcr_title_bg_fit === 'Fill' ? 'cover' : null),
                                  }"
                             />
                         </div>
                     </div>
+                    <!--TITLE-->
+
+                    <div v-if="dcrObject.dcr_form_line_top" :style="{
+                        borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
+                        marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
+                    }"></div>
+
+                    <!--TOP MESSAGE-->
                     <div class="dcr-top-msg" :style="{
-                            width: viewTable ? '100%' : (tablePermission.dcr_form_width || 600)+'px',
+                            width: viewTable ? '100%' : (dcrObject.dcr_form_width || 600)+'px',
                             margin: 'auto',
                             boxShadow: getBoxShad,
-                            borderTopLeftRadius: tablePermission.dcr_form_line_radius+'px',
-                            borderTopRightRadius: tablePermission.dcr_form_line_radius+'px',
-                            borderBottomLeftRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                            borderBottomRightRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                     }">
-                        <div class="navbar-default"
+                            borderTopLeftRadius: dcrObject.dcr_form_line_radius+'px',
+                            borderTopRightRadius: dcrObject.dcr_form_line_radius+'px',
+                            borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                            borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                    }">
+                        <div v-if="dcrFormMsage"
+                             class="top-message-wrap"
                              :style="{
                                     backgroundColor: formBgTransp(),
-                                    borderTopLeftRadius: tablePermission.dcr_form_line_radius+'px',
-                                    borderTopRightRadius: tablePermission.dcr_form_line_radius+'px',
-                                    borderBottomLeftRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
-                                    borderBottomRightRadius: (tablePermission.dcr_form_line_type == 'space' ? tablePermission.dcr_form_line_radius+'px' : ''),
+                                    borderTopLeftRadius: dcrObject.dcr_form_line_radius+'px',
+                                    borderTopRightRadius: dcrObject.dcr_form_line_radius+'px',
+                                    borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
+                                    borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
                              }"
                         >
-                            <div :style="fontStyleObj('dcr_form_message')" v-html="tablePermission.dcr_form_message"></div>
+                            <div v-html="dcrFormMsage"></div>
                         </div>
-                        <div class="flex navbar navbar-default fit-content" :class="flexCenterClass" v-if="!tablePermission.one_per_submission">
+                        <div class="flex navbar navbar-default fit-content" :class="flexCenterClass" v-if="!dcrObject.one_per_submission">
                             <div v-if="table_id && $root.tableMeta && settingsMeta" class="nav flex flex--center flex--automargin">
                                 <div style="height: 40px;"></div>
                                 <div class="active">
-                                    <a @click.prevent="viewTable = !viewTable"><span class="glyphicon glyphicon-list"></span> {{ viewTable ? 'Form' : 'List View' }}</a>
+                                    <a @click.prevent="viewTable = !viewTable"><span class="glyphicon glyphicon-list"></span> {{ viewTable ? 'Form' : 'Grid View' }}</a>
                                 </div>
                                 <div v-if="getAvaRows" v-show="viewTable">
                                     <a><button type="button" class="btn btn-success" :style="$root.themeButtonStyle" @click="storeRows()">Submit</button></a>
                                 </div>
-                                <div v-show="viewTable">
+                                <div v-show="viewTable" v-if="$root.tableMeta">
                                     <a><cell-height-button
+                                            :table_meta="$root.tableMeta"
                                             :cell-height="$root.cellHeight"
                                             :max-cell-rows="$root.maxCellRows"
                                             @change-cell-height="$root.changeCellHeight"
@@ -96,23 +107,27 @@
                             </div>
                         </div>
                     </div>
+                    <!--TOP MESSAGE-->
                 </div>
                 <div class="flex__elem-remain"
                      style="position: relative;"
-                     :style="{paddingTop: tablePermission.dcr_sec_line_top ? (tablePermission.dcr_sec_line_thick || 1)+'px' : null}"
+                     :style="{paddingTop: dcrObject.dcr_sec_line_top ? (dcrObject.dcr_sec_line_thick || 1)+'px' : null}"
                 >
-                    <div :class="[scrlFlow ? '' : 'flx__scroller']">
-                        <div v-if="tablePermission.dcr_sec_line_top" class="borderer"
-                             :style="{ borderTop: (tablePermission.dcr_sec_line_thick || 1)+'px solid '+(tablePermission.dcr_sec_line_color || '#d3e0e9'), }"></div>
+                    <div :class="{'flx__scroller': scrlFlow && viewTable, 'absolute-frame': !scrlFlow || viewTable}">
+                        <div v-if="dcrObject.dcr_sec_line_top"
+                             :class="{borderer: !viewTable}"
+                             :style="{ borderTop: (dcrObject.dcr_sec_line_thick || 1)+'px solid '+(dcrObject.dcr_sec_line_color || '#d3e0e9'), }"></div>
                         <div
                             v-if="$root.tableMeta && settingsMeta"
                             class="flex flex--col tabs-wrapper"
-                            :class="tablePermission.dcr_form_shadow ? 'shadow--fix' : ''"
+                            :class="dcrObject.dcr_form_shadow ? 'shadow--fix' : ''"
                             :style="specShadow"
                         >
-                            <div :class="[scrlFlow ? '' : 'flex__elem-remain']" v-if="$root.tableMeta.id">
+                            <div v-if="$root.tableMeta.id"
+                                 :class="{'flex__elem-remain': scrlFlow && viewTable, 'full-height': !scrlFlow || viewTable}"
+                            >
 
-                                <div v-show="viewTable" class="full-frame" @scroll="scrollTable" ref="scroll_tb">
+                                <div v-if="viewTable" class="full-frame" @scroll="scrollTable" ref="scroll_tb">
                                     <custom-table
                                             :class="{in_center: true}"
                                             :cell_component_name="$root.tdCellComponent($root.tableMeta.is_system)"
@@ -131,6 +146,7 @@
                                             :user="$root.user"
                                             :behavior="'request_view'"
                                             @added-row="insertRow"
+                                            @updated-row="updateRow"
                                             @delete-row="deleteRow"
                                             @change-page="changePage"
                                             @sort-by-field="sortByField"
@@ -152,19 +168,20 @@
                                     ></custom-edit-pop-up>
                                 </div>
                                 <request-form-view
-                                        v-show="!viewTable"
+                                        v-if="!viewTable && empty_row"
                                         :table-meta="$root.tableMeta"
                                         :table-row="empty_row"
                                         :settings-meta="settingsMeta"
                                         :cell-height="$root.cellHeight"
                                         :can-add-row="canAdd"
                                         :user="$root.user"
-                                        :table-permission="tablePermission"
+                                        :dcr-object="dcrObject"
+                                        :dcr-linked-rows="dcrLinkedRows"
                                         :footer_height="footer_height"
                                         :frm_color="formBgTransp()"
                                         :box_shad="getBoxShad"
                                         :scrl-flow="scrlFlow"
-                                        :with_edit="withEdit"
+                                        :with_edit="!!withEdit"
                                         @insert="insertRow"
                                         @submit="submitRow"
                                         @scroll-fields="scrollFields"
@@ -179,7 +196,7 @@
                 </div>
                 <div class="footer"
                      :style="{
-                         borderTop: (tablePermission.dcr_sec_line_bot ? (tablePermission.dcr_sec_line_thick || 1)+'px solid '+(tablePermission.dcr_sec_line_color || '#d3e0e9') : null),
+                         borderTop: (dcrObject.dcr_sec_line_bot ? (dcrObject.dcr_sec_line_thick || 1)+'px solid '+(dcrObject.dcr_sec_line_color || '#d3e0e9') : null),
                          backgroundColor: getBgCol('dcr_sec_bg_bot'),
                          height: (show_footer ? footer_height+'px' : 0),
                          transition: transition_time_ms+'ms',
@@ -219,7 +236,7 @@
                         :max-cell-rows="$root.maxCellRows"
                         :popup-key="idx"
                         :no_animation="linkObj.behavior === 'map'"
-                        :view_authorizer="{dcr_hash: tablePermission.dcr_hash}"
+                        :view_authorizer="{dcr_hash: dcrObject.dcr_hash}"
                         @show-src-record="showSrcRecord"
                         @link-popup-close="closeLinkPopup"
                 ></link-pop-up>
@@ -227,6 +244,23 @@
 
             <!--Popup for showing very long datas-->
             <table-data-string-popup :max-cell-rows="$root.maxCellRows"></table-data-string-popup>
+
+            <!--For ANR Automations-->
+            <proceed-automation-popup
+                    v-if="AnrPop"
+                    :user_id="$root.user.id"
+                    :table-meta="$root.tableMeta"
+                    :table-alert="AnrPop"
+                    @hide-popup="AnrPop = null"
+            ></proceed-automation-popup>
+
+            <dcr-pass-block
+                v-if="row_protection_show"
+                :dcr_id="dcrObject.id"
+                :row_id="row_protection.id"
+                @correct-pass="openedRowConfirm(row_protection)"
+                @cancel-pass="openedRowRestricted()"
+            ></dcr-pass-block>
 
         </template>
     </div>
@@ -237,7 +271,7 @@
     import {JsFomulaParser} from "../../classes/JsFomulaParser";
     import {RequestFuncs} from "./RequestFuncs";
 
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     import RequestMixin from "./RequestMixin.vue";
 
@@ -253,6 +287,9 @@
     import RequestPassPopUp from './RequestPassPopUp';
     import LinkPopUp from "../CustomPopup/LinkPopUp";
     import TableDataStringPopup from "../CustomPopup/TableDataStringPopup";
+    import ProceedAutomationPopup from "../CustomPopup/ProceedAutomationPopup";
+    import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
+    import DcrPassBlock from "../CommonBlocks/DcrPassBlock";
 
     export default {
         name: "MainRequest",
@@ -260,6 +297,8 @@
             RequestMixin,
         ],
         components: {
+            DcrPassBlock,
+            ProceedAutomationPopup,
             TableDataStringPopup,
             LinkPopUp,
             GoogleAddressAutocomplete,
@@ -275,6 +314,10 @@
         },
         data: function () {
             return {
+                row_protection: null,
+                row_protection_show: false,
+                AnrPop: null,
+                has_errors: '',
                 loaded: false,
                 pass: '',
                 tableRows: [],
@@ -307,20 +350,32 @@
                 form_elem: null,
                 had_address_fld: false,
                 linkPopups: [],
-                empty_row: {},
+                empty_row: null,
                 hashRow: null,
+
+                dcrLinkedRows: {},
             }
         },
         props: {
             settingsMeta: Object,
             table_id: Number|null,
-            tablePermission: Object,
+            dcrObject: Object,
             is_embed: Boolean|Number
         },
         computed: {
+            dcrFormMsage() {
+                let pars = new JsFomulaParser(this.$root.tableMeta);
+                return this.dcrObject.dcr_form_message && this.empty_row ?
+                    (
+                        this.viewTable
+                            ? pars.replaceVars(_.first(this.tableRows), this.dcrObject.dcr_form_message, this.$root.tableMeta.unit_conv_is_active)
+                            : pars.replaceVars(this.empty_row, this.dcrObject.dcr_form_message, this.$root.tableMeta.unit_conv_is_active)
+                    )
+                    : '';
+            },
             scrlFlow() {
-                return this.tablePermission
-                    && String(this.tablePermission.dcr_sec_scroll_style).toLowerCase() === 'flow';
+                return this.dcrObject
+                    && String(this.dcrObject.dcr_sec_scroll_style).toLowerCase() === 'flow';
             },
             flexCenterClass() {
                 return [window.screen.width > 767 ? 'flex--center' : ''];
@@ -329,7 +384,13 @@
                 return this.$root.tableMeta
                     && this.$root.tableMeta._current_right
                     && this.$root.tableMeta._current_right.can_add
-                    && (this.request_row_count === -1 || this.available_row_count !== 0);
+                    && (this.request_row_count === -1 || this.available_row_count !== 0)
+                    &&
+                    (
+                        !this.$root.tableMeta._rows_count
+                        ||
+                        this.$root.checkAvailable(this.$root.tableMeta._user, 'row_table', this.$root.tableMeta._rows_count)
+                    );
             },
             getAvaRows() {
                 return this.canAdd ? (this.request_row_count > -1 ? this.available_row_count : 'Infinite') : 0;
@@ -342,12 +403,12 @@
             },
             getWidth() {
                 return {
-                    width: Math.min( window.screen.width, (this.tablePermission.dcr_form_width || 600) )+'px',
+                    width: Math.min( window.screen.width, (this.dcrObject.dcr_form_width || 600) )+'px',
                 };
             },
             getBoxShad() {
-                return this.tablePermission.dcr_form_shadow
-                    ? (this.tablePermission.dcr_form_shadow_dir == 'BL' ? '-' : '')+'5px 5px 12px '+(this.tablePermission.dcr_form_shadow_color || '#777')
+                return this.dcrObject.dcr_form_shadow
+                    ? (this.dcrObject.dcr_form_shadow_dir == 'BL' ? '-' : '')+'5px 5px 12px '+(this.dcrObject.dcr_form_shadow_color || '#777')
                     : null;
             },
             specShadow() {
@@ -356,21 +417,21 @@
                 return stl;
             },
             txtClr() {
-                return SpecialFuncs.textColorOnBg(this.getBgCol('dcr_sec_bg_bot'))
+                return SpecialFuncs.smartTextColorOnBg(this.getBgCol('dcr_sec_bg_bot'));
             },
             withEdit() {
-                return this.editabil(this.empty_row);
+                return this.empty_row && this.editabil(this.empty_row);
             },
         },
         methods: {
             //getters
             getBgCol(key, force) {
-                return this.tablePermission.dcr_sec_bg_img && !force ? 'transparent' : (this.tablePermission[key] || 'transparent');
+                return this.dcrObject.dcr_sec_bg_img && !force ? 'transparent' : (this.dcrObject[key] || 'transparent');
             },
             dcrTitleStyle() {
                 let font = {
-                    width: (this.tablePermission.dcr_title_width+'px' || null),
-                    height: (this.tablePermission.dcr_title_height+'px' || null),
+                    width: (this.dcrObject.dcr_title_width+'px' || null),
+                    height: (this.dcrObject.dcr_title_height+'px' || null),
                     backgroundColor: this.getBgCol('dcr_title_bg_color', true),
                 };
                 let style = this.fontStyleObj('dcr_title_font');
@@ -381,14 +442,14 @@
             },
             fontStyleObj(type) {
                 let stl = {
-                    fontFamily: this.tablePermission[type+'_font'] || this.tablePermission[type+'_type'] || 'Raleway, sans-serif',
-                    fontSize: (this.tablePermission[type+'_size'] || 14)+'px',
-                    lineHeight: (to_float(this.tablePermission[type+'_size'] || 14)*1.1)+'px',
-                    color: this.tablePermission[type+'_color'] || null,
+                    fontFamily: this.dcrObject[type+'_font'] || this.dcrObject[type+'_type'] || 'Raleway, sans-serif',
+                    fontSize: (this.dcrObject[type+'_size'] || 14)+'px',
+                    lineHeight: (to_float(this.dcrObject[type+'_size'] || 14)*1.1)+'px',
+                    color: this.dcrObject[type+'_color'] || null,
                 };
-                let fonts = this.$root.parseMsel(this.tablePermission[type+'_style']);
+                let fonts = this.$root.parseMsel(this.dcrObject[type+'_style']);
                 _.each(fonts, (f) => {
-                    (f === 'Italic' ? stl.fontStyle = 'italic' : stl.fontStyle = stl.fontStyle || null);
+                    //(f === 'Italic' ? stl.fontStyle = 'italic' : stl.fontStyle = stl.fontStyle || null);
                     (f === 'Bold' ? stl.fontWeight = 'bold' : stl.fontWeight = stl.fontWeight || null);
                     (f === 'Strikethrough' ? stl.textDecoration = 'line-through' : stl.textDecoration = stl.textDecoration || null);
                     (f === 'Overline' ? stl.textDecoration = 'overline' : stl.textDecoration = stl.textDecoration || null);
@@ -397,9 +458,9 @@
                 return stl;
             },
             formBgTransp() {
-                let clr = this.tablePermission.dcr_form_bg_color || 'transparent';
+                let clr = this.dcrObject.dcr_form_bg_color || 'transparent';
                 if (clr !== 'transparent') {
-                    let transp = to_float(this.tablePermission.dcr_form_transparency || 0) / 100 * 255;
+                    let transp = to_float(this.dcrObject.dcr_form_transparency || 0) / 100 * 255;
                     transp = Math.ceil(transp);
                     transp = Math.max(Math.min(transp, 255), 0);
                     clr += Number(255 - transp).toString(16);
@@ -421,10 +482,12 @@
                     table_id: this.table_id,
                     user_id: this.$root.user.id,
                     special_params: {
-                        table_permission_id: this.tablePermission.id,
-                        dcr_hash: this.tablePermission.dcr_hash,
+                        table_dcr_id: this.dcrObject.id,
+                        dcr_hash: this.dcrObject.dcr_hash,
                     }
                 }).then(({ data }) => {
+                    this.$root.metaDcrObject = this.dcrObject;
+                    this.$root.setTextRowSett(data);
                     this.$root.tableMeta = data;
                     this.searchObject.columns = _.map(this.$root.tableMeta._fields, 'field');
 
@@ -442,37 +505,6 @@
                     Swal('', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
-            /*getTableData() {
-                $.LoadingOverlay('show');
-                let url = '/ajax/table-data/get';
-                let request = {
-                    table_id: this.table_id,
-                    page: this.page,
-                    rows_per_page: this.$root.tableMeta.rows_per_page,
-                    sort: this.sort,
-                    search_words: this.searchObject.keyWords,
-                    search_columns: this.searchObject.columns,
-                    row_id: this.searchObject.direct_row_id || null,
-                    applied_filters: [],
-                    special_params: {
-                        table_permission_id: this.tablePermission.id,
-                        table_permission_pass: this.tablePermission.pass,
-                        dcr_hash: this.tablePermission.dcr_hash,
-                    }
-                };
-                axios.post(url, request).then(({ data }) => {
-                    console.log('ListViewData', data, 'size about: ', JSON.stringify(data).length);
-                    this.tableRows = data.rows;
-                    this.present_row_count = data.rows_count;
-                    this.available_row_count = Math.max(this.request_row_count - this.present_row_count, 0);
-                    if(!this.loaded) {
-                        this.viewTable = !this.getAvaRows;
-                    }
-                    this.loaded = true;
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => $.LoadingOverlay('hide'));
-            },*/
 
             //sort rows
             sortByField(tableHeader, $sub) {
@@ -504,8 +536,9 @@
 
             //insert data
             loadOpenedRow() {
-                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission);
+                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject);
                 if (record_hdr) {
+                    $.LoadingOverlay('show');
                     axios.post('/ajax/table-data/get', {
                         ...SpecialFuncs.tableMetaRequest(this.table_id),
                         ...{
@@ -518,18 +551,25 @@
                                 direct_fld: record_hdr.field,
                             }],
                             search_columns: [record_hdr.field],
+                            special_params: {
+                                table_dcr_id: this.dcrObject.id,
+                                table_dcr_pass: this.dcrObject.pass,
+                                dcr_hash: this.dcrObject.dcr_hash,
+                            }
                         }
                     }).then(({ data }) => {
                         if (data && data.rows && data.rows.length) {
                             let back_row = _.first(data.rows);
                             if (this.visibil(back_row)) {
-                                this.empty_row = back_row;
-                                this.empty_row._new_status = '';
-                                this.tableRows.push(this.empty_row);
+                                if (this.dcrObject.stored_row_protection) {
+                                    this.row_protection_show = true;
+                                    this.row_protection = back_row;
+                                } else {
+                                    this.openedRowConfirm(back_row);
+                                }
                             } else {
-                                window.location.hash = '';
+                                this.openedRowRestricted();
                                 Swal({ title: 'Record is not accessible.', text: '', timer: 3000 });
-                                this.emptyObject();
                             }
                         }
                     }).catch(errors => {
@@ -539,43 +579,39 @@
                     });
                 }
             },
+            openedRowConfirm(back_row) {
+                this.row_protection_show = false;
+                this.empty_row = back_row;
+                this.empty_row._new_status = '';
+                this.tableRows.push(this.empty_row);
+            },
+            openedRowRestricted() {
+                this.row_protection_show = false;
+                window.location.hash = '';
+                this.emptyObject();
+            },
             emptyObject() {
                 this.empty_row = SpecialFuncs.emptyRow(this.$root.tableMeta);
                 this.setDefaValues(this.empty_row);
                 this.tableRows.splice(0, 0, this.empty_row);
+                this.prepareLinkedRows();
             },
             setDefaValues(tableRow) {
-                //Def permissions
-                if (this.$root.tableMeta._current_right.default_values) {
-                    _.each(this.$root.tableMeta._current_right.default_values, (val, key) => {
-                        if (!tableRow[key]) {
-                            tableRow[key] = val;
-                        }
-                    });
-                }
-                //Def fields
-                if (this.$root.tableMeta._fields) {
-                    _.each(this.$root.tableMeta._fields, (fld) => {
-                        if (fld.f_default && !tableRow[fld.field]) {
-                            tableRow[fld.field] = fld.f_default;
-                        }
-                        //Set 'cur user' as Default.
-                        if (fld.f_type == 'User' && !tableRow[fld.field]) {
-                            tableRow[fld.field] = this.$root.user._pre_id;
-                        }
-                    });
-                }
                 if (this.$root.tableMeta.db_name === "user_connections") {
                     tableRow['user_id'] = this.$root.user.id;
                 }
 
-                let visi_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_visibility_id');
+                let visi_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_visibility_id');
                 if (visi_hdr) {
-                    tableRow[visi_hdr.field] = !!this.tablePermission.dcr_record_visibility_def;
+                    tableRow[visi_hdr.field] = tableRow._new_status === 'Saved'
+                        ? !!this.dcrObject.dcr_record_save_visibility_def
+                        : !!this.dcrObject.dcr_record_visibility_def;
                 }
-                let edit_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_editability_id');
+                let edit_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_editability_id');
                 if (edit_hdr) {
-                    tableRow[edit_hdr.field] = !!this.tablePermission.dcr_record_editability_def;
+                    tableRow[edit_hdr.field] = tableRow._new_status === 'Saved'
+                        ? !!this.dcrObject.dcr_record_save_editability_def
+                        : !!this.dcrObject.dcr_record_editability_def;
                 }
             },
             submitRow(tableRow) {
@@ -583,7 +619,7 @@
                 this.storeRows();
             },
             insertRow(tableRow, nonew) {
-                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_url_field_id');
+                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_url_field_id');
                 if (record_hdr && !tableRow[record_hdr.field]) {
                     tableRow[record_hdr.field] = uuidv4();
                 }
@@ -598,6 +634,10 @@
                     this.emptyObject();
                 }
             },
+            updateRow(tableRow) {
+                //front-end RowGroups and CondFormats
+                RefCondHelper.updateRGandCFtoRow(this.$root.tableMeta, tableRow);
+            },
             deleteRow(tableRow, index) {
                 if (index > -1) {
                     this.tableRows.splice(index, 1);
@@ -606,9 +646,9 @@
 
             //store data
             storeRows() {
+                this.has_errors = '';
                 this.new_rows = 0;
                 let requests = [];
-                let row_ids = [];
                 let last_row = {};
                 let last_status = '';
 
@@ -632,17 +672,20 @@
                                 row_id: this.searchObject.direct_row_id || null,
                                 applied_filters: []
                             },
-                            table_permission_id: this.tablePermission.id,
-                            table_permission_pass: this.tablePermission.pass,
-                            special_params: { dcr_hash: this.tablePermission.dcr_hash, },
+                            table_dcr_id: this.dcrObject.id,
+                            table_dcr_pass: this.dcrObject.pass,
+                            special_params: { dcr_hash: this.dcrObject.dcr_hash, },
+                            html_row: this.getHtmlRow(row),
+                            dcr_linked_rows: this.dcrLinkedRows,
                         }).then(({data}) => {
-                            row_ids.push(data);
-                            row.id = data;
-                            this.tableRows[idx].id = data;
+                            this.$root.assignObject(data, row);
+                            row.id = data.id;
+                            row._new_status = '';
+                            this.tableRows[idx].id = data.id;
+                            this.$root.tableMeta._rows_count += 1;
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
-                        }).finally(() => {
-                            $.LoadingOverlay('hide');
+                            this.has_errors = getErrors(errors);
+                            throw new Error(errors);
                         });
 
                         requests.push(promise);
@@ -657,17 +700,21 @@
                             table_id: this.table_id,
                             row_id: row.id,
                             fields: row,
-                            table_permission_id: this.tablePermission.id,
-                            table_permission_pass: this.tablePermission.pass,
-                            special_params: { dcr_hash: this.tablePermission.dcr_hash, },
+                            table_dcr_id: this.dcrObject.id,
+                            table_dcr_pass: this.dcrObject.pass,
+                            special_params: { dcr_hash: this.dcrObject.dcr_hash, },
+                            html_row: this.getHtmlRow(row),
+                            dcr_linked_rows: this.dcrLinkedRows,
                         }).then(({data}) => {
-                            row_ids.push(row.id);
+                            let backend = _.first(data.rows || []);
+                            if (backend) {
+                                this.$root.assignObject(backend, row);
+                            }
                             row._new_status = '';
                             this.tableRows[idx]._new_status = '';
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
-                        }).finally(() => {
-                            $.LoadingOverlay('hide');
+                            this.has_errors = getErrors(errors);
+                            throw new Error(row);
                         });
 
                         requests.push(promise);
@@ -676,33 +723,32 @@
                 });
 
                 Promise.all(requests)
+                    .catch((error) => {
+                        let err_message = '';
+                        switch (last_status) {
+                            case 'Updated':
+                                err_message = this.dcrObject.dcr_upd_unique_msg || this.has_errors;
+                                break;
+                            case 'Submitted':
+                                err_message = this.dcrObject.dcr_unique_msg || this.has_errors;
+                                break;
+                            default:
+                                err_message = this.dcrObject.dcr_save_unique_msg || this.has_errors;
+                                break;
+                        }
+                        let pars = new JsFomulaParser(this.$root.tableMeta);
+                        err_message = pars.replaceVars(_.first(this.tableRows), err_message, this.$root.tableMeta.unit_conv_is_active);
+                        Swal('', err_message);
+                    })
                     .then(() => {
-                        if (this.new_rows) {
+                        $.LoadingOverlay('hide');
+                        if (!this.has_errors && this.new_rows) {
 
-                            let rows_htmls = _.map(this.tableRows, (rr) => {
-                                let htmlrow = {};
-                                _.each(this.$root.tableMeta._fields, (hdr) => {
-                                    htmlrow[hdr.field] = SpecialFuncs.showFullHtml(hdr, rr, this.$root.tableMeta.unit_conv_is_active);
-                                });
-                                return htmlrow;
-                            });
-
-                            axios.post('/ajax/table-request/finished', {
-                                request_id: this.tablePermission.id,
-                                table_id: this.table_id,
-                                row_ids: row_ids,
-                                rows_htmls: rows_htmls,
-                                special_params: { dcr_hash: this.tablePermission.dcr_hash, },
-                            }).then(({data}) => {
-                            }).catch(errors => {
-                                Swal('', getErrors(errors));
-                            });
-
-                            let msg = 'You have successfully submitted '+this.new_rows+' record(s) to "'+(this.tablePermission.dcr_title || 'Data Collection Request')+'"';
+                            let msg = 'You have successfully submitted '+this.new_rows+' record(s) to "'+(this.dcrObject.dcr_title || 'Data Collection Request')+'"';
                             let pref = RequestFuncs.prefix(last_status);
-                            if (this.tablePermission[pref+'confirm_msg']) {
+                            if (this.dcrObject[pref+'confirm_msg']) {
                                 let pars = new JsFomulaParser(this.$root.tableMeta);
-                                msg = pars.replaceVars(_.first(this.tableRows), this.tablePermission[pref+'confirm_msg'], this.$root.tableMeta.unit_conv_is_active);
+                                msg = pars.replaceVars(_.first(this.tableRows), this.dcrObject[pref+'confirm_msg'], this.$root.tableMeta.unit_conv_is_active);
                             }
 
                             //new record only for 'Submitted', 'Updated' if not 'visibil','editabil'
@@ -718,6 +764,13 @@
                             Swal({ title: msg, text: '', timer: 4000 });
                         }
                     });
+            },
+            getHtmlRow(row) {
+                let htmlrow = {};
+                _.each(this.$root.tableMeta._fields, (hdr) => {
+                    htmlrow[hdr.field] = SpecialFuncs.showFullHtml(hdr, row, this.$root.tableMeta.unit_conv_is_active);
+                });
+                return htmlrow;
             },
             clickAddRow() {
                 eventBus.$emit('add-inline-clicked');
@@ -737,6 +790,8 @@
             },
             scrollFields() {
                 if (
+                    this.form_elem
+                    &&
                     !this.scroll_process
                     &&
                     (
@@ -772,15 +827,29 @@
             },
 
             intervalPermis(e) {
-                if (this.tablePermission) {
-                    axios.post('/ajax/table-permission/check', {
-                        table_permission_id: this.tablePermission.id,
+                if (this.dcrObject) {
+                    axios.post('/ajax/table-data-request/check', {
+                        table_dcr_id: this.dcrObject.id,
                     }).then(({ data }) => {
                         _.each(data, (val, key) => {
-                            if (this.tablePermission[key] != val) {
-                                this.tablePermission[key] = val
+                            if (this.dcrObject[key] != val) {
+                                this.dcrObject[key] = val
                             }
                         });
+                    });
+                }
+            },
+            intervalTickHandler(e) {
+                if (this.$root.tableMeta && !this.$root.sm_msg_type) {
+                    axios.post('/ajax/table/version_hash', {
+                        table_id: this.$root.tableMeta.id,
+                        row_list_ids: [],
+                        row_fav_ids: [],
+                        automations_check: !document.hidden,
+                    }).then(({ data }) => {
+                        if (!this.AnrPop && data.wait_automations && data.wait_automations._anr_tables) {
+                            this.AnrPop = data.wait_automations;
+                        }
                     });
                 }
             },
@@ -807,42 +876,59 @@
                     }
                 }
             },
-            /*clearLimits() {
-                _.each(this.tablePermission._link_limits, (lim) => {
-                    this.$set(lim, '__added_records', 0);
+            //DCR Linked Tables
+            prepareLinkedRows() {
+                this.dcrLinkedRows = {};
+                _.each(this.dcrObject._dcr_linked_tables || [], (linkedObj) => {
+                    this.$set(this.dcrLinkedRows, linkedObj.linked_table_id, []);
                 });
             },
-            linkRowAdded(link_limit) {
-                link_limit.__added_records += 1;
-            },*/
         },
         mounted() {
+            console.log('DcrObject', this.dcrObject, 'size about: ', JSON.stringify(this.dcrObject).length);
+
             if (this.table_id) {
                 this.getTableMeta();
             }
 
-            this.request_row_count = Number(this.tablePermission.row_request);
+            this.request_row_count = Number(this.dcrObject.row_request);
             this.request_row_count = isNaN(this.request_row_count) ? -1 : this.request_row_count;
 
-            $('head title').html(this.$root.app_name+' - DCR: '+this.tablePermission.name);
+            $('head title').html(this.$root.app_name+' - DCR: '+this.dcrObject.name);
 
             this.$root.is_dcr_page = true;
 
-            //sync table permission with collaborators
+            //sync table dcr with collaborators
             setInterval(() => {
-                if (!this.$root.debug) {
-                    this.intervalPermis();
+                this.intervalPermis();
+            }, this.$root.version_hash_delay);
+
+            //sync datas with collaborators
+            setInterval(() => {
+                if (!localStorage.getItem('no_ping')) {
+                    this.intervalTickHandler();
                 }
-            }, 1000 * 3);
+            }, this.$root.version_hash_delay);
 
             //change query for getting data
             //eventBus.$on("row-per-page-changed", this.getTableData);
         },
         beforeDestroy() {
-            //eventBus.$off("row-per-page-changed", this.getTableData);
+            //eventBus.$off("row-per-page-changed", this.getTableData);//
         }
     }
 </script>
+
+<style lang="scss">
+    .top-message-wrap {
+        text-align: initial;
+        padding: 10px;
+
+        p, label {
+            margin: 0 !important;
+        }
+    }
+</style>
 
 <style lang="scss" scoped>
     #tables {

@@ -126,6 +126,7 @@
         import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
         import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
         import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
+        import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
         import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
         import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
         import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
@@ -167,6 +168,7 @@
                 CustomCellDisplayLinks,
                 CustomCellSettingsDdl,
                 CustomCellSettingsPermission,
+                CustomCellSettingsDcr,
                 CustomHeadCellTableData,
                 CustomCellColRowGroup,
                 CustomCellKanbanSett,
@@ -360,11 +362,5 @@
 
         input[type="radio"], input[type="checkbox"] {
             margin: 0;
-        }
-
-        .float-rom-menu {
-            position: fixed;
-            z-index: 5000;
-            text-align: left;
         }
     </style>

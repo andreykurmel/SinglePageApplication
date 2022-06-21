@@ -17,6 +17,8 @@ class CreateTableFieldLinksTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_field_id');
             $table->string('link_type', 20);
+            $table->string('link_display', 32)->nullable();
+            $table->string('link_pos', 16)->default('before');
             $table->string('icon', 20);
             $table->string('tooltip')->nullable();
             $table->unsignedInteger('table_ref_condition_id')->nullable();

@@ -61,7 +61,7 @@
                     <label class="vertical-flex" for="team">@lang('app.timezone')</label>
                 </div>
                 <div class="col-9" id="vanguard-timezone">
-                    <moment-timezones name="timezone" cur_tz="{{ $user ? $user->timezone : '' }}"></moment-timezones>
+                    <vanguard-timezone hidden_name="timezone" cur_tz="{{ $user ? $user->timezone : '' }}"></vanguard-timezone>
                 </div>
             </div>
         </div>
@@ -144,6 +144,7 @@
                 </div>
                 <div class="col-9">
                     <input type="text" class="form-control" id="subdomain"
+                           disabled="{{ auth()->user()->_available_features->apps_are_avail ? '' : 'disabled' }}"
                            name="subdomain" placeholder="@lang('app.subdomain')" value="{{ $user ? $user->subdomain : '' }}">
                 </div>
             </div>

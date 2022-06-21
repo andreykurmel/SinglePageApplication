@@ -19,8 +19,14 @@ window.getErrors = function(errors) {
                 msg = Object.values(errors.response.data).join('<br>');
             }
         }
+        else if (errors.message) {
+            msg = errors.message;
+        }
+        else if (errors.statusText) {
+            msg = errors.statusText;
+        }
         else {
-            msg = errors.statusText ? errors.statusText : errors;
+            msg = errors;
         }
     }
     return (typeof msg === 'string' ? msg : '');
@@ -73,9 +79,21 @@ window.to_float = function (val) {
     return isNaN(res) ? 0 : res;
 };
 
+window.isNull = function (val) {
+    return val === null;
+};
+
+window.isNumber = function (val) {
+    return val !== '' && !isNaN(val) && !isNull(val);
+};
+
+window.isValue = function (val) {
+    return val !== null && val !== undefined && val !== '';
+};
+
 //global to standard val
 window.to_standard_val = function (val) {
-    if (isNaN(val)) {
+    if (!isNumber(val)) {
         switch (val) {
             case null: return ''; break;
             case undefined: return ''; break;
@@ -103,4 +121,32 @@ window.dataURLtoFile = function(dataurl, filename) {
         u8arr[n] = bstr.charCodeAt(n);
     }
     return new File([u8arr], filename, {type:mime});
+};
+
+//Local Storage sometimes can make errors
+window.readLocalStorage = function (key) {
+    try {
+        return localStorage.getItem(key)
+    } catch (e) {
+        return null;
+    }
+};
+window.setLocalStorage = function (key, val) {
+    try {
+        return localStorage.setItem(key, val)
+    } catch (e) {
+        return null;
+    }
+};
+
+//simple hash
+window.justHash = function(str) {
+    let hash = 0, i, chr;
+    if (str.length === 0) return '';
+    for (i = 0; i < str.length; i++) {
+        chr   = str.charCodeAt(i);
+        hash  = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
 };

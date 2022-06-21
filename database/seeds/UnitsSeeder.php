@@ -8,28 +8,21 @@ use Vanguard\User;
 class UnitsSeeder extends Seeder
 {
     private $permissionsService;
+    private $permissionsRepository;
     private $DDLRepository;
     private $service;
     private $viewRepository;
 
     /**
-     * AdditionalFieldsSeeder constructor.
-     *
-     * @param \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService
-     * @param \Vanguard\Repositories\Tablda\DDLRepository $DDLRepository
-     * @param \Vanguard\Services\Tablda\HelperService $service
+     * UnitsSeeder constructor.
      */
-    public function __construct(
-        \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService,
-        \Vanguard\Repositories\Tablda\DDLRepository $DDLRepository,
-        \Vanguard\Services\Tablda\HelperService $service,
-        \Vanguard\Repositories\Tablda\TableViewRepository $tableViewRepository
-    )
+    public function __construct()
     {
-        $this->permissionsService = $permissionsService;
-        $this->DDLRepository = $DDLRepository;
-        $this->service = $service;
-        $this->viewRepository = $tableViewRepository;
+        $this->permissionsService = new \Vanguard\Services\Tablda\Permissions\TablePermissionService();
+        $this->permissionsRepository = new \Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository();
+        $this->DDLRepository = new \Vanguard\Repositories\Tablda\DDLRepository();
+        $this->service = new \Vanguard\Services\Tablda\HelperService();
+        $this->viewRepository = new \Vanguard\Repositories\Tablda\TableViewRepository();
     }
 
     /**
@@ -42,6 +35,7 @@ class UnitsSeeder extends Seeder
         $user = User::where('role_id', '=', '1')->first();
 
         $table_sub = Table::where('db_name', 'units')->first();
+        $is_new = !$table_sub;
 
         if (!$table_sub) {
             $table_sub = Table::create([
@@ -107,7 +101,7 @@ class UnitsSeeder extends Seeder
                 'option' => 'Density',
             ]);
 
-            $prop_field->input_type = 'Selection';
+            $prop_field->input_type = 'S-Select';
             $prop_field->ddl_id = $ddl->id;
             $prop_field->save();
 
@@ -129,7 +123,7 @@ class UnitsSeeder extends Seeder
                 'option' => 'Metric',
             ]);
 
-            $type_field->input_type = 'Selection';
+            $type_field->input_type = 'S-Select';
             $type_field->ddl_id = $ddl->id;
             $type_field->save();
         }
@@ -137,144 +131,148 @@ class UnitsSeeder extends Seeder
         //add right to Visitor
         $this->permissionsService->addSystemRights($table_sub->id, 1);
         $this->viewRepository->addSys($table_sub);
+        $permis = $this->permissionsRepository->getSysPermission($table_sub->id, 1);
+        $permis->update(['can_edit_tb' => 1]);
 
 
 
 
         //Seed Data
 
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Stress',
-            'type' => 'Imperial',
-            'name' => 'psf',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Stress',
-            'type' => 'Imperial',
-            'name' => 'ksi',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Imperial',
-            'name' => 'in.',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Imperial',
-            'name' => 'inch',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Imperial',
-            'name' => 'ft',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Imperial',
-            'name' => 'miles',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Imperial',
-            'name' => 'foot',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Length',
-            'type' => 'Metric',
-            'name' => 'km',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Force',
-            'type' => 'Imperial',
-            'name' => 'kips',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Force',
-            'type' => 'Imperial',
-            'name' => 'lbs',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Density',
-            'type' => 'Imperial',
-            'name' => 'pcf',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
-        \Illuminate\Support\Facades\DB::table('units')->insert([
-            'property' => 'Density',
-            'type' => 'Imperial',
-            'name' => 'pci',
-            'created_by' => $user->id,
-            'created_name' => $user->first_name . ' ' . $user->last_name,
-            'created_on' => now(),
-            'modified_by' => $user->id,
-            'modified_name' => $user->first_name . ' ' . $user->last_name,
-            'modified_on' => now()
-        ]);
+        if ($is_new) {
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Stress',
+                'type' => 'Imperial',
+                'name' => 'psf',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Stress',
+                'type' => 'Imperial',
+                'name' => 'ksi',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Imperial',
+                'name' => 'in.',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Imperial',
+                'name' => 'inch',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Imperial',
+                'name' => 'ft',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Imperial',
+                'name' => 'miles',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Imperial',
+                'name' => 'foot',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Length',
+                'type' => 'Metric',
+                'name' => 'km',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Force',
+                'type' => 'Imperial',
+                'name' => 'kips',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Force',
+                'type' => 'Imperial',
+                'name' => 'lbs',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Density',
+                'type' => 'Imperial',
+                'name' => 'pcf',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+            \Illuminate\Support\Facades\DB::table('units')->insert([
+                'property' => 'Density',
+                'type' => 'Imperial',
+                'name' => 'pci',
+                'created_by' => $user->id,
+
+                'created_on' => now(),
+                'modified_by' => $user->id,
+
+                'modified_on' => now()
+            ]);
+        }
     }
 
     private function create($field, $name, $table_id, $user, $type = 'String', $required = 0) {

@@ -5,7 +5,7 @@
     import ThemeButton from './Buttons/ThemeButton';
     import FolderIconsPath from './MainApp/Object/Folder/FolderIconsPath';
 
-    import {eventBus} from './../app';
+    import {eventBus} from '../app';
 
     export default {
         name: 'NavbarData',
@@ -47,7 +47,17 @@
                 style.lineHeight = '28px';
                 style.padding = '0';
                 return style;
-            }
+            },
+            pricing_link() {
+                return this.$root.settingsMeta.app_settings && this.$root.settingsMeta.app_settings['app_pricing_view'] ?
+                    this.$root.settingsMeta.app_settings['app_pricing_view']['val']
+                    : '';
+            },
+            benefits_link() {
+                return this.$root.settingsMeta.app_settings && this.$root.settingsMeta.app_settings['app_our_benefits'] ?
+                    this.$root.settingsMeta.app_settings['app_our_benefits']['val']
+                    : '';
+            },
         },
         watch: {
             show_user_popup(val) {

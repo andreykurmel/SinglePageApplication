@@ -6,6 +6,13 @@
              v-show="sel_tab === tb.horizontal_low && sel_sub_tab === tb.vertical_low"
              class="flex flex--center flex--automargin pull-right btn-wrap"
         >
+            <button v-if="permis[tbkey(tb)].has_rl_calculator && modelUser"
+                    :disabled="!permis[tbkey(tb)].can_add || !permis[tbkey(tb)].can_edit"
+                    :style="$root.themeButtonStyle"
+                    class="btn btn-success btn-top--icon blue-gradient"
+                    @click="doRLCalculation(tb)"
+                    title="Create RL Brackets"
+            ><span class="btn-wrapper">RL</span></button>
             <show-hide-button v-if="vuex_fm[tb.table] && vuex_fm[tb.table].meta.params"
                               v-show="permis[tbkey(tb)].has_halfmoon"
                               :table-meta="vuex_fm[tb.table].meta.params"
@@ -56,6 +63,21 @@
              v-show="sel_tab === tb.horizontal_low && sel_sub_tab === tb.vertical_low"
              class="flex flex--center-v flex--automargin pull-right btn-wrap"
         >
+            <button v-if="modelUser && permis[tbkey(tb)].can_add && permis[tbkey(tb)].has_copy_childrene"
+                    :style="$root.themeButtonStyle"
+                    class="btn btn-success btn-top--icon blue-gradient"
+                    @click="copyFromModelClicked(tb)"
+                    title="Copy From Another Model"
+            >
+                <span class="btn-wrapper">CoFr</span>
+            </button>
+            <button v-if="permis[tbkey(tb)].has_rl_calculator && modelUser"
+                    :disabled="!permis[tbkey(tb)].can_add || !permis[tbkey(tb)].can_edit"
+                    :style="$root.themeButtonStyle"
+                    class="btn btn-success btn-top--icon blue-gradient"
+                    @click="doRLCalculation(tb)"
+                    title="Create RL Brackets"
+            ><span class="btn-wrapper">RL</span></button>
             <button v-show="tb.type_tablda === 'table' && permis[tbkey(tb)].has_fill_attachments && vuex_fm[tb.table].meta.params"
                     :style="$root.themeButtonStyle"
                     class="btn btn-success btn-top--icon blue-gradient"
@@ -79,6 +101,7 @@
                 <span>Views</span>
             </button>
             <cell-height-button v-if="tb.type_tablda === 'table' && permis[tbkey(tb)].has_cellheight_btn && vuex_fm[tb.table].meta.params"
+                                :table_meta="vuex_fm[tb.table].meta.params"
                                 :cell-height="$root.cellHeight"
                                 :max-cell-rows="$root.maxCellRows"
                                 @change-cell-height="$root.changeCellHeight"
@@ -136,12 +159,6 @@
                     @click="copyRowsClicked(tb)"
                     title="Copy Selected Rows"
             ><span class="btn-wrapper"><i class="fa fa-clone"></i></span></button>
-            <button v-if="modelUser && permis[tbkey(tb)].can_add && permis[tbkey(tb)].has_copy_childrene"
-                    :style="$root.themeButtonStyle"
-                    class="btn btn-success btn-top--icon blue-gradient"
-                    @click="copyFromModelClicked(tb)"
-                    title="Copy From Another Model"
-            ><span class="btn-wrapper"><i class="fas fa-file-import"></i></span></button>
             <add-button
                     :available="modelUser && permis[tbkey(tb)].can_add"
                     :adding-row="addingRows[tbkey(tb)]"
@@ -154,6 +171,7 @@
         <!--HORIZONTALS-->
         <ul class="nav nav-tabs geometry_list">
             <li v-for="h_key in horizontal_keys"
+                v-show="h_key !== '_hidden'"
                 class="item"
                 :class="{'active': sel_tab === h_key}"
                 @click="mainTabClick(h_key)"
@@ -166,7 +184,7 @@
         <div class="tab-content">
             <!--HORIZONTAL TABS-->
             <div v-for="(vert_group, h_key) in hor_groups"
-                 v-show="sel_tab === h_key"
+                 v-show="sel_tab === h_key && h_key !== '_hidden'"
                  :class="[sel_tab === h_key ? 'active' : '']"
                  class="tab-pane full-frame"
             >
@@ -218,6 +236,7 @@
                                     :parse_sections_handler_click="handlers[tbkey(tb)].parse_sections_clicked"
                                     :copy_from_model_handler_click="handlers[tbkey(tb)].copy_from_model_clicked"
                                     :fill_attachments_handler_click="handlers[tbkey(tb)].fill_attachments_clicked"
+                                    :rl_calculation_handler_click="handlers[tbkey(tb)].rl_calculation_clicked"
                                     :foreign_meta_table="vuex_fm[tb.table].meta"
                                     :foreign_all_rows="vuex_fm[tb.table].rows"
                                     :wrap_class="tb.type_tablda === 'vertical' ? 'full-width' : 'full-frame'"
@@ -353,14 +372,23 @@
             },
         },
         mounted() {
-            let filtered_tbls = _.filter(this.tab_object.tables, (tb) => {
-                return this.no_hidden(tb);
+            let shown_tbls = _.filter(this.tab_object.tables, (tb) => {
+                return this.is_visible(tb) && this.no_hidden(tb);
             });
             this.hor_groups = {};
-            let h_groups = _.groupBy(filtered_tbls, 'horizontal_low');
+            let h_groups = _.groupBy(shown_tbls, 'horizontal_low');
             _.each(h_groups, (vert_group, h_key) => {
                 this.hor_groups[h_key] = _.groupBy(vert_group, 'vertical_low');
             });
+
+            let hidden_tbls = _.filter(this.tab_object.tables, (tb) => {
+                return this.is_visible(tb) && !this.no_hidden(tb);
+            });
+            if (hidden_tbls && hidden_tbls.length) {
+                this.hor_groups['_hidden'] = {
+                    '_hidden': hidden_tbls,
+                };
+            }
 
             this.horizontal_keys = Object.keys( this.hor_groups );
             this.vertical_keys = {};
@@ -378,6 +406,6 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "CommonStyles";
 </style>

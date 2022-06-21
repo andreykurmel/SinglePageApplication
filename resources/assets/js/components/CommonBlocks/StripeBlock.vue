@@ -1,51 +1,59 @@
 <template>
     <div class="notices">
-        <!-- cards -->
-        <div v-show="$root.user._cards.length">
-            <table class="stripe_table">
-                <tr>
-                    <th colspan="6" class="txt-left">Select a saved credit card:</th>
-                </tr>
-                <tr>
-                    <th></th>
-                    <th>Card Number</th>
-                    <th>Name on Card</th>
-                    <th>Expires on</th>
-                    <th>ZIP</th>
-                    <th></th>
-                </tr>
-                <tr v-for="card in $root.user._cards">
-                    <td>
-                        <div class="card_wr">
-                            <input class="sel_card" type="radio" v-model="$root.user.selected_card" :value="card.id" @change="updateData()"/>
-                            <img :src="'/assets/img/card'+card.stripe_card_brand+'.png'" width="20">
-                        </div>
-                    </td>
-                    <td>Card: ****{{ card.stripe_card_last }}</td>
-                    <td>{{ card.stripe_card_name }}</td>
-                    <td>{{ card.stripe_exp_month }}/{{ card.stripe_exp_year }}</td>
-                    <td>{{ card.stripe_card_zip }}</td>
-                    <td class="txt-right">
-                        <button class="btn btn-danger btn-sm" @click="deleteCard('Stripe', card.id)">Delete</button>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <!-- add new card -->
-        <div v-show="!$root.user.stripe_card_id">
+        <template v-if="independent_cards">
             <div class="flex">
                 <div ref="stripe_elements" class="stripe_elements_wrapper"></div>
-                <button class="btn btn-primary" @click="addCard()">Add</button>
+                <button class="btn btn-success" @click="payByCard()">Pay</button>
             </div>
-        </div>
-        <!-- pay with selected card -->
-        <div class="form-group notices" v-if="confirm_pay">
-            <button class="btn"
-                    :disabled="!$root.user.selected_card"
-                    :class="[$root.user.selected_card ? 'btn-success' : '']"
-                    @click="$emit('payment-confirmed')"
-            >Confirm the Payment</button>
-        </div>
+        </template>
+        <template v-else="">
+            <!-- cards -->
+            <div v-show="$root.user._cards.length">
+                <table class="stripe_table">
+                    <tr>
+                        <th colspan="6" class="txt-left">Select a saved credit card:</th>
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th>Card Number</th>
+                        <th>Name on Card</th>
+                        <th>Expires on</th>
+                        <th>ZIP</th>
+                        <th></th>
+                    </tr>
+                    <tr v-for="card in $root.user._cards">
+                        <td>
+                            <div class="card_wr">
+                                <input class="sel_card" type="radio" v-model="$root.user.selected_card" :value="card.id" @change="updateData()"/>
+                                <img :src="'/assets/img/card'+card.stripe_card_brand+'.png'" width="20">
+                            </div>
+                        </td>
+                        <td>Card: ****{{ card.stripe_card_last }}</td>
+                        <td>{{ card.stripe_card_name }}</td>
+                        <td>{{ card.stripe_exp_month }}/{{ card.stripe_exp_year }}</td>
+                        <td>{{ card.stripe_card_zip }}</td>
+                        <td class="txt-right">
+                            <button class="btn btn-danger btn-sm" @click="deleteCard('Stripe', card.id)">Delete</button>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <!-- add new card -->
+            <div v-show="!$root.user.stripe_card_id">
+                <div class="flex">
+                    <div ref="stripe_elements" class="stripe_elements_wrapper"></div>
+                    <button class="btn btn-primary" @click="addCard()">Add</button>
+                </div>
+            </div>
+            <!-- pay with selected card -->
+            <div class="form-group notices" v-if="confirm_pay">
+                <button class="btn"
+                        :disabled="!$root.user.selected_card"
+                        :class="[$root.user.selected_card ? 'btn-success' : '']"
+                        @click="$emit('payment-confirmed')"
+                >Confirm the Payment</button>
+            </div>
+        </template>
         <!--stripe notices-->
         <div class="flex flex--space" style="align-items: flex-end;">
             <div>
@@ -76,8 +84,20 @@
         props:{
             stripe_key: String,
             confirm_pay: Boolean,
+            independent_cards: Boolean,
         },
         methods: {
+            payByCard() {
+                $.LoadingOverlay('show');
+                this.stripe.createToken(this.stripe_card).then((result) => {
+                    $.LoadingOverlay('hide');
+                    if (result.error) {
+                        Swal('', result.error.message);
+                    } else {
+                        this.$emit('pay-by-card', result.token);
+                    }
+                });
+            },
             addCard() {
                 $.LoadingOverlay('show');
                 this.stripe.createToken(this.stripe_card).then((result) => {

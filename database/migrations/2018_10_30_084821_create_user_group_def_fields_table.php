@@ -17,7 +17,7 @@ class CreateUserGroupDefFieldsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('user_group_id');
             $table->unsignedInteger('table_field_id');
-            $table->string('default', 1024);
+            $table->string('default', 255);
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

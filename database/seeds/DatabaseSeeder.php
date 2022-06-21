@@ -18,8 +18,6 @@ class DatabaseSeeder extends Seeder
         $this->call(RolesSeeder::class);
         $this->call(PermissionsSeeder::class);
         $this->call(UserSeeder::class);
-        $this->call(TestTableSeeder::class);
-        $this->call(TMETableSeeder::class);
         $this->call(TableSeeder::class);
         $this->call(TableFieldsSeeder::class);
         $this->call(AdditionalFieldsSeeder::class);
@@ -34,8 +32,9 @@ class DatabaseSeeder extends Seeder
         $this->call(UserInvitationsSeeder::class);
         $this->call(CorrespondencesSeeder::class);
         $this->call(LinkSysTablesSeeder::class);
-
         $this->call(ThemesSeeder::class);
+        $this->call(EmailSettingSeeder::class);
+        $this->call(UploadingFileFormatsSeeder::class);
 
         Model::reguard();
     }

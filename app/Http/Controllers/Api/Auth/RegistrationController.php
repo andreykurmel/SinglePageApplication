@@ -80,6 +80,8 @@ class RegistrationController extends ApiController
                 'confirmation_token' => null
             ]);
 
+            $this->users->awardInvites();
+
             return $this->respondWithSuccess();
         }
 

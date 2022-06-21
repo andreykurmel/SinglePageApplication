@@ -44,13 +44,13 @@
         <!--PANEL-->
         <template v-else="">
             <div v-for="option in filtered_options" class="panel-ddl" :style="specClr(option)">
-                <input :type="($root.isMSEL(fld_input_type) ? 'checkbox' : 'radio')"
-                       :disabled="disabled"
-                       :checked="isSelected(option.value)"
-                       :value="option.value"
-                       @click="selectedItem(option)"
-                />
                 <label>
+                    <input :type="($root.isMSEL(fld_input_type) ? 'checkbox' : 'radio')"
+                           :disabled="disabled"
+                           :checked="isSelected(option.value)"
+                           :value="option.value"
+                           @click="selectedItem(option)"
+                    />
                     <img v-if="option.image" :src="$root.fileUrl({url:option.image})" class="item-image" :height="lineHeight"/>
                     <span>{{ option.show || option.value || '&nbsp;' }}</span>
                 </label>
@@ -61,8 +61,10 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../../classes/SpecialFuncs';
+
     import CellStyleMixin from './../../_Mixins/CellStyleMixin.vue';
-    import MixinSmartPosition from './MixinSmartPosition.vue';
+    import MixinSmartPosition from '../../_Mixins/MixinSmartPosition.vue';
 
     export default {
         name: "TabldaSelectDdl",
@@ -86,6 +88,7 @@
             }
         },
         props:{
+            table_id: Number,
             ddl_id: Number,
             tableRow: Object,
             hdr_field: String,
@@ -128,7 +131,7 @@
                     : this.tableRow[this.hdr_field] == key;
             },
             selectedItem(option) {
-                let value = !isNaN(option.value) ? String(option.value) : option.value;
+                let value = isNumber(option.value) ? String(option.value) : option.value;
                 this.$emit('selected-item', value, option);
                 if (!this.multiselect) {
                     this.hideSelect();
@@ -157,9 +160,11 @@
                     let tbRow = this.abstract_values ? [] : this.tableRow || [];
                     this.$root.sm_msg_type = 1;
                     axios.post('/ajax/table-data/ddl/get-values', {
+                        table_id: this.table_id,
                         ddl_id: this.ddl_id,
                         row: tbRow,
                         search: this.search_text,
+                        special_params: SpecialFuncs.specialParams(),
                     }).then(({data}) => {
                         this.avail_ddl_items = data;
                         this.filterOptions();

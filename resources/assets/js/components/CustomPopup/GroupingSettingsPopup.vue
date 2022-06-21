@@ -4,7 +4,7 @@
             <div class="flex flex--col">
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
-                    <span>Defining Groups</span>
+                    <span>Define Row and Column Groups</span>
                     <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
                 </div>
                 <div class="flex__elem-remain popup-content">
@@ -14,8 +14,6 @@
                             <table-grouping-settings
                                     :table-meta="tableMeta"
                                     :settings-meta="$root.settingsMeta"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
                                     :user="user"
                                     :table_id="tableMeta.id"
                                     :is_popup_type="show_popup"

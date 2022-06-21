@@ -4,7 +4,7 @@
 
 @section('content')
     <risa3d-remover-form
-            :usergroup="{{ $usergroup }}"
+            :usergroup="'{{ $usergroup }}'"
             :mg_name="'{{ $mg_name }}'"
             :tables_delete="'{{ $tables_delete }}'"
             v-cloak=""

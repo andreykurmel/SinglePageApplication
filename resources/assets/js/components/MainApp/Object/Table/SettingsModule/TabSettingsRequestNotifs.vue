@@ -3,13 +3,13 @@
         <div class="row full-height permissions-tab">
             <div class="permissions-panel full-height">
                 <div class="permissions-menu-header">
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'sav'}" @click="activeTab = 'sav'">
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'sav'}" @click="activeTab = 'sav'">
                         Saving
                     </button>
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'submis'}" @click="activeTab = 'submis'">
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'submis'}" @click="activeTab = 'submis'">
                         Submission
                     </button>
-                    <button class="btn btn-default btn-sm" :class="{active : activeTab === 'updat'}" @click="activeTab = 'updat'">
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'updat'}" @click="activeTab = 'updat'">
                         Updating
                     </button>
                 </div>
@@ -17,6 +17,7 @@
 
                     <div class="full-frame defaults-tab" v-show="activeTab === 'sav'">
                         <tab-settings-notification-row
+                                :table-meta="tableMeta"
                                 :table_id="table_id"
                                 :cell-height="cellHeight"
                                 :max-cell-rows="maxCellRows"
@@ -30,6 +31,7 @@
 
                     <div class="full-frame defaults-tab" v-show="activeTab === 'submis'">
                         <tab-settings-notification-row
+                                :table-meta="tableMeta"
                                 :table_id="table_id"
                                 :cell-height="cellHeight"
                                 :max-cell-rows="maxCellRows"
@@ -43,6 +45,7 @@
 
                     <div class="full-frame defaults-tab" v-show="activeTab === 'updat'">
                         <tab-settings-notification-row
+                                :table-meta="tableMeta"
                                 :table_id="table_id"
                                 :cell-height="cellHeight"
                                 :max-cell-rows="maxCellRows"
@@ -63,17 +66,23 @@
 <script>
     import TabSettingsNotificationRow from "./TabSettingsNotificationRow";
 
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     export default {
         name: "TabSettingsRequestNotifs",
         components: {
             TabSettingsNotificationRow
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 activeTab: 'submis',
             }
         },
         props:{
+            tableMeta: Object,
             table_id: Number,
             cellHeight: Number,
             maxCellRows: Number,
@@ -100,4 +109,7 @@
 
 <style lang="scss" scoped>
     @import "./TabSettingsPermissions";
+    .btn-default {
+        height: 30px;
+    }
 </style>

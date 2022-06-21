@@ -3,7 +3,7 @@
         <div class="row full-height">
             <!--LEFT SIDE-->
             <div class="col-xs-12 full-height" :style="{width: '25%', paddingRight: 0}">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>Dropdown Lists (DDLs)</span>
                     <button class="btn btn-default btn-sm blue-gradient"
                             :style="$root.themeButtonStyle"
@@ -11,21 +11,21 @@
                             @click="show_copy_ddl = true"
                             title="Copy DDL from Tables">Copy</button>
                 </div>
-                <div class="body-panel no-padding t5">
+                <div class="body-panel no-padding" style="margin-top: 6px">
                     <custom-table
                             :cell_component_name="'custom-cell-settings-ddl'"
                             :global-meta="tableMeta"
-                            :table-meta="settingsMeta['ddl']"
+                            :table-meta="$root.settingsMeta['ddl']"
                             :all-rows="tableMeta._ddls"
                             :rows-count="tableMeta._ddls.length"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :is-full-width="true"
                             :adding-row="addingRow"
                             :behavior="'settings_ddl'"
                             :user="user"
                             :selected-row="selectedDDL"
-                            :forbidden-columns="forbidCol"
+                            :available-columns="['name']"
                             :use_theme="true"
                             :no_width="true"
                             @added-row="addDDLRow"
@@ -33,13 +33,34 @@
                             @delete-row="deleteDDLRow"
                             @row-index-clicked="rowIndexClickedDDL"
                     ></custom-table>
+
+                    <div class="absolute-sorting">
+                        <vertical-table
+                            v-if="tableMeta._ddls[selectedDDL]"
+                            :td="'custom-cell-settings-ddl'"
+                            :global-meta="tableMeta"
+                            :table-meta="$root.settingsMeta['ddl']"
+                            :settings-meta="$root.settingsMeta"
+                            :table-row="tableMeta._ddls[selectedDDL]"
+                            :cell-height="1"
+                            :max-cell-rows="0"
+                            :user="$root.user"
+                            :behavior="'settings_ddl'"
+                            :disabled_sel="true"
+                            :is_small_spacing="'yes'"
+                            :available-columns="['datas_sort']"
+                            :widths="{ name: '35%', col: '65%', history: 0, unit: 0, }"
+                            style="table-layout: auto"
+                            @updated-cell="updateDDLRow"
+                        ></vertical-table>
+                    </div>
                 </div>
             </div>
             <!--RIGHT SIDE-->
             <div class="col-xs-12 full-height" :style="{width: '75%'}">
-                <div class="top-text">
-                    <span v-if="selectedDDL < 0">You should select the DDL</span>
-                    <span v-else="">Options ({{ tableMeta._ddls[selectedDDL].name }})</span>
+                <div class="top-text" :style="textSysStyle">
+                    <span v-if="!tableMeta._ddls[selectedDDL]">You should select the DDL</span>
+                    <span v-else="">Options for DDL: {{ tableMeta._ddls[selectedDDL].name }}</span>
 
                     <info-sign-link
                             class="right-elem"
@@ -49,24 +70,25 @@
                 </div>
                 <div class="body-panel no-padding" :style="{backgroundColor: selectedDDL > -1 ? 'inherit' : null}" :class="[selectedDDL > -1 ? '' : 't5']">
 
-                    <div v-if="selectedDDL > -1" class="full-frame ddl-panel">
+                    <div class="full-frame ddl-panel">
                         <custom-table
-                                v-if="selectedDDL > -1"
+                                v-if="tableMeta._ddls[selectedDDL]"
                                 :cell_component_name="'custom-cell-settings-ddl'"
                                 :global-meta="tableMeta"
-                                :table-meta="settingsMeta['ddl_references']"
-                                :settings-meta="settingsMeta"
-                                :all-rows="selectedDDL > -1 ? tableMeta._ddls[selectedDDL]._references : []"
-                                :rows-count="selectedDDL > -1 ? tableMeta._ddls[selectedDDL]._references.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :table-meta="$root.settingsMeta['ddl_references']"
+                                :settings-meta="$root.settingsMeta"
+                                :all-rows="tableMeta._ddls[selectedDDL]._references || []"
+                                :rows-count="tableMeta._ddls[selectedDDL]._references.length || 0"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
-                                :fixed_ddl_pos="true"
                                 :adding-row="addingRefRow"
                                 :behavior="'settings_ddl_items'"
                                 :user="user"
                                 :forbidden-columns="forbidCol"
+                                :parent-row="tableMeta._ddls[selectedDDL]"
                                 :use_theme="true"
+                                :with_edit="!!$root.checkAvailable($root.user, 'ddl_ref')"
                                 :widths_div="1.5"
                                 @added-row="addReferenceRow"
                                 @updated-row="updateReferenceRow"
@@ -75,7 +97,8 @@
                         ></custom-table>
                     </div>
 
-                    <div v-if="selectedDDL > -1" class="left-elem field-loader-wrapper">
+                    <div v-if="!tableMeta._ddls[selectedDDL]" style="height: 30px;"></div>
+                    <div v-if="tableMeta._ddls[selectedDDL]" class="left-elem field-loader-wrapper">
                         <div class="field-loader">
                             <select class="form-control field-selector"
                                     v-model="tableMeta._ddls[selectedDDL].items_pos"
@@ -86,10 +109,10 @@
                             </select>
                         </div>
                         <div class="field-loader" style="width: auto">
-                            <label>RC-Based Items</label>
+                            <label :style="textSysStyle">RC-Based Items</label>
                         </div>
                     </div>
-                    <div v-if="selectedDDL > -1" class="right-elem field-loader-wrapper">
+                    <div v-if="tableMeta._ddls[selectedDDL]" class="right-elem field-loader-wrapper">
                         <div class="field-loader-bg">
                             <select-with-folder-structure
                                     :cur_val="table_for_load_ddl"
@@ -116,17 +139,17 @@
                         >Import</button>
                     </div>
 
-                    <div v-if="selectedDDL > -1" class="full-frame ddl-panel">
+                    <div class="full-frame ddl-panel">
                         <custom-table
+                                v-if="tableMeta._ddls[selectedDDL]"
                                 :cell_component_name="'custom-cell-settings-ddl'"
                                 :global-meta="tableMeta"
-                                :table-meta="settingsMeta['ddl_items']"
-                                :all-rows="selectedDDL > -1 ? tableMeta._ddls[selectedDDL]._items : []"
-                                :rows-count="selectedDDL > -1 ? tableMeta._ddls[selectedDDL]._items.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :table-meta="$root.settingsMeta['ddl_items']"
+                                :all-rows="tableMeta._ddls[selectedDDL]._items || []"
+                                :rows-count="tableMeta._ddls[selectedDDL]._items.length || 0"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
-                                :fixed_ddl_pos="true"
                                 :adding-row="addingRow"
                                 :behavior="'settings_ddl_items'"
                                 :user="user"
@@ -172,22 +195,29 @@
 </template>
 
 <script>
+    import {eventBus} from '../../../../../app';
+
+    import {RefCondHelper} from "../../../../../classes/helpers/RefCondHelper";
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     import CustomTable from '../../../../CustomTable/CustomTable';
     import SelectWithFolderStructure from "../../../../CustomCell/InCell/SelectWithFolderStructure";
     import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink";
-
-    import {eventBus} from '../../../../../app';
     import CopyDdlFromTablePopup from "../../../../CustomPopup/CopyDdlFromTablePopup";
+    import VerticalTable from "../../../../CustomTable/VerticalTable";
 
     export default {
         name: "TableDdlSettings",
         components: {
+            VerticalTable,
             CopyDdlFromTablePopup,
             InfoSignLink,
             SelectWithFolderStructure,
             CustomTable,
         },
         mixins: [
+            CellStyleMixin,
         ],
         data: function () {
             return {
@@ -215,14 +245,11 @@
         },
         props:{
             tableMeta: Object,
-            settingsMeta: Object,
-            cellHeight: Number,
-            maxCellRows: Number,
             user:  Object,
             table_id: Number,
             init_ddl_idx: {
                 type: Number,
-                default: -1,
+                default: 0,
             },
         },
         watch: {
@@ -300,6 +327,7 @@
                 }).then(({ data }) => {
                     this.tableMeta._ddls = data;
                     this.selectedDDL = -1;
+                    RefCondHelper.setUses(this.tableMeta);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -343,6 +371,9 @@
                     fields: fields
                 }).then(({ data }) => {
                     this.tableMeta._ddls[this.selectedDDL]._items = data;
+                    if (tableRow._changed_field === 'opt_color') {
+                        eventBus.$emit('reload-page');
+                    }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -380,11 +411,18 @@
                     fields: fields
                 }).then(({ data }) => {
                     this.tableMeta._ddls[this.selectedDDL]._references = data;
+                    RefCondHelper.setUses(this.tableMeta);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
+            },
+            eventUpdateReferenceRow(table_id, tableRow) {
+                if (this.tableMeta.id == table_id) {
+                    this.selectedDDL = _.findIndex(this.tableMeta._ddls, {id: tableRow.ddl_id});
+                    this.updateReferenceRow(tableRow);
+                }
             },
             updateReferenceRow(tableRow) {
                 this.$root.sm_msg_type = 1;
@@ -392,6 +430,7 @@
                 let row_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
+                RefCondHelper.setUses(this.tableMeta);
 
                 axios.put('/ajax/ddl/reference', {
                     table_id: this.tableMeta.id,
@@ -410,6 +449,12 @@
                     this.$root.sm_msg_type = 0;
                 });
             },
+            eventDeleteReferenceRow(table_id, tableRow) {
+                if (this.tableMeta.id == table_id) {
+                    this.selectedDDL = _.findIndex(this.tableMeta._ddls, {id: tableRow.ddl_id});
+                    this.deleteReferenceRow(tableRow);
+                }
+            },
             deleteReferenceRow(tableRow) {
                 this.$root.sm_msg_type = 1;
                 let ddl_id = tableRow.id;
@@ -421,6 +466,7 @@
                     }
                 }).then(({ data }) => {
                     this.tableMeta._ddls[this.selectedDDL]._references = data;
+                    RefCondHelper.setUses(this.tableMeta);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -478,12 +524,27 @@
         },
         mounted() {
             this.load_pdv_ddl_fields();
+
+            eventBus.$on('event-update-ddl-reference-row', this.eventUpdateReferenceRow);
+            eventBus.$on('event-delete-ddl-reference-row', this.eventDeleteReferenceRow);
         },
         beforeDestroy() {
+            eventBus.$off('event-update-ddl-reference-row', this.eventUpdateReferenceRow);
+            eventBus.$off('event-delete-ddl-reference-row', this.eventDeleteReferenceRow);
         }
     }
 </script>
 
 <style lang="scss" scoped>
     @import "./TabSettingsDdls";
+
+    .absolute-sorting {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: auto;
+        padding: 0 5px;
+        border-top: 1px solid #777;
+    }
 </style>

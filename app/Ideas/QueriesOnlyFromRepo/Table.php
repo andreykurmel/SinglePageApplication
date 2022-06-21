@@ -3,33 +3,43 @@
 namespace Vanguard\Ideas\QueriesOnlyFromRepo;
 
 use Illuminate\Database\Eloquent\Model;
+use Vanguard\Ideas\RepositoryFactory;
 use Vanguard\User;
 
+/**
+ * Vanguard\Ideas\QueriesOnlyFromRepo\Table
+ *
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Ideas\QueriesOnlyFromRepo\Table newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Ideas\QueriesOnlyFromRepo\Table newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Ideas\QueriesOnlyFromRepo\Table query()
+ * @mixin \Eloquent
+ */
 class Table extends Model
 {
-    protected $table = 'tables';
+    protected $table = '';
 
+    /**
+     * Access to DB should be used just from Repository
+     *
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public static function db() {
+        return (new Table())->setTable('tables')->newQuery();
+    }
+
+
+    //settings
     public $timestamps = false;
 
-    //should be filled all columns
     protected $fillable = [
         'id',
-        'db_name',
-        'name',
-        'user_id',
-        'rows_per_page',
-        'notes',
-        'add_notes',
-    ];
-
-    protected $not_copy = [
         'db_name',
         'name',
         'user_id',
     ];
 
     /**
-     *  #model_hook
+     *  example #model_hook
      */
     public static function boot()
     {
@@ -42,22 +52,11 @@ class Table extends Model
     }
     //-----------------------
 
+
     /**
-     * @return array
+     * @return \Illuminate\Support\Collection
      */
-    public function getCopyAttrs() {
-        return collect( $this->getAttributes() )
-            ->except( $this->not_copy )
-            ->toArray();
-    }
-
-
-
-    public function _table() {
-        return $this->hasOne(Table::class, 'id', 'id');
-    }
-
     public function _fields() {
-        return $this->hasMany(Table::class, 'id', 'id');
+        return (RepositoryFactory::TableField())->getByTable( $this->id );
     }
 }

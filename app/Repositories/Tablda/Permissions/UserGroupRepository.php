@@ -38,19 +38,18 @@ class UserGroupRepository
     }
 
     /**
-     * Get Group.
-     *
      * @param $group_id
+     * @param string $fld
      * @return array
      */
-    public function getGroupEmails($group_id)
+    public function getGroupUsrFields($group_id, string $fld = 'email')
     {
         $group = UserGroup::where('id', '=', $group_id)
             ->with('_individuals_all')
             ->first();
 
         return $group ?
-            $group->_individuals_all->pluck('email')->toArray()
+            $group->_individuals_all->pluck($fld)->toArray()
             : [];
     }
 
@@ -192,6 +191,7 @@ class UserGroupRepository
      */
     public function addGroupCondition($data)
     {
+        $data['logic_operator'] = $data['logic_operator'] ?? 'AND';
         return UserGroupCondition::create( $this->service->delSystemFields($data) );
     }
 
@@ -212,6 +212,17 @@ class UserGroupRepository
     public function updateGroupCondition($condition_id, $data)
     {
         return UserGroupCondition::where('id', $condition_id)
+            ->update( $this->service->delSystemFields($data) );
+    }
+
+    /**
+     * @param int $user_group_id
+     * @param array $data
+     * @return mixed
+     */
+    public function updateAllConditions(int $user_group_id, array $data)
+    {
+        return UserGroupCondition::where('user_group_id', '=', $user_group_id)
             ->update( $this->service->delSystemFields($data) );
     }
 

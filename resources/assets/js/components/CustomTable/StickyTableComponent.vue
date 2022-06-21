@@ -1,8 +1,8 @@
 <template>
-    <div :style="{display: b_margin ? 'flex' : 'block'}">
+    <div :style="{display: b_margin ? 'flex' : 'block', width: isFullWidth ? 'calc(100% - 1px)' : null}">
         <table :style="{ width: (isFullWidth ? '100%' : '1px'), marginBottom: b_margin+'px' }" :id="tb_id">
             <!--!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!-->
-            <colgroup>
+            <colgroup v-if="!isFullWidth">
                 <col :style="sticky({width: widths.index_col+'px'}, -2)"/>
                 <col v-if="listViewActions" :style="sticky({width: widths.favorite_col+'px'}, -1)"/>
                 <col v-for="(hdr,i) in showMetaFields" :style="sticky({width: tdCellWidth(hdr)+'px'}, i)"/>
@@ -14,7 +14,11 @@
             <!--Adding row in headers-->
             <tr v-if="addingRow.active && addingRow.position === 'top'" class="adding_row">
                 <td :style="sticky({width: widths.index_col+'px'}, -2)"></td>
-                <td v-if="listViewActions" class="_no_png" :style="sticky({width: widths.favorite_col+'px'}, -1)"></td>
+                <td v-if="listViewActions" class="_no_png action-cell" :style="sticky({width: widths.favorite_col+'px'}, -1)">
+                    <a v-if="canAdd" @click="addRow()" title="Add Row">
+                        <i title="Add Row" class="glyphicon glyphicon-plus hover-red"></i>
+                    </a>
+                </td>
 
                 <template v-for="(tableHeader, i) in showMetaFields">
                     <td :is="cell_component_name"
@@ -38,6 +42,8 @@
                         :link_popup_conditions="link_popup_conditions"
                         :use_theme="use_theme"
                         :is_visible="is_visible"
+                        :no_height_limit="no_height_limit"
+                        :all-rows="allRows"
 
                         :style="sticky({width: tdCellWidth(tableHeader)+'px'}, i)"
                         @updated-cell="checkRowAutocomplete"
@@ -61,7 +67,7 @@
             <!--Multiheader layout fix (to fix columns width in system tables)-->
             <tr v-if="maxRowsInHeader > 1" class="multiheader-fix">
                 <th :style="sticky(getThSysWidth(widths.index_col), -2, true)"></th>
-                <th v-if="inArray(behavior, ['list_view', 'favorite']) && user.id"
+                <th v-if="listViewActions"
                     :class="{'action-cell': true, 'sm-font': tdCellHGT < 30}"
                     class="_no_png"
                     :style="sticky(getThSysWidth(widths.favorite_col), -1, true)"
@@ -87,12 +93,13 @@
                     v-if="curHeaderRow === 1 && listViewActions"
                     :style="sticky(getThSysWidth(widths.favorite_col), -1, true)"
                 >
-                    <i class="fa fa-info-circle"></i>
+                    <i v-if="!hasSelectedRows()" class="fa fa-info-circle"></i>
                     <div v-if="behavior === 'list_view' || behavior === 'favorite'" class="header_checks">
-                        <template v-if="notForbidden('i_favorite')">
+                        <span v-if="notForbidden('i_srv') && canSRV(tableMeta)">&nbsp;&nbsp;&nbsp;&nbsp;</span>
+                        <template v-if="notForbidden('i_favorite') && user.id">
                             <a @click.prevent="toggleAllFavorites()" title="Toggle Selected Rows">
                                 <i class="glyphicon"
-                                   title="All to Favorite"
+                                   title="Favorite/Unfavorite Selected Items"
                                    :class="[selectedRowsAreFavorites() ? 'glyphicon-star': 'glyphicon-star-empty']"
                                    :style="{color: selectedRowsAreFavorites() ? $root.themeButtonBgColor : '#FD0'}"></i>
                             </a>
@@ -100,7 +107,7 @@
                         </template>
                         <template v-if="notForbidden('i_remove') && canDelete">
                             <a @click="emitDeleteSelected()" title="Delete Selected Rows">
-                                <i title="Delete All" class="glyphicon glyphicon-remove"></i>
+                                <i title="Delete All" class="glyphicon glyphicon-remove hover-red"></i>
                             </a>
                             |
                         </template>
@@ -126,7 +133,7 @@
                     @mouseenter="(e) => { $root.showHoverTooltip(e, tableHeader) }"
                     @mouseleave="$root.leaveHoverTooltip"
                 >
-                    <div class="full-height flex flex--center" :style="textStyle">
+                    <div class="full-height flex flex--center" :style="tableMeta.is_system ? textSysStyle : textStyle">
                         <span class="head-content"
                               draggable="true"
                               @dragstart="(!tableHeader.is_floating && canDragColumn ? startChangeHeadersOrder(tableHeader, index) : null)"
@@ -163,6 +170,7 @@
                     <header-resizer :table-header="tableHeader"
                                     :init_width="tdCellWidth(tableHeader)"
                                     :user="user"
+                                    @col-resized="$emit('col-resized')"
                     ></header-resizer>
                 </th>
 
@@ -199,9 +207,7 @@
                 v-if="tableRow && !rowExcludedByValue(tableRow)"
                 :style="getPresentRowStyle(tableRow, index)"
                 :ref="'cttr_'+tableMeta.id+'_'+tableRow.id"
-                @mouseenter="hoverRow(index)"
-                @mouseleave="hoverClear()"
-                @contextmenu.prevent="showRowMenu(tableRow, index)"
+                class="icon_on_hover"
             >
                 <td :width="widths.index_col"
                     class="content-padding centered-cell"
@@ -223,13 +229,13 @@
                         >
                             <a @click.prevent="rowIndexClicked(index)" :style="{color: behavior === 'cond_format' ? '#FFF' : null}">
                                 <span>{{ ((page-1)*(tableMeta.rows_per_page || rowsCount))+index+1 }}</span>
-                                <i v-if="index === hover_row && inArray(behavior, popupArray)" class="glyphicon glyphicon-resize-full"></i>
+                                <i v-if="inArray(behavior, popupArray)" class="glyphicon glyphicon-resize-full target_icon"></i>
                             </a>
                         </span>
 
                         <a v-else-if="inArray(behavior, linkArray)" @click.prevent="rowIndexClicked(index)">
                             <span>{{ ((page-1)*(tableMeta.rows_per_page || rowsCount))+index+1 }}</span>
-                            <i v-if="index === hover_row && inArray(behavior, popupArray)" class="glyphicon glyphicon-resize-full"></i>
+                            <i v-if="inArray(behavior, popupArray)" class="glyphicon glyphicon-resize-full target_icon"></i>
                         </a>
 
                         <span v-else="">{{ ((page-1)*(tableMeta.rows_per_page || rowsCount))+index+1 }}</span>
@@ -243,10 +249,18 @@
                     :width="widths.favorite_col"
                     :style="sticky(textStyle, -1)">
                     <template v-if="(behavior === 'request_view' && !tableRow.id)">
-                        <a @click="deleteRow(tableRow, index)"><i class="glyphicon glyphicon-remove"></i></a>
+                        <a @click="deleteRow(tableRow, index)"><i class="glyphicon glyphicon-remove hover-red"></i></a>
                     </template>
                     <div v-if="inArray(behavior, ['list_view','favorite'])">
-                        <template v-if="notForbidden('i_favorite')">
+                        <template v-if="notForbidden('i_srv') && canSRV(tableMeta)">
+                            <srv-block
+                                :table-meta="tableMeta"
+                                :table-row="tableRow"
+                                :with-delimiter="true"
+                                style="font-size: 16px; position: relative; top: 2px;"
+                            ></srv-block>
+                        </template>
+                        <template v-if="notForbidden('i_favorite') && user.id">
                             <a @click.prevent="toggleFavoriteRow(tableRow)">
                                 <i class="glyphicon"
                                    title="Add to Favorite"
@@ -257,14 +271,14 @@
                         </template>
                         <template v-if="notForbidden('i_remove') && canDelete">
                             <a v-if="canDeleteRow(tableRow)" @click="deleteRow(tableRow, index)">
-                                <i title="Delete" class="glyphicon glyphicon-remove"></i>
+                                <i title="Delete" class="glyphicon glyphicon-remove hover-red"></i>
                             </a>
                             <i v-else="" title="Not Allowed" class="glyphicon glyphicon-remove gl-gray"></i>
                             |
                         </template>
                         <template v-if="notForbidden('i_check')">
                             <span title="Check Row" class="indeterm_check__wrap">
-                                <span class="indeterm_check" @click="ifNeedMassCheck(tableRow);">
+                                <span class="indeterm_check" @click="ifNeedMassCheck(tableRow)">
                                     <i v-if="tableRow._checked_row" class="glyphicon glyphicon-ok group__icon"></i>
                                 </span>
                             </span>
@@ -277,6 +291,8 @@
                     <td v-if="behavior === 'settings_display' && tableHeader.field === 'name'"
                         :is="'settings-display-name-cell'"
                         :class="[overRow === tableRow.field ? 'td-overed' : '']"
+                        :global-meta="globalMeta"
+                        :table-meta="tableMeta"
                         :table-row="tableRow"
                         :table-header="tableHeader"
                         :cell-height="cellHeight"
@@ -314,6 +330,8 @@
                         :link_popup_conditions="link_popup_conditions"
                         :use_theme="use_theme"
                         :is_visible="is_visible"
+                        :no_height_limit="no_height_limit"
+                        :all-rows="allRows"
 
                         :style="sticky({width: tdCellWidth(tableHeader)+'px'}, i)"
                         @updated-cell="updatedRow"
@@ -323,6 +341,7 @@
                         @show-add-ddl-option="showAddDDLOption"
                         @show-def-val-popup="showDefValPopup"
                         @show-add-ref-cond="showAddRefCond"
+                        @cell-menu="showRowMenu"
                     ></td>
                 </template>
 
@@ -377,8 +396,11 @@
                         :link_popup_conditions="link_popup_conditions"
                         :use_theme="use_theme"
                         :is_visible="is_visible"
+                        :no_height_limit="no_height_limit"
+                        :all-rows="allRows"
 
                         :style="sticky({width: tdCellWidth(tableHeader)+'px'}, i)"
+                        @updated-cell="checkRowAutocomplete"
                         @show-add-ddl-option="showAddDDLOption"
                         @show-src-record="showSrcRecord"
                     ></td>
@@ -398,87 +420,70 @@
 
             </tbody>
         </table>
-        <div v-if="r_margin" :style="{width: r_margin+'px', flexShrink: 0}"></div>
+        <div v-if="r_margin" :style="{width: r_margin+'px', flexShrink: 0}">
+            <div v-if="tableMeta._is_owner && behavior == 'list_view'" class="flex flex--center add-col">
+                <i class="fa fa-plus" @click="showAddColumn"></i>
+            </div>
+        </div>
 
-        <div v-if="row_menu_show && row_menu.row && row_menu.idx > -1 && behavior == 'list_view'"
+        <div v-if="row_menu_show && row_menu.row && row_menu.idx > -1"
              ref="row_menu"
              class="float-rom-menu"
              :style="rowMenuStyle"
         >
-            <button class="btn btn-default blue-gradient"
-                    style="padding: 0 3px;"
-                    :style="$root.themeButtonStyle"
-                    @click="rowIndexClicked(row_menu.idx);row_menu_show = false;"
-            >Popup</button>
-            <br>
-            <button class="btn btn-default blue-gradient"
-                    style="padding: 0 3px;"
-                    :style="$root.themeButtonStyle"
-                    :disabled="!canAdd"
-                    @click="rowInsertPop(row_menu.row, -1);row_menu_show = false;"
-            >Insert Above</button>
-            <br>
-            <button class="btn btn-default blue-gradient"
-                    style="padding: 0 3px;"
-                    :style="$root.themeButtonStyle"
-                    :disabled="!canAdd"
-                    @click="rowInsertPop(row_menu.row, 0);row_menu_show = false;"
-            >Insert Below</button>
-            <br>
-            <button class="btn btn-default blue-gradient"
-                    style="padding: 0 3px;"
-                    :style="$root.themeButtonStyle"
-                    :disabled="!canAdd"
-                    @click="rowInsertPop(row_menu.row, 0, 'copy');row_menu_show = false;"
-            >Duplicate</button>
-            <br>
-            <button class="btn btn-default blue-gradient"
-                    style="padding: 0 3px;"
-                    :style="$root.themeButtonStyle"
-                    :disabled="!row_menu.can_del"
-                    @click="deleteRow(row_menu.row, row_menu.idx);row_menu_show = false;"
-            >Delete</button>
+            <a v-if="row_menu.hdr" @click="copyCell(row_menu.row, row_menu.hdr);row_menu_show = false;">Copy Cell</a>
+            <a @click="rowIndexClicked(row_menu.idx);row_menu_show = false;">Popup</a>
+            <a :class="!canAdd ? 'disabled' : ''" @click="rowInsertPop(row_menu.row, -1);row_menu_show = false;">Insert Above</a>
+            <a :class="!canAdd ? 'disabled' : ''" @click="rowInsertPop(row_menu.row, 0);row_menu_show = false;">Insert Below</a>
+            <a :class="!canAdd ? 'disabled' : ''" @click="rowInsertPop(row_menu.row, 0, 'copy');row_menu_show = false;">Duplicate</a>
+            <a :class="!row_menu.can_del ? 'disabled' : ''" @click="deleteRow(row_menu.row, row_menu.idx);row_menu_show = false;">Delete</a>
         </div>
     </div>
 </template>
 
 <script>
-    import {SelectedCells} from '../../classes/SelectedCells';
+import {SelectedCells} from '../../classes/SelectedCells';
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
-    import {eventBus} from '../../app';
+import {eventBus} from '../../app';
 
-    import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
-    import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
-    import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
-    import CustomCellCorrespTableData from '../CustomCell/CustomCellCorrespTableData.vue';
-    import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
-    import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
-    import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
-    import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
-    import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
-    import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
-    import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
-    import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
-    import CustomCellAlertNotif from '../CustomCell/CustomCellAlertNotif.vue';
-    import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
-    import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
-    import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
-    import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
-    import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
-    import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
-    import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
-    import SettingsDisplayNameCell from '../CustomCell/SettingsDisplayNameCell.vue';
-    import HeaderMenuElem from './Header/HeaderMenuElem.vue';
-    import HeaderResizer from './Header/HeaderResizer.vue';
+import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
+import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
+import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
+import CustomCellCorrespTableData from '../CustomCell/CustomCellCorrespTableData.vue';
+import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
+import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
+import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
+import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
+import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
+import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
+import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
+import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
+import CustomCellAlertNotif from '../CustomCell/CustomCellAlertNotif.vue';
+import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
+import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
+import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
+import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
+import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
+import CustomCellIncomingLinks from '../CustomCell/CustomCellIncomingLinks.vue';
+import SettingsDisplayNameCell from '../CustomCell/SettingsDisplayNameCell.vue';
+import HeaderMenuElem from './Header/HeaderMenuElem.vue';
+import HeaderResizer from './Header/HeaderResizer.vue';
+import SrvBlock from "../CommonBlocks/SrvBlock";
 
-    import IsShowFieldMixin from '../_Mixins/IsShowFieldMixin.vue';
-    import TestRowColMixin from '../_Mixins/TestRowColMixin.vue';
-    import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
-    import CheckRowBackendMixin from '../_Mixins/CheckRowBackendMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
-    import HeaderRowColSpanMixin from '../_Mixins/HeaderRowColSpanMixin.vue';
+import IsShowFieldMixin from '../_Mixins/IsShowFieldMixin.vue';
+import TestRowColMixin from '../_Mixins/TestRowColMixin.vue';
+import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
+import CheckRowBackendMixin from '../_Mixins/CheckRowBackendMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import HeaderRowColSpanMixin from '../_Mixins/HeaderRowColSpanMixin.vue';
+import SrvMixin from '../_Mixins/SrvMixin.vue';
+import CellMenuMixin from "../_Mixins/CellMenuMixin";
 
-    export default {
+export default {
         name: "StickyTableComponent",
         mixins: [
             IsShowFieldMixin,
@@ -487,8 +492,11 @@
             CheckRowBackendMixin,
             CellStyleMixin,
             HeaderRowColSpanMixin,
+            SrvMixin,
+            CellMenuMixin,
         ],
         components: {
+            SrvBlock,
             CustomCellTableData,
             CustomCellSystemTableData,
             CustomCellCorrespTableData,
@@ -496,6 +504,7 @@
             CustomCellDisplayLinks,
             CustomCellSettingsDdl,
             CustomCellSettingsPermission,
+            CustomCellSettingsDcr,
             CustomHeadCellTableData,
             CustomCellColRowGroup,
             CustomCellKanbanSett,
@@ -510,6 +519,7 @@
             CustomCellTableView,
             CustomCellStimAppView,
             SettingsDisplayNameCell,
+            CustomCellIncomingLinks,
             HeaderMenuElem,
             HeaderResizer,
         },
@@ -522,16 +532,7 @@
                     head: 150,
                     f_data: 100,
                 },
-                row_menu: {
-                    row: null,
-                    idx: -1,
-                    can_del: false,
-                },
-                row_menu_show: false,
-                row_menu_left: 0,
-                row_menu_top: 0,
 
-                hover_row: null,
                 draggedRow: null,
                 draggedIndex: null,
                 draggedHeader: null,
@@ -571,6 +572,7 @@
             use_theme: Boolean,
             no_width: Boolean,
             is_visible: Boolean,
+            no_height_limit: Boolean,
 
 
             //systems
@@ -607,12 +609,6 @@
                 }
                 return style;
             },
-            rowMenuStyle() {
-                return {
-                    top: this.row_menu_top+'px',
-                    left: this.row_menu_left+'px',
-                };
-            },
             showMetaFields() {
                 let showed = _.filter(this.tableMeta._fields, (hdr) => {
                     return this.isShowFieldElem(hdr);
@@ -627,42 +623,28 @@
             },
         },
         methods: {
-            showRowMenu(tableRow, index) {
-                this.row_menu_show = true;
-                this.row_menu_left = window.event.clientX;
-                this.row_menu_top = window.event.clientY;
-                this.row_menu.row = tableRow;
-                this.row_menu.idx = index;
-                this.row_menu.can_del = this.canDeleteRow(tableRow);
-            },
-            //hover row
-            hoverRow(idx) {
-                this.hover_row = idx;
-            },
-            hoverClear() {
-                this.hover_row = null;
-            },
             //check rows
             ifNeedMassCheck(tableRow) {
                 tableRow._checked_row = !tableRow._checked_row;
-                if (window.event.ctrlKey) {
-                    let cur_value = tableRow._checked_row;
-                    let start = false;
-                    let end = false;
+                this.$root.all_checked_rows = false;
+                if (window.event.ctrlKey && this.$root.last_checked_id && tableRow._checked_row) {
+                    let between = false;
                     _.each(this.allRows, (row) => {
-                        end = end || tableRow.id == row.id;
-                        if (end) {
-                            return;
-                        }
-
-                        if (!start) {
-                            start = cur_value == !!row._checked_row;
+                        if (this._some_id(tableRow, row)) {
+                            between = !between;
                         } else {
-                            row._checked_row = cur_value;
+                            if (between) {
+                                row._checked_row = true;
+                            }
                         }
                     });
+                } else {
+                    this.$root.last_checked_id = tableRow._checked_row ? tableRow.id : null;
                 }
                 this.$emit('row-selected');
+            },
+            _some_id(tableRow, row) {
+                return (this.$root.last_checked_id == row.id) || (tableRow.id == row.id);
             },
 
             selectedRowsAreFavorites() {
@@ -670,7 +652,7 @@
                     return row._checked_row;
                 });
 
-                if (checked.length === this.$root.listTableRows.length) {
+                if (this.$root.all_checked_rows && checked.length === this.$root.listTableRows.length) {
                     return this.$root.tableMeta._view_rows_count === this.$root.tableMeta._fav_rows_count;
                 } else {
                     return checked.length && !_.find(checked, (row) => {
@@ -683,7 +665,7 @@
                    return row && row._checked_row;
                 });
 
-                if (checked.length === this.$root.listTableRows.length) {
+                if (this.$root.all_checked_rows && checked.length === this.$root.listTableRows.length) {
                     return this.$root.tableMeta._view_rows_count;
                 } else {
                     return checked.length;
@@ -796,7 +778,9 @@
                 this.$emit('show-add-ddl-option', tableHeader, tableRow);
             },
             rowInsertPop(tableRow, dir, copy) {
-                this.$emit('insert-pop-row', to_float(tableRow.row_order + dir), copy ? tableRow : null);
+                if (this.canAdd) {
+                    this.$emit('insert-pop-row', to_float(tableRow.row_order + dir), copy ? tableRow : null);
+                }
             },
             addRow() {
                 this.$emit('added-row');
@@ -816,6 +800,9 @@
             showHeaderSettings(header) {
                 this.$emit('show-header-settings', header);
             },
+            showAddColumn() {
+                eventBus.$emit('show-add-table-column-popup');
+            },
 
             //mass rows actions
             emitDeleteSelected() {
@@ -827,6 +814,7 @@
             },
             toggleSelectedRows() {
                 let status = !this.hasSelectedRows();
+                this.$root.all_checked_rows = status && window.event.ctrlKey;
                 _.each(this.allRows, (row) => {
                     this.$set(row, '_checked_row', status);
                 });
@@ -872,7 +860,7 @@
                         this.tableMeta._fields.splice((ii1 > ii2 ? ii2 : ii2 - 1), 0, dragged);
                     }
 
-                    if (this.user.id && !this.user.view_hash && !this.user.selected_view) {
+                    if (this.user.id && !this.user.view_hash) {
                         axios.put('/ajax/settings/change-order-column', {
                             table_id: (isGlobal ? this.globalMeta.id : this.tableMeta.id),
                             select_user_header_id: this.draggedHeader.user_header_id,
@@ -896,7 +884,7 @@
             },
             endChangeRowOrder(tableRow) {
                 if (this.draggedRow) {
-                    if (this.user.id && !this.user.view_hash && !this.user.selected_view) {
+                    if (this.user.id && !this.user.view_hash) {
                         axios.put('/ajax/settings/change-row-order', {
                             table_id: this.tableMeta.id,
                             from_order: this.draggedRow.row_order,
@@ -939,7 +927,7 @@
             getThStyle(tableHeader, curHeaderRow, hidden, index) {
                 let style = this.$root.themeTableHeaderBgStyle;
                 let bkg = style.background;
-                if (index && tableHeader.header_background) {
+                if (index !== undefined && tableHeader.header_background) {
                     let colspan = this.getMultiColspan(index, curHeaderRow, this.showMetaFields) - 1;
                     let all_the_same_clr = true;
                     for (let i = 1; i <= colspan; i++) {
@@ -952,21 +940,21 @@
                         bkg = this.$root.buildCssGradient(tableHeader.header_background) || style.background;
                     }
                 }
+                let text = this.tableMeta.is_system ? this.textSysStyle : this.textStyle;
 
                 return {
                     width: this.tdCellWidth(tableHeader)+'px',
                     background: bkg,
-                    lineHeight: this.textStyle.lineHeight,
-                    fontSize: this.textStyle.fontSize,
+                    ...text,
                 };
             },
             getThSysWidth(width) {
                 let style = this.$root.themeTableHeaderBgStyle;
+                let text = this.tableMeta.is_system ? this.textSysStyle : this.textStyle;
                 return {
                     width: width+'px',
                     background: style.background,
-                    lineHeight: this.textStyle.lineHeight,
-                    fontSize: this.textStyle.fontSize,
+                    ...text,
                 };
             },
             sticky(style, h_idx, is_header) {
@@ -1003,7 +991,9 @@
 
             //backend autocomplete
             checkRowAutocomplete() {
-                this.checkRowOnBackend( this.tableMeta.id, this.objectForAdd );
+                if (!this.tableMeta.is_system) {
+                    this.checkRowOnBackend(this.tableMeta.id, this.objectForAdd);
+                }
             },
 
             //keys
@@ -1012,11 +1002,6 @@
                     this.overRow = null;
                     this.overHeader = null;
                     this.$forceUpdate();
-                }
-            },
-            clickHandler(e) {
-                if (e.button == 0 && this.row_menu_show && this.$refs.row_menu && !$(this.$refs.row_menu).has(e.target).length) {
-                    this.row_menu_show = false;
                 }
             },
 
@@ -1035,8 +1020,14 @@
             },
         },
         mounted() {
-            this.r_margin = in_array(this.behavior, ['list_view','request_view','link_popup','favorite']) ? this.r_margin : 0;//only for 'data tables'
-            this.b_margin = in_array(this.behavior, ['list_view','link_popup','favorite']) ? this.b_margin : 0;//only for 'data tables'
+            this.r_margin = in_array(this.behavior, ['list_view','request_view','favorite']) ? this.r_margin : 0;
+            
+            if (this.$root.isIphone) {
+                this.b_margin = in_array(this.behavior, ['list_view', 'favorite', 'dcr_linked_tb']) ? this.b_margin : 0;
+            } else {
+                this.b_margin = in_array(this.behavior, ['list_view', 'favorite']) ? this.b_margin : 0;
+            }
+            
             eventBus.$on('global-keydown', this.keydownHandler);
             eventBus.$on('global-click', this.clickHandler);
             eventBus.$on('scroll-tabldas-to-row', this.externalScroll);
@@ -1072,13 +1063,56 @@
         position: fixed;
         z-index: 5000;
         text-align: left;
+        background-color: #333;
 
-        button {
-            opacity: 0.7;
+        a {
+            display: block;
+            color: #FFF;
+            padding: 1px 5px;
+            cursor: pointer;
+            text-decoration: none;
 
             &:hover {
-                opacity: 1;
+                background-color: #555;
             }
         }
+    }
+
+    .hover-red {
+        &:hover {
+            color: #F00 !important;
+        }
+    }
+
+    .add-col {
+        background-color: rgba(255,255,255,0.4);
+        height: 40px;
+
+        &:hover {
+            background-color: rgba(255,255,255,0.7);
+        }
+
+        .fa-plus {
+            cursor: pointer;
+            font-size: 2em;
+        }
+    }
+
+    .icon_on_hover {
+        .target_icon {
+            display: none;
+        }
+        &:hover {
+            .target_icon {
+                display: inline;
+            }
+        }
+    }
+
+    .srv {
+        position: relative;
+        top: 1px;
+        font-size: 16px;
+        color: #039;
     }
 </style>

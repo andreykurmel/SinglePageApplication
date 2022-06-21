@@ -3,6 +3,7 @@
 namespace Vanguard\Http\Controllers\Api\Users;
 
 use Authy;
+use Illuminate\Support\Facades\Log;
 use Vanguard\Events\User\TwoFactorDisabledByAdmin;
 use Vanguard\Events\User\TwoFactorEnabledByAdmin;
 use Vanguard\Http\Controllers\Api\ApiController;
@@ -62,9 +63,15 @@ class TwoFactorController extends ApiController
                 ->respondWithError("2FA is not enabled for this user.");
         }
 
-        Authy::delete($user);
-
+        $user->two_factor_options = null;
         $user->save();
+
+        try {
+            Authy::delete($user);
+        } catch (\Exception $e) {
+            Log::info('Authy Error');
+            Log::info($e->getMessage());
+        }
 
         event(new TwoFactorDisabledByAdmin($user));
 

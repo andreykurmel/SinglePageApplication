@@ -2,7 +2,10 @@
 
 namespace Vanguard\Repositories\Tablda;
 
+use Carbon\Carbon;
+use Vanguard\Mail\TabldaMail;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableEmailAddonHistory;
 use Vanguard\Models\Table\TableEmailAddonSetting;
 use Vanguard\Services\Tablda\HelperService;
 
@@ -41,7 +44,7 @@ class TableEmailAddonRepository
 
     /**
      * @param array $data
-     * @return mixed
+     * @return TableEmailAddonSetting
      */
     public function insertEmailSett(Array $data)
     {
@@ -55,6 +58,7 @@ class TableEmailAddonRepository
      */
     protected function dataDef(array $data)
     {
+        $data['name'] = $data['name'] ?? 'Template';
         $data['server_type'] = $data['server_type'] ?? 'google';
         $data['smtp_key_mode'] = $data['smtp_key_mode'] ?? 'account';
         return $data;
@@ -80,5 +84,59 @@ class TableEmailAddonRepository
     {
         return TableEmailAddonSetting::where('id', '=', $table_alert_id)
             ->delete();
+    }
+
+    /**
+     * @param int $from_add_id
+     * @param int $to_add_id
+     * @return TableEmailAddonSetting
+     */
+    public function copyAdn(int $from_add_id, int $to_add_id)
+    {
+        $from = $this->getEmailSett($from_add_id);
+        $to = $this->getEmailSett($to_add_id);
+        $to->update(array_merge(
+            $from->toArray(),
+            ['name' => $to->name, 'description' => $to->description, ]
+        ));
+        return $to;
+    }
+
+    /**
+     * @param int $addon_id
+     * @param int $row_id
+     * @param TabldaMail $mailable
+     * @return TableEmailAddonHistory
+     */
+    public function insertEmailHistory(int $addon_id, int $row_id, TabldaMail $mailable): TableEmailAddonHistory
+    {
+        $arr = $mailable->for_preview(true);
+        return TableEmailAddonHistory::create([
+            'table_email_addon_id' => $addon_id,
+            'row_id' => $row_id,
+            'send_date' => Carbon::now(),
+            'preview_from' => $arr['from'],
+            'preview_to' => $arr['to'],
+            'preview_cc' => $arr['cc'],
+            'preview_bcc' => $arr['bcc'],
+            'preview_reply' => $arr['reply'],
+            'preview_subject' => $arr['subject'],
+            'preview_body' => $arr['body'],
+            'preview_tablda_row' => $arr['row_tablda'],
+        ]);
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param int|null $row_id
+     * @return mixed
+     */
+    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null)
+    {
+        if ($row_id) {
+            return $email->_history_emails()->where('row_id', '=', $row_id)->delete();
+        } else {
+            return $email->_history_emails()->delete();
+        }
     }
 }

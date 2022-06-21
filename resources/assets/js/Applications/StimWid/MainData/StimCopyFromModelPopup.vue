@@ -6,7 +6,7 @@
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
-                        <div class="flex__elem-remain">Copy {{ sel_tab + (sel_sub_tab ? '/'+sel_sub_tab : '')}}</div>
+                        <div class="flex__elem-remain">Copy {{ sel_tab + (sel_sub_tab ? '/'+sel_sub_tab : '')}} from</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="emit_event()"></span>
                         </div>
@@ -64,8 +64,11 @@
                 //PopupAnimationMixin
                 getPopupWidth: 450,
                 idx: 0,
-                //wid style
-                wid_style: {
+            };
+        },
+        computed: {
+            wid_style() {
+                return {
                     form_control: { width: '100%' },
                     selected_span: {
                         paddingLeft: '0',
@@ -73,14 +76,12 @@
                     },
                     search_popup_wrapper: {
                         top: 'initial',
-                        right: 'initial',
+                        left: (this.leftPos)+'px',
                         position: 'fixed',
-                        transform: 'translateY(36px)',
+                        transform: 'translate(12px, 36px)',
                     },
-                },
-            };
-        },
-        computed: {
+                };
+            },
         },
         props:{
             cur_stim_link: StimLinkParams,

@@ -34,7 +34,16 @@ class TabldaFile
     }
 
     /**
+     * @return int
+     */
+    public function getSize()
+    {
+        return strlen($this->content);
+    }
+
+    /**
      * @param string $path
+     * @param string $name
      */
     public function storeAs(string $path, string $name)
     {

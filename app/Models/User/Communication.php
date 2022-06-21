@@ -6,6 +6,46 @@ use Illuminate\Database\Eloquent\Model;
 use Vanguard\Models\Table\Table;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\User\Communication
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property int $from_user_id
+ * @property int $to_user_id
+ * @property string $date
+ * @property string $message
+ * @property int|null $created_by
+ * @property string|null $created_name
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string|null $modified_name
+ * @property string $modified_on
+ * @property int|null $to_user_group_id
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Vanguard\User $_from_user
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Vanguard\User $_to_user
+ * @property-read \Vanguard\Models\User\UserGroup|null $_to_user_group
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereCreatedName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereCreatedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereDate($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereFromUserId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereMessage($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereModifiedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereModifiedName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereModifiedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereTableId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereToUserGroupId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\Communication whereToUserId($value)
+ * @mixin \Eloquent
+ */
 class Communication extends Model
 {
     protected $table = 'table_communications';

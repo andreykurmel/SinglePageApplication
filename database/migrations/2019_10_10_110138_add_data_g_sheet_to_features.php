@@ -14,8 +14,8 @@ class AddDataGSheetToFeatures extends Migration
     public function up()
     {
         Schema::table('plan_features', function (Blueprint $table) {
-            $table->unsignedInteger('data_g_sheet')->nullable()->after('data_paste');
-            $table->unsignedInteger('data_web_scrap')->nullable()->after('data_g_sheet');
+            $table->unsignedInteger('data_g_sheets')->nullable()->after('data_paste');
+            $table->unsignedInteger('data_web_scrap')->nullable()->after('data_g_sheets');
         });
     }
 
@@ -27,7 +27,7 @@ class AddDataGSheetToFeatures extends Migration
     public function down()
     {
         Schema::table('plan_features', function (Blueprint $table) {
-            $table->dropColumn('data_g_sheet');
+            $table->dropColumn('data_g_sheets');
             $table->dropColumn('data_web_scrap');
         });
     }

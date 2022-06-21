@@ -1,33 +1,43 @@
 <template>
-    <div ref="color_button" class="color_wrapper full-height" title="Select Color">
+    <div ref="color_button"
+         class="color_wrapper full-height"
+         title="Select Color"
+         @mouseenter="mousein=true"
+         @mouseleave="mousein=false"
+         @mousedown="propStop"
+         @mouseup="propStop"
+    >
         <div
             class="color_button full-height"
             ref="color_smart"
             :style="{backgroundColor: showed_color, height: '100%'}"
-            @click="menu_opened = (can_edit ? !menu_opened : false)"
+            @click="opnMenu()"
         >{{ show_text }}</div>
 
-        <button v-if="showed_color && avail_null && can_edit" class="btn btn-danger btn-sm btn-deletable flex flex--center" @click.stop.prevent="delColor()">
+        <button v-if="showed_color && avail_null && can_edit && mousein"
+                class="btn btn-danger btn-sm btn-deletable flex flex--center"
+                @click.stop.prevent="delColor()"
+        >
             <span>×</span>
         </button>
 
-        <div v-show="menu_opened" class="color_menu" :style="wrapColorEdit">
+        <div v-show="menu_opened" class="color_menu" ref="clr_menu_ref" :style="wrapColorEdit">
             <div class="palette">
                 <ul v-for="colors in palette">
                     <li v-for="clr in colors" :style="{backgroundColor: clr}" @click="setColor(clr)">
-                        <div v-if="showed_color === clr" class="selected_dot"></div>
+                        <div v-if="sameClr(clr)" class="selected_dot"></div>
                     </li>
                 </ul>
             </div>
             <div class="palette palette--saved">
                 <ul>
-                    <li v-for="idx in 8" :style="{backgroundColor: saved_colors[idx-1] || null}" @click="setColor(saved_colors[idx-1] || null)">
-                        <div v-if="showed_color === saved_colors[idx-1]" class="selected_dot"></div>
+                    <li v-for="idx in 8" :style="{backgroundColor: $root.color_palette[idx] || null}" @click="customColor(idx)">
+                        <div v-if="sameClr($root.color_palette[idx])" class="selected_dot"></div>
                     </li>
                 </ul>
             </div>
             <div class="palette--saved">
-                <select class="form-control color-input color-input--select" v-model="color_type">
+                <select class="form-control color-input color-input--select" v-model="color_type" @change="syncColorInput()">
                     <option>HEX</option>
                     <option>RGB</option>
                     <option>HSV</option>
@@ -37,14 +47,23 @@
             <div class="palette--saved">
                 <button class="btn btn-primary eyedropper-input" @click.stop="startEyedropper()">Eyedropper</button>
             </div>
+
+            <div v-show="custom_color" class="spec_picker" @mousedown="mDo" @mouseup="mUp" :style="specStyle">
+                <div ref="spec_wrap_pick"></div>
+                <div class="picker-buttons">
+                    <button class="btn btn-sm btn-success" @click="setCustomColor()">Select</button>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <script>
+    import ColorPicker from 'simple-color-picker';
+
     import {eventBus} from '../../../app';
 
-    import MixinSmartPosition from './../Selects/MixinSmartPosition';
+    import MixinSmartPosition from '../../_Mixins/MixinSmartPosition';
 
     export default {
         name: "TabldaColopicker",
@@ -53,13 +72,14 @@
         ],
         data: function () {
             return {
+                uuid: uuidv4(),
+                mousein: false,
                 prepared: false,
                 one_prevent: !!this.init_menu,
-                showed_color: this.init_color,
+                showed_color: null,
                 color_type: 'RGB',
-                color_input: null,
+                color_input: '',
                 menu_opened: !!this.init_menu,
-                eye_drop: false,
                 palette: [
                     ["#000000","#444444","#666666","#999999","#cccccc","#eeeeee","#f3f3f3","#ffffff"],
                     ["#ff0000","#ff9900","#ffff00","#00ff00","#00ffff","#0000ff","#9900ff","#ff00ff"],
@@ -70,6 +90,10 @@
                     ["#990000","#b45f06","#bf9000","#38761d","#134f5c","#0b5394","#351c75","#741b47"],
                     ["#660000","#783f04","#7f6000","#274e13","#0c343d","#073763","#20124d","#4c1130"]
                 ],
+                spec_picker: null,
+                spec_pos: 'right',
+                no_stop: false,
+                custom_color: 0,
             }
         },
         props:{
@@ -77,10 +101,6 @@
             can_edit: {
                 type: Boolean,
                 default: () => { return true; }
-            },
-            saved_colors: {
-                type: Array,
-                default: () => { return []; }
             },
             fixed_pos: Boolean,
             menu_shift: Boolean,
@@ -99,10 +119,20 @@
                 style.width = '168px';
                 return style;
             },
+            specStyle() {
+                return {
+                    left: this.spec_pos === 'right' ? '100%' : null,
+                    right: this.spec_pos !== 'right' ? '100%' : null,
+                };
+            },
         },
         watch: {
-            init_color(val) {
-                this.showed_color = val;
+            init_color: {
+                handler(val) {
+                    this.showed_color = val;
+                    this.syncColorInput();
+                },
+                immediate: true,
             },
             menu_opened(val) {
                 this.prepared = false;
@@ -113,6 +143,49 @@
             },
         },
         methods: {
+            sameClr(clr) {
+                return String(this.showed_color).toLowerCase() === String(clr).toLowerCase();
+            },
+            mDo(e) {
+                this.no_stop = true;
+            },
+            mUp(e) {
+                setTimeout(() => {
+                    this.no_stop = false;
+                }, 1);
+            },
+            propStop(e) {
+                if (!this.$root.eye_drop && !this.no_stop) {
+                    e.stopPropagation();
+                }
+            },
+            opnMenu() {
+                this.menu_opened = (this.can_edit && !this.$root.eye_drop ? !this.menu_opened : false);
+            },
+            syncColorInput() {
+                if (this.showed_color) {
+                    let clr = window.Color(this.showed_color);
+                    switch (this.color_type) {
+                        case 'HEX':
+                            this.color_input = clr.toString().substr(1);
+                            break;
+                        case 'RGB':
+                            let r = Math.round( clr.toRGB().red*255 );
+                            let g = Math.round( clr.toRGB().green*255 );
+                            let b = Math.round( clr.toRGB().blue*255 );
+                            this.color_input = r+', '+g+', '+b;
+                            break;
+                        case 'HSV':
+                            let h = Math.round( clr.toHSL().hue );
+                            let s = Math.round( clr.toHSL().saturation*100 );
+                            let l = Math.round( clr.toHSL().lightness*100 );
+                            this.color_input = h+', '+s+'%, '+l+'%';
+                            break;
+                    }
+                } else {
+                    this.color_input = '';
+                }
+            },
             getPlaceholder() {
                 let str = '';
                 switch (this.color_type) {
@@ -130,7 +203,9 @@
                 switch (this.color_type) {
                     case 'HEX': str = (this.color_input && this.color_input.charAt(0) !== '#' ? '#' : '') + this.color_input;
                         break;
-                    default: str = this.color_type + '(' + this.color_input + ')';
+                    case 'RGB': str = 'rgb(' + this.color_input + ')';
+                        break;
+                    case 'HSV': str = 'hsl(' + this.color_input + ')';
                         break;
                 }
                 this.parseColor(str);
@@ -147,25 +222,17 @@
                 clr = clr && clr.charAt(0) === '#' ? clr : null;
                 clr = clr ? clr.toLowerCase() : null;
 
-                let save = true;
-                _.each(this.palette, (arr) => {
-                    if (arr.indexOf(clr) > -1) {
-                        save = false;
-                    }
-                });
-                if (this.saved_colors.indexOf(clr) > -1) {
-                    save = false;
-                }
-
                 this.showed_color = clr;
-                this.$emit('set-color', clr, save);
+                this.syncColorInput();
+                this.$emit('set-color', clr);
             },
             delColor() {
                 this.showed_color = null;
+                this.syncColorInput();
                 this.$emit('set-color', null);
             },
             startEyedropper() {
-                this.eye_drop = true;
+                this.$root.eye_drop = this.uuid;
                 $('body').css('cursor', 'cell');
             },
             finishEyedropper(e) {
@@ -188,12 +255,17 @@
                     canvas.remove();
                 }
 
-                this.eye_drop = false;
+                window.setTimeout(() => {//prevent opening another color pisker.
+                    this.$root.eye_drop = false;
+                }, 100);
                 $('body').css('cursor', '');
 
                 this.parseColor(clr);
             },
             hideMenu(e) {
+                if (!this.menu_opened) {
+                    return;
+                }
                 if (this.one_prevent) {
                     this.one_prevent = false;
                     return;
@@ -201,15 +273,37 @@
                 let container = $(this.$refs.color_button);
                 if (container.has(e.target).length === 0){
                     this.menu_opened = false;
+                    this.custom_color = 0;
                 }
             },
             globalClickHangler(e) {
-                if (this.eye_drop) {
+                if (this.uuid === this.$root.eye_drop) {
                     this.finishEyedropper(e);
                 } else {
                     this.hideMenu(e);
                 }
-            }
+            },
+            //Custom Colors
+            specColorChange(hex_color) {
+                this.$root.saveColorToPalette(hex_color, this.custom_color);
+            },
+            customColor(idx) {
+                let wi = this.$root.isRightMenu ? 450 : 250;
+                let rect = this.$refs.clr_menu_ref.getBoundingClientRect();
+                this.spec_pos = window.innerWidth - rect.right > wi ? 'right' : 'left';
+
+                this.custom_color = 0;
+                if (this.custom_color !== idx) {
+                    this.$nextTick(() => {
+                        this.spec_picker.setColor( this.$root.color_palette[idx] );
+                        this.custom_color = idx;
+                    });
+                }
+            },
+            setCustomColor() {
+                this.setColor( this.$root.color_palette[this.custom_color] );
+                this.custom_color = 0;
+            },
         },
         created() {
             eventBus.$on('global-click', this.globalClickHangler);
@@ -218,6 +312,14 @@
         mounted() {
             this.smart_wrapper = 'color_smart';
             this.smart_limit = 280;
+
+            this.spec_picker = new ColorPicker({
+                color: '#FFFFFF',
+                background: '#454545',
+                el: this.$refs.spec_wrap_pick,
+                width: 180,
+                height: 220,
+            }).onChange(this.specColorChange);
         },
         beforeDestroy() {
             eventBus.$off('global-click', this.globalClickHangler);
@@ -313,6 +415,29 @@
             .eyedropper-input {
                 width: calc(100% - 5px);
             }
+
+            .spec_picker {
+                position: absolute;
+                height: 100%;
+                width: 200px;
+                top: 0;
+                background-color: #FFF;
+                border-left: 1px solid #CCC;
+                padding: 5px;
+
+                .picker-buttons {
+                    position: absolute;
+                    bottom: 0;
+                    right: 0;
+                    padding: 5px;
+                }
+            }
         }
+    }
+</style>
+
+<style>
+    .Scp {
+        box-sizing: content-box;
     }
 </style>

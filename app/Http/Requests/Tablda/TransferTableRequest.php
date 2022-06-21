@@ -25,8 +25,8 @@ class TransferTableRequest extends FormRequest
     {
         return [
             'id' => 'required|integer|exists:tables,id',
-            'new_user_id' => 'required|integer|exists:users,id',
-            'table_with' => 'required|array',
+            'new_user_or_group' => 'required|string',
+            'table_with' => 'array',
         ];
     }
 }

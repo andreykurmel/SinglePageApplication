@@ -24,6 +24,8 @@ class CreateTablePermissionsTable extends Migration
             $table->string('can_download', 6)->default('000000');
             $table->tinyInteger('can_see_history')->default(0);
             $table->tinyInteger('can_reference')->default(0);
+            $table->tinyInteger('can_public_copy')->default(0);
+            $table->tinyInteger('hide_folder_structure')->default(0);
 
             $table->foreign('user_group_id', 'table_permissions_user_group_id')
                 ->references('id')

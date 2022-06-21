@@ -28,7 +28,7 @@
                                 </label>
                             </div>
                             <div class="flex__elem-remain">
-                                <textarea class="form-control full-height" v-model="paste_data" @paste="onPaste"></textarea>
+                                <textarea class="form-control full-height" v-model="paste_data" @paste="onPaste()"></textarea>
                                 <textarea class="form-control full-height" v-model="paste_data"></textarea>
                             </div>
                             <div class="popup-buttons">
@@ -39,7 +39,7 @@
 
                         <div v-else="" class="flex flex--col">
                             <div>
-                                <label class="font-15">Set The Correspondence</label>
+                                <label class="font-15">Set the Column Correspondences</label>
                             </div>
                             <div class="full-frame">
                                 <table class="table">
@@ -74,7 +74,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     import PasteAutowrapperMixin from './../_Mixins/PasteAutowrapperMixin.vue';
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin.vue';

@@ -15,6 +15,7 @@ class AddUsageTypeToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->string('usage_type', 20)->default('Private');
+            $table->string('attachments_size', 32)->nullable();
         });
     }
 
@@ -27,6 +28,7 @@ class AddUsageTypeToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->dropColumn('usage_type');
+            $table->dropColumn('attachments_size');
         });
     }
 }

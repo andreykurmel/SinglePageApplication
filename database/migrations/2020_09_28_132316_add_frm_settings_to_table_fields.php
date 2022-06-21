@@ -17,6 +17,7 @@ class AddFrmSettingsToTableFields extends Migration
             $table->tinyInteger('is_uniform_formula')->default(0);
             $table->string('f_format', 255)->nullable();
             $table->string('f_formula', 255)->nullable();
+            $table->string('rating_icon', 255)->nullable();
         });
     }
 
@@ -31,6 +32,7 @@ class AddFrmSettingsToTableFields extends Migration
             $table->dropColumn('is_uniform_formula');
             $table->dropColumn('f_format');
             $table->dropColumn('f_formula');
+            $table->dropColumn('rating_icon');
         });
     }
 }

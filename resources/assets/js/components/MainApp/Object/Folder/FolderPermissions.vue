@@ -13,7 +13,7 @@
                                 :table-meta="settingsMeta['folder_permissions']"
                                 :all-rows="folderPermissions"
                                 :rows-count="folderPermissions.length"
-                                :cell-height="cellHeight"
+                                :cell-height="1"
                                 :is-full-width="true"
                                 :behavior="'folder_permission_group'"
                                 :user="$root.user"
@@ -117,7 +117,6 @@
         props: {
             folderMeta: Object,
             settingsMeta: Object,
-            cellHeight: Number
         },
         computed: {
             selectedPermissionName() {

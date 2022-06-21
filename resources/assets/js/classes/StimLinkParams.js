@@ -18,6 +18,7 @@ export class StimLinkParams {
 
         this.filters_active = !!obj.filters_active;
         this.download_active = !!obj.download_active;
+        this.copy_from_active = !!obj.copy_from_active;
         this.halfmoon_active = !!obj.halfmoon_active;
         this.condformat_active = !!obj.condformat_active;
         this.cellheight_btn_active = !!obj.cellheight_btn_active;

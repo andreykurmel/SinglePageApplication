@@ -10,6 +10,7 @@ export class MetaPermissions {
         this.has_section_parse = !!obj.has_section_parse;
         this.has_search_block = !!obj.has_search_block;
         this.has_fill_attachments = !!obj.has_fill_attachments;
+        this.has_rl_calculator = !!obj.has_rl_calculator;
         this.has_rts = !!obj.has_rts;
         this.has_download = !!obj.has_download;
         this.has_halfmoon = !!obj.has_halfmoon;

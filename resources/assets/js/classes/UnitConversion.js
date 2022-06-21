@@ -15,8 +15,8 @@ export class UnitConversion {
      */
     static doConv(tableHeader, value, is_reverse) {
         let conversions = tableHeader.__selected_unit_convs || [];
-        //let can_convert = !window.vueRootApp || window.vueRootApp.checkAvailable(window.vueRootApp.user, 'unit_conversion');
-        if (!tableHeader.unit || !tableHeader.unit_display || isNaN(value) || !conversions.length /*|| !can_convert*/) {
+        //let can_convert = !window.vueRootApp || window.vueRootApp.checkAvailable(window.vueRootApp.user, 'unit_conversions');
+        if (!tableHeader.unit || !tableHeader.unit_display || !isNumber(value) || !conversions.length /*|| !can_convert*/) {
             return this.formatVal(value, tableHeader);
         }
 
@@ -108,19 +108,19 @@ export class UnitConversion {
     }
 
     /**
-     * Format Value output.
+     * Format Value output after conversion.
      *
      * @param value
      * @param tableHeader
      * @returns {*}
      */
     static formatVal(value, tableHeader) {
-        value = !isNaN(value) ? to_float(value) : value;
+        value = isNumber(value) ? to_float(value) : value;
         if (tableHeader.show_zeros) {
             value = String(value) || '0';
-        } else {
+        }/* else {
             value = value || '';
-        }
+        }*/
 
         return value;
     }

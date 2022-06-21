@@ -2,9 +2,8 @@
 
 namespace Vanguard\Listeners\Registration;
 
-use Illuminate\Support\Facades\Mail;
 use Vanguard\Events\User\Confirmed;
-use Vanguard\Mail\TabldaMail;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Modules\Geolocation\GeoLocation;
 use Vanguard\Repositories\User\UserRepository;
 use Vanguard\Support\Enum\UserStatus;
@@ -50,7 +49,8 @@ class SendUserConfirmedNotification
                 'locator' => GeoLocation::make()
             ];
 
-            Mail::to($user->email)->queue( new TabldaMail('tablda.emails.new-registration', $data, $params) );
+            $mailer = new EmailWithSettings('confirmed_notif_to_admin', $user->email);
+            $mailer->queue($params, $data);
         }
     }
 }

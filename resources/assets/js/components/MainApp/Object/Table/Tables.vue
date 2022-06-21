@@ -11,40 +11,40 @@
 
                     <template v-if="tableMeta">
                         <div :class="{active: currentTab === 'tab-data'}" v-if="canSeeTabData && (!viewAvails || inArray('tab-data', viewAvails))">
-                            <a @click.prevent="showComponent('tab-data')">Data</a>
+                            <a @click.prevent="showComponent('tab-data')" :style="textSysStyle">Data</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-settings'}" v-if="$root.user.id && (!viewAvails || inArray('tab-settings', viewAvails))">
-                            <a @click.prevent="showComponent('tab-settings')">Settings</a>
+                            <a @click.prevent="showComponent('tab-settings')" :style="textSysStyle">Settings</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-list-view'}" v-if="(!viewAvails || inArray('tab-list-view', viewAvails))">
-                            <a @click.prevent="showComponent('tab-list-view')"><span class="glyphicon glyphicon-list"></span>&nbsp;List View</a>
+                            <a @click.prevent="showComponent('tab-list-view')" :style="textSysStyle"><span class="fas fa-th" style="color: inherit"></span>&nbsp;Grid View</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-favorite'}" v-if="$root.user.id && (!viewAvails || inArray('tab-favorite', viewAvails))">
-                            <a @click.prevent="showComponent('tab-favorite')"><span class="glyphicon glyphicon-star"></span>&nbsp;Favorite</a>
+                            <a @click.prevent="showComponent('tab-favorite')" :style="textSysStyle"><span class="glyphicon glyphicon-star"></span>&nbsp;Favorite</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-kanban-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'kanban') && tableMeta.add_kanban && (!viewAvails || inArray('tab-kanban-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-kanban-add')"><i class="fab fa-trello"></i>&nbsp;Kanban</a>
+                            <a @click.prevent="showComponent('tab-kanban-add')" :style="textSysStyle"><i class="fab fa-trello"></i>&nbsp;Kanban</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-gantt-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'gantt') && tableMeta.add_gantt && (!viewAvails || inArray('tab-gantt-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-gantt-add')"><i class="fas fa-chart-bar"></i>&nbsp;Gantt</a>
+                            <a @click.prevent="showComponent('tab-gantt-add')" :style="textSysStyle"><i class="fas fa-chart-bar"></i>&nbsp;Gantt</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-dcr-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'request') && tableMeta.add_request && (!viewAvails || inArray('tab-dcr-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-dcr-add')"><i class="far fa-calendar-check"></i>&nbsp;DCR</a>
+                            <a @click.prevent="showComponent('tab-dcr-add')" :style="textSysStyle"><i class="far fa-calendar-check"></i>&nbsp;DCR</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-map-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'map') && tableMeta.add_map && (!viewAvails || inArray('tab-map-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-map-add')"><span class="glyphicon glyphicon-map-marker"></span>&nbsp;GSI</a>
+                            <a @click.prevent="showComponent('tab-map-add')" :style="textSysStyle"><span class="glyphicon glyphicon-map-marker"></span>&nbsp;GSI</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-bi-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'bi') && tableMeta.add_bi && (!viewAvails || inArray('tab-bi-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-bi-add')"><span class="glyphicon glyphicon-equalizer"></span>&nbsp;BI</a>
+                            <a @click.prevent="showComponent('tab-bi-add')" :style="textSysStyle"><span class="glyphicon glyphicon-equalizer"></span>&nbsp;BI</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-alert-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'alert') && tableMeta.add_alert && (!viewAvails || inArray('tab-alert-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-alert-add')"><img src="/assets/img/bell.png" width="15" height="15" style="filter: grayscale(1);"/>&nbsp;A&amp;N</a>
+                            <a @click.prevent="showComponent('tab-alert-add')" :style="textSysStyle"><img src="/assets/img/bell.png" width="15" height="15" style="filter: grayscale(1);"/>&nbsp;ANA</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-email-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'email') && tableMeta.add_email && (!viewAvails || inArray('tab-email-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-email-add')"><i class="far fa-envelope"></i>&nbsp;Email</a>
+                            <a @click.prevent="showComponent('tab-email-add')" :style="textSysStyle"><i class="far fa-envelope"></i>&nbsp;Email</a>
                         </div>
                         <div :class="{active: currentTab === 'tab-calendar-add'}" v-if="$root.AddonAvailableToUser(tableMeta, 'calendar') && tableMeta.add_calendar && (!viewAvails || inArray('tab-calendar-add', viewAvails))">
-                            <a @click.prevent="showComponent('tab-calendar-add')"><i class="far fa-calendar"></i>&nbsp;Calendar</a>
+                            <a @click.prevent="showComponent('tab-calendar-add')" :style="textSysStyle"><i class="far fa-calendar"></i>&nbsp;Calendar</a>
                         </div>
                     </template>
                 </ul>
@@ -63,6 +63,9 @@
                         <button class="btn btn-primary btn-sm blue-gradient mini-add" @click="calendar_add_click++" style="margin-right: 3px;" :style="$root.themeButtonStyle">Add</button>
                     </div>
 
+                    <div v-show="foundBiToUpdate && currentTab === 'tab-bi-add'">
+                        <button class="btn btn-primary btn-sm blue-gradient mini-add" @click="biUpdateAll()" style="margin-right: 3px;" :style="$root.themeButtonStyle">Update All</button>
+                    </div>
                     <div v-if="$root.AddonAvailableToUser(tableMeta, 'bi', 'edit') && biCanAdd()" v-show="currentTab === 'tab-bi-add'">
                         <button class="btn btn-primary btn-sm blue-gradient mini-add" @click="biAddWidget()" style="margin-right: 3px;" :style="$root.themeButtonStyle">Add</button>
                     </div>
@@ -113,8 +116,9 @@
                             </span>
                         </a>
                     </div>
-                    <div v-show="inArray(currentTab, ['tab-list-view', 'tab-favorite'])">
+                    <div v-show="inArray(currentTab, ['tab-list-view', 'tab-favorite'])" v-if="tableMeta">
                         <a><cell-height-button
+                                :table_meta="tableMeta"
                                 :cell-height="$root.cellHeight"
                                 :max-cell-rows="$root.maxCellRows"
                                 @change-cell-height="$root.changeCellHeight"
@@ -126,10 +130,10 @@
                     </div>
                     <div v-if="tableMeta && canSomeEdit" v-show="inArray(currentTab, ['tab-list-view', 'tab-favorite'])">
                         <a>
-                            <string-replace-button :table_id="tableMeta.id"
-                                                   :table-meta="tableMeta"
-                                                   :request_params="$root.request_params"
-                            ></string-replace-button>
+                            <button class="btn btn-primary btn-sm blue-gradient"
+                                    :style="$root.themeButtonStyle"
+                                    @click="show_dm_popup = true"
+                            >DM</button>
                         </a>
                     </div>
                     <div v-if="tableMeta" v-show="inArray(currentTab, ['tab-list-view', 'tab-favorite'])">
@@ -190,13 +194,14 @@
         <div class="tabs-wrapper" v-if="settingsMeta && !temp_hide" :style="$root.themeMainBgStyle">
 
             <tab-data
-                v-if="canSeeTabData && currentTab === 'tab-data' && (!viewAvails || inArray('tab-data', viewAvails))"
+                v-show="currentTab === 'tab-data'"
+                v-if="canSeeTabData && tableMeta && (!viewAvails || inArray('tab-data', viewAvails)) && currentTab === 'tab-data'"
                 :table_id="tableMeta.id"
                 :user="$root.user"
                 :table-meta="tableMeta"
-                :settings-meta="settingsMeta"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
+                @import-finished="dataImportFinished"
             ></tab-data>
 
             <tab-settings
@@ -204,8 +209,8 @@
                 v-if="tableMeta && (!viewAvails || inArray('tab-settings', viewAvails))"
                 :table-meta="tableMeta"
                 :settings-meta="settingsMeta"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 :settings-tab="settingsTab"
                 :user="$root.user"
                 :table_id="tableMeta.id"
@@ -219,8 +224,8 @@
                 :table-meta="tableMeta"
                 :settings-meta="settingsMeta"
                 :search-object="searchObject"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 :full-width-cell="$root.fullWidthCell"
                 :is-pagination="isPagination"
                 :user="$root.user"
@@ -230,30 +235,32 @@
                 :has_filters_url_preset="Boolean(filters_url_preset && filters_url_preset.length)"
                 @update-meta-params="updateMetaParams"
                 @show-src-record="showSrcRecord"
+                @show-add-ddl-option="showAddDDLOption"
             ></tab-list-view>
 
             <tab-favorite
                 v-show="currentTab === 'tab-favorite'"
-                v-if="tableMeta && (!viewAvails || inArray('tab-favorite', viewAvails))"
+                v-if="tableMeta && (!viewAvails || inArray('tab-favorite', viewAvails)) && currentTab === 'tab-favorite'"
                 :table_id="tableMeta.id"
                 :table-meta="tableMeta"
                 :settings-meta="settingsMeta"
                 :search-object="searchObject"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 :full-width-cell="$root.fullWidthCell"
                 :is-pagination="isPagination"
                 :is-visible="currentTab === 'tab-favorite'"
                 :user="$root.user"
                 @update-meta-params="updateMetaParams"
+                @show-add-ddl-option="showAddDDLOption"
             ></tab-favorite>
 
             <tab-settings-requests
                 v-show="currentTab === 'tab-dcr-add'"
                 v-if="tableMeta && tableMeta.add_request && $root.AddonAvailableToUser(tableMeta, 'request') && (!viewAvails || inArray('tab-dcr-add', viewAvails))"
                 :table-meta="tableMeta"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 :user="$root.user"
                 :table_id="tableMeta.id"
                 :is-visible="currentTab === 'tab-dcr-add'"
@@ -267,7 +274,7 @@
                 :settings-meta="settingsMeta"
                 :request_params="$root.request_params"
                 :user="$root.user"
-                :cell-height="$root.cellHeight"
+                :cell-height="1"
                 :can-edit="$root.AddonAvailableToUser(tableMeta, 'map', 'edit')"
                 :is-visible="currentTab === 'tab-map-add'"
                 @show-src-record="showSrcRecord"
@@ -322,7 +329,6 @@
             <tab-email-view
                     v-show="currentTab === 'tab-email-add'"
                     v-if="tableMeta && tableMeta.add_email && $root.AddonAvailableToUser(tableMeta, 'email') && (!viewAvails || inArray('tab-email-add', viewAvails))"
-                    :table_id="tableMeta.id"
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
                     :user="$root.user"
@@ -343,7 +349,33 @@
 
         <div v-if="settingsMeta" class="hidden-popup-wrapper">
             <!--Popup for showing very long datas-->
-            <table-data-string-popup :max-cell-rows="$root.maxCellRows"></table-data-string-popup>
+            <table-data-string-popup :max-cell-rows="0"></table-data-string-popup>
+
+            <!--Add Select Option Popup-->
+            <add-option-popup
+                v-if="addOptionPopup.show"
+                :table-header="addOptionPopup.tableHeader"
+                :table-row="addOptionPopup.tableRow"
+                :table-meta="tableMeta"
+                :settings-meta="$root.settingsMeta"
+                :user="$root.user"
+                @hide="addOptionPopup.show = false"
+                @show-src-record="showSrcRecord"
+            ></add-option-popup>
+
+
+            <!--Popup for add column to table on the fly-->
+            <add-table-column-popup
+                    v-if="tableMeta && tableMeta._is_owner"
+                    :table-meta="tableMeta"
+            ></add-table-column-popup>
+
+
+            <!--Popup for add column to table on the fly-->
+            <reference-colors-popup
+                    v-if="tableMeta"
+                    :table-meta="tableMeta"
+            ></reference-colors-popup>
 
 
             <!--Popup for adding column links-->
@@ -351,8 +383,8 @@
                     v-if="tableMeta"
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="$root.user"
                     :table_id="tableMeta ? tableMeta.id : null"
             ></vertical-display-links>
@@ -371,8 +403,8 @@
                     v-if="tableMeta"
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="$root.user"
             ></ddl-settings-popup>
 
@@ -383,6 +415,14 @@
                     :table-meta="tableMeta"
                     :user="$root.user"
             ></grouping-settings-popup>
+
+
+            <!--Popup for adding column links-->
+            <display-link-settings-popup
+                    v-if="tableMeta"
+                    :table-meta="tableMeta"
+                    :user="$root.user"
+            ></display-link-settings-popup>
 
 
             <!--Popup for showing ref conditions -->
@@ -399,8 +439,8 @@
                     v-if="tableMeta"
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     @popup-close="reshowComponent()"
             ></conditional-formatting-popup>
 
@@ -422,8 +462,8 @@
             <table-settings-all-popup
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="$root.user"
             ></table-settings-all-popup>
 
@@ -436,12 +476,16 @@
             ></copy-folder-to-others-popup>
 
 
+            <!--Popup for showing FolderCopyToOtherPopup-->
+            <data-modif-popup
+                    v-if="show_dm_popup"
+                    :table-meta="tableMeta"
+                    @popup-close="show_dm_popup = false"
+            ></data-modif-popup>
+
+
             <!--Record or Table selector for links-->
             <link-rort-modal></link-rort-modal>
-
-
-            <!--Backup Settings-->
-            <backup-settings-popup :table-meta="tableMeta"></backup-settings-popup>
 
 
             <!--Popup for settings up Column Settings for Table (also in Settings/Basics)-->
@@ -452,8 +496,8 @@
                     :settings-meta="settingsMeta"
                     :table-row="editDisplaySettingsRow"
                     :user="$root.user"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     @popup-update="updateDisplayRow"
                     @popup-close="editDisplaySettingsRow = null"
                     @another-row="anotherRowPopup"
@@ -467,6 +511,13 @@
                     @record-found="viewRecordFound"
             ></table-view-filtering-popup>
 
+            <!--For ANR Automations-->
+            <proceed-automation-popup
+                    v-if="AnrPop"
+                    :table-meta="tableMeta"
+                    :table-alert="AnrPop"
+                    @hide-popup="AnrPop = null"
+            ></proceed-automation-popup>
 
             <!--Link Popups from ListView and MapView.-->
             <template v-for="(linkObj, idx) in linkPopups">
@@ -479,8 +530,8 @@
                         :link="linkObj.link"
                         :meta-header="linkObj.header"
                         :meta-row="linkObj.row"
-                        :cell-height="$root.cellHeight"
-                        :max-cell-rows="$root.maxCellRows"
+                        :cell-height="1"
+                        :max-cell-rows="0"
                         :popup-key="idx"
                         :no_animation="linkObj.behavior === 'map'"
                         :view_authorizer="{view_hash: $root.user.view_hash, is_folder_view: $root.user._is_folder_view}"
@@ -496,12 +547,14 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../app';
+    import {eventBus} from '../../../../app';
 
-    import {SpecialFuncs} from './../../../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
     import {ChartFunctions} from './ChartAddon/ChartFunctions';
+    import {RefCondHelper} from "../../../../classes/helpers/RefCondHelper";
 
     import CanEditMixin from "../../../_Mixins/CanViewEditMixin";
+    import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
     import TabData from './TabData';
     import TabSettings from './SettingsModule/TabSettings';
@@ -550,13 +603,24 @@
     import BiSettingsButton from "../../../Buttons/BiSettingsButton";
     import TableViewFilteringPopup from "../../../CustomPopup/TableViewFilteringPopup";
     import BackupSettingsPopup from "../../../CustomPopup/BackupSettingsPopup";
+    import ProceedAutomationPopup from "../../../CustomPopup/ProceedAutomationPopup";
+    import DisplayLinkSettingsPopup from "../../../CustomPopup/DisplayLinkSettingsPopup";
+    import AddTableColumnPopup from "../../../CustomPopup/AddTableColumnPopup";
+    import AddOptionPopup from "../../../CustomPopup/AddOptionPopup";
+    import ReferenceColorsPopup from "../../../CustomPopup/ReferenceColorsPopup";
+    import DataModifPopup from "../../../CustomPopup/DataModifPopup";
 
     export default {
         name: "Tables",
         mixins: [
             CanEditMixin,
+            CellStyleMixin,
         ],
         components: {
+            DataModifPopup,
+            ReferenceColorsPopup,
+            AddOptionPopup,
+            AddTableColumnPopup,
             TabCalendarView,
             TabEmailView,
             TabGanttView,
@@ -590,6 +654,8 @@
             InfoSignLink,
             GoogleAddressAutocomplete,
 
+            DisplayLinkSettingsPopup,
+            ProceedAutomationPopup,
             TableViewsPopup,
             ConditionalFormattingPopup,
             CopyFolderToOthersPopup,
@@ -607,6 +673,12 @@
         },
         data: function () {
             return {
+                addOptionPopup: {
+                    show: false,
+                    tableHeader: null,
+                    tableRow: null,
+                },
+                AnrPop: null,
                 temp_hide: false,
                 last_tb_google_api: null,
                 editDisplaySettingsRow: null,
@@ -625,6 +697,7 @@
                 settingsTab: {key: 'basics'},
                 allRowsForAddons: [],
 
+                show_dm_popup: false,
                 show_copy_folder_popup: false,
                 copy_folder_meta: null,
 
@@ -647,12 +720,13 @@
 
                 calendar_sett_click: 0,
                 calendar_add_click: 0,
+                table_id: this.table_init_id,
             }
         },
         props: {
             settingsMeta: Object,
             isPagination: Boolean,
-            table_id: Number|null,
+            table_init_id: Number|null,
             filters_preset: Array,
             recalc_id: String
         },
@@ -683,9 +757,18 @@
                 return this.tableMeta
                     && this.isViewAndFiltering;
             },
+            foundBiToUpdate() {
+                return this.tableMeta
+                    && this.tableMeta._charts_saved
+                    && this.tableMeta._charts_saved.length
+                    && _.find(this.tableMeta._charts_saved, (ch) => {
+                        return !!ch.chart_settings.wait_for_update;
+                    });
+            },
         },
         watch: {
-            table_id: function(val) {
+            table_init_id(val) {
+                this.table_id = val;
                 this.currentTab = 'tab-list-view';
                 this.showChangedListBtn = false;
                 this.showChangedFavBtn = false;
@@ -695,14 +778,24 @@
                 this.addingRow.active = false;
                 if (val) {
                     this.getTableMeta();
+                } else {
+                    this.tableMeta = null;
+                    this.$root.tableMeta = null;
                 }
             }
         },
         methods: {
+            dataImportFinished(new_id) {
+                this.tableMeta = null;
+                this.$root.tableMeta = null;
+                this.getMetaInBkg(new_id);
+                this.showComponent('tab-list-view');
+            },
             recalcTableAll() {
                 this.$root.sm_msg_type = 2;
                 axios.post('/ajax/table-data/recalc-all', {
-                    table_id: this.table_id
+                    table_id: this.table_id,
+                    special_params: SpecialFuncs.specialParams(),
                 }).then(({ data }) => {
                     this.curr_recalc = String(data.id);
                 }).catch(errors => {
@@ -713,17 +806,13 @@
             },
             setKeyWords() {
                 return '';
-                /*return [
-                    {type: 'and', word: ''},
-                    {type: 'and', word: ''}
-                ];*/
             },
             biCanAdd() {
                 return ChartFunctions.settsFromMeta(this.tableMeta, this).can_add;
             },
             getHeadersCheck() {
                 return this.tableMeta.db_name === 'plans_view'
-                    ? ['plan_basic', 'plan_advanced', 'plan_enterprise']
+                    ? ['plan_basic', 'plan_standard', 'plan_advanced', 'plan_enterprise']
                     : [];
             },
             showComponent(component) {
@@ -735,8 +824,11 @@
             showTree() {
                 this.$root.toggleLeftMenu();
             },
-            getMetaInBkg() {
-                this.getTableMeta('hidden');
+            getMetaInBkg(new_id, nohidden) {
+                if (new_id) {
+                    this.table_id = new_id;
+                }
+                this.getTableMeta(!nohidden);
             },
             getTableMeta(hidden) {
                 (hidden ? this.$root.sm_msg_type = 2 : $.LoadingOverlay('show'));
@@ -744,9 +836,13 @@
                     this.queryPreset = data;
                     eventBus.$emit('changed-preset');
 
-                    this.$nextTick(() => {
-                        this.getTableHeaders(hidden);
-                    });
+                    this.getTableHeaders(hidden);
+                    //TODO: watch
+                    // this.tableMeta = null;
+                    // this.$root.tableMeta = null;
+                    // this.$nextTick(() => {
+                    //     this.getTableHeaders(hidden);
+                    // });
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -756,7 +852,9 @@
             getTableHeaders(hidden) {
                 (hidden ? this.$root.sm_msg_type = 2 : $.LoadingOverlay('show'));
                 axios.post('/ajax/table-data/get-headers', SpecialFuncs.tableMetaRequest(this.table_id)).then(({ data }) => {
+                    this.$root.setTextRowSett(data);
                     this.applyPreset(data);
+                    RefCondHelper.setUses(data);
 
                     if (
                         (data.google_api_key || this.last_tb_google_api)
@@ -787,11 +885,12 @@
                     }
 
                     //hide unchecked RowGroups in 'HalfMoon'
-                    this.tableMeta.__hidden_row_ids = (this.queryPreset && this.queryPreset.hidden_row_ids
-                        ?
-                        this.queryPreset.hidden_row_ids
-                        :
-                        []);
+                    if (this.queryPreset && this.queryPreset.hidden_row_groups) {
+                        this.tableMeta.__hidden_row_groups = this.queryPreset.hidden_row_groups;
+                        this.queryPreset.hidden_row_groups = null;
+                    } else {
+                        this.tableMeta.__hidden_row_groups = [];
+                    }
 
                     if (this.$root.user.view_all) {
                         $('head title').html(this.$root.app_name+' View: '+this.$root.user.view_all.name);
@@ -800,7 +899,7 @@
                     }
 
                     eventBus.$emit('change-table-meta', this.tableMeta);
-                    eventBus.$emit('recopy-fields');
+                    eventBus.$emit('re-highlight-menu-tree', true);
 
                     console.log('TableHeaders', this.tableMeta, 'size about: ', JSON.stringify(this.tableMeta).length);
                 }).catch(errors => {
@@ -832,6 +931,10 @@
                 this.searchObject.columns = this.queryPreset.columns || [];
                 this.searchObject.direct_row_id = this.queryPreset.row_id || null;
                 this.$root.filters = this.queryPreset.applied_filters || [];
+                _.each(this.$root.filters, (tmpflt) => {
+                    let fld = _.find(tableMeta._fields, {id: Number(tmpflt.id)});
+                    fld ? fld.filter = 1 : null;
+                });
             },
             AddRowListView() {
                 if (this.addingRow.active) {
@@ -886,27 +989,6 @@
                 eventBus.$emit('collaborator-changed-fav-data');
                 this.showChangedFavBtn = false;
             },
-            /*getChangedMode(data) {
-                let res = {changed: false};
-                if (this.tableMeta.version_hash !== data.version_hash) {
-                    res.changed = true;
-
-                    res.list_changed = (this.tableMeta.num_rows !== data.num_rows) //added
-                        || (this.$root.listTableRows.length !== data.list_hashes.length) //deleted
-                        || (this._findUpdated('list', data.list_hashes)); //updated
-
-                    res.fav_changed = (this.$root.listTableRows.length !== data.list_hashes.length) //deleted
-                        || (this._findUpdated('fav', data.fav_hashes)); //updated
-                }
-                return res;
-            },
-            _findUpdated(mode, new_hashes) {
-                let presentRows = (mode === 'list' ? this.$root.listTableRows : this.$root.favoriteTableRows);
-                return _.find(presentRows, (p_row) => {
-                    let new_h = _.find(new_hashes, {id: Number(p_row.id)});
-                    return (new_h && new_h.row_hash !== p_row.row_hash);
-                });
-            },*/
 
             //EVENT BUS HANDLERS
             showCopyFolderToOthersHandler(folder_id) {
@@ -928,15 +1010,15 @@
                 this.showComponent('tab-list-view');
             },
             intervalTickHandler(e) {
-                if (this.tableMeta) {
+                if (this.tableMeta && !this.$root.sm_msg_type) {
                     let list_row_ids = _.map(this.$root.listTableRows, 'id');
                     let fav_row_ids = _.map(this.$root.favoriteTableRows, 'id');
                     axios.post('/ajax/table/version_hash', {
                         table_id: this.tableMeta.id,
                         row_list_ids: list_row_ids,
                         row_fav_ids: fav_row_ids,
+                        automations_check: !document.hidden,
                     }).then(({ data }) => {
-                        //let mode = this.getChangedMode(data);
                         let changed = this.tableMeta.version_hash !== data.version_hash;
                         if (changed) {
                             this.showChangedListBtn = true;
@@ -951,6 +1033,10 @@
                             this.showChangedListBtn = false;
                             this.showChangedFavBtn = false;
                         }
+
+                        if (!this.AnrPop && data.wait_automations && data.wait_automations._anr_tables) {
+                            this.AnrPop = data.wait_automations;
+                        }
                     });
                 }
             },
@@ -962,6 +1048,13 @@
             },
             updateDisplayRow() {
                 eventBus.$emit('header-updated-cell', this.editDisplaySettingsRow);
+            },
+            showAddDDLOption(tableHeader, tableRow) {
+                this.addOptionPopup = {
+                    show: true,
+                    tableHeader: tableHeader,
+                    tableRow: tableRow,
+                };
             },
 
             //Link PopUps
@@ -998,6 +1091,9 @@
             showViewsPopup() {
                 eventBus.$emit('show-table-views-popup', this.tableMeta.db_name);
             },
+            biUpdateAll() {
+                eventBus.$emit('bi-view-update-all');
+            },
             biAddWidget() {
                 eventBus.$emit('bi-add-clicked');
             },
@@ -1025,10 +1121,10 @@
 
             //sync datas with collaborators
             setInterval(() => {
-                if (!this.$root.debug) {
+                if (!localStorage.getItem('no_ping')) {
                     this.intervalTickHandler();
                 }
-            }, 1000 * 3);
+            }, this.$root.version_hash_delay);
 
             if (this.$root.user.view_all) {
                 $('head title').html(this.$root.app_name+' View: '+this.$root.user.view_all.name);
@@ -1063,7 +1159,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     #tables {
         .btn-primary {
             font-weight: bold;

@@ -4,13 +4,12 @@ namespace Vanguard\Repositories\Tablda;
 
 
 use Carbon\Carbon;
-use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Folder\Folder2Table;
 use Vanguard\Models\Table\Table;
-use Vanguard\Models\Table\TableBackup;
 use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableMapIcon;
 use Vanguard\Models\Table\TableNote;
@@ -20,8 +19,9 @@ use Vanguard\Models\Table\TableUserSetting;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\Communication;
 use Vanguard\Models\User\Plan;
+use Vanguard\Modules\Permissions\PermissionObject;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Services\Tablda\HelperService;
-use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
 use Vanguard\User;
 
 class TableRepository
@@ -71,12 +71,13 @@ class TableRepository
     {
         //defaults
         $data['hash'] = Uuid::uuid4();
+        $data['enabled_activities'] = $data['enabled_activities'] ?? 0;
         $data['autoload_new_data'] = $data['autoload_new_data'] ?? 1;
         $data['is_public'] = $data['is_public'] ?? 0;
 
         $tb_data = collect($data)->only((new Table)->getFillable())->toArray();
         $tb = Table::create(array_merge($tb_data, $this->service->getCreated(), $this->service->getModified()));
-        $this->saveUserSettings($tb->id, $data['_cur_settings'] ?? []);
+        $this->saveUserSettings($tb->id, $data['_cur_settings'] ?? [], true);
 
         AppTheme::create($this->appThemeArr($tb->id, $data['_theme'] ?? []));
 
@@ -86,21 +87,37 @@ class TableRepository
     /**
      * @param $tb_id
      * @param $data
+     * @param bool $can_sync
      */
-    public function saveUserSettings($tb_id, $data)
+    public function saveUserSettings($tb_id, $data, $can_sync = false)
     {
         if (auth()->id()) {
             $data['initial_view_id'] = $data['initial_view_id'] ?? -1;
+            $data['table_id'] = $tb_id;
+            $data['user_id'] = auth()->id();
             TableUserSetting::updateOrCreate([
                 'table_id' => $tb_id,
                 'user_id' => auth()->id()
             ], $data);
 
-            $user_shows = collect($data)->only(TableUserSetting::$user_show_fields)->toArray();
-            if (count($user_shows)) {
-                TableUserSetting::where('table_id', $tb_id)->update($user_shows);
+            if ($can_sync) {
+                $user_shows = collect($data)->only(TableUserSetting::$user_show_fields)->toArray();
+                if (count($user_shows)) {
+                    TableUserSetting::where('table_id', $tb_id)->update($user_shows);
+                }
             }
         }
+    }
+
+    /**
+     * @param int $table_id
+     * @return mixed
+     */
+    public function getUserSettings(int $table_id)
+    {
+        return TableUserSetting::where('table_id', '=', $table_id)
+            ->where('user_id', '=', auth()
+                ->id())->first();
     }
 
     /**
@@ -143,7 +160,7 @@ class TableRepository
             $data['unit_conv_table_id'] = null;
         }
 
-        $this->saveUserSettings($table_id, $data['_cur_settings'] ?? []);
+        $this->saveUserSettings($table_id, $data['_cur_settings'] ?? [], true);
 
         $appTheme = AppTheme::where('obj_type', 'table')->where('obj_id', $table_id)->first();
         if ($appTheme) {
@@ -189,7 +206,7 @@ class TableRepository
                     $in->where('tables.user_id', $user_id);
                 });
                 $q->orWhereHas('_table_permissions', function ($tp) {
-                    $tp->applyIsActiveForUserOrPermission();
+                    $tp->isActiveForUserOrVisitor();
                     $tp->where('can_reference', 1);
                 });
             })
@@ -254,6 +271,17 @@ class TableRepository
     public function getTable($table_id)
     {
         return Table::where('id', '=', $table_id)->first();
+    }
+
+    /**
+     * @param $value
+     * @return Table|null
+     */
+    public function findByDbOrId($value)
+    {
+        return Table::where('db_name', '=', $value)
+            ->orWhere('id', '=', $value)
+            ->first();
     }
 
     /**
@@ -359,23 +387,16 @@ class TableRepository
     }
 
     /**
-     * Load Rights for User from selected Table.
-     *
      * @param Table $table
      * @param int|null $user_id
-     * @param int|null $permission_id
+     * @return PermissionObject
      */
-    public function loadCurrentRight(Table $table, int $user_id = null, int $permission_id = null)
+    public function loadCurrentRight(Table $table, int $user_id = null)
     {
-        if (!isset($table->_is_owner)) {
-            $table->_is_owner = $table->user_id == $user_id;
-        }
-
-        if (!$table->_current_right) {
-            $table->_current_right = $table->_is_owner
-                ? (object)[]
-                : (new UserPermissionsService())->getPermissionsForUser($user_id, $table, $permission_id);
-        }
+        $permis = TableRights::permissions($table);
+        $table->_is_owner = !!$permis->is_owner;
+        $table->_current_right = $permis;
+        return $permis;
     }
 
     /**
@@ -385,17 +406,10 @@ class TableRepository
      */
     public function canDelRows(Table $table, array $row_gr_ids)
     {
-        $this->loadCurrentRight($table, auth()->id());//dd($table);
-
-        if ($table->_is_owner) {
-            return true;
-        }
-
-        if (!$row_gr_ids) {
-            return collect([]);
-        }
-
-        return $table->_current_right->delete_row_groups->intersect($row_gr_ids);
+        $permis = TableRights::permissions($table);
+        return $permis->is_owner
+            ? true
+            : $permis->delete_row_groups->intersect($row_gr_ids);
     }
 
     /**
@@ -434,6 +448,24 @@ class TableRepository
     }
 
     /**
+     * @param int $table_id
+     * @param int $folder_id
+     * @param string $type
+     * @param string $structure
+     * @return bool
+     */
+    public function insertLink(int $table_id, int $folder_id, string $type = 'table', string $structure = 'private')
+    {
+        return Folder2Table::insert([
+            'table_id' => $table_id,
+            'user_id' => auth()->id(),
+            'folder_id' => $folder_id,
+            'type' => $type,
+            'structure' => $structure,
+        ]);
+    }
+
+    /**
      * Update link data.
      *
      * @param $link_id
@@ -460,9 +492,9 @@ class TableRepository
         $table->save();
 
         $links = Table::whereHas('_folder_links', function ($q) use ($user_id, $folder_id) {
-            $q->where('user_id', '=', $user_id);
-            $q->where('folder_id', '=', $folder_id);
-        })
+                $q->where('user_id', '=', $user_id);
+                $q->where('folder_id', '=', $folder_id);
+            })
             ->where('id', '!=', $table->id)
             ->orderBy('menutree_order')
             ->get();
@@ -581,6 +613,9 @@ class TableRepository
      */
     public function favoriteToggle($table_id, $user_id, $favorite)
     {
+        //menutree is changed
+        (new UserRepository())->newMenutreeHash($user_id);
+
         if ($favorite) {
 
             $link = Folder2Table::where('table_id', '=', $table_id)
@@ -763,61 +798,6 @@ class TableRepository
     }
 
     /**
-     * Get Chart By Id.
-     *
-     * @param int $id
-     * @return mixed
-     */
-    public function getChart($id)
-    {
-        return TableChart::where('id', $id)->first();
-    }
-
-    /**
-     * Create Table Chart.
-     *
-     * @param array $data
-     * @return mixed
-     */
-    public function createChart(array $data)
-    {
-        $ch = TableChart::create($this->service->delSystemFields($data));
-        $set = json_decode($ch->chart_settings, true);
-        $set['id'] = $ch->id;
-        $ch->update(['chart_settings' => json_encode($set)]);
-        return $ch;
-    }
-
-    /**
-     * Update Table Chart.
-     *
-     * @param int $chart_id
-     * @param array $data
-     * @param string $param_name
-     * @return mixed
-     */
-    public function updateChart(int $chart_id, array $data, string $param_name)
-    {
-        if ($param_name != '__update_cache') {
-            TableChart::where('id', $chart_id)
-                ->update($this->service->delSystemFields($data));
-        }
-
-        return TableChart::where('id', $chart_id)->first();
-    }
-
-    /**
-     * Delete Table Chart.
-     *
-     * @param int $chart_id
-     * @return mixed
-     */
-    public function delChart(int $chart_id)
-    {
-        return TableChart::where('id', $chart_id)->delete();
-    }
-
-    /**
      * Update or Create shared table alias for selected user.
      *
      * @param int $table_id
@@ -827,6 +807,9 @@ class TableRepository
      */
     public function renameSharedTable(int $table_id, int $user_id, string $name)
     {
+        //menutree is changed
+        (new UserRepository())->newMenutreeHash($user_id);
+
         return TableSharedName::updateOrCreate(
             [
                 'table_id' => $table_id,
@@ -842,24 +825,25 @@ class TableRepository
     /**
      * @param Table $table
      * @param int|null $user_id
-     * @param int|null $table_permission_id
      */
-    public function loadCondFormats(Table $table, int $user_id = null, int $table_permission_id = null)
+    public function loadCondFormats(Table $table, int $user_id = null)
     {
         $table->load([
-            '_cond_formats' => function ($cf) use ($table, $user_id, $table_permission_id)
+            '_cond_formats' => function ($cf) use ($table, $user_id)
             {
                 $cf->orderBy('row_order');
 
                 $cf->with('_user_settings', '_table_permissions');
 
+                //all CF for DCR or apply rules
                 $cf->where('user_id', $user_id);
-                if ($user_id != $table->user_id && $table_permission_id != -1) {
+                if ($user_id != $table->user_id && $table->__data_permission_id != -1) {
                     //get only 'shared' condFormats for regular User.
-                    $cf->orWhereHas('_table_permissions', function ($tp) use ($table_permission_id) {
-                        $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
+                    $cf->orWhereHas('_table_permissions', function ($tp) use ($table) {
+                        $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
                         //all cond formats for DCR
-                        $tp->orWhere('is_request', '>', 0);
+                        //TODO: DCR moved to another table, use PermissionModule.
+                        //$tp->orWhere('is_request', '>', 0);
                     });
                 }
             }

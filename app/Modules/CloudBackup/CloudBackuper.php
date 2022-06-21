@@ -3,12 +3,16 @@
 namespace Vanguard\Modules\CloudBackup;
 
 
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Excel;
 use Vanguard\Models\File;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableBackup;
+use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
 
 class CloudBackuper
 {
@@ -29,6 +33,9 @@ class CloudBackuper
             case 'Dropbox':
                 $this->sender_strategy = new DropBoxStrategy($backup->_cloud);
                 break;
+            case 'OneDrive':
+                $this->sender_strategy = new OneDriveStrategy($backup->_cloud);
+                break;
             default:
                 throw new \Exception('CloudBackuper:Undefined strategy type');
         }
@@ -40,41 +47,111 @@ class CloudBackuper
      */
     public function sendToCloud()
     {
-        $table_name = $this->backup->_table ? (new FileRepository())->getStorageTable($this->backup->_table) : '';
-        $backup_name = $table_name.'_' . date('Ymd', time());
+        $table_name = $this->backup->_table ? (new FileRepository())->getStorageTable($this->backup->_table, true) : '';
+        $ymd = date('Ymd', time());
+        $backup_name = !$this->backup->overwrite
+            ? $table_name . '_' . $ymd
+            : $table_name;
 
         if ($this->backup->mysql) {
-            //create mysql dump
-            exec('/usr/bin/mysqldump -u '
-                . env('DUMP_ALL_DB_USER') . ' ' . env('DB_DATABASE_DATA') . ' '
-                . $this->backup->_table->db_name . ' --single-transaction --quick > /var/www/' . $backup_name . '.sql');
-            //upload mysql dump
-            $target_p = $this->backup->_cloud->root_folder . '/' . $table_name;
-            $this->sender_strategy->upload('/var/www/', $backup_name . '.sql', $target_p);
-            //remove mysql dump
-            exec('rm /var/www/' . $backup_name . '.sql');
+            try {
+                //create mysql dump
+                $file_p =  storage_path('tmp/' . $backup_name . '.sql');
+                exec('export MYSQL_PWD='.env('DB_PASSWORD').' ; '
+                    . '/usr/bin/mysqldump -h '.env('DB_HOST').' -u root ' . env('DB_DATABASE_DATA') . ' '
+                    . $this->backup->_table->db_name . ' --single-transaction --quick > ' . $file_p);
+                //upload mysql dump
+                $target_p = '/' . $this->backup->getsubfolder() . '/' . $table_name . '/' . $backup_name . '.sql';
+                $this->sender_strategy->upload($file_p, $target_p);
+                //remove mysql dump
+                exec('rm /var/www/' . $backup_name . '.sql');
+            } catch (\Exception $e) {
+                Log::channel('jobs')->info('Backup error: "mysql - '.$backup_name.' (bkp id '.$this->backup->id.') - "'.$e->getMessage());
+            }
         }
 
         if ($this->backup->csv) {
-            //create csv
-            $this->saveTmpFile($this->backup->_table, $backup_name, 'CSV');
-            //upload csv
-            $target_p = $this->backup->_cloud->root_folder . '/' . $table_name;
-            $this->sender_strategy->upload(storage_path('tmp'), $backup_name . '.csv', $target_p);
-            //remove csv
-            exec('rm ' . storage_path('tmp') . '/' . $backup_name . '.csv');
+            try {
+                //create csv
+                $this->saveTmpFile($this->backup->_table, $backup_name, 'CSV');
+                //upload csv
+                $target_p = '/'.$this->backup->getsubfolder() . '/' . $table_name . '/' . $backup_name . '.csv';
+                $this->sender_strategy->upload(storage_path('tmp/'.$backup_name.'.csv'), $target_p);
+                //remove csv
+                exec('rm ' . storage_path('tmp/'.$backup_name.'.csv'));
+            } catch (\Exception $e) {
+                Log::channel('jobs')->info('Backup error: "csv - '.$backup_name.' (bkp id '.$this->backup->id.') - "'.$e->getMessage());
+            }
         }
 
         if ($this->backup->attach) {
+            $prefx = !$this->backup->overwrite ? $ymd.'_' : '';
             //save attachments
-            $files = File::where('table_id', '=', $this->backup->_table->id)->get();
+            $files = File::where('table_id', '=', $this->backup->_table->id)->get() ?: collect([]);
+            $file_ids = $files->pluck('table_field_id')->unique()->toArray();
+            $fields = (new TableFieldRepository())->getField( $file_ids );
+
+            $dids = [];
             foreach ($files as $file) {
-                //upload attachment
-                $storage_path = storage_path('app/public/' . $file->filepath);
-                $target_p = $this->backup->_cloud->root_folder . '/' . $file->filepath;
-                $this->sender_strategy->upload($storage_path, $file->filename, $target_p);
+                if ($this->row_id_ddl($file->row_id)) {
+                    $dids[] = $this->get_ddl_id($file->row_id);
+                }
+            }
+            $ddls = (new DDLRepository())->getDDLarray($dids);
+
+            foreach ($files as $file) {
+                $f_path = 'public/' . $file->filepath . $file->filename;
+                $storage_path = storage_path('app/'.$f_path);
+                if (Storage::exists($f_path)) {
+                    try {
+                        //folder with ${field name}
+                        $field_name = $fields->where('id', '=', $file->table_field_id)->first();
+                        $field_name = $field_name ? $field_name->alphaName() : '';
+
+                        //if DDL -> folder ${ddl name}(${field name})
+                        $rid = $file->row_id . '_';
+                        if ($this->row_id_ddl($file->row_id)) {
+                            $ddl_f = $ddls->where('id', '=', $this->get_ddl_id($file->row_id))->first();
+                            $field_name = $ddl_f ? $ddl_f->name . '_' . $field_name . '_' : '';
+                            $rid = '';
+                            //save DDL images only when needed setting is active
+                            if (!$this->backup->ddl_attach) {
+                                continue;
+                            }
+                        }
+
+                        $target_p = '/' . $this->backup->getsubfolder() . '/';
+                        $target_p .= $table_name . '/' . $field_name . '/' . $prefx . $rid . $file->filename;
+                        $this->sender_strategy->upload($storage_path, $target_p);
+                    } catch (\Exception $e) {
+                        Log::channel('jobs')->info('Backup error: "table - ' . $table_name . ' file:' . $storage_path);
+                        Log::channel('jobs')->info('Backup error: ' . $e->getMessage());
+                    }
+                } else {
+                    Log::channel('jobs')->info('Backup warning: file not found - ' . $f_path);
+                }
             }
         }
+    }
+
+    /**
+     * @param $row_id
+     * @return int
+     */
+    protected function row_id_ddl($row_id)
+    {
+        return preg_match('/ddl_/i', $row_id);
+    }
+
+    /**
+     * @param $row_id
+     * @return mixed|string
+     */
+    protected function get_ddl_id($row_id)
+    {
+        $m = [];
+        preg_match('/_([\d]*)_/i', $row_id, $m);
+        return $m[1] ?? '';
     }
 
     /**
@@ -91,7 +168,8 @@ class CloudBackuper
         $data = [
             'table_id' => $table->id,
             'page' => 1,
-            'rows_per_page' => 0
+            'rows_per_page' => 0,
+            'force_execute' => true,
         ];
         switch ($type) {
             case 'CSV':
@@ -115,7 +193,7 @@ class CloudBackuper
      */
     private function prepare_Excel(Table $table, $post, $filename, $ignore_is_showed = false)
     {
-        $tableRows = (new TableDataRepository())->getRows($post, auth()->id());
+        $tableRows = (new TableDataRepository())->getRows($post, $table->user_id);
 
         $data = [0 => []];
         foreach ($table->_fields as $val) {

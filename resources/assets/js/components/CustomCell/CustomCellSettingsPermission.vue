@@ -39,21 +39,18 @@
                         <span class="toggler round" :class="[with_edit ? '' : 'disabled']"></span>
                     </label>
 
-                    <a v-else-if="!isAddRow && inArray(tableHeader.field, ['name'])"
-                       :disabled="!tableRow.active"
-                       :target="(tableRow.active ? '_blank' : '')"
-                       :href="(tableRow.active ? getLinkHash() : '#')"
-                    >{{ showField() }}</a>
-
                     <a v-else-if="tableHeader.field === 'table_column_group_id'"
+                       title="Open column group in popup."
                        @click.stop="showGroupsPopup('col', tableRow.table_column_group_id)"
                     >{{ showField() }}</a>
 
                     <a v-else-if="tableHeader.field === 'table_row_group_id'"
+                       title="Open row group in popup."
                        @click.stop="showGroupsPopup('row', tableRow.table_row_group_id)"
                     >{{ showField() }}</a>
 
                     <a v-else-if="tableHeader.field === 'user_group_id'"
+                       title="Open usergroup settings in popup."
                        @click.stop="showUsergroupPopup(tableRow.user_group_id)"
                     >{{ showField() }}</a>
 
@@ -66,33 +63,22 @@
 
 
         <!-- ABSOLUTE EDITINGS -->
-        <div v-if="tableHeader.field === '_embed_dcr' && !isAddRow" class="cell-editing flex flex--center">
-            <embed-button class="embed_button btn btn-default embed__btn"
-                          :is-disabled="!tableRow.active"
-                          :is-dcr="true"
-                          :hash="getLinkHash(true)"
-                          :style="textStyle"
-            ></embed-button>
-        </div>
 
-        <div v-else-if="isEditing()" class="cell-editing">
+        <div v-if="isEditing()" class="cell-editing">
 
-            <!-- Request tables -->
-            <input  v-if="inArray(tableHeader.field, ['name', 'pass', 'row_request', 'user_link', 'dcr_title', 'dcr_message'])"
+            <input  v-if="inArray(tableHeader.field, ['name', 'notes'])"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit();updateValue()"
                     ref="inline_input"
                     class="form-control full-height"
                     :style="getEditStyle">
 
-            <!-- Permission tables -->
-
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'user_group_id' && isAddRow"
                     :options="globalUserGroups()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -105,19 +91,18 @@
                     :options="globalPermissions()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
-            <!-- ^^^^^ -->
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'table_column_group_id' && isAddRow"
                     :options="globalColGroups()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -130,7 +115,7 @@
                     :options="globalRowGroups()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -147,30 +132,20 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import EmbedButton from "../Buttons/EmbedButton.vue";
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    export default {
+export default {
         name: "CustomCellSettingsPermission",
         components: {
             TabldaSelectSimple,
-            EmbedButton
         },
         mixins: [
-            Select2DDLMixin,
-            CellStyleMixin
+            CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -184,8 +159,10 @@
                     return {};
                 }
             },
+            tableMeta: Object,//style mixin
             tableHeader: Object,
             tableRow: Object,
+            allRows: Object|null,
             cellHeight: Number,
             maxCellRows: Number,
             isAddRow: Boolean,
@@ -199,7 +176,7 @@
         computed: {
             getCustomCellStyle() {
                 let obj = this.getCellStyle;
-                obj.textAlign = this.inArray(this.tableHeader.field, ['view','edit','delete','_dv','_embed_dcr']) ? 'center' : '';
+                obj.textAlign = this.inArray(this.tableHeader.field, ['view','edit','delete','_dv']) ? 'center' : '';
                 return obj;
             },
             disabledPermis() {
@@ -225,12 +202,12 @@
                 return $.inArray(item, array) > -1;
             },
             notPresent(item) {
-                return _.findIndex(this.reactive_provider.allRows, (el) => {
+                return _.findIndex(this.allRows, (el) => {
                         return el[this.tableHeader.field] == item.id && el.view == 1;
                     }) === -1;
             },
             notPresentUG(item) {
-                return _.findIndex(this.reactive_provider.allRows, (el) => {
+                return _.findIndex(this.allRows, (el) => {
                         return el.user_group_id == item.id;
                     }) === -1;
             },
@@ -239,7 +216,7 @@
             },
             showEdit: function () {
                 if (!this.canCellEdit
-                    || this.inArray(this.tableHeader.field, ['active', 'is_apps', 'one_per_submission'])
+                    || this.inArray(this.tableHeader.field, ['is_apps'])
                     || (this.inArray(this.tableHeader.field, ['view', 'edit', 'delete', '_dv']) && !this.isAddRow)
                 ) {
                     return;
@@ -250,12 +227,7 @@
                     this.oldValue = this.tableRow[this.tableHeader.field];
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {
-                            if (this.$refs.inline_input && this.$refs.inline_input.nodeName === 'SELECT'){
-                                this.showHideDDLs(this.$root.selectParam);
-                                this.ddl_cached = false;
-                            } else {
-                                this.$refs.inline_input.focus();
-                            }
+                            this.$refs.inline_input.focus();
                         }
                     });
                 } else {
@@ -312,15 +284,6 @@
                 }
 
                 return this.$root.strip_tags(res);
-            },
-            getLinkHash(no_domain) {
-                let domain = (no_domain ? '' : this.$root.clear_url + '/dcr/');
-                return this.tableRow.link_hash ? domain+this.tableRow.link_hash : '#';
-//                if (this.tableRow.user_link) {
-//                    return domain + this.globalMeta.hash + '/' + this.globalMeta.name + '/' + this.tableRow.user_link;
-//                } else {
-//                    return this.tableRow.link_hash ? domain+this.tableRow.link_hash : '#';
-//                }
             },
             showGroupsPopup(type, id) {
                 eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, type, id);

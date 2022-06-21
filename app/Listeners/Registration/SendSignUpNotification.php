@@ -2,9 +2,8 @@
 
 namespace Vanguard\Listeners\Registration;
 
-use Illuminate\Support\Facades\Mail;
 use Vanguard\Events\User\Registered;
-use Vanguard\Mail\TabldaMail;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Modules\Geolocation\GeoLocation;
 use Vanguard\Repositories\User\UserRepository;
 use Vanguard\Support\Enum\UserStatus;
@@ -24,12 +23,12 @@ class SendSignUpNotification
     /**
      * Handle the event.
      *
-     * @param  Registered  $event
+     * @param Registered $event
      * @return void
      */
     public function handle(Registered $event)
     {
-        if (! settings('notifications_signup_email')) {
+        if (!settings('notifications_signup_email')) {
             return;
         }
 
@@ -39,7 +38,7 @@ class SendSignUpNotification
             $conf = $registeredUser->status == UserStatus::UNCONFIRMED ? trans('app.unconfirmed_user') : trans('app.confirmed_user');
             $subject = sprintf("%s - %s", trans('app.new_user_registration'), $conf);
             //$subject = sprintf("[%s] %s - %s", settings('app_name'), trans('app.new_user_registration'), $conf);
-            $subject .= ' ('.$registeredUser->email.', '.$registeredUser->username.')';
+            $subject .= ' (' . $registeredUser->email . ', ' . $registeredUser->username . ')';
 
             $params = [
                 'subject' => $subject,
@@ -50,7 +49,8 @@ class SendSignUpNotification
                 'locator' => GeoLocation::make()
             ];
 
-            Mail::to($user->email)->queue( new TabldaMail('tablda.emails.new-registration', $data, $params) );
+            $mailer = new EmailWithSettings('registered_notif_to_admin', $user->email);
+            $mailer->queue($params, $data);
         }
     }
 }

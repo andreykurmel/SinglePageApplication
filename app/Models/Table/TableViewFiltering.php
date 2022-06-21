@@ -5,6 +5,19 @@ namespace Vanguard\Models\Table;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableViewFiltering
+ *
+ * @property int $id
+ * @property int $table_view_id
+ * @property int $field_id
+ * @property string $criteria
+ * @property int|null $active
+ * @property int|null $input_only
+ * @property-read \Vanguard\Models\Table\TableField $_field
+ * @property-read \Vanguard\Models\Table\TableView $_view
+ * @mixin \Eloquent
+ */
 class TableViewFiltering extends Model
 {
     protected $table = 'table_view_filtering';

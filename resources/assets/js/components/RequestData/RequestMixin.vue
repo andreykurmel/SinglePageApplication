@@ -2,7 +2,7 @@
     /**
      *  should be present:
      *
-     *  this.tablePermission: Object
+     *  this.dcrObject: Object
      *  this.tableRow: Object - can be present
      *  */
     import {RequestFuncs} from "./RequestFuncs";
@@ -13,8 +13,8 @@
         },
         computed: {
             allowUnfinish() {
-                return this.tablePermission.dcr_record_url_field_id
-                    && this.tablePermission.dcr_record_allow_unfinished;
+                return this.dcrObject.dcr_record_url_field_id
+                    && this.dcrObject.dcr_record_allow_unfinished;
             },
         },
         methods: {
@@ -23,19 +23,27 @@
                 return !Number(tableRow.id);
             },
             visibil(tableRow) {
-                let visi_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_visibility_id');
+                let visi_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_visibility_id');
+                let visible_def = this.rowStatus(tableRow) === 'Saved'
+                    ? !!this.dcrObject.dcr_record_save_visibility_def
+                    : !!this.dcrObject.dcr_record_visibility_def;
+
                 return this.isNew(tableRow)
                     ||
-                    (visi_hdr ? !!tableRow[visi_hdr.field] : !!this.tablePermission.dcr_record_visibility_def);
+                    (visi_hdr ? !!tableRow[visi_hdr.field] : visible_def);
             },
             editabil(tableRow) {
-                let edit_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_editability_id');
+                let edit_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_editability_id');
+                let editable_def = this.rowStatus(tableRow) === 'Saved'
+                    ? !!this.dcrObject.dcr_record_save_editability_def
+                    : !!this.dcrObject.dcr_record_editability_def;
+
                 return this.isNew(tableRow)
                     ||
-                    (edit_hdr ? !!tableRow[edit_hdr.field] : !!this.tablePermission.dcr_record_editability_def);
+                    (edit_hdr ? !!tableRow[edit_hdr.field] : editable_def);
             },
             rowStatus(tableRow) {
-                let status_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.tablePermission, 'dcr_record_status_id');
+                let status_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_status_id');
                 return status_hdr ? tableRow[status_hdr.field] : '';
             },
             //buttons avails
@@ -60,7 +68,7 @@
                     && (this.rowStatus(tableRow) === 'Submitted' || this.rowStatus(tableRow) === 'Updated');
             },
             availAdd(tableRow) {
-                return !this.tablePermission.one_per_submission
+                return !this.dcrObject.one_per_submission
                     && (
                         this.isNew(tableRow)
                         ||

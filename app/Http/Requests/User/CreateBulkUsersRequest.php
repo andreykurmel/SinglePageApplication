@@ -15,7 +15,8 @@ class CreateBulkUsersRequest extends Request
     public function rules()
     {
         return [
-            'users' => 'required|file',
+            'csv_emails' => 'required_without:pasted_emails|file',
+            'pasted_emails' => 'required_without:csv_emails|string',
         ];
     }
 }

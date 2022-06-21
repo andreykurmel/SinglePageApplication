@@ -4,8 +4,8 @@
             <!--LEFT SIDE-->
             <div class="col-xs-12 full-height">
 
-                <div class="top-text top-text--height">
-                    <span>Select a Columns for Gantt</span>
+                <div class="top-text top-text--height" :style="textSysStyle">
+                    <span>Primary Settings</span>
                 </div>
                 <div class="permissions-panel no-padding" style="height: calc(70% - 35px);">
                     <custom-table
@@ -15,7 +15,7 @@
                             :settings-meta="$root.settingsMeta"
                             :all-rows="tableMeta._fields"
                             :rows-count="tableMeta._fields.length"
-                            :cell-height="$root.cellHeight"
+                            :cell-height="1"
                             :user="$root.user"
                             :behavior="'settings_display'"
                             :available-columns="$root.availableGanttColumns"
@@ -30,20 +30,20 @@
                             :table-row="editDisplayPopUpRow"
                             :ext-avail-tabs="['gantt_tab']"
                             :user="$root.user"
-                            :cell-height="$root.cellHeight"
+                            :cell-height="1"
                             @popup-update="updateRow"
                             @popup-close="closePopUp"
                             @another-row="anotherRowPopup"
                     ></for-settings-pop-up>
                 </div>
-                <div class="top-text top-text--height">
-                    <span>Additional</span>
+                <div class="top-text top-text--height" :style="textSysStyle">
+                    <span>Additional Settings</span>
                 </div>
-                <div class="permissions-panel no-padding" style="height: calc(30% - 30px);">
+                <div class="permissions-panel no-padding" style="height: calc(30% - 30px);" :style="textSysStyle">
                     <div class="additionals_sett flex flex--center-v">
                         <div class="form-group flex flex--center-v">
                             <label>Date info for top / horizontal axis:&nbsp;</label>
-                            <select class="form-control" v-model="tableMeta.gantt_info_type" @change="emitSave()" style="width: 100px;">
+                            <select class="form-control" :style="textSysStyle" v-model="tableMeta.gantt_info_type" @change="emitSave()" style="width: 100px;">
                                 <option :value="null">Auto</option>
                                 <option value="year">Year</option>
                                 <option value="month">Month</option>
@@ -77,7 +77,7 @@
                         </div>
                         <div class="form-group flex flex--center-v">
                             <label>Weekday format:&nbsp;</label>
-                            <select class="form-control" v-model="tableMeta.gantt_day_format" @change="emitSave()" style="width: 175px;">
+                            <select class="form-control" :style="textSysStyle" v-model="tableMeta.gantt_day_format" @change="emitSave()" style="width: 175px;">
                                 <option :value="null">M</option>
                                 <option value="part">Mon</option>
                                 <option value="full">Monday</option>
@@ -96,12 +96,17 @@
     import CustomTable from "../../../../CustomTable/CustomTable";
     import ForSettingsPopUp from "../../../../CustomPopup/ForSettingsPopUp";
 
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     export default {
         name: "GanttSettings",
         components: {
             ForSettingsPopUp,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 editDisplayPopUpRow: null,

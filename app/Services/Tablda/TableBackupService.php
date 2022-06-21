@@ -4,8 +4,7 @@ namespace Vanguard\Services\Tablda;
 
 
 use Illuminate\Database\Eloquent\Collection;
-use Vanguard\Mail\TabldaMail;
-use Vanguard\Models\Table\Table;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\Table\TableBackup;
 use Vanguard\Repositories\Tablda\TableBackupRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
@@ -53,8 +52,10 @@ class TableBackupService
      * @param array $data
      * @return mixed
      */
-    public function addTableBackup(Array $data)
+    public function addTableBackup(array $data)
     {
+        $data['user_id'] = auth()->id();
+        $data['is_active'] = true;
         return $this->repo->addTableBackup($data);
     }
 
@@ -65,7 +66,7 @@ class TableBackupService
      * @param array $data
      * @return mixed
      */
-    public function updateTableBackup($table_backup_id, Array $data)
+    public function updateTableBackup($table_backup_id, array $data)
     {
         return $this->repo->updateTableBackup($table_backup_id, $data);
     }
@@ -103,15 +104,15 @@ class TableBackupService
             $fields_arr = $this->service->getFieldsArrayForNotification($table);
             //convert
             $row['user_cloud_id'] = $bkp->_cloud ? $bkp->_cloud->name : '';
-            $row['time'] = HelperService::timeToLocal('', $row['time']??'00:00', $row['timezone']??'UTC', 'H:i');
+            $row['time'] = HelperService::timeToLocal('', $row['time'] ?? '00:00', $row['timezone'] ?? 'UTC', 'H:i');
 
-            $toname = $bkp['bkp_addressee_txt'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_addressee_txt'], true) : '';
-            $subject = $bkp['bkp_email_subject'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_email_subject'], true) : 'Thanks for submission';
+            $toname = $bkp['bkp_addressee_txt'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_addressee_txt']) : '';
+            $subject = $bkp['bkp_email_subject'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_email_subject']) : 'Thanks for submission';
 
             $usr = auth()->user();
             $user_str = $usr ? ($usr->first_name ? $usr->first_name . ' ' . $usr->last_name : $usr->username) : '';
             $greeting = $usr || $toname
-                ? 'Hello, '.($toname ?: $user_str).'!'
+                ? 'Hello, ' . ($toname ?: $user_str) . '!'
                 : 'Hello!';
 
             $rows_arr = $this->service->prepareRowVals($table, $row);
@@ -119,13 +120,13 @@ class TableBackupService
             $params = [
                 'from.name' => config('app.name'),
                 'from.account' => 'noreply',
-                'subject' =>  $subject,
+                'subject' => $subject,
                 'to.address' => $recipients,
                 'to.name' => $toname,
             ];
             $data = [
                 'greeting' => $greeting,
-                'replace_main_message' => $bkp['bkp_email_message'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_email_message'], true) : '',
+                'replace_main_message' => $bkp['bkp_email_message'] ? $formula_parser->formulaReplaceVars($row, $bkp['bkp_email_message']) : '',
                 'table_arr' => $table->getAttributes(),
                 'fields_arr' => $fields_arr,
                 'has_unit' => $this->service->fldsArrHasUnit($fields_arr),
@@ -135,7 +136,8 @@ class TableBackupService
                 'type' => 'created',
             ];
 
-            \Mail::to($recipients)->send( new TabldaMail('tablda.emails.backup_created', $data, $params) );
+            $mailer = new EmailWithSettings('backup_is_created', $recipients);
+            $mailer->send($params, $data);
 
         }
     }

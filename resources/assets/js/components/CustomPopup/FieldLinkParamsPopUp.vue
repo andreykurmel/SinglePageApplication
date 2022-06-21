@@ -22,7 +22,7 @@
                                     :table-meta="settingsMeta['table_field_link_params']"
                                     :all-rows="linkRow._params"
                                     :rows-count="linkRow._params.length"
-                                    :cell-height="$root.cellHeight"
+                                    :cell-height="1"
                                     :is-full-width="true"
                                     :behavior="'settings_display_links'"
                                     :user="user"

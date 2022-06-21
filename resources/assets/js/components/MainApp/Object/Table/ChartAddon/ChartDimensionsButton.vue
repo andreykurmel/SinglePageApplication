@@ -1,7 +1,19 @@
 <template>
-    <div ref="chart_button" class="chart_dimensions_button" title="Chart Dimensions">
+    <div ref="chart_button" class="chart_dimensions_button" title="Chart Dimensions" :style="textSysStyle">
         <i class="glyphicon glyphicon-cog" @click="menuOpn()"></i>
         <div v-show="menu_opened" class="chart_dimensions_menu" ref="chart_dim_menu" :style="ItemsListStyle()">
+            <div>
+                <label>
+                    <span>Name: </span>
+                    <input
+                        type="text"
+                        class="form-control control-inline"
+                        placeholder="Name"
+                        v-model="all_settings.name"
+                        @change="$emit('dimensions-changed')"
+                    />
+                </label>
+            </div>
             <div>
                 <label>
                     <span>Width (cells): </span>
@@ -31,7 +43,6 @@
                 <div class="color_picker_wrapper control-inline">
                     <tablda-colopicker
                             :init_color="all_settings.dimensions.back_color"
-                            :saved_colors="$root.color_palette"
                             :avail_null="true"
                             :menu_shift="true"
                             @set-color="setColor"
@@ -81,12 +92,33 @@
                     <span class="glyphicon glyphicon-remove remov" @click="$emit('delete-chart')"></span>
                 </label>
             </div>
+            <div>
+                <label>
+                    <span>Auto Updating: </span>
+                    <span class="indeterm_check__wrap" style="margin-right: 25px;">
+                        <span class="indeterm_check"
+                              @click="all_settings.no_auto_update = !all_settings.no_auto_update; $emit('dimensions-changed')"
+                        >
+                            <i v-if="!all_settings.no_auto_update" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                </label>
+            </div>
+            <div v-if="all_settings.wait_for_update">
+                <label>
+                    <button class="btn btn-default blue-gradient full-width"
+                            @click="$emit('refresh-chart')"
+                            :style="$root.themeButtonStyle"
+                    >Update</button>
+                </label>
+            </div>
         </div>
     </div>
 </template>
 
 <script>
-    import MixinSmartPosition from './../../../../CustomCell/Selects/MixinSmartPosition';
+    import MixinSmartPosition from '../../../../_Mixins/MixinSmartPosition';
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     import TabldaColopicker from '../../../../CustomCell/InCell/TabldaColopicker';
 
@@ -99,6 +131,7 @@
         },
         mixins: [
             MixinSmartPosition,
+            CellStyleMixin,
         ],
         data: function () {
             return {
@@ -114,8 +147,7 @@
         methods: {
             setColor(clr, save) {
                 if (save) {
-                    this.$root.color_palette.unshift(clr);
-                    localStorage.setItem('color_palette', this.$root.color_palette.join(','));
+                    this.$root.saveColorToPalette(clr);
                 }
                 this.all_settings.dimensions.back_color = clr;
                 this.$emit('dimensions-changed');

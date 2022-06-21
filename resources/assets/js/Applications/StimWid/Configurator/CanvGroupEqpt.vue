@@ -390,7 +390,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .element {
         cursor: pointer;
 

@@ -20,6 +20,24 @@ interface ActivityRepository
     public function log($data);
 
     /**
+     * Log user activity.
+     *
+     * @param $data array Array with following fields:
+     *      ending (string) - Description of user activity.
+     *      ending_time (int) - Timestamp.
+     * @param $find array Array for finding
+     * @return mixed
+     */
+    public function logWhere($data, $find);
+
+    /**
+     * @param array $where
+     * @param bool $first
+     * @return mixed
+     */
+    public function find(array $where, bool $first = true);
+
+    /**
      * Paginate activities for user.
      *
      * @param $userId

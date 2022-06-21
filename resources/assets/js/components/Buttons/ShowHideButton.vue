@@ -15,12 +15,9 @@
                         <label>Row Groups:</label>
                     </div>
                     <div v-if="tableMeta._row_groups.length">
-                        <label :class="$root.user.see_view ? 'disabled' : ''">
+                        <label>
                             <span class="indeterm_check__wrap">
-                                <span class="indeterm_check"
-                                      :class="$root.user.see_view ? 'disabled' : ''"
-                                      @click="toggleAllRows()"
-                                >
+                                <span class="indeterm_check" @click="toggleAllRows()">
                                     <i v-if="rowsAllChecked() == 2" class="glyphicon glyphicon-ok group__icon"></i>
                                     <i v-if="rowsAllChecked() == 1" class="glyphicon glyphicon-minus group__icon"></i>
                                 </span>
@@ -28,14 +25,14 @@
                             <span> Check/Uncheck All</span>
                         </label>
                     </div>
-                    <div v-for="row_gr in tableMeta._row_groups" v-show="!row_gr._search_hidden">
+                    <div v-for="row_gr in tableMeta._row_groups" v-show="!row_gr._group_hidden">
                         <label :style="{backgroundColor: (row_gr._show_status ? '#CCC;' : ''), opacity: (row_gr._filter_disabled ? '0.5' : '')}"
                                :title="row_gr._filter_disabled ? 'Disabled by Filters' : ''"
-                               :class="row_gr._filter_disabled || $root.user.see_view ? 'disabled' : ''"
+                               :class="row_gr._filter_disabled ? 'disabled' : ''"
                         >
                             <span class="indeterm_check__wrap">
                                 <span class="indeterm_check"
-                                      :class="row_gr._filter_disabled || $root.user.see_view ? 'disabled' : ''"
+                                      :class="row_gr._filter_disabled ? 'disabled' : ''"
                                       @click="rowToggled(row_gr)"
                                 >
                                     <i v-if="row_gr._show_status && row_gr._show_status == 2" class="glyphicon glyphicon-ok group__icon"></i>
@@ -159,17 +156,15 @@
             },
             //row groups
             rowToggled(row_gr) {
-                if (!row_gr._filter_disabled && !this.$root.user.see_view) {
+                if (!row_gr._filter_disabled) {
                     row_gr._show_status = !row_gr._show_status ? 2 : 0;
                     row_gr._toggled = 1;
                     eventBus.$emit('reload-page');
                 }
             },
             toggleAllRows() {
-                if (!this.$root.user.see_view) {
-                    this.$root.all_rg_toggled = this.rowsAllChecked() ? 0 : 2;
-                    eventBus.$emit('reload-page');
-                }
+                this.$root.all_rg_toggled = this.rowsAllChecked() ? 0 : 2;
+                eventBus.$emit('reload-page');
             },
             rowsAllChecked() {
                 return !this.tableMeta._view_rows_count

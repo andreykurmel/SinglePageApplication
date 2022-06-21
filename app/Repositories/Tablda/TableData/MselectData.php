@@ -53,4 +53,27 @@ class MselectData
             return $input;
         }
     }
+
+    /**
+     * @param array $row
+     * @param string $field
+     * @return string
+     */
+    public static function ddlShowId(array $row, string $field, $val)
+    {
+        $rc = $row['_rc_'.$field] ?? null;
+        if ($rc) {
+            $rc = json_decode(json_encode($rc), true);
+            if (is_array($val)) {
+                $result = [];
+                foreach ($val as $item) {
+                    $result[] = $rc[$item]['show_val'] ?? $item;
+                }
+            } else {
+                $result = $rc[$val]['show_val'] ?? $val;
+            }
+            return $result;
+        }
+        return $val;
+    }
 }

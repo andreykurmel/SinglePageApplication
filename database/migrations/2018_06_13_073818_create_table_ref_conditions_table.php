@@ -17,6 +17,7 @@ class CreateTableRefConditionsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('ref_table_id');
+            $table->unsignedInteger('incoming_allow')->default(1);
             $table->unsignedInteger('is_system')->default(0);
             $table->string('name', 50);
             $table->string('notes')->nullable();

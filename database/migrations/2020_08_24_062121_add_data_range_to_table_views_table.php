@@ -17,6 +17,9 @@ class AddDataRangeToTableViewsTable extends Migration
             $table->unsignedInteger('row_group_id')->nullable();
             $table->unsignedInteger('col_group_id')->nullable();
             $table->tinyInteger('can_sorting')->default(0);
+            $table->tinyInteger('can_filter')->default(0);
+            $table->tinyInteger('can_hide')->default(0);
+            $table->tinyInteger('can_show_srv')->default(0);
 
             $table->foreign('row_group_id', 'table_views__row_group_id')
                 ->references('id')
@@ -43,6 +46,8 @@ class AddDataRangeToTableViewsTable extends Migration
             $table->dropColumn('row_group_id');
             $table->dropColumn('col_group_id');
             $table->dropColumn('can_sorting');
+            $table->dropColumn('can_filter');
+            $table->dropColumn('can_hide');
         });
     }
 }

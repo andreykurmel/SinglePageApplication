@@ -38,11 +38,10 @@ class DiscourseSso
     public function checkLogin(string $path) {
         $sso_nonce = Session::get('sso_nonce');
         $sso_url = Session::get('sso_url');
-        if ($sso_nonce && $sso_url && auth()->user()) {
+        if ($sso_nonce && $sso_url && auth()->user() && preg_match('/\/discourse\/sso/i', $_SERVER['REQUEST_URI'])) {//opened not from Iframe.
             Session::put('sso_nonce', null);
             Session::put('sso_url', null);
-            $query = $this->ssoQuery($sso_nonce);
-            $signed = 'sso=' . urlencode($query) . '&sig=' . hash_hmac('sha256', $query, config('app.discourse_secret'));
+            $signed = $this->ssoQuery($sso_nonce);
             $path = $sso_url . '?' . $signed;
         }
         return $path;
@@ -70,28 +69,20 @@ class DiscourseSso
      * @return array|mixed
      */
     public function syncLogin() {
-        if (auth()->user() && config('app.discourse_url_login') && config('app.discourse_secret')) {
-            $ch = curl_init();
-            curl_setopt( $ch, CURLOPT_URL, 'https://community.tablda.com/session/sso' );
-            curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
-            $str = curl_exec( $ch );
+        if (auth()->user() && config('app.discourse_secret') && !empty($_COOKIE['_discourse_sso'])) {
+            $pars = [];
+            parse_str(preg_replace('/\?/i', '', $_COOKIE['_discourse_sso']), $pars);
+            $sso = $pars['sso'];
+            $sig = $pars['sig'];
 
-            $sso = [];
-            preg_match('/sso=([\w\d%]*)/i', $str, $sso);
-            $sso = $sso[1] ?? '';
-
-            $sig = [];
-            preg_match('/sig=([\w\d%]*)/i', $str, $sig);
-            $sig = $sig[1] ?? '';
-
-            if ($sso && $sig) {
+            if ($sso && $sig && hash_hmac('sha256', $sso, config('app.discourse_secret')) == $sig) {
                 $params = [];
                 $querystr = base64_decode( urldecode($sso) );
                 parse_str($querystr, $params);
-                if (!empty($params['nonce']) && !empty($params['return_sso_url'])) {
-                    $query = $this->ssoQuery($params['nonce']);
-                    $signed = 'sso=' . urlencode($query) . '&sig=' . hash_hmac('sha256', $query, config('app.discourse_secret'));
-                    Session::put('discourse_community_url', $params['return_sso_url'] . '?' . $signed);
+                if (!empty($params['nonce'])) {
+                    $signed = $this->ssoQuery($params['nonce']);
+                    setcookie('_discourse_login', $params['return_sso_url'] . '?' . $signed);
+                    setcookie('_discourse_sso', '');
                 }
             }
         }
@@ -103,13 +94,7 @@ class DiscourseSso
      */
     public static function communityUrl()
     {
-        $path = Session::get('discourse_community_url');
-        if ($path) {
-            Session::put('discourse_community_url', '');
-            return $path;
-        } else {
-            return config('app.discourse_uri');
-        }
+        return config('app.discourse_uri');
     }
 
     /**
@@ -132,13 +117,44 @@ class DiscourseSso
     protected function ssoQuery(string $sso_nonce)
     {
         $user = [
-            'nonce' => urlencode( $sso_nonce ),
-            'external_id' => urlencode( auth()->user()->id ),
-            'email' => urlencode( auth()->user()->email ),
-            'username' => urlencode( auth()->user()->username ),
-            'name' => urlencode( auth()->user()->first_name . ' ' . auth()->user()->last_name ),
-            'avatar_url' => urlencode( auth()->user()->avatarLink() ),
+            'nonce' => ( $sso_nonce ),
+            'external_id' => ( auth()->user()->id ),
+            'email' => ( auth()->user()->email ),
+            'username' => ( auth()->user()->username ),
+            'name' => ( auth()->user()->first_name . ' ' . auth()->user()->last_name ),
+            //'avatar_url' => ( auth()->user()->avatarLink() ),
         ];
-        return base64_encode( http_build_query($user) );
+        $payload = base64_encode( http_build_query($user) );
+        return http_build_query([
+            'sso' => $payload,
+            'sig' => hash_hmac('sha256', $payload, config('app.discourse_secret')),
+        ]);
+    }
+
+    /**
+     * @param string $url
+     * @param string|null $cookie
+     * @return array
+     */
+    protected function ssoCurl(string $url, string $cookie = null)
+    {
+        $ch = curl_init();
+        if($cookie) {
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array("Set-Cookie: ".$cookie));
+            curl_setopt($ch, CURLOPT_NOBODY, 1);
+        }
+        curl_setopt( $ch, CURLOPT_URL, $url );
+        curl_setopt( $ch, CURLOPT_RETURNTRANSFER, 1 );
+        curl_setopt( $ch, CURLOPT_HEADER, true );
+        $response = explode("\r\n", curl_exec( $ch ));
+        curl_close($ch);
+        $info = [];
+        foreach ($response as $elem) {
+            $keyval = explode(": ", $elem);
+            if (count($keyval) == 2) {
+                $info[ strtolower($keyval[0]) ] = $keyval[1];
+            }
+        }
+        return $info;
     }
 }

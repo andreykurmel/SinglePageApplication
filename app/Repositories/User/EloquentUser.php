@@ -2,7 +2,9 @@
 
 namespace Vanguard\Repositories\User;
 
-use Illuminate\Support\Facades\Session;
+use Carbon\Carbon;
+use DB;
+use Laravel\Socialite\Contracts\User as SocialUser;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Subscription;
@@ -13,10 +15,6 @@ use Vanguard\Services\Auth\Social\ManagesSocialAvatarSize;
 use Vanguard\Services\Tablda\UserService;
 use Vanguard\Services\Upload\UserAvatarManager;
 use Vanguard\User;
-use Carbon\Carbon;
-use DB;
-use Illuminate\Database\SQLiteConnection;
-use Laravel\Socialite\Contracts\User as SocialUser;
 
 class EloquentUser implements UserRepository
 {
@@ -87,6 +85,38 @@ class EloquentUser implements UserRepository
     }
 
     /**
+     * @param $invite
+     * @param $mail
+     * @param bool $is_create
+     */
+    public function storeInvites($invite, $mail, $is_create = false)
+    {
+        $hash = $invite ?: \session('invite');
+        $email = $mail && filter_var($mail, FILTER_VALIDATE_EMAIL) ? $mail : '';
+        if ($hash) {
+            \session(['invite' => $hash]);
+            if ($email) {
+                \session(['invited_mail' => $email]);
+            }
+            if ($hash && $email && $is_create) {
+                $this->userService->inviteAccepted($email, $hash);
+            }
+        }
+    }
+
+    /**
+     *
+     */
+    public function awardInvites()
+    {
+        $hash = \session('invite');
+        $mail = \session('invited_mail');
+        if ($hash && $mail) {
+            $this->userService->awardReferral($mail, $hash);
+        }
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function create(array $data)
@@ -94,11 +124,10 @@ class EloquentUser implements UserRepository
         $data['avail_credit'] = 15;
         $user = User::create($data);
 
-        $hash = Session::get('invitation')[0] ?? null;
-        $mail = Session::get('invited_mail')[0] ?? ( $data['email'] ?? null );
-
-        if ($hash && $mail) {
-            $this->userService->awardReferral($mail, $hash);
+        if (!settings('reg_email_confirmation')) {
+            $this->awardInvites();
+        } elseif ($data['email'] ?? null) {
+            $this->storeInvites('', $data['email'], true);
         }
 
         $this->userService->checkAndSetPlan($user);

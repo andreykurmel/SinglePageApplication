@@ -24,7 +24,7 @@ class PostLinkRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
+            'object_id' => 'required|integer',
             'folder_id' => 'nullable|integer',
             'type' => 'required|string',
             'structure' => 'required|string'

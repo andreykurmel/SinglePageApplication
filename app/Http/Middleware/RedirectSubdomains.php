@@ -35,10 +35,16 @@ class RedirectSubdomains
     {
         $service = new HelperService();
         $user = $this->auth->user();
+        $avail_subdom = $user && $user->_available_features && $user->_available_features->apps_are_avail;
 
         //skip [public,blog] subdomains
         if (in_array($service->cur_subdomain, $service->no_redirect_subdomains)) {
             return $next($request);
+        }
+
+        //return to homepage if subdomains are not available
+        if ($service->cur_subdomain && !$avail_subdom) {
+            return redirect( $service->getUrlWithSubdomain('') );
         }
 
         //ignore redirect for all urls except '/data/'
@@ -55,7 +61,7 @@ class RedirectSubdomains
             return redirect( $service->getUrlWithSubdomain('') . $request->server('REQUEST_URI') );
         }
         //redirect users to their subdomain
-        if ($user && strtolower($user->subdomain) != $service->cur_subdomain) {
+        if ($user && $avail_subdom && strtolower($user->subdomain) != $service->cur_subdomain) {
             return redirect( $service->getUrlWithSubdomain($user->subdomain) . $request->server('REQUEST_URI') );
         }
 

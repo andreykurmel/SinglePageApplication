@@ -3,17 +3,12 @@
 namespace Vanguard\Repositories\Tablda\Permissions;
 
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Vanguard\Models\DataSetPermissions\CondFormat;
 use Vanguard\Models\DataSetPermissions\CondFormatUserSetting;
-use Vanguard\Models\DataSetPermissions\TableRefCondition;
-use Vanguard\Models\DataSetPermissions\TableRefConditionItem;
-use Vanguard\Models\User\UserGroup;
 use Vanguard\Services\Tablda\HelperService;
-use Vanguard\Singletones\AuthUserModule;
-use Vanguard\Singletones\AuthUserSingleton;
 use Vanguard\Singletones\OtherUserModule;
-use Vanguard\User;
 
 class CondFormatsRepository
 {
@@ -28,13 +23,67 @@ class CondFormatsRepository
     }
 
     /**
+     * @param Collection $cond_formats
+     */
+    public function fixRowOrder(Collection $cond_formats): void
+    {
+        $max_order = CondFormat::max('row_order');
+        $cond_formats->map(function (CondFormat $item) use ($max_order) {
+            if (!$item->row_order) {
+                $item->row_order = ++$max_order;
+
+                CondFormat::where('id', '=', $item->id)
+                    ->update(['row_order' => $item->row_order]);
+            }
+        });
+    }
+
+    /**
+     * Add Conditional Formatting.
+     *
+     * @param $data
+     * [
+     *  +table_id: int,
+     *  +user_id: int,
+     *  +name: string,
+     *  -table_column_group_id: int,
+     *  -table_row_group_id: int,
+     *  -object: string,
+     *  -font: string,
+     *  -color: string,
+     *  -activity: string,
+     *  -status: int,
+     * ]
+     * @return CondFormat
+     */
+    public function addFormat($data)
+    {
+        if (empty($data['status'])) {
+            $data['status'] = 0;
+        }
+        if (empty($data['show_table_data'])) {
+            $data['show_table_data'] = 1;
+        }
+        if (empty($data['show_form_data'])) {
+            $data['show_form_data'] = 1;
+        }
+
+        $format = CondFormat::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
+        $format->row_order = $format->id;
+        $format->save();
+
+        return $this->prepareCondFormatFields($format, auth()->id());
+    }
+
+    /**
      * Prepare Relations and Fields.
      *
      * @param CondFormat $format
      * @param int|null $user_id
      * @return CondFormat
      */
-    public function prepareCondFormatFields(CondFormat $format, int $user_id = null) {
+    public function prepareCondFormatFields(CondFormat $format, int $user_id = null)
+    {
         $format->loadMissing('_user_settings', '_table_permissions');
 
         if ($format->user_id != $user_id) {
@@ -85,54 +134,6 @@ class CondFormatsRepository
     }
 
     /**
-     * Get Conditional Formatting.
-     *
-     * @param $format_id
-     * @return mixed
-     */
-    public function getFormat($format_id)
-    {
-        return CondFormat::where('id', '=', $format_id)->first();
-    }
-
-    /**
-     * Add Conditional Formatting.
-     *
-     * @param $data
-     * [
-     *  +table_id: int,
-     *  +user_id: int,
-     *  +name: string,
-     *  -table_column_group_id: int,
-     *  -table_row_group_id: int,
-     *  -object: string,
-     *  -font: string,
-     *  -color: string,
-     *  -activity: string,
-     *  -status: int,
-     * ]
-     * @return CondFormat
-     */
-    public function addFormat($data)
-    {
-        if (empty($data['status'])) {
-            $data['status'] = 0;
-        }
-        if (empty($data['show_table_data'])) {
-            $data['show_table_data'] = 1;
-        }
-        if (empty($data['show_form_data'])) {
-            $data['show_form_data'] = 1;
-        }
-
-        $format = CondFormat::create( array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()) );
-        $format->row_order = $format->id;
-        $format->save();
-
-        return $this->prepareCondFormatFields($format, auth()->id());
-    }
-
-    /**
      * Update Conditional Formatting.
      *
      * @param int $group_id
@@ -154,10 +155,21 @@ class CondFormatsRepository
     public function updateFormat($group_id, $data)
     {
         CondFormat::where('id', $group_id)
-            ->update( array_merge($this->service->delSystemFields($data), $this->service->getModified()) );
+            ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
 
         $format = $this->getFormat($group_id);
         return $this->prepareCondFormatFields($format, auth()->id());
+    }
+
+    /**
+     * Get Conditional Formatting.
+     *
+     * @param $format_id
+     * @return mixed
+     */
+    public function getFormat($format_id)
+    {
+        return CondFormat::where('id', '=', $format_id)->first();
     }
 
     /**

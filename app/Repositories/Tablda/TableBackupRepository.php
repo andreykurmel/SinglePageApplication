@@ -45,10 +45,10 @@ class TableBackupRepository
         if ($time == '00:00') {
             $backups->where(function ($q) use ($time) {
                 $q->whereNull('time');
-                $q->orWhere('time', '=', $time);
+                $q->orWhere('time', 'like', $time.':%');
             });
         } else {
-            $backups->where('time', '=', $time);
+            $backups->where('time', 'like', $time.':%');
         }
 
         return $backups->get();

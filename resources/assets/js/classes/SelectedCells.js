@@ -252,6 +252,26 @@ export class SelectedCells {
     // SELECTED CHANGE
 
 
+    /**
+     *
+     * @param tableMeta
+     * @param tableRows
+     * @returns {Array}
+     */
+    delete_in_selected(tableMeta, tableRows) {
+        let changed_rows = [];
+        let idxs = this.idxs(tableMeta);
+        for (let r = idxs.row_start; r <= idxs.row_end; r++) {
+            for (let c = idxs.col_start; c <= idxs.col_end; c++) {
+                let fld = tableMeta._fields[c];
+                tableRows[r][fld.field] = null;
+            }
+            changed_rows.push(tableRows[r]);
+        }
+        return changed_rows;
+    }
+
+
     // COPY FUNCTIONS
     /**
      *

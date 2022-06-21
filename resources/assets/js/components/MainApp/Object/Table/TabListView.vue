@@ -25,6 +25,7 @@
             @added-row="insertRow"
             @updated-row="updateRow"
             @delete-row="deleteRow"
+            @mass-updated-rows="massUpdatedRows"
             @delete-selected-rows="deleteSelectedRowsHandler"
             @check-row="toggleAllCheckBoxes"
             @change-page="changePage"
@@ -35,6 +36,7 @@
             @row-index-clicked="rowIndexClicked"
             @show-src-record="showSrcRecord"
             @reorder-rows="reorderRows"
+            @show-add-ddl-option="showAddDDLOption"
         ></custom-table>
         <custom-edit-pop-up
             v-if="tableMeta && editPopUpRow"
@@ -60,9 +62,11 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../app';
+    import {eventBus} from '../../../../app';
 
+    import {RefCondHelper} from '../../../../classes/helpers/RefCondHelper';
     import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
+    import {Endpoints} from "../../../../classes/Endpoints";
 
     import CheckRowBackendMixin from './../../../_Mixins/CheckRowBackendMixin.vue';
     import TableSortMixin from './../../../_Mixins/TableSortMixin.vue';
@@ -93,7 +97,6 @@
                 editPopUpRow: null,
                 popUpRole: null,
                 page: this.queryPreset.page || 1,
-                addObject: this.$root.emptyObject(this.tableMeta),
                 radius_search: {km: 0},
                 first_init_view: null,
             }
@@ -103,8 +106,6 @@
             settingsMeta: Object,
             fullWidthCell: Boolean,
             isPagination: Boolean,
-            cellHeight: Number,
-            maxCellRows: Number,
             table_id: Number,
             user: Object,
             addingRow: Object,
@@ -150,8 +151,7 @@
                         search_columns: this.searchObject.columns,
                         row_id: this.searchObject.direct_row_id || null,
                         applied_filters: this.$root.filters,
-                        temp_filters: this.$root.temp_filters,
-                        hidden_row_ids: this.tableMeta.__hidden_row_ids
+                        hidden_row_groups: this.tableMeta.__hidden_row_groups
                     }
                 };
 
@@ -172,17 +172,11 @@
                 }
 
                 if (this.radius_search.km) {
-                    let lat_header = _.find(this.tableMeta._fields, {is_lat_field: 1});
-                    let long_header = _.find(this.tableMeta._fields, {is_long_field: 1});
-                    if (lat_header && long_header) {
-                        request.radius_search = {
-                            km: this.radius_search.km,
-                            center_lat: this.radius_search.center_lat,
-                            center_long: this.radius_search.center_long,
-                            field_lat: lat_header.field,
-                            field_long: long_header.field,
-                        };
-                    }
+                    request.radius_search = {
+                        km: this.radius_search.km,
+                        center_lat: this.radius_search.center_lat,
+                        center_long: this.radius_search.center_long,
+                    };
                 }
 
                 request.first_init_view = this.first_init_view;
@@ -195,7 +189,7 @@
             },
             getTableData(change_type) {
                 if (this.isVisible) {
-                    if ($.inArray(change_type, ['collaborator']) === -1) {
+                    if ($.inArray(change_type, ['collaborator','reload-filter']) === -1) {
                         $.LoadingOverlay('show');
                     }
                 } else {
@@ -203,7 +197,7 @@
                 }
 
                 //goto First Page on filtering or searching
-                if ($.inArray(change_type, ['filter','search','circle']) > -1) {
+                if ($.inArray(change_type, ['filter','search']) > -1) {
                     this.page = 1;
                 }
 
@@ -228,10 +222,10 @@
                     _.each(this.tableMeta._row_groups, (rg) => {
                         let data_rg = _.find(data.row_group_statuses, {id: Number(rg.id)});
                         rg._show_status = data_rg ? data_rg.show_status : 2;
-                        rg._search_hidden = data_rg ? data_rg.search_hidden : false;
+                        rg._group_hidden = data_rg ? data_rg.group_hidden : false;
                         rg._filter_disabled = data_rg ? data_rg.filter_disabled : false;
                     });
-                    this.tableMeta.__hidden_row_ids = data.hidden_row_ids;
+                    this.tableMeta.__hidden_row_groups = data.hidden_row_groups;
 
                     //show that request params are changed
                     eventBus.$emit('new-request-params', change_type);
@@ -247,63 +241,76 @@
                 });
             },
             copyRow(tableRow) {
-                this.insertRow(tableRow, true);
+                Endpoints.massCopyRows(this.tableMeta.id, [tableRow.id]).then((data) => {
+                    this.thenForInsert(data, true, true);
+                });
             },
             insertRow(tableRow, no_close, no_new) {
                 let fields = _.cloneDeep(tableRow);//copy object
-
                 this.$root.sm_msg_type = 1;
                 axios.post('/ajax/table-data', {
                     table_id: this.tableMeta.id,
                     fields: fields,
                     get_query: this.newRequestParams(true),
                 }).then(({data}) => {
-                    if (no_new) {
-                        this.getTableData('rows-changed');
-                        return;
-                    }
-
-                    if (data.rows && data.rows.length) {
-                        data.rows[0]._is_new = 1;
-                        this.$root.listTableRows.splice(0, 0, data.rows[0]);
-                        this.editPopUpRow = no_close && data.rows[0] ? data.rows[0] : null;
-                    }
-                    this.$root.listTableRows_state = uuidv4();
-                    this.$root.filters = SpecialFuncs.prepareFilters(this.$root.filters, data.filters);
-
-                    data.rows_count = this.tableMeta._view_rows_count+1;
-                    data.global_rows_count = this.tableMeta._global_rows_count+1;
-                    this.$emit('update-meta-params', data);
-
-                    eventBus.$emit('new-request-params', 'rows-changed');
+                    this.thenForInsert(data, no_close, no_new);
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
             },
+            thenForInsert(data, no_close, no_new) {
+                if (no_new) {
+                    this.getTableData('rows-changed');
+                    return;
+                }
+
+                if (data.rows && data.rows.length) {
+                    data.rows[0]._is_new = 1;
+                    this.$root.listTableRows.splice(0, 0, data.rows[0]);
+                    this.editPopUpRow = no_close && data.rows[0] ? data.rows[0] : null;
+                }
+                this.$root.listTableRows_state = uuidv4();
+                this.$root.filters = SpecialFuncs.prepareFilters(this.$root.filters, data.filters);
+
+                data.rows_count = this.tableMeta._view_rows_count+1;
+                data.global_rows_count = this.tableMeta._global_rows_count+1;
+                this.$emit('update-meta-params', data);
+
+                eventBus.$emit('new-request-params', 'rows-changed');
+            },
             updateRow(tableRow) {
-                let row_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
+                this.massUpdatedRows([tableRow]);
+            },
+            massUpdatedRows(massTableRows) {
+                let row_datas = {};
+                _.each(massTableRows, (tableRow) => {
+                    let row_id = tableRow.id;
+                    let fields = _.cloneDeep(tableRow);//copy object
+                    this.$root.deleteSystemFields(fields);
+
+                    //front-end RowGroups and CondFormats
+                    RefCondHelper.updateRGandCFtoRow(this.tableMeta, tableRow);
+
+                    row_datas[row_id] = fields;
+                });
 
                 this.$root.sm_msg_type = 1;
                 this.$root.prevent_cell_edit = true;
-                axios.put('/ajax/table-data', {
+                axios.put('/ajax/table-data/mass', {
                     table_id: this.tableMeta.id,
-                    row_id: row_id,
-                    fields: fields,
+                    row_datas: row_datas,
                     get_query: this.newRequestParams(true),
                 }).then(({ data }) => {
-                    let idx = _.findIndex(this.$root.listTableRows, {id: row_id});
-                    if (idx > -1) {
-                        if (data.rows && data.rows.length) {
-                            this.$root.listTableRows[idx] = data.rows[0];
+                    _.each(row_datas, (row) => {
+                        let oldrow = _.find(this.$root.listTableRows, {id: row.id});
+                        let newrow = _.find(data.rows, {id: row.id});
+                        if (oldrow && newrow) {
+                            this.$root.assignObject(newrow, oldrow);
                             this.redraw_table++;
-                        } else {
-                            this.$root.listTableRows.splice(idx, 1);
                         }
-                    }
+                    });
                     this.$root.listTableRows_state = uuidv4();
                     this.$root.filters = SpecialFuncs.prepareFilters(this.$root.filters, data.filters);
 
@@ -315,7 +322,7 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    eventBus.$emit('sync-favorites-update', tableRow);
+                    eventBus.$emit('sync-favorites-update', row_datas);
                     this.$root.sm_msg_type = 0;
                     this.$root.prevent_cell_edit = false;
                 });
@@ -361,15 +368,7 @@
                 });
             },
             toggleAllFavorites(status) {
-                let rows_ids = [];
-                let all_rows_checked = true;
-                _.each(this.$root.listTableRows, (row) => {
-                    if (row._checked_row) {
-                        rows_ids.push(row.id);
-                    } else {
-                        all_rows_checked = false;
-                    }
-                });
+                let check_obj = this.$root.checkedRowObject(this.$root.listTableRows);
 
                 this.$root.sm_msg_type = 1;
 
@@ -379,8 +378,8 @@
 
                 axios.put('/ajax/table-data/favorite/all', {
                     table_id: this.tableMeta.id,
-                    rows_ids: (all_rows_checked ? null : rows_ids),
-                    request_params: (all_rows_checked ? request_params : null),
+                    rows_ids: (check_obj.all_checked ? null : check_obj.rows_ids),
+                    request_params: (check_obj.all_checked ? request_params : null),
                     status: (status ? 1 : 0)
                 }).then(({ data }) => {
                     eventBus.$emit('reload-page');
@@ -438,15 +437,15 @@
             },
             getViewDataObject(no_search, emit) {
                 let hidden_columns = _.filter(this.tableMeta._fields, (el) => {
-                    return this.isShowField(el) && !el.is_showed;
+                    return !this.isShowField(el);
                 });
                 hidden_columns = _.map(hidden_columns, 'field');
 
-                let order_columns = _.map(this.tableMeta._fields, (el) => {
+                let order_columns = _.map(this.tableMeta._fields, (el,order) => {
                     return {
                         id: el.id,
                         field: el.field,
-                        order: el.order,
+                        order: order,
                         width: el.width,
                     };
                 });
@@ -469,7 +468,7 @@
                     applied_filters: this.$root.filters,
                     hidden_columns: hidden_columns,
                     order_columns: order_columns,
-                    hidden_row_ids: this.tableMeta.__hidden_row_ids,
+                    hidden_row_groups: this.tableMeta.__hidden_row_groups,
                     panels_preset: panels_preset,
                 });
                 if (emit) {
@@ -484,7 +483,6 @@
                 if (
                     this.user.id
                     && !this.user.view_hash
-                    && !this.user.selected_view
                     && !this.user._is_folder_view
                     && !this.has_filters_url_preset
                     && (this.tableMeta._cur_settings && this.tableMeta._cur_settings.initial_view_id === 0) //and initial loading = default
@@ -499,11 +497,13 @@
             },
 
             //EVENT BUS HANDLERS
-            syncListViewUpdateHandler(row) {
-                let idx = _.findIndex(this.$root.listTableRows, {id: row.id});
-                if (idx > -1) {
-                    Object.assign(this.$root.listTableRows[idx], row);
-                }
+            syncListViewUpdateHandler(massTableRows) {
+                _.each(massTableRows, (row_data, row_id) => {
+                    let oldrow = _.find(this.$root.listTableRows, {id: row_id});
+                    if (oldrow) {
+                        this.$root.assignObject(row_data, oldrow);
+                    }
+                });
             },
             syncListViewDeleteHandler(row) {
                 let idx = _.findIndex(this.$root.listTableRows, {id: row.id});
@@ -545,20 +545,14 @@
                 this.editPopUpRow = tableRow;
                 this.popUpRole = 'update';
             },
-            newSearchCircleHandler(radius_search) {
-                let reload = this.radius_search.km !== radius_search.km
-                || this.radius_search.center_lat !== radius_search.center_lat
-                || this.radius_search.center_long !== radius_search.center_long;
-                this.radius_search = radius_search;
-                if (reload) {
-                    this.getTableData('circle');
-                }
-            },
             collaboratorChangedListDataHandler() {
                 this.getTableData('collaborator');
             },
             reorderRows() {
                 eventBus.$emit('reload-page');
+            },
+            showAddDDLOption(tableHeader, tableRow) {
+                this.$emit('show-add-ddl-option', tableHeader, tableRow);
             },
         },
         mounted() {
@@ -603,9 +597,6 @@
             //table views
             eventBus.$on('global-get-view-object', this.getViewDataObject);
 
-            //from maps tab
-            eventBus.$on('new-search-circle', this.newSearchCircleHandler);
-
             //sync datas with collaborators
             eventBus.$on('collaborator-changed-list-data', this.collaboratorChangedListDataHandler);
 
@@ -632,17 +623,17 @@
             eventBus.$off('save-table-status', this.saveTableStatus);
 
             //update row and formulas after selected LinkPopup.
-            eventBus.$on('list-view-update-row', this.updateRow);
-            eventBus.$on('list-view-another-row', this.anotherRowPopup);
+            eventBus.$off('list-view-copy-row', this.copyRow);
+            eventBus.$off('list-view-insert-row', this.insertRow);
+            eventBus.$off('list-view-update-row', this.updateRow);
+            eventBus.$off('list-view-delete-row', this.deleteRow);
+            eventBus.$off('list-view-another-row', this.anotherRowPopup);
 
             //show searched row from Map
             eventBus.$off('show-popup', this.showPopupHandler);
 
             //table views
             eventBus.$off('global-get-view-object', this.getViewDataObject);
-
-            //from maps tab
-            eventBus.$off('new-search-circle', this.newSearchCircleHandler);
 
             //sync datas with collaborators
             eventBus.$off('collaborator-changed-list-data', this.collaboratorChangedListDataHandler);

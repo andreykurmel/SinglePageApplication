@@ -1,6 +1,7 @@
 import {SpecialFuncs} from './SpecialFuncs';
 import {FoundModel} from './FoundModel';
 import {StimLinkParams} from './StimLinkParams';
+import {RefCondHelper} from "./helpers/RefCondHelper";
 
 export class MetaTabldaRows {
     /**
@@ -173,6 +174,7 @@ export class MetaTabldaRows {
                 replace: String($to),
                 columns: [$col],
                 request_params: this.rowsRequest(),
+                force: true,
             }).then(({data}) => {
                 resolve(data);
             }).catch(errors => {
@@ -220,6 +222,24 @@ export class MetaTabldaRows {
             });
         }
         return conv;
+    }
+
+    /**
+     * Convert Key 'to 3D type' or 'from 3D type' (autodetect).
+     * @param key
+     * @returns {string}
+     */
+    convertKey(key) {
+        let converted = '';
+        _.each(this.maps, (tablda, app) => {
+            if (!converted && key === tablda) {
+                converted = app;
+            }
+            if (!converted && key === app) {
+                converted = tablda;
+            }
+        });
+        return converted;
     }
 
     /**
@@ -311,31 +331,52 @@ export class MetaTabldaRows {
 
     /**
      * updateRow
+     * @param tableMeta
      * @param tableRow
      * @param no_reload
      * @returns {Promise}
      */
-    updateRow(tableRow, no_reload) {
-        let row_id = tableRow.id;
-        let fields = _.cloneDeep(tableRow);//copy object
-        this.deleteSystemFields(fields);
+    updateRow(tableMeta, tableRow, no_reload) {
+        return this.massUpdatedRows(tableMeta, [tableRow], no_reload);
+    }
+
+    /**
+     *
+     * @param tableMeta
+     * @param massTableRows
+     * @param no_reload
+     * @returns {Promise<unknown>}
+     */
+    massUpdatedRows(tableMeta, massTableRows, no_reload) {
+        let row_datas = {};
+        _.each(massTableRows, (tableRow) => {
+            let row_id = tableRow.id;
+            let fields = _.cloneDeep(tableRow);//copy object
+            this.deleteSystemFields(fields);
+
+            //front-end RowGroups and CondFormats
+            RefCondHelper.updateRGandCFtoRow(tableMeta, tableRow);
+
+            row_datas[row_id] = fields;
+        });
 
         return new Promise((resolve) => {
-            axios.put('/ajax/table-data', {
+            axios.put('/ajax/table-data/mass', {
                 table_id: this.table_id,
-                row_id: row_id,
-                fields: fields,
+                row_datas: row_datas,
                 get_query: {
                     table_id: this.table_id
                 },
             }).then(({data}) => {
-                let idx = _.findIndex(this.all_rows, el => el.id == row_id);
-                if (idx > -1 && data.rows && data.rows.length) {
-                    this.master_row = data.rows[0] || null;
-                    this.state_hash = uuidv4();
-                    this.all_rows.splice(idx, 1, data.rows[0]);
-                    this._convertRows();
-                }
+                _.each(data.rows, (d_row) => {
+                    let idx = _.findIndex(this.all_rows, el => el.id == d_row.id);
+                    if (idx > -1) {
+                        this.master_row = d_row || null;
+                        this.state_hash = uuidv4();
+                        this.all_rows.splice(idx, 1, d_row);
+                        this._convertRows();
+                    }
+                });
                 if (!no_reload) {
                     this.reloadFilters();
                 }

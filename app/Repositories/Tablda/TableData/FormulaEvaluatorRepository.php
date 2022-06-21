@@ -37,6 +37,9 @@ class FormulaEvaluatorRepository
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayVariance' => 'avar',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayStd' => 'astd',
 
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifAnd' => 'andx',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifOr' => 'orx',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::isEmpty' => 'isempty',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifCondition' => 'if',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::switchCondition' => 'switch',
 
@@ -60,37 +63,39 @@ class FormulaEvaluatorRepository
      * @param int|null $user_id
      * @param bool $light
      */
-    public function __construct(Table $table, int $user_id = null, bool $light = false)
+    public function __construct(Table $table = null, int $user_id = null, bool $light = false)
     {
-        if (!$light) {
-            $table->loadMissing('_ref_conditions');
-            $table->_ref_conditions->loadMissing([
-                '_items' => function ($q) {
-                    $q->with('_compared_field', '_field');
-                },
-                '_ref_table' => function ($q) {
-                    $q->with('_fields');
-                },
-            ]);
-        }
-
-        //table
-        $this->table = $table;
-
-        //fields
-        $table_fields = $table->_fields()
-            ->joinHeader($user_id, $table)
-            ->get();
-
-        $this->formula_fields = $table_fields->where('input_type', '=', 'Formula');
-        $this->field_name_links = [];
-        foreach ($table_fields as $tf) {
-            $this->field_name_links[$this->tf_name($tf->name)] = $tf;
-            if ($tf->formula_symbol) {
-                $this->field_name_links[$this->tf_name($tf->formula_symbol)] = $tf;
+        if ($table) {
+            if (!$light) {
+                $table->loadMissing('_ref_conditions');
+                $table->_ref_conditions->loadMissing([
+                    '_items' => function ($q) {
+                        $q->with('_compared_field', '_field');
+                    },
+                    '_ref_table' => function ($q) {
+                        $q->with('_fields');
+                    },
+                ]);
             }
+
+            //table
+            $this->table = $table;
+
+            //fields
+            $table_fields = $table->_fields()
+                ->joinHeader($user_id, $table)
+                ->get();
+
+            $this->formula_fields = $table_fields->where('input_type', '=', 'Formula');
+            $this->field_name_links = [];
+            foreach ($table_fields as $tf) {
+                $this->field_name_links[$this->tf_name($tf->name)] = $tf;
+                if ($tf->formula_symbol) {
+                    $this->field_name_links[$this->tf_name($tf->formula_symbol)] = $tf;
+                }
+            }
+            //---
         }
-        //---
 
         //instantiate FormulaParser
         $this->evaluator = new ExpressionLanguage();
@@ -203,13 +208,7 @@ class FormulaEvaluatorRepository
                 continue;
             }
 
-            $formula_str = $this->formulaReplaceVars($row, $formula_str);
-
-            try {
-                $formula_str = (string)$this->evaluator->evaluate($formula_str);
-            } catch (\Exception $e) {
-                $formula_str = $e->getMessage();
-            }
+            $formula_str = $this->formulaReplaceVars($row, $formula_str, true);
 
             if ($row[$field->field] != $formula_str) {
                 $row[$field->field] = substr($formula_str, 0, 255);
@@ -240,23 +239,24 @@ class FormulaEvaluatorRepository
      */
     public function formulaReplaceVars(array $row, string $formula_str, bool $with_calc = false)
     {
-        $active_fields = [];
-
-        $formula_str = preg_replace('/(\{)/i', ' $1', $formula_str);//add spaces for correct $active_fields parsing
-        preg_match_all('/[^"](\{[^\}]*\})[^"]|^(\{[^\}]*\})|(\{[^\}]*\})$/i', $formula_str, $active_fields);
-        $active_fields[0] = [];
-        $active_fields = array_filter(array_unique(array_flatten($active_fields)));
-
+        $formula_str = $this->removeNotPrintable($formula_str);
+        $active_fields = $this->getActiveFields($formula_str);
         foreach ($active_fields as $idx => $act_field) { // $act_field = '{FIELD_NAME}'
-            $act_field = $this->tf_name($act_field);
-            $fld = $this->field_name_links[$act_field] ?? null;
+            $tf_act_field = $this->tf_name($act_field);
+            $fld = $this->field_name_links[$tf_act_field] ?? null;
             if ($fld) {
+                $row_val = $row[$fld->field] ?? '';
+                if(!empty($row['_rc_'.$fld->field]) && !empty($row['_rc_'.$fld->field][$row_val])) {
+                    $row_val = $row['_rc_'.$fld->field][$row_val]->show_val ?? $row_val;
+                }
                 //parser rules
-                $data = preg_replace('/["]/i', '', $row[$fld->field] ?? '');//sanitize
+                $data = preg_replace('/["]/i', '', $row_val);//sanitize
                 $data = preg_replace('/(\d),(\d)/i', '$1$2', $data);//prepare for number calcs
-                $data = preg_match('/[^\d\.]/i', $data)
-                    ? '"' . ($data ?: '') . '"' //String if not only digits
-                    : ($data ?: 0); //Number if only digits
+                if ($with_calc) {
+                    $data = preg_match('/[^\d\.]/i', $data)
+                        ? '"' . ($data ?: '') . '"' //String if not only digits
+                        : ($data ?: 0); //Number if only digits
+                }
                 //---
 
                 //remove zero for concatenation
@@ -264,31 +264,85 @@ class FormulaEvaluatorRepository
                     $data = '""';
                 }
 
-                $formula_str = preg_replace('/\{' . $act_field . '\}/i', $data, $formula_str);
+                $formula_str = preg_replace($this->actToReplace($act_field), $data, $formula_str);
             } else {
                 $formula_str = '"Field ' . $act_field . ' not found"';
             }
         }
 
-        //case insensetive functions
-        $formula_str = preg_replace_callback('/([\w]+\()/i', function ($word) {
-            return strtolower($word[1]);
-        }, $formula_str);
+        if ($with_calc) {
+            //case insensetive functions
+            $formula_str = preg_replace_callback('/([\w]+\()/i', function ($word) {
+                return strtolower($word[1]);
+            }, $formula_str);
 
-        return $with_calc ? $this->justCalc($formula_str) : $formula_str;
+            return $this->justCalc($formula_str);
+        } else {
+            return $formula_str;
+        }
+    }
+
+    /**
+     * @param string $formula_str
+     * @return mixed|string
+     */
+    public function asSqlString(string $formula_str)
+    {
+        $active_fields = $this->getActiveFields($formula_str);
+        foreach ($active_fields as $idx => $act_field) { // $act_field = '{FIELD_NAME}'
+            $act_field = $this->tf_name($act_field);
+            $fld = $this->field_name_links[$act_field] ?? null;
+            if ($fld) {
+                $formula_str = preg_replace('/\{'.$act_field.'\}/i', '`'.$fld->field.'`', $formula_str);
+            } else {
+                $formula_str = '"Field ' . $act_field . ' not found"';
+            }
+        }
+        return preg_replace('/[^\w_\/\*-+`]/i', '', $formula_str);
+    }
+
+    /**
+     * @param string $formula_str
+     * @return array
+     */
+    protected function getActiveFields(string $formula_str)
+    {
+        $active_fields = [];
+        $formula_str = preg_replace('/(\{)/i', ' $1', $formula_str);//add spaces for correct $active_fields parsing
+        preg_match_all('/[^"](\{[^\}]*\})[^"]|^(\{[^\}]*\})|(\{[^\}]*\})$/i', $formula_str, $active_fields);
+        $active_fields[0] = [];
+        return array_filter(array_unique(array_flatten($active_fields)));
     }
 
     /**
      * @param string $formula_str
      * @return string
      */
-    protected function justCalc(string $formula_str)
+    public function justCalc(string $formula_str)
     {
         try {
-            $result = (string)$this->evaluator->evaluate($formula_str);
+            $result = (string)$this->evaluator->evaluate( $this->removeNotPrintable($formula_str) );
         } catch (\Exception $e) {
-            $result = $formula_str;
+            $result = $e->getMessage();
         }
         return $result;
+    }
+
+    /**
+     * @param string $formula_str
+     * @return string
+     */
+    protected function removeNotPrintable(string $formula_str): string
+    {
+        return preg_replace('/[^[:print:]]/i', '', $formula_str);
+    }
+
+    /**
+     * @param string $act_field
+     * @return string
+     */
+    protected function actToReplace(string $act_field): string
+    {
+        return '/\{' . preg_replace('/[\{\}\/]/i', '', $act_field) . '\}/i';
     }
 }

@@ -2,8 +2,10 @@
 
 namespace Vanguard\Services\Logging\UserActivity;
 
+use Carbon\Carbon;
 use Illuminate\Contracts\Auth\Factory;
 use Vanguard\Repositories\Activity\ActivityRepository;
+use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
 use Illuminate\Http\Request;
 
@@ -47,6 +49,55 @@ class Logger
             'user_id' => $this->getUserId(),
             'ip_address' => $this->request->ip(),
             'user_agent' => $this->getUserAgent()
+        ]);
+    }
+
+    /**
+     * @param $description
+     * @return mixed
+     */
+    public function logUserIn($description)
+    {
+        $present = $this->activities->find( ['ip_address' => $this->request->ip()] );
+        if ($present) {
+            $lat = $present->lat ?: 0;
+            $lng = $present->lng ?: 0;
+        } else {
+            $info = HelperService::getClientLocation( $this->request->ip() );
+            $location = explode(',', $info['loc'] ?? '');
+            $lat = $location[0] ?? 0;
+            $lng = $location[1] ?? 0;
+        }
+
+        return $this->activities->log([
+            'description' => $description,
+            'description_time' => time(),
+            'user_id' => $this->getUserId(),
+            'lat' => $lat ?: 0,
+            'lng' => $lng ?: 0,
+            'year' => (new Carbon())->format("Y"),
+            'month' => (new Carbon())->format("n"),
+            'week' => (new Carbon())->format("W"),
+            'ip_address' => $this->request->ip(),
+            'user_agent' => $this->getUserAgent()
+        ]);
+    }
+
+    /**
+     * @param $find
+     * @param $description
+     * @return mixed
+     */
+    public function logUserOut($find, $description)
+    {
+        return $this->activities->logWhere([
+            'ending' => $description,
+            'ending_time' => time(),
+            'difference_time' => \DB::raw(time().' - `description_time`'),
+        ], [
+            'user_id' => $this->getUserId(),
+            'ending' => null,
+            'description' => $find
         ]);
     }
 

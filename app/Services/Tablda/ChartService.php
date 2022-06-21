@@ -3,18 +3,21 @@
 namespace Vanguard\Services\Tablda;
 
 use Illuminate\Database\Eloquent\Builder;
+use Vanguard\Classes\BiPivotMaker;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\TableChartRepository;
+use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 
 class ChartService
 {
-    protected $tableRepository;
     protected $tableDataRepository;
     protected $chartRepository;
     protected $service;
@@ -30,7 +33,6 @@ class ChartService
      */
     public function __construct()
     {
-        $this->tableRepository = new TableRepository();
         $this->tableDataRepository = new TableDataRepository();
         $this->chartRepository = new TableChartRepository();
         $this->service = new HelperService();
@@ -51,9 +53,9 @@ class ChartService
      */
     public function getChart(array $data)
     {
-        $ch = $this->tableRepository->getChart($data['id']);
+        $ch = $this->chartRepository->getChart($data['id']);
         if (!$ch) {
-            $ch = $this->tableRepository->createChart($data);
+            $ch = $this->chartRepository->createChart($data);
         }
         return $ch;
     }
@@ -85,7 +87,7 @@ class ChartService
      */
     public function getChartId($id)
     {
-        return $this->tableRepository->getChart($id);
+        return $this->chartRepository->getChart($id);
     }
 
     /**
@@ -146,7 +148,7 @@ class ChartService
             $with_attachs[$i] = new TableData($arr);
         }
 
-        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, null, ['users','refs']);
+        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users','refs']);
 
         foreach ($with_attachs as $i => $attach) {
             $attach = $attach->toArray();
@@ -407,30 +409,42 @@ class ChartService
      */
     protected function groupPivotData(Table $table, Builder $sql, array $pivot_settings, array $about)
     {
-        $y_field = $this->getDbField($table, $about['field']);
-        $group_func = $this->getGroupFunc($about, $y_field);
+        if ($about['abo_type'] == 'formula') {
+            $y_field = (new FormulaEvaluatorRepository($table))->asSqlString($about['formula_string'] ?? '');
+        } else {
+            $y_field = $this->getDbField($table, $about['field']);
+        }
+        $group_func = $y_field ? $this->getGroupFunc($about, $y_field) : '""';
 
         $select = [ "$group_func as `y`" ];
         $grouping = [];
 
         for ($i = 1; $i <= $this->max_vert_hor; $i++) {
             $hor = $this->getDbField($table, $pivot_settings['horizontal']['l'.$i.'_field'] ?? '');
-            $select[] = ($hor ?: '""') . ' as `hor_l'.$i.'`';
+            $select[] = ($hor ? '`'.$hor.'`' : '""') . ' as `hor_l'.$i.'`';
             if ($hor) $grouping[] = $hor;
 
             $vert = $this->getDbField($table, $pivot_settings['vertical']['l'.$i.'_field'] ?? '');
-            $select[] = ($vert ?: '""') . ' as `vert_l'.$i.'`';
+            $select[] = ($vert ? '`'.$vert.'`' : '""') . ' as `vert_l'.$i.'`';
             if ($vert) $grouping[] = $vert;
         }
 
-        $sql->selectRaw(implode(',', $select));
-        $sql->groupBy($grouping ?: 'id');
+        $sql->selectRaw(implode(', ', $select));
+        $sql->groupBy($grouping ? array_unique($grouping) : 'id');
 
         if ($sql->count() >= $this->limit_points) {
             throw new \Exception('Chart exception. ' . $this->limit_excep, 1);
         }
 
         $res = $sql->get()->toArray();
+
+        //Just for DDL 'id/show'
+        if ($pivot_settings['referenced_tables'] ?? false) {
+            for ($i = 1; $i <= $this->max_vert_hor; $i++) {
+                $res = $this->pivot_ref_data($res, $pivot_settings, 'horizontal', $i);
+                $res = $this->pivot_ref_data($res, $pivot_settings, 'vertical', $i);
+            }
+        }
 
         //Remove 'null'
         foreach ($res as $idx => $row) {
@@ -441,6 +455,31 @@ class ChartService
         }
 
         return $this->explodeMSelect($table, $pivot_settings, $res);
+    }
+
+    /**
+     * @param array $rows
+     * @param array $pivot_settings
+     * @param string $type
+     * @param int $i
+     * @return array
+     */
+    protected function pivot_ref_data(array $rows, array $pivot_settings, string $type, int $i)
+    {
+        $rref = $pivot_settings[$type]['l'.$i.'_reference'] ?? '';
+        $refFld = is_numeric($rref) ? (new TableFieldRepository())->getField($rref) : null;
+        if ($refFld && $refFld->_table) {
+            $part = $type == 'horizontal' ? 'hor_l' : 'vert_l';
+            $targetFld = $pivot_settings[$type]['l'.$i.'_ref_link'] ?? 'id';
+            $clients = (new TableDataQuery($refFld->_table))->getQuery()->whereIn($targetFld, array_pluck($rows, $part.$i))->get();
+            foreach ($rows as $idx => $row) {
+                $found = $clients->where($targetFld, '=', $row[$part.$i])->first();
+                if ($found) {
+                    $rows[$idx][$part.$i] = $found[$refFld->field];
+                }
+            }
+        }
+        return $rows;
     }
 
     /**
@@ -539,7 +578,7 @@ class ChartService
      */
     public function saveChart(TableChart $chart, array $data, string $param_name)
     {
-        return $this->tableRepository->updateChart($chart->id, $data, $param_name);
+        return $this->chartRepository->updateChart($chart->id, $data, $param_name);
     }
 
     /**
@@ -557,10 +596,44 @@ class ChartService
      */
     public function delChart(array $data)
     {
-        if ($ch = $this->tableRepository->getChart($data['id'])) {
-            $this->tableRepository->delChart($ch->id);
+        if ($ch = $this->chartRepository->getChart($data['id'])) {
+            $this->chartRepository->delChart($ch->id);
         }
         return 1;
+    }
+
+    /**
+     * @param Table $chart_table
+     * @param array $chart_settings
+     * @param Table $target_table
+     * @param array $request_params
+     * @return array
+     */
+    public function exportChart(Table $chart_table, array $chart_settings, Table $target_table, array $request_params)
+    {
+        [$chart_data, $pivot_data] = $this->getChartAndTableData($chart_table, $chart_settings, $request_params);
+
+        $maker = new BiPivotMaker($chart_table, $chart_settings, $pivot_data);
+        $headers = $maker->getHeaderNames();
+        $rows = $maker->getDataRows();
+
+        $import = new ImportService();
+        $result = $import->modifyTable($target_table, $import->datasForChartExport($headers, $rows));
+
+        $this->chartRepository->updateChartSettings($chart_settings['id'], ['table_to_export' => $result['new_id']]);
+        return $result;
+    }
+
+    /**
+     * @param TableChart $chart
+     * @param array $settings
+     * @return array
+     */
+    public function updateChartSettings(TableChart $chart, array $settings)
+    {
+        return [
+            'result' => $this->chartRepository->updateChartSettings($chart->id, $settings),
+        ];
     }
 
     /**

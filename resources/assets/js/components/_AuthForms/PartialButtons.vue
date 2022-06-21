@@ -1,23 +1,14 @@
 <template>
-    <div class="row" v-if="settings.social_provider">
-        <div class="col-md-4 col-spaced">
-            <a class="btn btn-block btn-social btn-facebook" :href="settings.root_url + '/auth/facebook/login'">
-                <i class="fab fa-facebook fa-2x"></i>
-                Facebook
-            </a>
-        </div>
-        <div class="col-md-4 col-spaced">
-            <a class="btn btn-block btn-social btn-linkedin" :href="settings.root_url + '/auth/linkedin/login'">
-                <i class="fab fa-linkedin fa-2x"></i>
-                LinkedIn
-            </a>
-        </div>
-        <div class="col-md-4 col-spaced">
-            <a class="btn btn-block btn-social btn-google" :href="settings.root_url + '/auth/google/login'">
-                <i class="fab fa-google-plus-square fa-2x"></i>
-                Google+
-            </a>
-        </div>
+    <div class="flex flex--space flex--center-v" v-if="settings.social_provider">
+        <a class="btn btn-block btn-social btn-facebook autn-btn" :href="settings.root_url + '/auth/facebook/login'">
+            <i class="fab fa-facebook fa-2x"></i>
+            Facebook
+        </a>
+        <a class="btn btn-block btn-social btn-linkedin autn-btn" :href="settings.root_url + '/auth/linkedin/login'">
+            <i class="fab fa-linkedin fa-2x"></i>
+            LinkedIn
+        </a>
+        <a class="autn-btn auth-google" :href="settings.root_url + '/auth/google/login'"></a>
     </div>
 </template>
 
@@ -30,7 +21,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .row {
         margin-right: -15px;
         margin-left: -15px;

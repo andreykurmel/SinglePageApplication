@@ -37,7 +37,11 @@
                             :disabled="!tableRow.is_active"
                             title="Public access address"
                     >
-                        <a :target="tableRow.is_active ? '_blank' : ''" :href="tableRow.is_active ? getLink() : '#'" class="link_btn">
+                        <a :target="tableRow.is_active ? '_blank' : ''"
+                           :href="tableRow.is_active ? getLink() : '#'"
+                           title="Open the folder view in a new tab."
+                           class="link_btn"
+                        >
                             <span v-if="tableRow.user_link">{{ tableRow.user_link }}</span>
                             <i v-else="" class="glyphicon glyphicon-share"></i>
                         </a>
@@ -77,7 +81,7 @@
                     :options="checkedTables()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -92,7 +96,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -107,12 +111,12 @@
 </template>
 
 <script>
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import EmbedButton from './../Buttons/EmbedButton.vue';
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import EmbedButton from './../Buttons/EmbedButton.vue';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    export default {
+export default {
         name: "CustomCellFolderView",
         mixins: [
             CellStyleMixin,
@@ -120,12 +124,6 @@
         components: {
             TabldaSelectSimple,
             EmbedButton,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -139,11 +137,13 @@
                     return {};
                 }
             },
+            tableMeta: Object,//style mixin
             tableHeader: Object,
             tableRow: Object,
             cellHeight: Number,
             maxCellRows: Number,
             isAddRow: Boolean,
+            no_height_limit: Boolean,
             user: Object,
         },
         computed: {

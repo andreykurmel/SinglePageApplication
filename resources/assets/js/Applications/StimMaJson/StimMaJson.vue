@@ -1,5 +1,5 @@
 <template>
-    <div class="container-wrapper flex flex--col flex--center">
+    <div class="container-wrapper">
         <div class="flexer" v-if="warnings_present.length">
             <div>
                 <label>Warnings:</label>
@@ -17,7 +17,8 @@
         </div>
         <div class="flexer" v-else="">
             <div>
-                <label>Json file created!</label>
+            <label>Results:</label>
+                <label>- Json file has been created successfully!</label>
             </div>
         </div>
     </div>
@@ -45,20 +46,14 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-wrapper {
         height: 100%;
+        width: 100%;
+        padding: 10px;
 
         .flexer {
-            display: flex;
-            background-color: #005fa4;
-            color: #FFF;
-            padding: 25px;
-            border-radius: 20px;
-
-            .m-right {
-                margin-right: 25px;
-            }
+            height: 50%;
         }
     }
 </style>

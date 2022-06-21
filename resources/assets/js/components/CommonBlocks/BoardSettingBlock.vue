@@ -13,13 +13,13 @@
                            type="number"
                            @change="(val) => { chang('board_view_height', val) }"
                            :value="board_view_height"
-                           :style="textStyle">
+                           :style="textSysStyle">
                     <span>pixels,&nbsp;&nbsp;&nbsp;Image Width:</span>
                     <input class="form-control l-inl-control"
                            type="number"
                            @change="(val) => { chang('board_image_width', val) }"
                            :value="board_image_width"
-                           :style="textStyle">
+                           :style="textSysStyle">
                     <span>%</span>
                 </div>
             </td>

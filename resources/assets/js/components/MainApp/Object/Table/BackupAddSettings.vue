@@ -1,23 +1,18 @@
 <template>
     <table class="spaced-table" v-if="tableMeta && tbBackup">
-        <colgroup>
-            <col :width="100">
-            <col :width="400">
-        </colgroup>
         <tbody v-if="requestFields">
 
         <tr>
             <td :style="getTdStyle">
                 <div class="td td--100 h-32" :style="getTdStyle">
                     <div class="flex flex--center-v full-height">
-                        <label>{{ $root.uniqName(requestFields['bkp_email_field_id'].name) }}:&nbsp;</label>
-                        <select v-model="tbBackup['bkp_email_field_id']" :disabled="!with_edit" @change="updateBackup" class="form-control" :style="{color: !tbBackup['bkp_email_field_id'] ? '#bbb' : ''}">
-                            <option :value="null" style="color: #bbb;">Select a field saving emails</option>
-                            <option v-for="field in tableMeta._fields"
-                                    v-if="inArray(field.f_type, ['String','Text','Long Text'])"
-                                    :value="field.id" style="color: #444;"
-                            >{{ $root.uniqName(field.name) }}</option>
-                        </select>
+                        <label :style="{width: label_wi}">{{ $root.uniqName(requestFields['bkp_email_field_id'].name) }}:&nbsp;</label>
+                        <input
+                            type="text"
+                            v-model="tbBackup['bkp_email_field_static']"
+                            :disabled="!with_edit" @change="updateBackup"
+                            class="form-control"
+                            placeholder="Enter email addresses separated with comma, space or semicolon."/>
                     </div>
                 </div>
             </td>
@@ -25,27 +20,19 @@
 
         <tr>
             <td :style="getTdStyle">
-                <div class="td td--100 h-32" :style="getTdStyle">
-                    <div class="flex flex--center-v full-height">
-                        <label>{{ $root.uniqName(requestFields['bkp_email_field_static'].name) }}:&nbsp;</label>
-                        <input type="text" v-model="tbBackup['bkp_email_field_static']" :disabled="!with_edit" @change="updateBackup" class="form-control" placeholder="Enter emails separated with comma, semicolon"/>
-                    </div>
-                </div>
-            </td>
-        </tr>
-
-        <tr>
-            <td :style="getTdStyle">
-                <div class="td td--100 h-32" :style="getTdStyle">
-                    <div class="flex flex--center-v full-height">
-                        <label>{{ $root.uniqName(requestFields['bkp_email_subject'].name) }}:&nbsp;</label>
+                <div class="td td--100" :style="getTdStyle">
+                    <div class="flex full-height">
+                        <label :style="{width: label_wi}">{{ $root.uniqName(requestFields['bkp_email_subject'].name) }}:&nbsp;</label>
                         <div class="full-width full-height" style="position: relative;">
-                            <input type="text"
-                                   v-model="tbBackup['bkp_email_subject']"
-                                   :disabled="!with_edit"
-                                   @keyup="recreateFrm('formula_dcr_email_subject')"
-                                   @focus="formula_dcr_email_subject = true"
-                                   class="form-control"/>
+                            <textarea
+                                    rows="2"
+                                    v-model="tbBackup['bkp_email_subject']"
+                                    :disabled="!with_edit"
+                                    @keyup="recreateFrm('formula_dcr_email_subject')"
+                                    @focus="formula_dcr_email_subject = true"
+                                    class="form-control"
+                                    placeholder="Use formula to generate a email subject with field value(s)."
+                            ></textarea>
                             <formula-helper
                                     v-if="formula_dcr_email_subject"
                                     :user="$root.user"
@@ -68,14 +55,15 @@
             <td :style="getTdStyle">
                 <div class="td td--100 h-32" :style="getTdStyle">
                     <div class="flex flex--center-v full-height">
-                        <label>{{ $root.uniqName(requestFields['bkp_addressee_txt'].name) }}:&nbsp;</label>
+                        <label :style="{width: label_wi}">{{ $root.uniqName(requestFields['bkp_addressee_txt'].name) }}:&nbsp;</label>
                         <div class="full-width full-height" style="position: relative;">
                             <input type="text"
                                    v-model="tbBackup['bkp_addressee_txt']"
                                    :disabled="!with_edit"
                                    @keyup="recreateFrm('formula_dcr_addressee_txt')"
                                    @focus="formula_dcr_addressee_txt = true"
-                                   class="form-control"/>
+                                   class="form-control"
+                                   placeholder="Use formula to generate a addressee with field value(s)."/>
                             <formula-helper
                                     v-if="formula_dcr_addressee_txt"
                                     :user="$root.user"
@@ -96,15 +84,18 @@
 
         <tr>
             <td :style="getTdStyle">
-                <div class="td td--100 h-32" :style="getTdStyle">
-                    <div class="flex flex--center-v full-height">
-                        <label>{{ $root.uniqName(requestFields['bkp_email_message'].name) }}:&nbsp;</label>
-                        <input type="text"
-                               v-model="tbBackup['bkp_email_message']"
-                               :disabled="!with_edit"
-                               @keyup="recreateFrm('formula_dcr_email_message')"
-                               @focus="formula_dcr_email_message = true"
-                               class="form-control"/>
+                <div class="td td--100" :style="getTdStyle">
+                    <div class="flex full-height">
+                        <label :style="{width: label_wi}">{{ $root.uniqName(requestFields['bkp_email_message'].name) }}:&nbsp;</label>
+                        <textarea
+                                rows="3"
+                                v-model="tbBackup['bkp_email_message']"
+                                :disabled="!with_edit"
+                                @keyup="recreateFrm('formula_dcr_email_message')"
+                                @focus="formula_dcr_email_message = true"
+                                class="form-control"
+                                placeholder="Use formula to generate an opening message with field value(s)."
+                        ></textarea>
                         <formula-helper
                                 v-if="formula_dcr_email_message"
                                 :user="$root.user"
@@ -141,6 +132,7 @@
         },
         data: function () {
             return {
+                label_wi: '75px',
                 i_avail_fields: [
                     'bkp_email_field_id',
                     'bkp_email_field_static',
@@ -229,4 +221,13 @@
 
 <style lang="scss" scoped>
     @import "./SettingsModule/ReqRowStyle";
+
+    .spaced-table {
+        td {
+            label {
+                white-space: normal;
+                flex-shrink: 0;
+            }
+        }
+    }
 </style>

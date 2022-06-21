@@ -34,7 +34,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -48,7 +48,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -66,7 +66,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -97,12 +97,12 @@
 </template>
 
 <script>
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    export default {
+export default {
         components: {
             TabldaSelectSimple,
         },
@@ -111,12 +111,6 @@
             Select2DDLMixin,
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -149,9 +143,10 @@
                 return obj;
             },
             canCellEdit() {
-                let can_logic_operator = (this.rowIndex >= 0 ? this.rowIndex > 0 : this.rowsCount > 0);
+                let can_logic_operator = false;//this.isAddRow || (this.rowIndex > 0 && this.rowsCount == 2);
                 return !this.inArray(this.tableHeader.field, this.$root.systemFields)
-                    && (this.tableHeader.field !== 'logic_operator' || can_logic_operator);
+                    && (this.tableHeader.field !== 'logic_operator' || can_logic_operator)
+                    && !this.tableRow.is_system;
             },
         },
         methods: {
@@ -214,6 +209,12 @@
                 if (this.tableHeader.field === 'username') {
                     res = this.$root.getUserSimple(this.tableRow, this.tableMeta._owner_settings);
                 }
+                else
+                if (this.tableHeader.field === 'logic_operator') {
+                    res = this.isAddRow || this.rowIndex > 0
+                        ? this.tableRow[this.tableHeader.field]
+                        : '';
+                }
                 else {
                     res = this.tableRow[this.tableHeader.field];
                 }
@@ -226,6 +227,6 @@
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 </style>

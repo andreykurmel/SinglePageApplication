@@ -70,6 +70,6 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "appsList";
 </style>

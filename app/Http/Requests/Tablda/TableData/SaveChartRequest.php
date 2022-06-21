@@ -30,6 +30,8 @@ class SaveChartRequest extends FormRequest
             'col_idx' => 'required|integer|min:0',
             'all_settings' => 'required|array',
             'should_del' => 'integer|nullable',
+            'name' => 'string|nullable',
+            'title' => 'string|nullable',
             'request_params' => 'array',
             'changed_param' => 'string',
         ];

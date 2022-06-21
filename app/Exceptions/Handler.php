@@ -54,6 +54,9 @@ class Handler extends ExceptionHandler
         if ($request->ajax() && $e->getCode() == 1) {
             return response()->json(['message' => $e->getMessage()], 500);
         }
+        if ($e instanceof NotFoundHttpException) {
+            return redirect('/');
+        }
         return parent::render($request, $e);
     }
 

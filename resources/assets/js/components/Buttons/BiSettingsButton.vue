@@ -1,11 +1,11 @@
 <template>
     <div ref="bi_sett_button" class="bi_settings_button" title="BI Module Settings">
         <i class="glyphicon glyphicon-cog" @click="menu_opened = !menu_opened"></i>
-        <div v-show="menu_opened" class="bi_settings_menu">
+        <div v-show="menu_opened" class="bi_settings_menu" :style="textSysStyle">
             <div>
                 <label>
                     <span class="indeterm_check"
-                          @click="bisett.avail_fix_layout ? saveSettMetas('fix_layout') : null"
+                          @click="bisett.avail_fix_layout ? saveSettMetasCheckbox('fix_layout') : null"
                           :class="{'disabled': !bisett.avail_fix_layout}"
                           :style="$root.checkBoxStyle"
                     >
@@ -17,7 +17,7 @@
             <div>
                 <label>
                     <span class="indeterm_check"
-                          @click="bisett.avail_can_add ? saveSettMetas('can_add') : null"
+                          @click="bisett.avail_can_add ? saveSettMetasCheckbox('can_add') : null"
                           :class="{'disabled': !bisett.avail_can_add}"
                           :style="$root.checkBoxStyle"
                     >
@@ -29,7 +29,7 @@
             <div>
                 <label>
                     <span class="indeterm_check"
-                          @click="bisett.avail_hide_settings ? saveSettMetas('hide_settings') : null"
+                          @click="bisett.avail_hide_settings ? saveSettMetasCheckbox('hide_settings') : null"
                           :class="{'disabled': !bisett.avail_hide_settings}"
                           :style="$root.checkBoxStyle"
                     >
@@ -44,7 +44,7 @@
                     <input class="form-control"
                            v-model="bisett.cell_spacing"
                            :disabled="!bisett.avail_cell_spacing"
-                           @change="saveSettMetas()"
+                           @change="saveSettMetas('cell_spacing')"
                            style="width: 50px;"/>
                     <span>px</span>
                 </label>
@@ -55,7 +55,7 @@
                     <input class="form-control"
                            v-model="bisett.cell_height"
                            :disabled="!bisett.avail_cell_height"
-                           @change="saveSettMetas()"
+                           @change="saveSettMetas('cell_height')"
                            style="width: 50px;"/>
                     <span>px</span>
                 </label>
@@ -65,14 +65,19 @@
 </template>
 
 <script>
-    import {ChartFunctions} from './../MainApp/Object/Table/ChartAddon/ChartFunctions';
+    import {ChartFunctions} from '../MainApp/Object/Table/ChartAddon/ChartFunctions';
     
     import {eventBus} from '../../app';
+
+    import CellStyleMixin from "../_Mixins/CellStyleMixin";
 
     export default {
         name: "BiSettingsButton",
         components: {
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 menu_opened: false,
@@ -90,20 +95,27 @@
             }
         },
         methods: {
-            saveSettMetas(prop) {
+            saveSettMetasCheckbox(prop) {
                 if (prop) {
                     this.bisett[prop] = !this.bisett[prop];
                 }
+                this.saveSettMetas(prop);
+            },
+            saveSettMetas(prop) {
                 this.bisett.cell_spacing = Math.round( to_float(this.bisett.cell_spacing) / 5 ) * 5;
                 this.bisett.cell_height = Math.round( to_float(this.bisett.cell_height) / 5 ) * 5;
                 this.bisett.cell_height = Math.max(this.bisett.cell_height, 5);
-                if (this.old_cell_height !== this.bisett.cell_height) {
+                /*if (this.old_cell_height !== this.bisett.cell_height) {
                     eventBus.$emit('recalc-bi-height', this.old_cell_height / this.bisett.cell_height, this.bisett.cell_height);
                     this.old_cell_height = this.bisett.cell_height;
-                }
+                }*/
 
                 ChartFunctions.saveSett(this.tableMeta, this.$root);
-                eventBus.$emit('bi-view-recreate');
+                if (prop === 'cell_spacing') {
+                    eventBus.$emit('bi-view-recreate');
+                } else {
+                    eventBus.$emit('bi-view-changed-settings');
+                }
             },
             hideMenu(e) {
                 let container = $(this.$refs.bi_sett_button);

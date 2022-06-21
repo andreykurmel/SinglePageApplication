@@ -9,7 +9,7 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../../classes/SpecialFuncs';
 
     import CellStyleMixin from './../../_Mixins/CellStyleMixin.vue';
 
@@ -26,8 +26,8 @@
         props:{
             pr_val: Number,
             can_edit: Boolean,
-            is_selected: Boolean,
             table_header: Object,
+            ignore_format: Boolean,
         },
         computed: {
             curVal() {
@@ -40,7 +40,9 @@
                 };
             },
             showedPercent() {
-                return SpecialFuncs.format( this.table_header, this.curVal*100 );
+                return this.ignore_format
+                    ? Number(this.curVal*100).toFixed(0)
+                    : SpecialFuncs.format( this.table_header, this.curVal*100 );
             },
         },
         methods: {
@@ -50,7 +52,7 @@
                 this.$emit( 'set-val', vv );
             },
             showEdit() {
-                if (this.can_edit/* && this.is_selected*/) {
+                if (this.can_edit) {
                     this.editing = true;
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {

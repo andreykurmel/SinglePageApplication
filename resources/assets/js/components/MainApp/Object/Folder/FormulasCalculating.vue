@@ -26,7 +26,7 @@
                 if (this.job_id) {
                     axios.get('/ajax/import/status', {
                         params: {
-                            import_id: this.job_id
+                            import_jobs: [this.job_id]
                         }
                     }).then(({ data }) => {
                         this.progressBarWidth = data.complete;

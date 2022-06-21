@@ -38,6 +38,7 @@
                     :max-cell-rows="$root.maxCellRows"
                     :popup-key="idx"
                     :no_animation="linkObj.behavior === 'map'"
+                    :shift-object="shiftObject"
                     @show-src-record="showSrcRecord"
                     @link-popup-close="closeLinkPopup"
             ></link-pop-up>
@@ -70,6 +71,7 @@
                 cannot_close: false,
                 linkPopups: [],
                 startHash: '',
+                ticker: null,
             }
         },
         computed: {
@@ -109,7 +111,7 @@
                     this.$root.prevent_cell_edit = true;
                     this.cannot_close = true;
                     this.$emit('pre-update', this.startHash, tableRow);
-                    this.allRows.updateRow(tableRow, true).then((data) => {
+                    this.allRows.updateRow(this.metaTable.params, tableRow, true).then((data) => {
                         this.$emit('row-updated', data);
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
@@ -163,7 +165,7 @@
                 this.$emit('another-row', is_next);
             },
             showSrcRecord(lnk, header, tableRow, behavior) {
-                let index = this.linkPopups.filter((el) => {return el.key === 'show'}).length;
+                let index = this.linkPopups.filter((el) => {return el.key === 'show'}).length + 1;
                 this.linkPopups.push({
                     key: 'show',
                     index: index,
@@ -180,13 +182,14 @@
                 }
             },
             directTickHandler(e) {
-                if (this.metaTable.is_loaded && this.editPopUpRow) {
+                if (this.metaTable.is_loaded && this.editPopUpRow && !this.$root.sm_msg_type) {
                     axios.post('/ajax/table/version_hash', {
                         table_id: this.metaTable.params.id,
                         row_list_ids: [this.editPopUpRow.id],
                         row_fav_ids: [],
                     }).then(({ data }) => {
                         if (this.metaTable.params.version_hash !== data.version_hash) {
+                            this.metaTable.params.version_hash = data.version_hash;
                             this.loadData();
                         }
                     });
@@ -196,18 +199,19 @@
         mounted() {
             this.loadData();
             //sync datas with collaborators
-            setInterval(() => {
+            this.ticker = setInterval(() => {
                 if (!this.$root.debug) {
                     this.directTickHandler();
                 }
-            }, 1000 * 3);
+            }, this.$root.version_hash_delay);
         },
         beforeDestroy() {
+            clearInterval(this.ticker);
         }
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .tablda-table-wrapper {
         .popup-wrapper {
             z-index: 12000;

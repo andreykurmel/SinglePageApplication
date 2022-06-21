@@ -83,6 +83,7 @@
             z-index: 500;
             padding: 5px;
             background-color: #111;
+            right: 0;
             
             .action_elem {
                 color: #FFF;

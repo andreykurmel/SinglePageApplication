@@ -27,7 +27,6 @@ class AppController extends Controller
     private $folderService;
     private $tableService;
     private $tableDataService;
-    private $tableViewRepository;
     private $variablesService;
 
     /**
@@ -35,14 +34,12 @@ class AppController extends Controller
      *
      * @param FolderService $folderService
      * @param TableService $tableService
-     * @param TableViewRepository $tableViewRepository
      * @param TableDataService $tableDataService
      * @param BladeVariablesService $variablesService
      */
     public function __construct(
         FolderService $folderService,
         TableService $tableService,
-        TableViewRepository $tableViewRepository,
         TableDataService $tableDataService,
         BladeVariablesService $variablesService
     )
@@ -50,7 +47,6 @@ class AppController extends Controller
         $this->folderService = $folderService;
         $this->tableService = $tableService;
         $this->tableDataService = $tableDataService;
-        $this->tableViewRepository = $tableViewRepository;
         $this->variablesService = $variablesService;
     }
 
@@ -131,7 +127,7 @@ class AppController extends Controller
             }
             elseif ($request->app_user && $request->app_user['id'] && !auth()->id()) // session expired on back-end
             {
-                Log::info('!!!---Session Expired---!!!');
+                Log::info('!!!---Session Expired---!!! uid:'.$request->app_user['id'].' session:'.Session::getId());
                 /*$error_code = 1;
                 $result_message = 'Session expired. Please login';*/
             }
@@ -143,6 +139,7 @@ class AppController extends Controller
                 }
             }
         } catch (\Exception $e) {
+            Log::info('Ping error: '.$e->getMessage());
         }
         setcookie('ping_message', $result_message);
 
@@ -161,7 +158,8 @@ class AppController extends Controller
      */
     public function table($table_path, Request $request)
     {
-        $object = $this->tableService->objectExists($table_path);
+        $needed_path = preg_replace('/^\/data\//i', '', $request->getRequestUri());
+        $object = $this->tableService->objectExists($needed_path);
         if ($object['id']) {
 
             //Table
@@ -199,17 +197,6 @@ class AppController extends Controller
         $data['object'] = $tb;
         $this->tableService->autoEnableFilters($data['object'], $request->except('view'), auth()->id());
         $data['filters'] = $this->tableDataService->getAsAppliedFilters($id, $request->except('view'));
-
-        //if View editing -> load TableView's status
-        if ($request->view) {
-            $view = $this->tableViewRepository->getByName($id, auth()->id(), $request->view);
-            if ($view) {
-                $data['user']->selected_view = $view->hash;
-                $queryPreset = json_decode($view->data, true);
-                $data['filters'] = $queryPreset['applied_filters'];
-                $data['panels_preset'] = $queryPreset['panels_preset'] ?? null;
-            }
-        }
         return $data;
     }
 
@@ -243,13 +230,46 @@ class AppController extends Controller
     }
 
     /**
+     * @param $tablehash
+     * @param $view
+     * @param Request $request
+     * @return \Illuminate\Routing\Redirector|\Illuminate\View\View
+     */
+    public function singleRecordView($tablehash, Request $request)
+    {
+        $user = auth()->check() ? auth()->user() : new User();
+        $tb = $this->tableService->getTableByHash($tablehash);
+        //Is TableView
+        if ($tb) {
+            $vars = array_merge(
+                $this->variablesService->setTableObj($tb)->getVariables(null, 1),
+                [
+                    'type' => 'table',
+                    'object' => $tb,
+                    'filters' => [],
+                    'panels_preset' => null,
+                    'lightweight' => true,
+                ]
+            );
+
+            $owner = $tb->_user;
+            $this->variablesService->setUserTheme($owner);
+            $vars['user']->_selected_theme = $owner->_selected_theme;
+            $vars['user']->see_srv = true;
+
+            return view('tablda.single-record-view', $vars);
+        }
+        return redirect(route('homepage'));
+    }
+
+    /**
      * View page.
      *
      * @param $view
      * @param Request $request
      * @return \Illuminate\Contracts\View\Factory|\Illuminate\Http\RedirectResponse|\Illuminate\Routing\Redirector|\Illuminate\View\View
      */
-    public function view($view, Request $request)
+    public function multiRecordView($view, Request $request)
     {
         $user = auth()->check() ? auth()->user() : new User();
         $viewObj = $this->tableService->viewExists($view);
@@ -269,7 +289,19 @@ class AppController extends Controller
                 ]
             ));
         }
+        return redirect(route('homepage'));
+    }
 
+    /**
+     * View page.
+     *
+     * @param $view
+     * @param Request $request
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\Http\RedirectResponse|\Illuminate\Routing\Redirector|\Illuminate\View\View
+     */
+    public function folderView($view, Request $request)
+    {
+        $user = auth()->check() ? auth()->user() : new User();
         $viewObj = $this->folderService->folderViewExists($view);
         //Is FolderView
         if ($viewObj && $viewObj->is_active) {
@@ -300,7 +332,6 @@ class AppController extends Controller
                 ]
             ));
         }
-
         return redirect(route('homepage'));
     }
 
@@ -376,17 +407,17 @@ class AppController extends Controller
      */
     public function tableRequest($code, Request $request)
     {
-        $permission = $this->tableService->tableRequest($code);
-        if ($permission) {
+        $dcr = $this->tableService->tableRequest($code);
+        if ($dcr) {
 
-            $permission->load('_link_limits');
-            $tb = $this->tableService->getTable($permission['table_id']);
-            $data = $this->variablesService->setTableObj($tb, $permission->getOwner())->getVariables(null, 1);
+            $tb = $this->tableService->getTable($dcr['table_id']);
+            $data = $this->variablesService->setTableObj($tb, $dcr->getOwner())->getVariables(null, 1);
             $data['type'] = 'table';
             $data['object'] = $tb;
-            $data['tablePermission'] = $permission;
+            $data['dcrObject'] = $dcr;
             $data['is_embed'] = preg_match('/embed-dcr/i', $request->path());
-            $data['user']->_dcr_hash = $permission->dcr_hash;
+            $data['user']->_dcr_hash = $dcr->dcr_hash;
+            $data['user']->_dcr_uid = $dcr->id;
 
             return view('tablda.table-request', $data);
         } else {
@@ -507,18 +538,18 @@ class AppController extends Controller
 
         $file_full = storage_path('app/public/' . $filepath);
 
-        if ($filepath && $this->isAvailUrl($filepath)) {
-            return \Response::file($file_full);
-        }
-
         if ($filepath && file_exists($file_full)) {
+            if ($this->isAvailUrl($filepath)) {
+                return \Response::file($file_full);
+            }
+
             $tb_id = array_first(explode('/', $filepath));
             $tb_id = $tb_id ? array_first(explode('_', $tb_id)) : null;
             $tb_id = intval($tb_id);
             $table = $tb_id ? (new TableService())->getTable($tb_id) : null;
 
             if (!$table || $this->canLoad($table, $request->s ?: '')) {
-                return $request->dwn
+                return $request->dwn || $this->mustDwn($file_full)
                     ? \Response::download($file_full)
                     : \Response::file($file_full);
             }
@@ -536,7 +567,12 @@ class AppController extends Controller
     protected function canLoad(Table $table, $web_hash)
     {
         $user = auth()->user() ?: new User();
-        return (new TableDataPolicy())->load($user, $table, $web_hash ?: '');
+        return (new TableDataPolicy())->load($user, $table, [
+            'view_hash' => $web_hash ?: '',
+            'is_folder_view' => $web_hash ?: '',
+            'dcr_hash' => $web_hash ?: '',
+            'srv_hash' => $web_hash ?: '',
+        ]);
     }
 
     /**
@@ -546,6 +582,18 @@ class AppController extends Controller
     protected function isAvailUrl(string $path)
     {
         return preg_match('/subdomain_icons\//i', $path)
-            || preg_match('/ckeditors\//i', $path);
+            || preg_match('/ckeditors\//i', $path)
+            || preg_match('/Stim_View_Feedback_Results\//i', $path);
+    }
+
+    /**
+     * @param string $file
+     * @return bool
+     */
+    protected function mustDwn(string $file)
+    {
+        $path_parts = pathinfo($file);
+        $ext = strtolower($path_parts['extension'] ?? '');
+        return in_array($ext, ['json','r3d']);
     }
 }

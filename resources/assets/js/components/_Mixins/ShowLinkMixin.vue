@@ -29,7 +29,7 @@
                 return res;
             },
             showLink(link, val) {
-                let avail = $.inArray(val, ['Record','Table','RorT']) > -1 ? this.availableTable(link) : true;
+                let avail = $.inArray(val, ['Record']) > -1 ? this.availableTable(link) : true;
                 return link.link_type === val && (avail || this.$root.user._is_folder_view);
             },
         }

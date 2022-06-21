@@ -3,11 +3,14 @@
 namespace Vanguard\Repositories\Tablda;
 
 
+use Exception;
 use Ramsey\Uuid\Uuid;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserSubscription;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Support\Enum\UserStatus;
 use Vanguard\User;
 
 class UserRepository
@@ -23,10 +26,21 @@ class UserRepository
     }
 
     /**
+     * @param int $id
+     * @param array $fields
+     * @return bool|int
+     */
+    public function update(int $id, array $fields)
+    {
+        return User::where('id', '=', $id)->update($fields);
+    }
+
+    /**
      * @param string $user_id
      * @return mixed
      */
-    public function getUserOrGroupInfo(string $user_id) {
+    public function getUserOrGroupInfo(string $user_id)
+    {
         if ($user_id[0] == '_') {
             $ug = UserGroup::where('id', substr($user_id, 1))->first();
             return $ug
@@ -38,7 +52,7 @@ class UserRepository
                 : null;
         } else {
             return User::where('id', $user_id)
-                ->select(['id','email','username','first_name','last_name','avatar'])
+                ->select(['id', 'email', 'username', 'first_name', 'last_name', 'avatar'])
                 ->first();
         }
     }
@@ -50,8 +64,31 @@ class UserRepository
     public function findUsersInfo(array $usr_ids)
     {
         return User::whereIn('id', $usr_ids)
-            ->select(['id','email','username','first_name','last_name','avatar'])
+            ->select(['id', 'email', 'username', 'first_name', 'last_name', 'avatar'])
             ->get();
+    }
+
+    /**
+     * @param array $usr_emails
+     * @param bool $first
+     * @return User[]|User
+     */
+    public function getByEmails(array $usr_emails, bool $first = false)
+    {
+        $array = User::whereIn('email', $usr_emails)
+            ->select(['id', 'email', 'username', 'first_name', 'last_name', 'avatar'])
+            ->get();
+        return $first ? $array->first() : $array;
+    }
+
+    /**
+     * @param int|null $id
+     * @return string
+     */
+    public function userNameById(int $id = null): string
+    {
+        $usr = $id ? User::where('id', '=', $id)->first() : null;
+        return $usr ? $usr->full_name() : '';
     }
 
     /**
@@ -66,19 +103,27 @@ class UserRepository
     {
         if (count($ids)) {
             $query = User::whereIn('id', $ids)->where(function ($q) use ($key) {
-                $q->where('username', 'LIKE', '%'.$key.'%');
-                $q->orWhere('email', 'LIKE', '%'.$key.'%');
-                $q->orWhere('first_name', 'LIKE', '%'.$key.'%');
-                $q->orWhere('last_name', 'LIKE', '%'.$key.'%');
+                $q->where('username', 'LIKE', '%' . $key . '%');
+                $q->orWhere('email', 'LIKE', '%' . $key . '%');
+                $q->orWhere('first_name', 'LIKE', '%' . $key . '%');
+                $q->orWhere('last_name', 'LIKE', '%' . $key . '%');
             });
         } else {
-            $query = User::where('username', 'LIKE', '%'.$key.'%')
-                ->orWhere('email', 'LIKE', '%'.$key.'%')
-                ->orWhere('first_name', 'LIKE', '%'.$key.'%')
-                ->orWhere('last_name', 'LIKE', '%'.$key.'%');
+            $email_domain = HelperService::usrEmailDomain();
+            $query = User::where('email', '=', $key); //direct email
+            if ($email_domain) {
+                $query->orWhere(function ($sub) use ($email_domain, $key) { // search just in the same subdomain
+                    $sub->where('email', 'LIKE', '%@' . $email_domain);
+                    $sub->where(function ($insub) use ($key) {
+                        $insub->orWhere('username', 'LIKE', '%' . $key . '%');
+                        $insub->orWhere('first_name', 'LIKE', '%' . $key . '%');
+                        $insub->orWhere('last_name', 'LIKE', '%' . $key . '%');
+                    });
+                });
+            }
         }
 
-        $fields = ['id','username','first_name','last_name'];
+        $fields = ['id', 'username', 'first_name', 'last_name'];
         if ($request_field) {
             $fields[] = $request_field;
         }
@@ -94,8 +139,9 @@ class UserRepository
      * @param $user_id
      * @return mixed
      */
-    public function getWithNames($user_id) {
-        return User::where('id', '=', $user_id)->select( $this->service->onlyNames(false) )->first();
+    public function getWithNames($user_id)
+    {
+        return User::where('id', '=', $user_id)->select($this->service->onlyNames(false))->first();
     }
 
     /**
@@ -104,7 +150,8 @@ class UserRepository
      * @param $user_id
      * @return mixed
      */
-    public function getById($user_id) {
+    public function getById($user_id)
+    {
         return User::where('id', '=', $user_id)->first();
     }
 
@@ -114,14 +161,15 @@ class UserRepository
      * @param array $users_ids
      * @return mixed
      */
-    public function getMass(array $users_ids) {
+    public function getMass(array $users_ids)
+    {
         return User::whereIn('id', $users_ids)->get();
     }
 
     /**
      * Create Subscription
      *
-     * @param array $data: [
+     * @param array $data : [
      *  +user_id: int,
      *  +active: 1|0,
      *  +plan_code: string,
@@ -131,8 +179,9 @@ class UserRepository
      * ]
      * @return mixed
      */
-    public function createSubscription(array $data) {
-        return UserSubscription::create( $this->service->delSystemFields($data) );
+    public function createSubscription(array $data)
+    {
+        return UserSubscription::create($this->service->delSystemFields($data));
     }
 
     /**
@@ -141,7 +190,8 @@ class UserRepository
      * @param $id
      * @return mixed
      */
-    public function getSubscription($id) {
+    public function getSubscription($id)
+    {
         return UserSubscription::where('id', $id)->first();
     }
 
@@ -155,7 +205,7 @@ class UserRepository
     public function addAddon(UserSubscription $subscription, $addon_code)
     {
         $addon = Addon::where('code', $addon_code)->first();
-        if (! $subscription->_addons()->where('addon_id', $addon->id)->count()) {
+        if (!$subscription->_addons()->where('addon_id', $addon->id)->count()) {
             $subscription->_addons()->attach($addon->id);
         }
         return 1;
@@ -186,13 +236,84 @@ class UserRepository
     }
 
     /**
-     * @param int $user_id
+     * @param $user_ids
+     * @return array
+     * @throws Exception
+     */
+    public function newMenutreeHash($user_ids): array
+    {
+        if (is_array($user_ids)) {
+            $sql = User::whereIn('id', $user_ids);
+        } else {
+            $sql = User::where('id', $user_ids);
+        }
+        $arr = [
+            'memutree_hash' => Uuid::uuid4(),
+        ];
+        $sql->update($arr);
+        return $arr;
+    }
+
+    /**
+     * @param $user_ids
+     * @return array
+     * @throws Exception
+     */
+    public function getMenutreeHash($user_ids): array
+    {
+        if (is_array($user_ids)) {
+            $sql = User::whereIn('id', $user_ids);
+        } else {
+            $sql = User::where('id', $user_ids);
+        }
+        return $sql->get(['memutree_hash'])->toArray();
+    }
+
+    /**
      * @return mixed
      */
-    public function newMenutreeHash(int $user_id)
+    public function getUnconfirmed()
     {
-        return User::where('id', $user_id)->update([
-            'memutree_hash' => Uuid::uuid4(),
-        ]);
+        $yesterday = date('Y-m-d H:i:s', time() - 86400);
+        return User::where('status', '=', UserStatus::UNCONFIRMED)
+            ->where('created_at', '<', $yesterday)
+            ->get();
+    }
+
+    /**
+     * @param float $amount
+     * @return mixed
+     */
+    public function setAdminBalance(float $amount)
+    {
+        return User::where('id', '=', 1)
+            ->update(['avail_credit' => $amount]);
+    }
+
+    /**
+     * @param User $user
+     */
+    public function sendConfirmationEmail(User $user)
+    {
+        $token = str_random(60);
+        $user->update(['confirmation_token' => $token]);
+
+        $params = [
+            'from.account' => 'noreply',
+            'subject' => sprintf("%s", trans('app.registration_confirmation')),
+            //'subject' => sprintf("[%s] %s", settings('app_name'), trans('app.registration_confirmation')),
+            'to.address' => $user->email
+        ];
+        $data = [
+            'greeting' => 'Hello, ' . $user->username . ':',
+            'mail_action' => [
+                'text' => trans('app.confirm_email'),
+                'url' => route('register.confirm-email', $token),
+            ],
+            'user' => $user,
+        ];
+
+        $mailer = new EmailWithSettings('confirm_code_to_user', $user->email);
+        $mailer->queue($params, $data);
     }
 }

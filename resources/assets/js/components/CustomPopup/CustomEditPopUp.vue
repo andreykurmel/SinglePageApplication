@@ -1,6 +1,6 @@
 <template>
     <div>
-        <div class="popup-wrapper" @click.self="$emit('popup-close', false)"></div>
+        <div class="popup-wrapper" @click.self="emitClose(false)"></div>
         <div class="popup" :style="getPopupStyle()">
             <div class="flex flex--col">
                 <div class="popup-header">
@@ -11,7 +11,7 @@
                         </div>
                         <div class="" style="position: relative">
                             <span class="fa fa-cog pull-right header-btn" @click="showSettingsCustPopup()" style="right: 25px;"></span>
-                            <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close', false)"></span>
+                            <span class="glyphicon glyphicon-remove pull-right header-btn" @click="emitClose(false)"></span>
                         </div>
                     </div>
                 </div>
@@ -31,6 +31,13 @@
                                 </button>
 
                                 <div class="right-icons flex flex--automargin pull-right">
+                                    <srv-block
+                                        :table-meta="tableMeta"
+                                        :table-row="tableRow"
+                                        :with-delimiter="false"
+                                        style="font-size: 16px; margin-right: 5px;"
+                                    ></srv-block>
+
                                     <button class="btn btn-sm btn-primary blue-gradient"
                                             @click="smallSpace()"
                                             :disabled="no_clicks"
@@ -56,41 +63,27 @@
                             </div>
                             <div class="flex__elem-remain popup-tab" v-show="activeTab === 'details'">
                                 <div class="flex__elem__inner">
-                                    <div class="flex  full-height">
-                                        <div class="flex__elem-remain">
-                                            <div class="flex__elem__inner">
-                                                <vertical-table
-                                                        class="vert-table"
-                                                        :td="input_component_name"
-                                                        :global-meta="globalMeta"
-                                                        :table-meta="tableMeta"
-                                                        :settings-meta="settingsMeta"
-                                                        :table-row="tableRow"
-                                                        :user="user"
-                                                        :cell-height="$root.cellHeight"
-                                                        :max-cell-rows="$root.maxCellRows"
-                                                        :behavior="behavior"
-                                                        :forbidden-columns="forbiddenColumns"
-                                                        :available-columns="availableColumns"
-                                                        :can-see-history="canSeeHistory"
-                                                        :is-add-row="role === 'add'"
-                                                        :is_small_spacing="is_small_spacing"
-                                                        @updated-cell="checkRowAutocomplete"
-                                                        @toggle-history="toggleHistory"
-                                                        @show-add-ddl-option="showAddDDLOption"
-                                                        @show-src-record="showSrcRecord"
-                                                ></vertical-table>
-                                            </div>
-                                        </div>
-                                        <history-elem
-                                                v-if="open_history"
-                                                class="popup-tab"
-                                                :user="user"
-                                                :table-meta="tableMeta"
-                                                :table_field="history_header"
-                                                :row_id="tableRow.id"
-                                        ></history-elem>
-                                    </div>
+                                    <vertical-table-with-history
+                                        :td="input_component_name"
+                                        :global-meta="globalMeta"
+                                        :table-meta="tableMeta"
+                                        :settings-meta="settingsMeta"
+                                        :table-row="tableRow"
+                                        :user="user"
+                                        :cell-height="$root.cellHeight"
+                                        :max-cell-rows="$root.maxCellRows"
+                                        :behavior="behavior"
+                                        :forbidden-columns="forbiddenColumns"
+                                        :available-columns="availableColumns"
+                                        :can-see-history="canSeeHistory"
+                                        :is-add-row="role === 'add'"
+                                        :is_small_spacing="is_small_spacing"
+                                        class="vert-table"
+                                        @updated-cell="checkRowAutocomplete"
+                                        @toggle-history="toggleHistory"
+                                        @show-add-ddl-option="showAddDDLOption"
+                                        @show-src-record="showSrcRecord"
+                                    ></vertical-table-with-history>
                                 </div>
                             </div>
                             <div class="flex__elem-remain popup-tab" v-show="activeTab === 'attachments'">
@@ -101,6 +94,7 @@
                                             :role="role"
                                             :user="user"
                                             :behavior="behavior"
+                                            @updated-cell="checkRowAutocomplete"
                                     ></attachments-block>
                                 </div>
                             </div>
@@ -146,6 +140,19 @@
                 @hide="addOptionPopup.show = false"
                 @show-src-record="showSrcRecord"
         ></add-option-popup>
+
+
+        <!--if form is for 'add'-->
+        <info-popup
+                v-if="show_add_warning"
+                :title_html="'Info'"
+                :content_html="'Record not added yet. Click `Add` to complete adding the record or `Discard` to discard it.'"
+                :add_btn="'Add'"
+                :cancel_btn="'Discard'"
+                @add-click="popupInsert()"
+                @cancel-click="forceClose(false)"
+                @hide="show_add_warning = false"
+        ></info-popup>
     </div>
 </template>
 
@@ -157,9 +164,10 @@
     import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
 
     import AttachmentsBlock from '../CommonBlocks/AttachmentsBlock';
-    import VerticalTable from '../CustomTable/VerticalTable';
     import AddOptionPopup from './AddOptionPopup';
-    import HistoryElem from "../CommonBlocks/HistoryElem";
+    import InfoPopup from "./InfoPopup";
+    import VerticalTableWithHistory from "../CustomTable/VerticalTableWithHistory";
+    import SrvBlock from "../CommonBlocks/SrvBlock";
 
     export default {
         name: "CustomEditPopUp",
@@ -169,23 +177,24 @@
             PopupAnimationMixin,
         ],
         components: {
-            HistoryElem,
+            SrvBlock,
+            VerticalTableWithHistory,
+            InfoPopup,
             AddOptionPopup,
             AttachmentsBlock,
-            VerticalTable,
         },
         data: function () {
             return {
                 //
+                show_add_warning: false,
                 addOptionPopup: {
                     show: false,
                     tableHeader: null,
                     tableRow: null,
                 },
                 activeTab: 'details',
-                open_history: 0,
-                history_header: null,
-                is_small_spacing: localStorage.getItem('is_small_spacing') || 'no',
+                open_history: false,
+                is_small_spacing: readLocalStorage('is_small_spacing') || 'no',
             };
         },
         props:{
@@ -276,18 +285,18 @@
             popupInsert() {
                 if (this.$root.setCheckRequired(this.tableMeta, this.tableRow)) {
                     this.$emit('popup-insert', this.tableRow);
-                    this.$emit('popup-close', true);
+                    this.emitClose(true);
                 }
             },
             popupUpdate() {
                 if (this.$root.setCheckRequired(this.tableMeta, this.tableRow)) {
                     this.tableRow.id ? this.$emit('popup-update', this.tableRow) : null;
-                    //this.$emit('popup-close', true);
+                    //this.emitClose(true);
                 }
             },
             popupDelete() {
                 this.$emit('popup-delete', this.tableRow);
-                this.$emit('popup-close', true);
+                this.emitClose(true);
             },
             popupCopy() {
                 if (this.$root.setCheckRequired(this.tableMeta, this.tableRow)) {
@@ -296,20 +305,25 @@
             },
             hideMenu(e) {
                 if (this.is_vis && e.keyCode === 27 && this.$root.tablesZidx <= this.zIdx && !this.$root.e__used) {
-                    this.$emit('popup-close', false);
+                    this.emitClose(false);
                     this.$root.set_e__used(this);
                 }
                 if (e.target.nodeName === 'BODY' && e.shiftKey && e.keyCode === 191) {//shift + '?'
-                    this.$emit('popup-close', false);
+                    this.emitClose(false);
                 }
             },
-            toggleHistory(tableHeader) {
-                if (this.open_history !== tableHeader.id) {
-                    this.open_history = tableHeader.id;
-                    this.history_header = tableHeader;
+            toggleHistory(open_history) {
+                this.open_history = open_history;
+            },
+            emitClose(were_changes) {
+                if (!were_changes && this.role === 'add') {
+                    this.show_add_warning = true;
                 } else {
-                    this.open_history = 0;
+                    this.forceClose(were_changes);
                 }
+            },
+            forceClose(were_changes) {
+                this.$emit('popup-close', were_changes);
             },
             //src record and tables function
             showSrcRecord(lnk, field, tableRow) {
@@ -327,15 +341,21 @@
 
             //backend autocomplete
             checkRowAutocomplete() {
-                this.checkRowOnBackend( this.tableMeta.id, this.tableRow ).then((data) => {
-                    this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
-                    this.tableRow.id ? this.popupUpdate() : null;
-                });
+                if (this.tableRow.id) {
+                    this.popupUpdate();
+                } else {
+                    let promis = this.checkRowOnBackend(this.tableMeta.id, this.tableRow);
+                    if (promis) {
+                        promis.then((data) => {
+                            this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
+                        });
+                    }
+                }
             },
 
             smallSpace() {
                 this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                localStorage.setItem('is_small_spacing', this.is_small_spacing);
+                setLocalStorage('is_small_spacing', this.is_small_spacing);
             },
             anotherRow(is_next) {
                 this.$emit('another-row', is_next);
@@ -353,7 +373,7 @@
             this.runAnimation({anim_transform:'none'});
 
             if (this.role === 'add') {
-                this.tableRow._temp_id = uuidv4();
+                this.tableRow._temp_id = this.tableRow._temp_id || uuidv4();
                 this.checkRowAutocomplete();
             }
 

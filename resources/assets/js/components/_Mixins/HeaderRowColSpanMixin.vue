@@ -51,13 +51,13 @@
                 let names = this.splitName(tableHeader.name);
                 let i = curHeaderRow - 1;
 
-                if (curHeaderRow <= names.length && curHeaderRow > 1 && names[i] === names[i-1]) {
+                if (curHeaderRow <= names.length && curHeaderRow > 1 && _.trim(names[i]) === _.trim(names[i-1])) {
                     //if name is the same as previous name -> then it name is spanned and don`t print it again
                     rowspan = 0;
                 } else {
                     //span header rows with the same names
                     if (curHeaderRow < names.length) {
-                        while (curHeaderRow < names.length && names[i] === names[curHeaderRow]) {
+                        while (curHeaderRow < names.length && _.trim(names[i]) === _.trim(names[curHeaderRow])) {
                             rowspan += 1;
                             curHeaderRow++;
                         }
@@ -91,7 +91,7 @@
                     if (
                         index > 0
                         &&
-                        names[i] === prev_names[i]
+                        _.trim(names[i]) === _.trim(prev_names[i])
                         &&
                         this.isShowFieldElem(meta_fields[index-1])
                         &&
@@ -104,7 +104,7 @@
                         while (
                             index < (meta_fields.length-1)
                             &&
-                            names[i] === next_names[i]
+                            _.trim(names[i]) === _.trim(next_names[i])
                             &&
                             this.isShowFieldElem(meta_fields[index+1])
                             &&

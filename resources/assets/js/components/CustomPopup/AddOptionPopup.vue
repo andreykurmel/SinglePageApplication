@@ -6,7 +6,7 @@
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
                         <div class="flex__elem-remain">
-                            Add New Option - DDL: {{ ddl.name }} @ {{ linkTableMeta ? linkTableMeta.name : '' }}
+                            Add New Option to DDL: {{ ddl.name }}  @ {{ linkTableMeta ? linkTableMeta.name : '' }}
                         </div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
@@ -17,16 +17,16 @@
                 <div class="popup-content" v-if="selected_ddl_ref < 0">
                     <div class="popup-main">
                         <div class="form-group">
-                            <label>Select a Referencing Condition:</label>
+                            <label>* Select a RC to add "RC-based" options:</label>
                             <select class="form-control" v-model="selected_ddl_ref" @change="getLinkMeta()">
                                 <option v-for="ref in ddl._references" :value="ref.id">{{ getRefName(ref.table_ref_condition_id) }}</option>
                             </select>
                             <span>Go to Settings / DDL if to add new RC</span>
                         </div>
                         <div>
-                            <label>Or enter a new option:</label>
+                            <label>* Enter to add "Individual" options one at a time:</label>
                             <div class="flex flex--center form-group">
-                                <label class="opt-label">Apply to RGRP:</label>
+                                <label class="opt-label">Apply to RGrp:</label>
                                 <select class="form-control" v-model="extraOptions.apply_target_row_group_id">
                                     <option v-for="rg in tableMeta._row_groups" :value="rg.id">{{ rg.name }}</option>
                                 </select>
@@ -63,8 +63,8 @@
                                                 :settings-meta="settingsMeta"
                                                 :table-row="objectForAdd"
                                                 :user="user"
-                                                :cell-height="$root.cellHeight"
-                                                :max-cell-rows="$root.maxCellRows"
+                                                :cell-height="1"
+                                                :max-cell-rows="0"
                                                 :forbidden-columns="$root.systemFields"
                                                 :is-add-row="true"
                                                 @updated-cell="checkRowAutocomplete"
@@ -91,13 +91,16 @@
 </template>
 
 <script>
-    import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
-    import LinkEmptyObjectMixin from "../_Mixins/LinkEmptyObjectMixin";
-    import CheckRowBackendMixin from "../_Mixins/CheckRowBackendMixin";
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
+import {Endpoints} from "../../classes/Endpoints";
 
-    import VerticalTable from "../CustomTable/VerticalTable";
+import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
+import LinkEmptyObjectMixin from "../_Mixins/LinkEmptyObjectMixin";
+import CheckRowBackendMixin from "../_Mixins/CheckRowBackendMixin";
 
-    export default {
+import VerticalTable from "../CustomTable/VerticalTable";
+
+export default {
         name: "AddOptionPopup",
         components: {
             VerticalTable
@@ -128,6 +131,7 @@
             tableMeta: Object,
             settingsMeta: Object,
             user: Object,
+            dcr_hash: String,
         },
         computed: {
             ddl() {
@@ -159,6 +163,10 @@
                 return ref ? ref.name : '';
             },
             postNewOption() {
+                if (!this.$root.setCheckRequired(this.linkTableMeta, this.objectForAdd)) {
+                    return;
+                }
+
                 if (this.selected_ddl_ref > -1) {
                     let sel_ref_ddl = _.find(this.ddl._references, {id: Number(this.selected_ddl_ref)});
                     let tar_fld = _.find(this.linkTableMeta._fields, {id: Number(sel_ref_ddl ? sel_ref_ddl.target_field_id : 0)});
@@ -171,6 +179,7 @@
                     ddl_ref_id: this.selected_ddl_ref,
                     fields: this.objectForAdd,
                     extra_options: this.extraOptions,
+                    special_params: SpecialFuncs.specialParams(),
                 }).then(({ data }) => {
                     if (data.items) {
                         this.ddl._items = data.items;
@@ -222,20 +231,15 @@
 
             //file upload
             uploadItemFile() {
-                let data = new FormData();
                 let file = this.$refs.inline_input ? this.$refs.inline_input.files[0] : null;
-                data.append('table_id', this.tableMeta.id);
-                data.append('table_field_id', this.tableHeader.id);
-                data.append('row_id', 'ddl_'+window.uuidv4());
-                data.append('file', file);
-                data.append('clear_before', 1);
-
                 if (file) {
                     this.$root.sm_msg_type = 1;
-                    axios.post('/ajax/files', data, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        },
+                    Endpoints.fileUpload({
+                        table_id: this.tableMeta.id,
+                        table_field_id: this.tableHeader.id,
+                        row_id: 'ddl_'+window.uuidv4(),
+                        file: file,
+                        clear_before: 1,
                     }).then(({ data }) => {
                         this.extraOptions.image_path = data.filepath + data.filename;
                     }).catch(errors => {
@@ -248,13 +252,14 @@
         },
         mounted() {
             this.runAnimation();
-            /*this.selected_ddl_ref = (this.ddl._references && this.ddl._references.length === 1
+
+            this.selected_ddl_ref = (this.ddl._references && this.ddl._references.length === 1
                 ? this.ddl._references[0].id
                 : -1);
 
             if (this.selected_ddl_ref > -1) {
                 this.getLinkMeta();
-            }*/
+            }
         }
     }
 </script>

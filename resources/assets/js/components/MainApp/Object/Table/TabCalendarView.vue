@@ -36,8 +36,8 @@
                     :input_component_name="$root.tdCellComponent(tableMeta.is_system)"
                     :behavior="'list_view'"
                     :user="$root.user"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     @popup-insert="insertRow"
                     @popup-update="updateRow"
                     @popup-copy="copyRow"
@@ -152,8 +152,16 @@
             handleDropClick(data) {
                 let row = _.find(this.tableRows, {id: Number(data.event.id)});
                 if (row) {
-                    row[this.startFld.field] = SpecialFuncs.convertToUTC(data.event.start, this.tZone);
-                    row[this.endFld.field] = SpecialFuncs.convertToUTC(data.event.end, this.tZone);
+                    let onlydate = moment(data.event.end).diff( moment(data.event.start), 'days' );
+                    if (onlydate) {
+                        row[this.startFld.field] = SpecialFuncs.convertToUTC( SpecialFuncs.dateTimeasDate(data.event.start, 0)+' 00:00:01', this.tZone);
+                        row[this.endFld.field] = SpecialFuncs.convertToUTC( SpecialFuncs.dateTimeasDate(data.event.end, -1)+' 23:59:59', this.tZone);
+                    } else {
+                        row[this.startFld.field] = SpecialFuncs.convertToUTC( data.event.start, this.tZone);
+                        row[this.endFld.field] = SpecialFuncs.convertToUTC( data.event.end, this.tZone);
+                        row[this.startFld.field] = SpecialFuncs.convertToUTC( row[this.startFld.field], this.tZone);
+                        row[this.endFld.field] = SpecialFuncs.convertToUTC( row[this.endFld.field], this.tZone);
+                    }
                     this.updateRow(row);
                 }
             },
@@ -162,9 +170,9 @@
                 this.calendar_events = [];
                 _.each(this.tableRows, (row) => {
                     if (this.startFld && this.endFld && this.titleFld) {
-                        let onlydate = moment(row[this.endFld.field]) - moment(row[this.startFld.field]) > 1000*3600*24;
-                        let start = SpecialFuncs.convertToLocal(row[this.startFld.field], this.tZone);
-                        let end = SpecialFuncs.convertToLocal(row[this.endFld.field], this.tZone);
+                        let onlydate = moment(row[this.endFld.field]).diff( moment(row[this.startFld.field]), 'days' );
+                        let start = onlydate ? row[this.startFld.field] : SpecialFuncs.convertToLocal(row[this.startFld.field], this.tZone);
+                        let end = onlydate ? row[this.endFld.field] : SpecialFuncs.convertToLocal(row[this.endFld.field], this.tZone);
 
                         let condForm = this.condFormatFld ? this.getCellStyleMethod(row, this.condFormatFld) : null;
                         let clsNms = [];
@@ -181,7 +189,7 @@
                         this.calendar_events.push({
                             id: row.id,
                             start: onlydate ? SpecialFuncs.dateTimeasDate(start) : start,
-                            end: onlydate ? SpecialFuncs.dateTimeasDate(end, true) : end,
+                            end: onlydate ? SpecialFuncs.dateTimeasDate(end) : end,
                             title: row[this.titleFld.field],
                             textColor: condForm && condForm.color ? condForm.color : '#222',
                             borderColor: condForm ? condForm.backgroundColor : '',

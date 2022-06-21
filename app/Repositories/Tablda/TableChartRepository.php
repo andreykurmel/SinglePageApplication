@@ -5,15 +5,86 @@ namespace Vanguard\Repositories\Tablda;
 
 use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableChartRight;
+use Vanguard\Services\Tablda\HelperService;
 
 class TableChartRepository
 {
+    protected $service;
 
     /**
      * TableChartRepository constructor.
      */
     public function __construct()
     {
+        $this->service = new HelperService();
+    }
+
+    /**
+     * Get Chart By Id.
+     *
+     * @param int $id
+     * @return TableChart
+     */
+    public function getChart($id)
+    {
+        return TableChart::where('id', $id)->first();
+    }
+
+    /**
+     * Create Table Chart.
+     *
+     * @param array $data
+     * @return mixed
+     */
+    public function createChart(array $data)
+    {
+        $ch = TableChart::create($this->service->delSystemFields($data));
+        $set = json_decode($ch->chart_settings, true);
+        $set['id'] = $ch->id;
+        $ch->update(['chart_settings' => json_encode($set)]);
+        return $ch;
+    }
+
+    /**
+     * Update Table Chart.
+     *
+     * @param int $chart_id
+     * @param array $data
+     * @param string $param_name
+     * @return mixed
+     */
+    public function updateChart(int $chart_id, array $data, string $param_name)
+    {
+        if ($param_name != '__update_cache') {
+            TableChart::where('id', '=', $chart_id)
+                ->update($this->service->delSystemFields($data));
+        }
+
+        return TableChart::where('id', '=', $chart_id)->first();
+    }
+
+    /**
+     * @param int $chart_id
+     * @param array $settings
+     * @return bool
+     */
+    public function updateChartSettings(int $chart_id, array $settings)
+    {
+        $ch = $this->getChart($chart_id);
+        $new_settings = array_merge(json_decode($ch->chart_settings, true), $settings);
+        $new_settings['id'] = $ch->id;
+        return $ch->update(['chart_settings' => json_encode($new_settings)]);
+    }
+
+    /**
+     * Delete Table Chart.
+     *
+     * @param int $chart_id
+     * @return mixed
+     */
+    public function delChart(int $chart_id)
+    {
+        return TableChart::where('id', $chart_id)->delete();
     }
 
     /**

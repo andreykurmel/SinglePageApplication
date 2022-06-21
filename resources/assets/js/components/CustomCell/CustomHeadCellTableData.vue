@@ -9,10 +9,11 @@
 
             <div v-if="isEditing()" class="cell-editing">
                 <tablda-select-ddl
+                        :table_id="tableMeta.id"
                         :ddl_id="tableHeader.unit_ddl_id"
                         :table-row="tableHeader"
                         :hdr_field="'unit_display'"
-                        :fixed_pos="reactive_provider.fixed_ddl_pos"
+                        :fixed_pos="true"
                         :style="cellStl"
                         :spec_colors="spcClrObj"
                         @selected-item="updateCheckedDDL"
@@ -40,16 +41,16 @@
 </template>
 
 <script>
-    import {UnitConversion} from './../../classes/UnitConversion';
+import {UnitConversion} from './../../classes/UnitConversion';
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import {eventBus} from './../../app';
+import {eventBus} from './../../app';
 
-    import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
-    
-    export default {
+import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
+
+export default {
         components: {
             TabldaSelectDdl,
         },
@@ -58,12 +59,6 @@
             Select2DDLMixin,
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -168,7 +163,7 @@
                 {
                     this.tableHeader.unit_display = this.editValue;
 
-                    if (!this.$root.checkAvailable(this.$root.user, 'unit_conversion')) {
+                    if (!this.$root.checkAvailable(this.$root.user, 'unit_conversions')) {
                         this.tableHeader.unit_display = this.oldValue;
                         Swal('Unit Conversion doesn`t available to your subscription plan.');
                         return;

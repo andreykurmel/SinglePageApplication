@@ -24,7 +24,7 @@ class PostFileRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
+            'table_id' => 'present',
             'table_field_id' => 'present',
             'row_id' => 'present',
             'file' => 'required_without:file_link',

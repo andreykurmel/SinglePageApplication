@@ -4,6 +4,7 @@
              style="z-index: {{ Route::currentRouteName() != 'homepage' ? 'initial' : 1 }};"
              v-cloak
              v-on:show_login="show_login++"
+             v-on:show_register="show_register++"
 >
     <div class="container-fluid" :style="$root.themeTopBgStyle">
         <div class="navbar-header">
@@ -14,13 +15,15 @@
                      height="50"
                      alt="{{ settings('app_name') }}">
             </a>
-            @if(in_array($route_group, ['getstarted','homepage']))
-                <img src="{{ url('assets/img/Slogan.png') }}" height="50" alt="{{ settings('app_name') }}">
+            @if(in_array($route_group, ['getstarted','homepage']) && !auth()->id())
+                <img class="not-mob" src="{{ url('assets/img/Slogan.png') }}" height="50" alt="{{ settings('app_name') }}">
             @endif
             <saving-message :msg_type="$root.sm_msg_type"></saving-message>
         </div>
 
-        <folder-icons-path id="folder-icon-array" :icons-array="iconsArray"></folder-icons-path>
+        @if($route_group !== 'homepage' && $route_group !== 'getstarted')
+            <folder-icons-path :route_group="'{{ $route_group }}'" :icons-array="iconsArray"></folder-icons-path>
+        @endif
 
         <div id="navbar" class="navbar-collapse full-height">
             <ul class="nav navbar-nav navbar-right full-height flex flex--center flex--automargin">
@@ -42,18 +45,35 @@
 
                 <li class="not-mob">
                     <div class="flex flex--center flex--automargin">
-                        @if($meta_app_settings['dcr_home_contact']['val'] ?? '')
-                            <a href="{{ $meta_app_settings['dcr_home_contact']['val'] }}" target="_blank">
-                                <button class="btn btn-success blue-gradient" :style="envelopeSpecStyle">
-                                    <i class="far fa-envelope"></i>
-                                </button>
+
+                        @if($route_group == 'homepage')
+                            <a v-if="pricing_link" target="_blank" :href="benefits_link">
+                                <button style="padding: 4px 7px;"
+                                        class="btn btn-success blue-gradient"
+                                        :style="$root.themeButtonStyle"
+                                        v-html="$root.labels['btn.benefits_link']"
+                                ></button>
+                            </a>
+                        @endif
+
+                        @if($route_group == 'homepage')
+                            <a v-if="pricing_link" target="_blank" :href="pricing_link">
+                                <button style="padding: 4px 7px;"
+                                        class="btn btn-success blue-gradient"
+                                        :style="$root.themeButtonStyle"
+                                        v-html="$root.labels['btn.pricing_link']"
+                                ></button>
                             </a>
                         @endif
 
                         @if($route_group == 'homepage' || $route_group == 'getstarted')
                             @if($meta_app_settings['dcr_home_contact']['val'] ?? '')
                                 <a href="{{ $meta_app_settings['dcr_home_demo']['val'] }}" target="_blank">
-                                    <button style="padding: 3px 7px;" class="btn btn-success blue-gradient" :style="$root.themeButtonStyle">Request a Demo</button>
+                                    <button style="padding: 4px 7px;"
+                                            class="btn btn-success blue-gradient"
+                                            :style="$root.themeButtonStyle"
+                                            v-html="$root.labels['btn.request_a_demo']"
+                                    ></button>
                                 </a>
                             @endif
                         @endif
@@ -67,11 +87,21 @@
                                 ></button>
                             </a>
                         @endif
+
+                        @if($meta_app_settings['dcr_home_contact']['val'] ?? '')
+                            <a href="{{ $meta_app_settings['dcr_home_contact']['val'] }}" target="_blank">
+                                <button style="padding: 4px 7px;"
+                                        class="btn btn-success blue-gradient"
+                                        :style="$root.themeButtonStyle"
+                                        v-html="$root.labels['btn.contact_link']">
+                                </button>
+                            </a>
+                        @endif
                     </div>
                 </li>
 
-                <li class="dropdown not-mob">
-                    @if (Auth::guard()->user())
+                @if (Auth::guard()->user())
+                    <li class="dropdown not-mob">
                         <a href="#" class="dropdown-toggle avatar" data-toggle="dropdown">
                             <img src="{{ auth()->user()->present()->avatar }}" class="img-circle avatar">
                             {{ Auth::user()->present()->name }}
@@ -120,7 +150,10 @@
                                         <span>Data</span>
                                     </a>
                                 @else
-                                    <a href="{{ route('apps') }}" target="_blank">
+                                    <a href="{{ auth()->user()->_available_features->apps_are_avail ? route('apps') : 'javascript:void(0)' }}"
+                                       target="{{ auth()->user()->_available_features->apps_are_avail ? '_blank' : '' }}"
+                                       class="{{ auth()->user()->_available_features->apps_are_avail ? '' : 'disabled' }}"
+                                    >
                                         <i class="fas fa-tablet-alt"></i>
                                         <span>Apps</span>
                                     </a>
@@ -134,30 +167,35 @@
                                 </a>
                             </li>
                         </ul>
-                    @else
-                        <a style="margin: 10px 0 8px 0;" class="dropdown-item" href="javascript:void(0)" v-on:click="$emit('show_login')">
+                    </li>
+                @else
+                    <li class="dropdown not-mob">
+                        <a style="padding-right: 0;" class="dropdown-item" href="javascript:void(0)" v-on:click="$emit('show_login')">
                             <i class="fas fa-sign-in-alt text-muted mr-2"></i>
                             @lang('app.login')
                         </a>
-                    @endif
-                </li>
+                    </li>
+                    <li class="dropdown not-mob">
+                        <a style="padding-left: 0;" class="dropdown-item" href="javascript:void(0)" v-on:click="$emit('show_register')">
+                            <span> / </span>@lang('app.register')
+                        </a>
+                    </li>
+                @endif
             </ul>
         </div>
         @if (auth()->user() && !in_array($route_group,['payment_processing']))
-        <user-plans v-if="$root.settingsMeta.is_loaded"
-                    v-show="show_user_popup"
-                    :is_vis="show_user_popup"
+        <user-plans v-if="$root.settingsMeta.is_loaded && show_user_popup"
                     :stripe_key="'{{ $stripe_key }}'"
                     v-on:popup-close="show_user_popup = false"
         ></user-plans>
         <resources-popup v-if="$root.settingsMeta.is_loaded"
                     v-show="show_resource_popup"
-                    :is_vis="show_resource_popup"
+                    :is_visible="show_resource_popup"
                     v-on:popup-close="show_resource_popup = false"
         ></resources-popup>
         <invite-module v-if="$root.settingsMeta.is_loaded"
                     v-show="show_invite"
-                    :is_vis="show_invite"
+                    :is_visible="show_invite"
                     :app_url="'{{ $clear_url }}'"
                     v-on:popup-close="show_invite = false"
         ></invite-module>

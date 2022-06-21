@@ -9,6 +9,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\DB;
 use Vanguard\Models\Table\Table;
+use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
@@ -17,18 +18,18 @@ class TablesUsagesFixing implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    private $tableDataRepository;
-    private $permissionsService;
+    protected $tableDataRepository;
+    protected $permissionsService;
+    protected $fileRepository;
 
     /**
      * TablesUsagesFixing constructor.
-     * @param \Vanguard\Repositories\Tablda\TableData\TableDataRepository $tableDataRepository
-     * @param UserPermissionsService $permissionsService
      */
-    public function __construct(TableDataRepository $tableDataRepository, UserPermissionsService $permissionsService)
+    public function __construct()
     {
-        $this->tableDataRepository = $tableDataRepository;
-        $this->permissionsService = $permissionsService;
+        $this->fileRepository = new FileRepository();
+        $this->tableDataRepository = new TableDataRepository();
+        $this->permissionsService = new UserPermissionsService();
     }
 
     /**
@@ -46,11 +47,15 @@ class TablesUsagesFixing implements ShouldQueue
                 ->select('SELECT `AVG_ROW_LENGTH` FROM `TABLES` WHERE `TABLE_NAME` = "'.$table->db_name.'"');
             $avg_row = count($info_schema) ? $info_schema[0]->AVG_ROW_LENGTH : 0;
 
+            $attach_size = exec('du -sh '.storage_path('app/public/'.$this->fileRepository->getStorageTable($table)));
+            $attach_size = array_first( preg_split('/\t/i', $attach_size) );
+
             $data = [
                 'num_rows' => $sql->getQuery()->count(),
                 'num_columns' => $table->_fields->count(),
                 'num_collaborators' => $this->permissionsService->getUsersCountForTable($table->id),
-                'usage_type' => ($table->_public_links->count() ? 'Public' : ($table->num_collaborators > 1 ? 'Semi-Private' : 'Private'))
+                'usage_type' => ($table->_public_links->count() ? 'Public' : ($table->num_collaborators > 1 ? 'Semi-Private' : 'Private')),
+                'attachments_size' => $attach_size,
             ];
             if ($avg_row > 0) {
                 $data['avg_row_length'] = $avg_row;

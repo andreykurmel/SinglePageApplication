@@ -1,0 +1,7 @@
+#Payment Processing
+Special module for processing payments between users
+
+Must be: correspondence_apps.code = payment_processing
+
+Used users 'stripe' and 'paypal' keys from settings.
+All settings for payment can be added via "Link = payment" in Table settings module.

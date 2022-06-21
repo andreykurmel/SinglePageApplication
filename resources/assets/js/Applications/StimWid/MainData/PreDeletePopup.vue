@@ -37,7 +37,7 @@
                                             <label>{{ getTname(obj) }}</label>
                                         </div>
                                     </div>
-                                    <h2 class="hh2">Note: tables referred by but not inheriting any field(s) from this table cannot be deleted from here.</h2>
+                                    <h2 class="hh2">Note: data(records) in tables referred by but not inheriting any field values from the master table would not be deleted.</h2>
                                 </div>
                             </div>
                         </div>
@@ -107,7 +107,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "./../../../components/CustomPopup/CustomEditPopUp";
 
     .popup-main {

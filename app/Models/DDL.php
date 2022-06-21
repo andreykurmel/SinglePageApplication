@@ -4,8 +4,49 @@ namespace Vanguard\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableField;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\DDL
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property string $name
+ * @property string $type
+ * @property string|null $notes
+ * @property int|null $created_by
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string $modified_on
+ * @property string $items_pos
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableField[] $_applied_to_fields
+ * @property-read int|null $_applied_to_fields_count
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DDLItem[] $_items
+ * @property-read int|null $_items_count
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DDLReference[] $_references
+ * @property-read int|null $_references_count
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL hasIdReferences()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereCreatedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereCreatedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereItemsPos($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereModifiedBy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereModifiedOn($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereTableId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereType($value)
+ * @mixin \Eloquent
+ * @property string|null $datas_sort
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereDatasSort($value)
+ */
 class DDL extends Model
 {
     protected $table = 'ddl';
@@ -18,6 +59,7 @@ class DDL extends Model
         'type',
         'notes',
         'items_pos',//['before','after']
+        'datas_sort',//['asc','desc']
         'created_by',
         'created_on',
         'modified_by',
@@ -49,6 +91,10 @@ class DDL extends Model
 
     public function _references() {
         return $this->hasMany(DDLReference::class, 'ddl_id', 'id');
+    }
+
+    public function _applied_to_fields() {
+        return $this->hasMany(TableField::class, 'ddl_id', 'id');
     }
 
 

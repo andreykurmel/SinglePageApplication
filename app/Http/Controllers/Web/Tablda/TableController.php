@@ -7,21 +7,21 @@ use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\AddMessageTableRequest;
 use Vanguard\Http\Requests\Tablda\DeleteMessageTableRequest;
-use Vanguard\Http\Requests\Tablda\Table\FavoriteToggleRequest;
 use Vanguard\Http\Requests\Tablda\GetLinkRequest;
 use Vanguard\Http\Requests\Tablda\GetTableRequest;
 use Vanguard\Http\Requests\Tablda\MoveNodeRequest;
 use Vanguard\Http\Requests\Tablda\PostLinkRequest;
+use Vanguard\Http\Requests\Tablda\Table\FavoriteToggleRequest;
 use Vanguard\Http\Requests\Tablda\Table\GetFilterUrlRequest;
 use Vanguard\Http\Requests\Tablda\Table\RenameSharedRequest;
 use Vanguard\Http\Requests\Tablda\Table\UpdateUserNoteRequest;
-use Vanguard\Http\Requests\Tablda\TableData\GetTableDataRequest;
 use Vanguard\Http\Requests\Tablda\TransferTableRequest;
 use Vanguard\Models\Table\TableData;
+use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
+use Vanguard\Repositories\Tablda\TableAlertsRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Services\Tablda\FolderService;
 use Vanguard\Services\Tablda\ImportService;
-use Vanguard\Services\Tablda\TableDataService;
 use Vanguard\Services\Tablda\TableService;
 
 class TableController extends Controller
@@ -30,7 +30,6 @@ class TableController extends Controller
     private $fieldRepository;
     private $folderService;
     private $importService;
-    private $tableDataService;
 
     /**
      * TableController constructor.
@@ -38,21 +37,18 @@ class TableController extends Controller
      * @param TableFieldRepository $fieldRepository
      * @param FolderService $folderService
      * @param ImportService $importService
-     * @param TableDataService $tableDataService
      */
     public function __construct(
         TableService $tables,
         TableFieldRepository $fieldRepository,
         FolderService $folderService,
-        ImportService $importService,
-        TableDataService $tableDataService
+        ImportService $importService
     )
     {
         $this->tables = $tables;
         $this->fieldRepository = $fieldRepository;
         $this->folderService = $folderService;
         $this->importService = $importService;
-        $this->tableDataService = $tableDataService;
     }
 
     /**
@@ -61,7 +57,8 @@ class TableController extends Controller
      * @param GetTableRequest $request
      * @return mixed
      */
-    public function getViews(GetTableRequest $request) {
+    public function getViews(GetTableRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
         $table->_is_owner = $table->user_id == auth()->id();
 
@@ -69,7 +66,7 @@ class TableController extends Controller
         if (!$table->_is_owner) {
             //get only 'shared' tableViews for regular User.
             $views->orWhereHas('_table_permissions', function ($tp) {
-                $tp->applyIsActiveForUserOrPermission();
+                $tp->isActiveForUserOrVisitor();
             });
         }
 
@@ -91,7 +88,7 @@ class TableController extends Controller
      */
     public function settingsMeta()
     {
-        return $this->tables->getSystemHeaders( auth()->id() );
+        return $this->tables->getSystemHeaders(auth()->id());
     }
 
     /**
@@ -120,7 +117,8 @@ class TableController extends Controller
      * @param GetTableRequest $request
      * @return mixed
      */
-    public function saveStatuse(GetTableRequest $request) {
+    public function saveStatuse(GetTableRequest $request)
+    {
         $this->tables->saveStatuse($request->table_id, auth()->id(), $request->status_data);
         return 'saved';
     }
@@ -131,13 +129,14 @@ class TableController extends Controller
      * @param GetTableRequest $request
      * @return mixed
      */
-    public function update(GetTableRequest $request) {
+    public function update(GetTableRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
 
         if (auth()->user()->can('isOwner', [TableData::class, $table])) {
             $data = $request->except('table_id');
         } else {
-            $data = $request->only('initial_view_id','notes');
+            $data = $request->only('initial_view_id', 'notes', '_cur_settings');
         }
 
         $resp = $this->tables->updateTable($request->table_id, $data, auth()->id());
@@ -150,10 +149,9 @@ class TableController extends Controller
      * @param PostLinkRequest $request
      * @return array
      */
-    public function createLink(PostLinkRequest $request) {
-        $table = $this->tables->getTable($request->table_id);
-
-        return $this->tables->createLink($request->table_id, $request->folder_id, $request->type, $request->structure, $request->path, auth()->id());
+    public function createLink(PostLinkRequest $request)
+    {
+        return $this->tables->createLink($request->object_id, $request->folder_id, $request->type, $request->structure, $request->path, auth()->id());
     }
 
     /**
@@ -162,9 +160,8 @@ class TableController extends Controller
      * @param GetLinkRequest $request
      * @return array|bool|null
      */
-    public function deleteLink(GetLinkRequest $request) {
-        $table = $this->tables->getTable($request->table_id);
-
+    public function deleteLink(GetLinkRequest $request)
+    {
         return $this->tables->deleteLink($request->link_id);
     }
 
@@ -174,12 +171,23 @@ class TableController extends Controller
      * @param TransferTableRequest $request
      * @return array|bool|null
      */
-    public function transfer(TransferTableRequest $request) {
+    public function transfer(TransferTableRequest $request)
+    {
         $table = $this->tables->getTable($request->id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return ['status' => $this->tables->transferTable($table, $request->new_user_id)];
+        $res = [];
+        $users_ids = $this->getUids($request->new_user_or_group);
+        $last = array_last($users_ids);
+        foreach ($users_ids as $uid) {
+            if ($last == $uid) {
+                $res = $this->tables->transferTable($table, $uid);
+            } else {
+                $res = $this->importService->saveCopyTable($table, $uid);
+            }
+        }
+        return ['status' => $res];
     }
 
     /**
@@ -188,15 +196,38 @@ class TableController extends Controller
      * @param TransferTableRequest $request
      * @return array|bool|null
      */
-    public function copy(TransferTableRequest $request) {
+    public function copy(TransferTableRequest $request)
+    {
         $table = $this->tables->getTable($request->id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        if (!$request->visitor) {
+            $this->authorize('isOwner', [TableData::class, $table]);
+        }
 
         if ($request->new_name) {
             $table->name = $request->new_name;
         }
-        return $this->importService->saveCopyTable($table, $request->new_user_id, $request->table_with, !!$request->overwrite);
+
+        $res = [];
+        foreach ($this->getUids($request->new_user_or_group) as $uid) {
+            $res = $this->importService->saveCopyTable($table, $uid, $request->table_with ?: null, !!$request->overwrite, !!$request->visitor);
+        }
+        return $res;
+    }
+
+    /**
+     * @param $groups_id
+     * @return array
+     */
+    protected function getUids(string $groups_id)
+    {
+        if ($groups_id && $groups_id[0] == '_') {
+            $gr_id = preg_replace('/[^\d]/i', '', $groups_id);
+            $user_ids = (new UserGroupRepository())->getGroupUsrFields($gr_id, 'id');
+        } else {
+            $user_ids = [$groups_id];
+        }
+        return $user_ids;
     }
 
     /**
@@ -205,9 +236,10 @@ class TableController extends Controller
      * @param \Illuminate\Http\Request $request
      * @return array|bool|null
      */
-    public function copyEmbed(\Illuminate\Http\Request $request) {
+    public function copyEmbed(\Illuminate\Http\Request $request)
+    {
         $hash = [];
-        
+
         if (preg_match('/\/embed_folder\//i', $request->embed_code)) {
             $is_folder = true;
             preg_match('/embed_folder\/([\w\d-]+)/i', $request->embed_code, $hash);
@@ -215,7 +247,7 @@ class TableController extends Controller
             $is_folder = false;
             preg_match('/embed\/([\w\d-]+)/i', $request->embed_code, $hash);
         }
-        
+
         $hash = $hash[1] ?? '';
         $new_user_id = auth()->id();
         $res = [];
@@ -234,7 +266,7 @@ class TableController extends Controller
             $res = $this->importService->saveCopyTable($table, $new_user_id);
             $name = $res['new_table']->name ?? '';
         }
-        
+
         if (!empty($res['error'])) {
             return $res;
         }
@@ -248,7 +280,8 @@ class TableController extends Controller
      * @param AddMessageTableRequest $request
      * @return array|bool|null
      */
-    public function addMessage(AddMessageTableRequest $request) {
+    public function addMessage(AddMessageTableRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
 
         $this->authorize('get', [TableData::class, $table]);
@@ -262,7 +295,8 @@ class TableController extends Controller
      * @param DeleteMessageTableRequest $request
      * @return array|bool|null
      */
-    public function deleteMessage(DeleteMessageTableRequest $request) {
+    public function deleteMessage(DeleteMessageTableRequest $request)
+    {
         $msg = $this->tables->getMessage($request->msg_id);
         $table = $msg->_table;
 
@@ -277,7 +311,8 @@ class TableController extends Controller
      * @param MoveNodeRequest $request
      * @return array|bool|null
      */
-    public function move(MoveNodeRequest $request) {
+    public function move(MoveNodeRequest $request)
+    {
         $table = $this->tables->getTable($request->id);
 
         $this->authorize('get', [TableData::class, $table]);
@@ -291,7 +326,8 @@ class TableController extends Controller
      * @param FavoriteToggleRequest $request
      * @return array|bool|null
      */
-    public function favorite(FavoriteToggleRequest $request) {
+    public function favorite(FavoriteToggleRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
 
         $this->authorize('get', [TableData::class, $table]);
@@ -305,7 +341,8 @@ class TableController extends Controller
      * @param UpdateUserNoteRequest $request
      * @return mixed
      */
-    public function updateUserNote(UpdateUserNoteRequest $request) {
+    public function updateUserNote(UpdateUserNoteRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
 
         $this->authorize('get', [TableData::class, $table]);
@@ -319,7 +356,8 @@ class TableController extends Controller
      * @param GetFilterUrlRequest $request
      * @return mixed
      */
-    public function getFilterUrl(GetFilterUrlRequest $request) {
+    public function getFilterUrl(GetFilterUrlRequest $request)
+    {
         $table = $this->tables->getTable($request->table_id);
 
         $this->authorize('get', [TableData::class, $table]);
@@ -334,7 +372,8 @@ class TableController extends Controller
      *
      * @return mixed
      */
-    public function getAvailableTables() {
+    public function getAvailableTables()
+    {
         return $this->tables->getAvailableTables(auth()->id());
     }
 
@@ -344,7 +383,8 @@ class TableController extends Controller
      * @param RenameSharedRequest $request
      * @return mixed
      */
-    public function renameShared(RenameSharedRequest $request) {
+    public function renameShared(RenameSharedRequest $request)
+    {
         return $this->tables->renameSharedTable($request->table_id, auth()->id(), $request->name);
     }
 
@@ -354,17 +394,24 @@ class TableController extends Controller
      * @param GetTableRequest $request
      * @return array
      */
-    public function versionHash(GetTableRequest $request) {
+    public function versionHash(GetTableRequest $request)
+    {
         if ($request->table_id) {
             $table = $this->tables->getTable($request->table_id);
-            /*$list_hashes = $request->row_list_ids ? $this->tableDataService->getRowsHashes($table, $request->row_list_ids) : [];
-            $fav_hashes = $request->row_fav_ids ? $this->tableDataService->getRowsHashes($table, $request->row_fav_ids) : [];*/
+
+            $wait_automations = null;
+            if ($table->add_alert && $request->automations_check) {
+                $wait_automations = (new TableAlertsRepository())->getOnce_WaitForApproveAnrTables($table->id);
+            }
+
             return [
+                'wait_automations' => $wait_automations,
                 'version_hash' => $table->version_hash,
                 'num_rows' => $table->num_rows,
                 /*'list_hashes' => $list_hashes,
                 'fav_hashes' => $fav_hashes,*/
             ];
+
         } else {
             $tables = $this->tables->getTables(array_keys($request->id_object));
             return [

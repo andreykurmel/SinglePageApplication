@@ -25,10 +25,12 @@ class SendWebScrapRequest extends FormRequest
     {
         return [
             'web_action' => 'required|string',
-            'web_url' => 'required|string',
+            'web_url' => 'string|nullable',
             'web_query' => 'string|nullable',
             'web_xpath' => 'string|nullable',
             'web_index' => 'string|nullable',
+            'web_xml_file' => 'string|nullable',
+            'web_scrap_headers' => 'nullable',
         ];
     }
 }

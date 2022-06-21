@@ -20,6 +20,7 @@
                     </label>
 
                     <a v-else-if="inArray(tableHeader.field, ['table_column_group_id', 'table_row_group_id']) && editValue"
+                       title="Open row/column group in popup."
                        @click.stop="showinlineGroupsPopup()"
                     >
                         <span :class="{'is_select': is_sel}">{{ showField() }}</span>
@@ -53,7 +54,6 @@
         <div v-if="tableHeader.f_type === 'Color'" class="cell-editing">
             <tablda-colopicker
                     :init_color="editValue"
-                    :saved_colors="$root.color_palette"
                     :fixed_pos="true"
                     :avail_null="true"
                     :can_edit="canEdit"
@@ -74,7 +74,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -93,7 +93,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :fld_input_type="tableHeader.input_type"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -110,7 +110,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -124,7 +124,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -136,7 +136,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -150,7 +150,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -175,15 +175,15 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {eventBus} from './../../app';
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import TabldaColopicker from './InCell/TabldaColopicker.vue';
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import TabldaColopicker from './InCell/TabldaColopicker.vue';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    export default {
+export default {
         name: "CustomCellCondFormat",
         mixins: [
             Select2DDLMixin,
@@ -192,12 +192,6 @@
         components: {
             TabldaSelectSimple,
             TabldaColopicker,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -280,8 +274,7 @@
             },
             setColor(clr, save) {
                 if (save) {
-                    this.$root.color_palette.unshift(clr);
-                    localStorage.setItem('color_palette', this.$root.color_palette.join(','));
+                    this.$root.saveColorToPalette(clr);
                 }
                 this.editValue = clr;
                 this.updateValue();

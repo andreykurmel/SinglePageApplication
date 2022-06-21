@@ -20,6 +20,7 @@
 
                 <tos-checker></tos-checker>
                 <left-menu
+                    v-if="$root.user"
                     v-show="$root.isLeftMenu"
                     :app_domain="'{{$app_domain}}'"
                     :table_id="object_id"
@@ -32,7 +33,7 @@
                     v-show="object_type === 'table'"
                     :settings-meta="$root.settingsMeta"
                     :is-pagination="isPagination"
-                    :table_id="object_type === 'table' ? object_id : null"
+                    :table_init_id="object_type === 'table' ? object_id : null"
                     :recalc_id="'{{ Session::get('recalc_id') }}'"
                     :filters_preset="{{ json_encode($filters) }}"
                 ></tables>

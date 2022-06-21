@@ -44,10 +44,11 @@ class Risa3dDeleterController extends Controller implements AppControllerInterfa
         $tableNames = Table::whereIn('db_name', $tables_delete)->get()->pluck('name')->toArray();
 
         $lightweight = $correspApp->open_as_popup;
+        $ugroup = (new UserRepository())->getUserOrGroupInfo($request->usergroup);
         return view('tablda.applications.risa3d-deleter', array_merge(
             $this->bladeVariablesService->getVariables(null, 0, $lightweight),
             [
-                'usergroup' => (new UserRepository())->getUserOrGroupInfo($request->usergroup),
+                'usergroup' => json_encode($ugroup),
                 'mg_name' => $request->mg_name,
                 'embed' => $lightweight,
                 'tables_delete' => implode('<br>- ', $tableNames),
@@ -79,7 +80,7 @@ class Risa3dDeleterController extends Controller implements AppControllerInterfa
      */
     public function direct_call(DirectCallInput $input)
     {
-        // TODO: Implement direct_call() method.
+        //
     }
 
 }

@@ -13,8 +13,6 @@
                         <div class="full-frame">
                             <table-settings-permissions
                                     :table-meta="tableMeta"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
                                     :user="user"
                                     :table_id="tableMeta.id"
                                     :init_ddl_idx="init_ddl_idx"

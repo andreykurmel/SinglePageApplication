@@ -90,16 +90,16 @@ table {
     a {
       cursor: pointer;
 
-      .glyphicon-remove {
+      .glyphicon-remove, .glyphicon-plus {
         color: #039;
       }
       .glyphicon-star, .glyphicon-star-empty {
         color: #FD0;
       }
-      .gl-gray {
-        color: #777;
-        cursor: auto;
-      }
+    }
+    .gl-gray {
+      color: #777;
+      cursor: auto;
     }
   }
   .td-overed {

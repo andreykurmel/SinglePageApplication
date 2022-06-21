@@ -7,6 +7,51 @@ use Vanguard\Models\Table\Table;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Folder\Folder
+ *
+ * @property int $id
+ * @property int|null $user_id
+ * @property string $name
+ * @property string $structure
+ * @property int $is_opened
+ * @property int $is_system
+ * @property int $in_shared
+ * @property int|null $created_by
+ * @property string|null $created_name
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string|null $modified_name
+ * @property string $modified_on
+ * @property string|null $icon_path
+ * @property int|null $is_folder_link
+ * @property int|null $for_shared_user_id
+ * @property int $menutree_order
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderView[] $_folder_views
+ * @property-read int|null $_folder_views_count
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderStructure[] $_root_folders
+ * @property-read int|null $_root_folders_count
+ * @property-read \Vanguard\Models\Folder\FolderStructure|null $_structure_record
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderStructure[] $_sub_folders
+ * @property-read int|null $_sub_folders_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\Folder2Table[] $_table_links
+ * @property-read int|null $_table_links_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_tables
+ * @property-read int|null $_tables_count
+ * @property-read \Vanguard\User|null $_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup[] $_user_groups
+ * @property-read int|null $_user_groups_count
+ * @mixin \Eloquent
+ * @property string|null $import_source
+ * @property string|null $importfolder_airtable_save
+ * @property string|null $importfolder_google_save
+ * @property string|null $importfolder_dropbox_save
+ * @property string|null $importfolder_onedrive_save
+ * @property string|null $importfolder_ocr_save
+ * @property string|null $importfolder_local_save
+ */
 class Folder extends Model
 {
     protected $table = 'folders';
@@ -21,8 +66,17 @@ class Folder extends Model
         'is_system',
         'in_shared',//0 - regular, 1 - in SHARED, 2 - in APPs
         'icon_path',
+        'is_folder_link',
         'for_shared_user_id',
         'menutree_order',
+
+        'import_source',
+        'importfolder_airtable_save',
+        'importfolder_google_save',
+        'importfolder_dropbox_save',
+        'importfolder_onedrive_save',
+        'importfolder_ocr_save',
+        'importfolder_local_save',
 
         'created_by',
         'created_on',
@@ -54,7 +108,7 @@ class Folder extends Model
         return $this
             ->belongsToMany(Table::class, 'folders_2_tables', 'folder_id', 'table_id')
             ->as('link')
-            ->withPivot(['id', 'user_id', 'type', 'structure']);
+            ->withPivot(['id', 'user_id', 'type', 'structure', 'is_folder_link']);
     }
 
     public function _folder_views() {

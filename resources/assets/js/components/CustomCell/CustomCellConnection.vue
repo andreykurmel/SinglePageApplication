@@ -6,7 +6,7 @@
     >
         <div class="td-wrapper" :style="getTdWrappStyle">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getCustomWrapperStyle">
                 <div class="inner-content">
 
                     <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'">
@@ -30,14 +30,6 @@
                             @changed-tz="updateCheckedDDL"
                     ></moment-timezones>
 
-                    <div v-else-if="tableHeader.field === '_eml_pop' && !isAddRow" class="flex flex--center">
-                        <button class="btn btn-default"
-                                title="Email Settings"
-                                :style="{padding: '0 5px', lineHeight: $root.themeTextFontSize+'px',}"
-                                @click="emlSett()"
-                        >Email</button>
-                    </div>
-
                     <span v-else-if="tableHeader.field === 'key'">{{ tableRow.key ? String(tableRow.key).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'login'">{{ tableRow.login ? String(tableRow.login).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'app_pass'">{{ tableRow.app_pass ? String(tableRow.app_pass).replace(/./gi, '*') : '' }}</span>
@@ -46,7 +38,13 @@
 
                     <div v-else="">
                         <span v-if="!isAddRow && tableHeader.field === 'msg_to_user'">
-                            <a v-if="tableRow.msg_to_user" target="_blank" :href="this.tableRow.msg_to_user" @click="linkClicked()">Not Connect</a>
+                            <a v-if="tableRow.msg_to_user"
+                               target="_blank"
+                               :href="tableRow.msg_to_user"
+                               @click="linkClicked()"
+                            >
+                                <span>Connect</span>
+                            </a>
                             <template v-else="">
                                 <span style="color: #0A0">Connected</span>
                                 <span class="inactivate-cloud" @click="inactivateCloudRow()">&times;</span>
@@ -54,6 +52,15 @@
                         </span>
                         <span v-else="" v-html="showField()"></span>
                     </div>
+                    
+                    <!--Tooltip-->
+                    <tooltip-block
+                            v-if="tableHeader.tooltip_show && tableHeader.tooltip"
+                            :html_str="tableHeader.tooltip"
+                            :outer_offset="1"
+                            :left_move="5"
+                            style="position: absolute; right: 0; top: calc(50% - 8px); text-align: left;"
+                    ></tooltip-block>
                 </div>
             </div>
 
@@ -78,11 +85,12 @@
                     v-else-if="tableHeader.field === 'cloud'"
                     :options="[
                         {val: 'Dropbox', show: 'Dropbox'},
-                        {val: 'Google', show: 'Google'},
+                        {val: 'Google', show: 'Google Drive', img: '/assets/img/google-drive.png'},
+                        {val: 'OneDrive', show: 'One Drive'},
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -96,7 +104,20 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'air_type'"
+                    :options="[
+                        {val: 'public_rest', show: 'Public REST'},
+                    ]"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -107,7 +128,7 @@
                     :options="userClouds()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -127,7 +148,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -138,17 +159,6 @@
                    @blur="hideDatePicker()"
                    class="form-control full-height"
                    :style="getEditStyle"/>
-
-            <input
-                    v-else-if="tableHeader.field === 'time'"
-                    v-model="editValue"
-                    v-mask="'##:##'"
-                    @blur="hideEdit();updateValue()"
-                    ref="inline_input"
-                    class="form-control full-height"
-                    :style="getEditStyle"
-                    placeholder="hh:mm"
-            />
 
             <input
                     v-else=""
@@ -165,18 +175,18 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {SpecialFuncs} from '../../classes/SpecialFuncs';
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import {mask} from 'vue-the-mask';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import MomentTimezones from "../MomentTimezones";
+import TooltipBlock from "../CommonBlocks/TooltipBlock";
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import MomentTimezones from "../MomentTimezones";
-
-    export default {
+export default {
         components: {
+            TooltipBlock,
             MomentTimezones,
             TabldaSelectSimple,
         },
@@ -185,15 +195,6 @@
             Select2DDLMixin,
             CellStyleMixin,
         ],
-        directives: {
-            mask
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -223,6 +224,13 @@
                 obj.textAlign = (this.inArray(this.tableHeader.f_type, ['Boolean', 'Radio']) ? 'center' : '');
                 return obj;
             },
+            getCustomWrapperStyle() {
+                let obj = this.getWrapperStyle;
+                if (this.tableHeader.f_type === 'Timezone') {
+                    obj.overflow = 'visible';
+                }
+                return obj;
+            },
             checkBoxOn() {
                 return Boolean(this.editValue);
             },
@@ -232,7 +240,7 @@
                     && (this.tableHeader.field !== 'cloud' || this.isAddRow)
                     && (this.tableHeader.field !== '_eml_pop')
                     && (this.tableHeader.field !== 'msg_to_user');
-            }
+            },
         },
         methods: {
             inArray(item, array) {
@@ -252,7 +260,7 @@
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {
                             if (this.inArray(this.tableHeader.f_type, ['Date Time', 'Date', 'Time'])) {
-                                this.showHideDatePicker();
+                                this.showHideDatePicker(true);
                             } else
                             if (this.$refs.inline_input && this.$refs.inline_input.nodeName === 'SELECT') {
                                 this.showHideDDLs(this.$root.selectParam);
@@ -270,8 +278,17 @@
                 this.editing = false;
             },
             hideDatePicker() {
-                this.editValue = $(this.$refs.inline_input).val();
                 this.hideEdit();
+                let value = $(this.$refs.inline_input).val();
+                switch (this.tableHeader.f_type) {
+                    case 'Date': value = moment( value ).format('YYYY-MM-DD'); break;
+                    case 'Date Time': value = moment( value ).format('YYYY-MM-DD HH:mm:ss'); break;
+                    case 'Time': value = moment( '0001-01-01 '+value ).format('HH:mm:ss'); break;
+                }
+                if (value === 'Invalid date') {
+                    value = '';
+                }
+                this.editValue = value;
                 this.updateValue();
             },
             updateCheckedDDL(item) {
@@ -299,9 +316,9 @@
 
                 if (this.tableHeader.field === 'time' && val) {
                     if (reverse) {
-                        res = this.$root.timeToUTC(val, this.tableRow.timezone || this.user.timezone);
+                        res = SpecialFuncs.timeToUTC(val, this.tableRow.timezone || this.user.timezone, 'HH:mm:ss');
                     } else {
-                        res = this.$root.timeToLocal(val, this.tableRow.timezone || this.user.timezone);
+                        res = SpecialFuncs.timeToLocal(val, this.tableRow.timezone || this.user.timezone, 'HH:mm:ss');
                     }
                 }
 
@@ -318,10 +335,24 @@
                     res = user_cloud ? user_cloud.name : '';
                 }
                 else
+                if (this.tableHeader.field === 'cloud' && this.tableRow.cloud) {
+                    switch (this.tableRow.cloud) {
+                        case 'Dropbox': res = 'Dropbox'; break;
+                        case 'Google': res = '<img src="/assets/img/google-drive.png" height="14"> Google Drive'; break;
+                        case 'OneDrive': res = 'One Drive'; break;
+                    }
+                }
+                else
                 if (this.tableHeader.field === 'mode' && this.tableRow.mode) {
                     switch (this.tableRow.mode) {
                         case 'sandbox': res = 'Sandbox'; break;
                         case 'live': res = 'Live'; break;
+                    }
+                }
+                else
+                if (this.tableHeader.field === 'air_type') {
+                    switch (this.tableRow.air_type) {
+                        case 'public_rest': res = 'Public Rest'; break;
                     }
                 }
                 else {
@@ -368,9 +399,6 @@
                     return { val: cg.id, show: cg.name, }
                 });
             },
-            emlSett() {
-                eventBus.$emit('show-backup-settings-popup', this.tableRow.id);
-            },
         },
         mounted() {
             if (this.tableHeader.f_type === 'Timezone' && !this.tableRow[this.tableHeader.field]) {
@@ -383,7 +411,7 @@
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "./CustomCell.scss";
 
     .inactivate-cloud {

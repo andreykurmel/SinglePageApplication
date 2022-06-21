@@ -12,6 +12,10 @@
                 <input type="checkbox" v-model="change"/>
                 <label style="font-size: 2em;font-weight: normal;">Update Nodes</label>
             </div>
+            <div style="width: 300px;">
+                <input type="checkbox" v-model="add_rls"/>
+                <label style="font-size: 2em;font-weight: normal;">Add Nodes_RLs, RLs</label>
+            </div>
             <div style="text-align: right;margin-top: 20px;">
                 <a target="_blank" class="btn btn-success" :href="getlink" @click="closeForm">GO</a>
                 <a class="btn btn-default" @click="closeForm">Cancel</a>
@@ -30,6 +34,7 @@
         data() {
             return {
                 change: true,
+                add_rls: true,
             }
         },
         props: {
@@ -43,11 +48,13 @@
         },
         computed: {
             getlink() {
+                let $url = '';
                 if (this.usergroup && this.model) {
-                    return this.apppath+'?usergroup=' + this.usergroup + '&model=' + this.model + (this.change ? '' : '&noupd=1');
+                    $url = this.apppath+'?usergroup=' + this.usergroup + '&model=' + this.model;
                 } else {
-                    return this.tiapath + '?inp_type=stim_page&json=' + this.jsonfile + '&r3d=' + this.targetfile + '&noupd=' + (this.change ? 0 : 1);
+                    $url = this.tiapath + '?inp_type=stim_page&json=' + this.jsonfile + '&r3d=' + this.targetfile;
                 }
+                return $url + '&noupd=' + (this.change ? 0 : 1) + '&rls=' + (this.add_rls ? 1 : 0) + '&rejson=1';
             },
         },
         methods: {
@@ -64,7 +71,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-wrapper {
         height: 100%;
         display: flex;

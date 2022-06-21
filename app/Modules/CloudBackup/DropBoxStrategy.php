@@ -15,26 +15,25 @@ class DropBoxStrategy implements BackupStrategy
      */
     public function __construct(UserCloud $cloud)
     {
-        $access_token = (new DropBoxApiModule())->accessToken($cloud->gettoken());
+        $access_token = (new DropBoxApiModule())->accessToken($cloud->gettoken(), $cloud->id);
 
         if (!$access_token) {
             (new UserCloudRepository())->setInactiveCloud($cloud);
-            throw new \Exception('GoogleStrategy:No Access Token');
+            throw new \Exception('DropBoxStrategy:No Access Token');
         }
 
         exec('echo "OAUTH_ACCESS_TOKEN='.$access_token.'" > /var/www/.dropbox_uploader');
     }
 
     /**
-     * @param string $source_path
-     * @param string $file_name
-     * @param string $target_path
+     * @param string $source_filepath
+     * @param string $target_filepath
      * @return string
      */
-    public function upload(string $source_path, string $file_name, string $target_path)
+    public function upload(string $source_filepath, string $target_filepath)
     {
-        $source_file = preg_replace('#\/+#i','/', '/'.$source_path.'/'.$file_name);
-        $target_folder = preg_replace('#\/+#i','/', '/'.$target_path.'/');
+        $source_file = preg_replace('#\/+#i','/', $source_filepath);
+        $target_folder = preg_replace('#\/+#i','/', $target_filepath);
         return exec(env('DBOX_UPLOADER_FILE').' upload '.$source_file.' '.$target_folder.'');
     }
 }

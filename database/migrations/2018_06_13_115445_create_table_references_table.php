@@ -15,10 +15,12 @@ class CreateTableReferencesTable extends Migration
     {
         Schema::create('table_references', function (Blueprint $table) {
             $table->increments('id');
+            $table->string('name', 64)->nullable();
             $table->unsignedInteger('table_id');
-            $table->unsignedInteger('table_field_id');
+            $table->unsignedInteger('table_field_id')->nullable();
             $table->unsignedInteger('ref_table_id');
-            $table->unsignedInteger('ref_field_id');
+            $table->unsignedInteger('ref_field_id')->nullable();
+            $table->unsignedInteger('ref_row_group_id')->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

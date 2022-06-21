@@ -2,7 +2,6 @@
     /**
      *  Must be present:
      *
-     *  this.user: Object
      *  this.tableMeta: Object
      *  */
     export default {
@@ -41,10 +40,41 @@
             },
 
             themeTextFontColor() {
-                return this.getThemeProp('app_font_color') || null;
+                let key = this.tsmTbMeta.is_system ? 'appsys_tables_font_color' : 'app_font_color';
+                return this.getThemeProp(key) || null;
+            },
+            themeTextFontFamily() {
+                let key = this.tsmTbMeta.is_system ? 'appsys_tables_font_family' : 'app_font_family';
+                return this.getThemeProp(key) || null;
             },
             themeTextFontSize() {
-                return Number(this.getThemeProp('app_font_size') || 12);
+                let key = this.tsmTbMeta.is_system ? 'appsys_tables_font_size' : 'app_font_size';
+                return Number(this.$root.metaSrvObject.single_view_form_font_size)
+                    || Number(this.$root.metaDcrObject.dcr_form_font_size)
+                    || Number(this.getThemeProp(key) || 12);
+            },
+            themeTextLineHeigh() {
+                return Number(this.$root.metaSrvObject.single_view_form_line_height)
+                    || Number(this.$root.metaDcrObject.dcr_form_line_height)
+                    || (this.themeTextFontSize + 2);
+            },
+            themeSysColor() {
+                return this.getThemeProp('appsys_font_color') || null;
+            },
+            themeSysFont() {
+                return this.getThemeProp('appsys_font_family') || null;
+            },
+            themeSysSize() {
+                return this.getThemeProp('appsys_font_size') || null;
+            },
+            themeSysContentColor() {
+                return this.getThemeProp('appsys_tables_font_color') || null;
+            },
+            themeSysContentFont() {
+                return this.getThemeProp('appsys_tables_font_family') || null;
+            },
+            themeSysContentSize() {
+                return this.getThemeProp('appsys_tables_font_size') || null;
             },
             checkBoxStyle() {
                 return {
@@ -52,6 +82,9 @@
                     height: Math.min(this.themeTextFontSize, 20)+'px',
                     color: this.themeTextFontColor,
                 };
+            },
+            tsmTbMeta() {
+                return this.tableMeta || this.$root.tableMeta;
             },
         },
         methods: {
@@ -65,6 +98,8 @@
                         (tm._current_right && tm._current_right.enforced_theme)
                         ||
                         this.$root.user.see_view
+                        ||
+                        this.$root.user.see_srv
                     );
             },
             tsmInitTableTheme(tableMeta) {
@@ -76,25 +111,25 @@
                 return theme;
             },
             tsmInitUserTheme(tableMeta) {
-                let u = this.user;
+                let u = this.$root.user;
                 let tm = tableMeta;
                 let theme = {};
-                if (this.tsmInitOwnerOrEnforced(tableMeta) && tm._owner_theme) {
+                /*if (this.tsmInitOwnerOrEnforced(tableMeta) && tm._owner_theme) {
                     theme = tm._owner_theme;
                 }
-                else
+                else*/
                 if (u && u._selected_theme) {
                     theme = u._selected_theme;
                 }
                 return theme;
             },
             //getters
-            themeTableBgColor(tableMeta) {
-                return this.getThemeProp('table_hdr_bg_color', tableMeta);
+            themeTableBgColor() {
+                return this.getThemeProp('table_hdr_bg_color');
             },
-            getThemeProp(prop, tableMeta) {
-                let usr_theme = this.tsmInitUserTheme(tableMeta || this.tableMeta);
-                let table_theme = this.tsmInitTableTheme(tableMeta || this.tableMeta);
+            getThemeProp(prop) {
+                let usr_theme = this.tsmInitUserTheme(this.tsmTbMeta);
+                let table_theme = this.tsmTbMeta.is_system ? {} : this.tsmInitTableTheme(this.tsmTbMeta);
                 let selected_prop = (usr_theme[prop] || null);
 
                 return table_theme[prop] // prop from table settings OR

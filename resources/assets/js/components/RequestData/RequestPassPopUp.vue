@@ -35,7 +35,7 @@
             };
         },
         props:{
-            table_permission_id: Number,
+            table_request_id: Number,
         },
         computed: {
             getPopupStyle() {
@@ -54,9 +54,9 @@
                 this.pass = val;
             },
             checkPass() {
-                axios.get('/ajax/table-permission/check-pass', {
+                axios.get('/ajax/table-data-request/check-pass', {
                     params: {
-                        table_permission_id: this.table_permission_id,
+                        table_request_id: this.table_request_id,
                         pass: this.pass
                     }
                 }).then(({ data }) => {

@@ -52,7 +52,6 @@
                                     <tablda-colopicker
                                             :init_color="settings.show_eqpt_id__color"
                                             :can_edit="settings.show_eqpt_id"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => {settings.show_eqpt_id__color = clr; saveOnBknd()}"
                                     ></tablda-colopicker>
@@ -91,7 +90,6 @@
                                     <tablda-colopicker
                                             :init_color="settings.show_eqpt_size__color"
                                             :can_edit="settings.show_eqpt_size"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => {settings.show_eqpt_size__color = clr; saveOnBknd()}"
                                     ></tablda-colopicker>
@@ -129,7 +127,6 @@
                                     <tablda-colopicker
                                             :init_color="settings.show_eqpt_model__color"
                                             :can_edit="settings.show_eqpt_model"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => {settings.show_eqpt_model__color = clr; saveOnBknd()}"
                                     ></tablda-colopicker>
@@ -168,7 +165,6 @@
                                     <tablda-colopicker
                                             :init_color="settings.show_eqpt_tech__color"
                                             :can_edit="settings.show_eqpt_tech"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => {settings.show_eqpt_tech__color = clr; saveOnBknd()}"
                                     ></tablda-colopicker>
@@ -207,7 +203,6 @@
                                     <tablda-colopicker
                                             :init_color="settings.show_line_model__color"
                                             :can_edit="settings.show_line_model"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => {settings.show_line_model__color = clr; saveOnBknd()}"
                                     ></tablda-colopicker>
@@ -495,7 +490,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .settings_wrapper {
         .settings_btn {
             width: 35px;

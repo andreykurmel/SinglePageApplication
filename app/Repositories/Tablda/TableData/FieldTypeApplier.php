@@ -10,6 +10,7 @@ use Vanguard\Singletones\AuthUserSingleton;
 
 class FieldTypeApplier
 {
+    protected $reverse;
     protected $type = '';
     protected $field = '';
     protected $helper;
@@ -17,12 +18,13 @@ class FieldTypeApplier
     protected $zero_is_null = false;
 
     /**
-     * FieldTypeApplier constructor.
      * @param string $type
      * @param string $field
+     * @param bool $reverse
      */
-    function __construct(string $type, string $field)
+    function __construct(string $type, string $field, bool $reverse = false)
     {
+        $this->reverse = $reverse;
         $this->type = $type;
         $this->field = $field;
         $this->helper = new HelperService();
@@ -39,10 +41,7 @@ class FieldTypeApplier
     public function where(Builder $query, string $compare, $val) : Builder
     {
         $present_val = $this->zero_is_null ? !!$val : strlen($val);
-
-        //prepare
-        $compare = strtolower($compare);
-        $compare = $compare == 'include' ? 'like' : $compare;
+        $compare = $this->prepareCompare($compare);
 
         if ($present_val) {
             //where OR null for '!='
@@ -62,8 +61,51 @@ class FieldTypeApplier
             $not = in_array($compare, ['!=','>','<']);
         }
 
-        //apply
-        $query->where($this->field, $compare, $val, $and);
+        return $this->whereApply($query, $compare, $val, $and, $not);
+    }
+
+    /**
+     * @param string $compare
+     * @return string
+     */
+    protected function prepareCompare(string $compare): string
+    {
+        $compare = strtolower($compare);
+        $compare = $compare == 'include' ? 'like' : $compare;
+
+        if ($this->reverse) {
+            switch ($compare) {
+                case '=': $compare = '!='; break;
+                case '!=': $compare = '='; break;
+                case '>': $compare = '<'; break;
+                case '<': $compare = '>'; break;
+                case 'like': $compare = 'not like'; break;
+                case 'not like': $compare = 'like'; break;
+            }
+        }
+
+        return $compare;
+    }
+
+    /**
+     * @param Builder $query
+     * @param string $compare
+     * @param $val
+     * @param $and
+     * @param $not
+     * @return Builder
+     */
+    protected function whereApply(Builder $query, string $compare, $val, $and, $not) : Builder
+    {
+        $target = $this->is_number_type ? ($val ?: 0) : ($val ?: '');
+
+        //TODO: check that it is needed //special case for system 'id'
+        /*if (preg_match('/\.id$/i', $this->field)) {
+            $this->field = preg_replace('/\.id$/i', '.row_hash', $this->field);
+            $target = $this->helper->sys_row_hash['cf_temp'];
+        }*/
+
+        $query->where($this->field, $compare, $target, $and);
         $query->whereNull($this->field, $and, $not);
 
         return $query;
@@ -80,6 +122,10 @@ class FieldTypeApplier
         if (!count($values)) {
             $query->whereRaw('false');
             return $query;
+        }
+
+        if ($this->reverse) {
+            $not = !$not;
         }
 
         $zeros = array_filter($values, function ($item) { return !$item && strlen($item); });

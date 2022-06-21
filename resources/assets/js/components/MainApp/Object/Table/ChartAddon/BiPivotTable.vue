@@ -32,7 +32,13 @@
                         <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
                     </th>
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="showVal('hor', l1_h)">
-                        <th v-for="i in noSpanLen(l1_h)" :colspan="spanLen(l1_h)" :rowspan="(pivot_spanned && isSubTot(l1_h) ? r_s : 1)">
+                        <th v-for="i in noSpanLen(l1_h)"
+                            :colspan="spanLen(l1_h)"
+                            :rowspan="(pivot_spanned && isSubTot(l1_h) ? r_s : 1)"
+                            :style="{ background: sorted_keys.key === 'hor_l1' && sorted_keys.val === l1_h ? '#aaa' : '' }"
+                            class="sorted_th"
+                            @click="sortByTh('hor_l1', l1_h)"
+                        >
                             <bi-pivot-header
                                     :table-meta="table_meta"
                                     :edit-vals="showHead('hor', l1_h)"
@@ -75,7 +81,12 @@
                     </th>
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
-                            <th v-for="i in noSpanLen(l1_h, l2_h)" :colspan="spanLen(l1_h, l2_h)">
+                            <th v-for="i in noSpanLen(l1_h, l2_h)"
+                                :colspan="spanLen(l1_h, l2_h)"
+                                :style="{ background: sorted_keys.key === 'hor_l2' && sorted_keys.val === l2_h ? '#aaa' : '' }"
+                                class="sorted_th"
+                                @click="sortByTh('hor_l2', l2_h)"
+                            >
                                 <bi-pivot-header
                                         :table-meta="table_meta"
                                         :edit-vals="showHead('hor', l1_h, l2_h)"
@@ -96,7 +107,12 @@
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
                             <template v-for="(l3_h) in sorted_values.hor_l3" v-if="showVal('hor', l1_h, l2_h, l3_h)">
 
-                                <th v-if="" :colspan="multi_about" :rowspan="(pivot_spanned && isSubTot(l3_h) ? r_s-3 : 1)">
+                                <th :colspan="multi_about"
+                                    :rowspan="(pivot_spanned && isSubTot(l3_h) ? r_s-3 : 1)"
+                                    :style="{ background: sorted_keys.key === 'hor_l3' && sorted_keys.val === l3_h ? '#aaa' : '' }"
+                                    class="sorted_th"
+                                    @click="sortByTh('hor_l3', l3_h)"
+                                >
                                     <bi-pivot-header
                                             :table-meta="table_meta"
                                             :edit-vals="showHead('hor', l1_h, l2_h, l3_h)"
@@ -160,9 +176,10 @@
 
                                     <tr v-if="!isSubTot(v_l1) && !isSubTot(v_l2) && !isSubTot(v_l3) && !isSubTot(v_l4) && !isSubTot(v_l5)">
                                         <!-- vertical headers -->
-                                        <td v-if="l1_fld_v && (!pivot_spanned || isFirstCell(i1, i2, i3, i4, i5, 1))"
+                                        <td v-if="(!pivot_spanned || isFirstCell(i1, i2, i3, i4, i5, 1))"
                                             :rowspan="(pivot_spanned ? lenForSpan('vert', v_l1) : 1)">
                                             <bi-pivot-header
+                                                    v-if="l1_fld_v"
                                                     :table-meta="table_meta"
                                                     :edit-vals="showHead('vert', v_l1)"
                                                     :corr-db="corr_dbs.vert_l1"
@@ -359,6 +376,7 @@
                 download_png: false,
                 max_cell_len: 0,
                 cannot_draw_error: '',
+                sorted_keys: { key: '', val: '' },
             }
         },
         props: {
@@ -403,10 +421,8 @@
                 this.help_show = '';
             },
             startResizes() {
-                this.gridStack ? this.gridStack.enableMove(false) : '';
             },
             saveResizes() {
-                this.gridStack ? this.gridStack.enableMove(!this.gridStack._extra_disable_drag) : '';
                 this.$emit('active-change', 'pivot.vert_widths');
             },
 
@@ -414,7 +430,12 @@
             copyTable() {
                 this.spanned = false;
                 this.$nextTick(() => {
-                    this.$root.copyToClipboard(this.$refs.pivot_table);
+                    let arr = this.buildDataArray();
+                    let stringtable = _.map(arr.h, (hh) => { return hh.name }).join('\t')
+                        + '\r\n'
+                        + _.map(arr.r, (row) => { return row.join('\t') }).join('\r\n');
+                    SpecialFuncs.strToClipboard( stringtable );
+                    Swal('Table Copied to Clipboard!');
                     this.spanned = true;
                 });
             },
@@ -522,14 +543,45 @@
                     }
                 }
             },
+            sortByTh(corr_key, corr_value) {
+                this.cannot_draw_error = 'sorting...';
+
+                if (this.sorted_keys.key === corr_key && this.sorted_keys.val === corr_value) {
+                    this.sorted_keys.key = '';
+                    this.sorted_keys.val = '';
+                } else {
+                    this.sorted_keys.key = corr_key;
+                    this.sorted_keys.val = corr_value;
+                }
+
+                let verts = ['vert_l1', 'vert_l2', 'vert_l3', 'vert_l4', 'vert_l5'];
+                _.each(this.fld_keys, (key) => {
+                    if (this.sorted_keys.key && verts.indexOf(key) > -1) {
+                        let arr = [];
+                        _.each(_.uniq(_.map(this.table_data, key)), (vert) => {
+                            arr.push({
+                                val: vert,
+                                sorted: this.subTotalCell(1, key, vert, corr_key, corr_value),
+                            });
+                        });
+                        this.sorted_values[key] = _.map(arr.sort((a, b) => {
+                            return a.sorted - b.sorted;
+                        }), 'val');
+                    } else {
+                        this.sorted_values[key] = this.order_values(_.uniq(_.map(this.table_data, key)), this.corr_dbs[key]);
+                    }
+                });
+
+                this.subtotalToSorts();
+                this.cannot_draw_error = '';
+            },
 
             //INITS
             prepareDataKeys(input) {
-                //WATCH FOR ORDER IN THIS FUNCTION
+                //ORDER IN THIS FUNCTION IS IMPORTANT!
 
-                let maxlvl = ChartFunctions.maxLVL();
                 let objarr = {}, objstr = {}, objobj = {};
-                for (let i = 1; i <= maxlvl; i++) {
+                for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
                     this.fld_keys.push('vert_l'+i);
                     this.fld_keys.push('hor_l'+i);
                     objarr['vert_l'+i] = [];
@@ -557,7 +609,7 @@
                         };
                         rcs = {
                             ...rcs,
-                            ...this.$root.rcObj(row, key),
+                            ...SpecialFuncs.rcObj(row, key),
                         };
                     });
                     this.all_variants.usrs[key] = usrs;
@@ -569,8 +621,14 @@
                 let allhor = this.about_1.concat(this.about_2 || [], this.about_3 || []);
                 allhor = this.addZeroValues(allhor, 'hor');
 
+                this.subtotalToSorts();
+
+                this.pivot.rows = this.groupViewedData(allvert, 'vert');
+                this.pivot.columns = this.groupViewedData(allhor, 'hor');
+            },
+            subtotalToSorts() {
                 //Add computed columns 'SubTotal'
-                for (let i = 1; i <= maxlvl; i++) {
+                for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
                     if (this.sorted_values['vert_l' + i].length) {
                         this.pos_subtot_is_top
                             ? this.sorted_values['vert_l' + i].unshift('__sub_total')
@@ -582,9 +640,6 @@
                             : this.sorted_values['hor_l' + i].push('__sub_total');
                     }
                 }
-
-                this.pivot.rows = this.groupViewedData(allvert, 'vert');
-                this.pivot.columns = this.groupViewedData(allhor, 'hor');
             },
             addZeroValues(allinput, key) {
                 key = key === 'vert' ? 'vert' : 'hor';
@@ -681,6 +736,12 @@
                 this.max_cell_len = res;
             },
             filterData(input) {
+                _.each(input, (el) => { //All data should be 'string' for correct working of grouping
+                    for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
+                        if (el['hor_l'+i] !== undefined) el['hor_l'+i] = String(el['hor_l'+i]);
+                        if (el['vert_l'+i] !== undefined) el['vert_l'+i] = String(el['vert_l'+i]);
+                    }
+                });
                 return _.filter(input, (el) => {
                     return to_float(el.y);
                 });
@@ -705,6 +766,8 @@
             this.currency = y_axis_col.f_type === 'Currency';
             this.dec = y_axis_col.f_size - parseInt(y_axis_col.f_size);
 
+            console.log('BIBIBIBI:', this);
+
             eventBus.$on('chart-export-button-click', this.chartExportButtonHandler);
         },
         beforeDestroy() {
@@ -725,6 +788,10 @@
             background-color: inherit !important;
             border-top: 2px solid #d3e0e9;
             border-left: 2px solid #d3e0e9;
+
+            .sorted_th {
+                cursor: pointer;
+            }
 
             td {
                 padding: 0 2px;

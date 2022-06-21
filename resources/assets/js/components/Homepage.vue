@@ -62,13 +62,13 @@
         mounted(){
             $('head title').html(this.$root.app_name+': Table + Data + Apps');
 
-            $('.mainbag').viewScroller({
-                loopMainViews: true,
-                animSpeedMainView: 1500,
-                afterChange: () => {
-                    this.hash = window.location.hash;
-                },
-            });
+            // $('.mainbag').viewScroller({
+            //     loopMainViews: false,
+            //     animSpeedMainView: 1500,
+            //     afterChange: () => {
+            //         this.hash = window.location.hash;
+            //     },
+            // });
 
             if (window.screen.width >= 768) {
                 this.data_link = this.init_link;

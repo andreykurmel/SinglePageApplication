@@ -16,19 +16,15 @@
 </template>
 
 <script>
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    export default {
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
+export default {
         name: "CustomCellInvitations",
         mixins: [
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -40,6 +36,7 @@
             }
         },
         props:{
+            tableMeta: Object,//style mixin
             tableHeader: Object,
             tableRow: Object,
             cellHeight: Number,
@@ -52,16 +49,12 @@
                 return $.inArray(item, array) > -1;
             },
             showField() {
-                let res = '';
-
                 if (this.tableHeader.field === 'rewarded') {
-                    res = (this.tableRow.status == 2 ? '$'+this.tableRow.rewarded : '$0');
+                    return (this.tableRow.status == 2 ? '$'+this.tableRow.rewarded : '$0');
                 }
                 else {
-                    res = this.tableRow[this.tableHeader.field];
+                    return SpecialFuncs.showhtml(this.tableHeader, this.tableRow, this.tableRow[this.tableHeader.field]);
                 }
-
-                return this.$root.strip_tags(res);
             },
         },
     }

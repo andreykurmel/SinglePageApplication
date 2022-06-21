@@ -3,10 +3,36 @@
 namespace Vanguard\Models\DataSetPermissions;
 
 use Illuminate\Database\Eloquent\Model;
+use Vanguard\Models\Dcr\TableDataRequestColumn;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\DataSetPermissions\TableColumnGroup
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property int $is_system
+ * @property string $name
+ * @property string|null $notes
+ * @property int|null $created_by
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string $modified_on
+ * @property \Vanguard\User|null $_created_user
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableField[] $_fields
+ * @property int|null $_fields_count
+ * @property \Vanguard\User|null $_modified_user
+ * @property \Vanguard\Models\Table\Table $_table
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Dcr\TableDataRequestColumn[] $_table_dcr_columns
+ * @property int|null $_table_dcr_columns_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionColumn[] $_table_permission_columns
+ * @property int|null $_table_permission_columns_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermission[] $_table_permissions
+ * @property int|null $_table_permissions_count
+ * @mixin \Eloquent
+ */
 class TableColumnGroup extends Model
 {
     protected $table = 'table_column_groups';
@@ -35,6 +61,10 @@ class TableColumnGroup extends Model
 
     public function _table_permission_columns() {
         return $this->hasMany(TablePermissionColumn::class, 'table_column_group_id', 'id');
+    }
+
+    public function _table_dcr_columns() {
+        return $this->hasMany(TableDataRequestColumn::class, 'table_column_group_id', 'id');
     }
 
     public function _table_permissions() {

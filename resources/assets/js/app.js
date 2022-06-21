@@ -20,6 +20,7 @@ Vue.component('homepage', require('./components/Homepage.vue'));
 Vue.component('static-pages', require('./components/Statics/StaticPages.vue'));
 Vue.component('print-table', require('./components/CustomTable/PrintTable.vue'));
 Vue.component('table-request-wrapper', require('./components/RequestDataWrapper.vue'));
+Vue.component('single-record-wrapper', require('./components/SingleRecordWrapper.vue'));
 Vue.component('get-started', require('./components/Statics/GetStarted.vue'));
 
 Vue.component('my-apps-page', require('./Applications/MyAppsPage.vue'));
@@ -31,7 +32,8 @@ Vue.component('stim-ma-json', require('./Applications/StimMaJson/StimMaJson.vue'
 Vue.component('stim-calculate-loads', require('./Applications/StimCalculateLoads/StimCalculateLoads.vue'));
 Vue.component('payment-processing-page', require('./Applications/PaymentProcessing/PaymentProcessingPage.vue'));
 
-import ThemeStyleMixin from './global_mixins/ThemeStyleMixin';
+import ThemeStyleMixin from './global_mixins/ThemeStyleMixin.vue';
+import AutologoutMixin from './global_mixins/AutologoutMixin.vue';
 
 import {SpecialFuncs} from './classes/SpecialFuncs';
 import {DataReverser} from './classes/DataReverser';
@@ -76,14 +78,18 @@ window.addEventListener("load", function(event) {
     const app = new Vue({
         el: '#app',
         mixins: [
-            ThemeStyleMixin
+            ThemeStyleMixin,
+            AutologoutMixin,
         ],
         data: function () {
             return {
-                e__used: false,
                 ping_delay: 10000,
-                autologout_delay: 2000,
-                auto_logout_last_active: 0,
+                version_hash_delay: 3000,
+
+                last_checked_id: null,
+                all_checked_rows: false,
+                discourse_login_iframe: '',
+                e__used: false,
                 data_reverser: new DataReverser(),
                 debug: false,
                 is_dcr_page: false,
@@ -129,56 +135,13 @@ window.addEventListener("load", function(event) {
                     'name',
                     'is_lat_field',
                     'is_long_field',
-                    'map_find_street_field',
+                    /*'map_find_street_field',
                     'map_find_city_field',
                     'map_find_state_field',
                     'map_find_county_field',
-                    'map_find_zip_field',
+                    'map_find_zip_field',*/
                     'info_box',
                     'is_info_header_field',
-                ],
-                availableDisplayColumns: [
-                    'name',
-                    'filter',
-                    'filter_type',
-                    'popup_header',
-                    'is_floating',
-                    'header_background',
-                    'header_unit_ddl',
-                    'unit',
-                    'unit_ddl_id',
-                    'unit_display',
-                    'input_type',
-                    'is_uniform_formula',
-                    'ddl_id',
-                    'ddl_add_option',
-                    'ddl_auto_fill',
-                    'ddl_style',
-                    'min_width',
-                    'max_width',
-                    'width',
-                    'f_required',
-                    'tooltip',
-                    'tooltip_show',
-                    'placeholder_content',
-                    'placeholder_only_form',
-                    'show_history',
-                    'notes',
-                    'verttb_he_auto',
-                    'verttb_cell_height',
-                    'verttb_row_height',
-                    'col_align',
-                    'show_zeros',
-                    'default_stats',
-                    'is_show_on_board',
-                    'is_image_on_board',
-                    'is_unique_collection',
-                    'is_default_show_in_popup',
-                    'is_table_field_in_popup',
-                    'is_start_table_popup',
-                    'is_topbot_in_popup',
-                    'is_dcr_section',
-                    'is_search_autocomplete_display',
                 ],
                 availableInpsColumns: [
                     'name',
@@ -189,6 +152,10 @@ window.addEventListener("load", function(event) {
                     'ddl_add_option',
                     'ddl_auto_fill',
                     'ddl_style',
+                    'mirror_rc_id',
+                    'mirror_field_id',
+                    'mirror_part',
+                    'fetch_source_id',
                 ],
                 availableSettingsColumns: [
                     'name',
@@ -202,18 +169,8 @@ window.addEventListener("load", function(event) {
                     'placeholder_content',
                     'placeholder_only_form',
                     'notes',
-                    'verttb_he_auto',
-                    'verttb_cell_height',
-                    'verttb_row_height',
                     'default_stats',
-                    'is_show_on_board',
-                    'is_image_on_board',
                     'is_unique_collection',
-                    'is_default_show_in_popup',
-                    'is_table_field_in_popup',
-                    'is_start_table_popup',
-                    'is_topbot_in_popup',
-                    'is_dcr_section',
                     'is_search_autocomplete_display',
                 ],
                 availableNotOwnerDisplayColumns: [
@@ -230,9 +187,28 @@ window.addEventListener("load", function(event) {
                     'col_align',
                     'show_zeros',
                 ],
+                availablePopupDisplayColumns: [
+                    'name',
+                    'fld_display_name',
+                    'fld_display_value',
+                    'fld_display_border',
+                    'is_topbot_in_popup',
+                    'verttb_he_auto',
+                    'verttb_cell_height',
+                    'verttb_row_height',
+                    'is_show_on_board',
+                    'is_image_on_board',
+                    'image_display_view',
+                    'image_display_fit',
+                    'is_default_show_in_popup',
+                    'is_table_field_in_popup',
+                    'is_start_table_popup',
+                    'is_dcr_section',
+                ],
                 systemFields: [
                     'id',
                     'row_hash',
+                    'static_hash',
                     'row_order',
                     'refer_tb_id',
                     'request_id',
@@ -243,6 +219,7 @@ window.addEventListener("load", function(event) {
                 ],
                 systemFieldsNoId: [
                     'row_hash',
+                    'static_hash',
                     'row_order',
                     'refer_tb_id',
                     'request_id',
@@ -253,15 +230,16 @@ window.addEventListener("load", function(event) {
                 ],
                 columnSettRadioFields: columnSettRadioFields,
                 ddlInputTypes: ['S-Select','S-Search','S-SS','M-Select','M-Search','M-SS'],
+                isSafari: false,
+                isIphone: false,
                 app_url: '',
                 app_name: '',
                 clear_url: '',
                 app_domain: '',
-                color_palette: [],
-                temp_filters: [],
+                color_palette: { 1:'', 2:'', 3:'', 4:'', 5:'', 6:'', 7:'', 8:'' },
 
-                cellHeight: Number(Cookies.get('cell_height')) || 1,
-                maxCellRows: Number(Cookies.get('max_cell_rows')) || 1,
+                cellHeight: 1,
+                maxCellRows: 0,
                 fullWidthCell: Boolean(Cookies.get('full_width_cell') == 1),
 
                 allShowed: false,
@@ -271,6 +249,8 @@ window.addEventListener("load", function(event) {
                 user: {},
 
                 settingsMeta: {},
+                metaDcrObject: {},
+                metaSrvObject: {},
 
                 filters: [],
                 rowPerPage: 0,
@@ -330,6 +310,28 @@ window.addEventListener("load", function(event) {
             },
         },
         methods: {
+            inArray(item, array) {
+                return $.inArray(item, array) > -1;
+            },
+            inArraySys(item, array) {
+                let concated = _.concat(this.systemFields, array);
+                return $.inArray(item, concated) > -1;
+            },
+            checkedRowObject(allRows) {
+                let rows_ids = [];
+                let all_rows_checked = this.all_checked_rows;
+                _.each(allRows, (row) => {
+                    if (row._checked_row) {
+                        rows_ids.push(row.id);
+                    } else {
+                        all_rows_checked = false;
+                    }
+                });
+                return {
+                    rows_ids: rows_ids,
+                    all_checked: all_rows_checked,
+                };
+            },
             fileUrl(file_obj) {
                 let url = file_obj.filehash || file_obj.url;
                 return this.clear_url
@@ -358,20 +360,55 @@ window.addEventListener("load", function(event) {
             in_array(key, arr) {
                 return in_array(key, arr);
             },
-            rcObj(tableRow, field, val) {
-                return SpecialFuncs.rcObj(tableRow, field, val);
-            },
             rcShow(tableRow, field) {
-                return this.rcObj(tableRow, field, tableRow[field]).show_val || tableRow[field];
+                return SpecialFuncs.rcObj(tableRow, field, tableRow[field]).show_val || tableRow[field];
             },
             //togglers
-            changeCellHeight(val) {
-                this.cellHeight = val;
-                SpecialFuncs.set_cookie('cell_height', val);
+            setTextRowSett(tableMeta) {
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    this.cellHeight = Number(tableMeta._cur_settings.cell_height)
+                        || Number(readLocalStorage('local_cell_height'))
+                        || 1;
+                    this.maxCellRows = Number(tableMeta._cur_settings.max_cell_rows)
+                        || Number(readLocalStorage('local_max_cell_rows'))
+                        || 0;
+                }
             },
-            changeMaxCellRows(val) {
+            changeCellHeight(val, tableMeta) {
+                this.cellHeight = val;
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    tableMeta._cur_settings.cell_height = val;
+                }
+                this.updateTbUserSetts(tableMeta, 'local_cell_height', val);
+            },
+            changeMaxCellRows(val, tableMeta) {
                 this.maxCellRows = val;
-                SpecialFuncs.set_cookie('max_cell_rows', val);
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    tableMeta._cur_settings.max_cell_rows = val;
+                }
+                this.updateTbUserSetts(tableMeta, 'local_max_cell_rows', val);
+            },
+            changeLeftMenuWi(val, tableMeta) {
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    tableMeta._cur_settings.left_menu_width = val;
+                }
+                this.updateTbUserSetts(tableMeta, 'local_left_menu_width', val);
+            },
+            changeStimFilterWi(val, tableMeta) {
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    tableMeta._cur_settings.stim_filter_width = val;
+                }
+                this.updateTbUserSetts(tableMeta, 'local_stim_filter_width', val);
+            },
+            chckMetaSetts(tableMeta) {
+                if (tableMeta && !tableMeta._cur_settings) {
+                    tableMeta._cur_settings = { id:null };
+                }
             },
             fullWidthCellToggle() {
                 this.fullWidthCell = !this.fullWidthCell;
@@ -417,27 +454,28 @@ window.addEventListener("load", function(event) {
                     }
                 }*/
             },
-            checkAvailable(nonused, code, rows_count) {
-                if (this.user.is_admin) {
+            checkAvailable(out_user, code, rows_count) {
+                let user = out_user || this.user;
+                if (user.is_admin) {
                     return true;
                 }
 
                 //available if code=unlimited or param < code
                 if (code === 'q_tables' || code === 'row_table') {
 
-                    return !Number(this.user._available_features[code])
+                    return !Number(user._available_features[code])
                         ||
-                        rows_count < Number(this.user._available_features[code]);
+                        rows_count < Number(user._available_features[code]);
 
                 } else {
 
                     return (
-                            this.user._subscription.plan_code === 'basic'
+                            user._subscription.plan_code === 'basic'
                             ||
-                            this.user._subscription.left_days > 0
+                            user._subscription.left_days > 0
                         )
                         &&
-                        this.user._available_features[code];
+                        user._available_features[code];
 
                 }
             },
@@ -447,17 +485,14 @@ window.addEventListener("load", function(event) {
             convertToUTC(date, timezone, f_type = 'Date Time') {
                 return SpecialFuncs.convertToUTC(date, timezone, f_type);
             },
-            timeToLocal(time, timezone) {
-                return SpecialFuncs.timeToLocal(time, timezone);
-            },
-            timeToUTC(time, timezone) {
-                return SpecialFuncs.timeToUTC(time, timezone);
-            },
             uniqName(name) {
                 return name ? _.uniq( name.split(',') ).join(' ') : '';
             },
             strip_tags (input, allowed) {
                 return SpecialFuncs.strip_tags(input, allowed);
+            },
+            strip_danger_tags (input) {
+                return SpecialFuncs.strip_danger_tags(input);
             },
 
             //Required and Default Fields Check
@@ -553,7 +588,7 @@ window.addEventListener("load", function(event) {
                     Swal('Copied');
                 }
             },
-            
+
             //switch rows in popup
             anotherPopup(all_rows, row_id, is_next, openFunc) {
                 let idx = _.findIndex(all_rows, {id: Number(row_id)});
@@ -591,46 +626,39 @@ window.addEventListener("load", function(event) {
                 return SpecialFuncs.parseMsel(val);
             },
 
-            //autologout functions
-            refreshAutologout() {
-                this.auto_logout_last_active = Date.now();
-                //sync between tabs
-                SpecialFuncs.set_cookie('auto_logout_timer', Date.now());
-                SpecialFuncs.set_cookie('sync_page_autologout', 0);
-            },
-            checkAutologout() {
-                let last_active = to_float(Cookies.get('auto_logout_timer')) || to_float(this.auto_logout_last_active);
-                if (!last_active) {
-                    this.refreshAutologout();
-                }
-                else
-                if (this.user.id && !this.user.is_force_guested) {
-                    let logout_period = to_float(this.user.auto_logout || 30) * 60 * 1000;//ms
-                    if (logout_period < 60*1000) {
-                        logout_period = 60*1000;//min is 1minute
-                    }
-                    let last_act_time = to_float(last_active + logout_period);
-                    let timeOut = last_act_time - Date.now();
-                    if (last_act_time > 0 && timeOut < 0) {
-                        SpecialFuncs.set_cookie('sync_page_autologout', 1);
-                        Swal('logout');
-                        window.location = '/logout';
-                    }
-                }
-
-                let should_reload = Number(Cookies.get('sync_page_autologout'));
-                if (should_reload && this.user && this.user.id) {
-                    setTimeout(() => {
-                        SpecialFuncs.set_cookie('sync_page_autologout', 0);
-                        window.location.reload();
-                    }, this.autologout_delay+500);
-                }
-            },
-
 
             //UPDATE SETTINGS COLUMN
+            updateTbUserSetts(tableMeta, key, val) {
+                if (tableMeta && tableMeta.id && tableMeta._cur_settings && this.user && this.user.id) {
+                    axios.post('/ajax/settings/data/just_user_setts', {
+                        table_id: tableMeta.id,
+                        datas: tableMeta._cur_settings,
+                    }).then(({data}) => {
+                        tableMeta._cur_settings = data._cur_settings;
+                    }).catch(errors => {
+                        Swal('', getErrors(errors));
+                    });
+                } else {
+                    setLocalStorage(key, val);
+                }
+            },
             updateSettingsColumn(tableMeta, tableRow) {
-                if (this.user && this.user.id) {
+                let promise = null;
+                //add/remove filter on front-end
+                if ($.inArray(tableRow._changed_field, ['filter']) > -1) {
+                    _.each(tableMeta._fields, (fld) => {
+                        if (fld.filter) {
+                            if (!_.find(this.$root.filters, {id: Number(fld.id)})) {
+                                this.$root.filters.push({id: fld.id, field: fld.field, filter_type: fld.filter_type});
+                            }
+                        } else {
+                            this.$root.filters = _.filter(this.$root.filters, (el) => { return el.id != fld.id; });
+                        }
+                    });
+                }
+
+                //save data and emit events
+                if (this.user && this.user.id && !this.user.see_view) {
 
                     let noswal = tableRow[tableRow._changed_field]
                         && $.inArray(tableRow._changed_field, ['is_gantt_main_group','is_gantt_parent_group']) > -1
@@ -643,37 +671,42 @@ window.addEventListener("load", function(event) {
                         : [];
 
                     this.sm_msg_type = 1;
-                    axios.put('/ajax/settings/data', {
-                        table_field_id: tableRow.id,
-                        field: tableRow._changed_field,
-                        val: tableRow[tableRow._changed_field],
-                        visible_rows: vis_rows,
-                    }).then(({ data }) => {
-                        if ($.inArray(tableRow._changed_field, this.columnSettRadioFields) > -1)
-                        {
-                            eventBus.$emit('reload-meta-tb__fields');
-                        }
-                        if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type']) > -1)
-                        {
-                            eventBus.$emit('reload-filters');
-                        }
-                        if ($.inArray(tableRow._changed_field, ['is_floating']) > -1)
-                        {
-                            eventBus.$emit('clear-header-height');
-                        }
-                        //Gantt
-                        if ($.inArray(tableRow._changed_field, ['is_gantt_main_group','is_gantt_parent_group']) > -1 && tableRow[tableRow._changed_field] && !noswal)
-                        {
-                            Swal('No additional column allowed for levelled header.');
-                        }
-                        let idx = _.findIndex(tableMeta._fields, {id: tableRow.id});
-                        if (idx > -1 && data.fld) {
-                            this.$set(tableMeta._fields, idx, {...tableRow, ...data.fld});
-                        }
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.sm_msg_type = 0;
+                    promise = new Promise((resolve) => {
+
+                        axios.put('/ajax/settings/data', {
+                            table_field_id: tableRow.id,
+                            field: tableRow._changed_field,
+                            val: tableRow[tableRow._changed_field],
+                            visible_rows: vis_rows,
+                        }).then(({ data }) => {
+                            if ($.inArray(tableRow._changed_field, this.columnSettRadioFields) > -1)
+                            {
+                                eventBus.$emit('reload-meta-tb__fields');
+                            }
+                            if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type']) > -1)
+                            {
+                                eventBus.$emit('reload-filters', tableMeta.id);
+                            }
+                            if ($.inArray(tableRow._changed_field, ['is_floating']) > -1)
+                            {
+                                eventBus.$emit('clear-header-height');
+                            }
+                            //Gantt
+                            if ($.inArray(tableRow._changed_field, ['is_gantt_main_group','is_gantt_parent_group']) > -1 && tableRow[tableRow._changed_field] && !noswal)
+                            {
+                                Swal('No additional column allowed for levelled header.');
+                            }
+                            let idx = _.findIndex(tableMeta._fields, {id: tableRow.id});
+                            if (idx > -1 && data.fld) {
+                                this.$set(tableMeta._fields, idx, {...tableRow, ...data.fld});
+                            }
+                            resolve(data);
+                        }).catch(errors => {
+                            Swal('', getErrors(errors));
+                        }).finally(() => {
+                            this.sm_msg_type = 0;
+                        });
+
                     });
 
                     if (tableRow._changed_field === 'unit_ddl_id') {
@@ -684,17 +717,15 @@ window.addEventListener("load", function(event) {
                 } else {
                     if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type']) > -1)
                     {
-                        this.temp_filters = _.filter(this.tableMeta._fields, (el) => { return el.filter; });
-                        this.temp_filters = _.map(this.temp_filters, (el) => {
-                            return {id: el.id, filter_type: el.filter_type};
-                        });
-                        eventBus.$emit('reload-filters');
+                        eventBus.$emit('reload-filters', tableMeta.id);
                     }
                     if ($.inArray(tableRow._changed_field, ['is_floating']) > -1)
                     {
                         eventBus.$emit('clear-header-height');
                     }
                 }
+
+                return promise || new Promise((resolve) => { resolve(); });
             },
             //create empty obj
             emptyObject() {
@@ -708,6 +739,20 @@ window.addEventListener("load", function(event) {
                 }
                 obj._temp_id = uuidv4();
                 return obj;
+            },
+            assignObject(from, to) {
+                _.each(from, (val, key) => {
+                    if (key !== 'id') {
+                        this.$set(to, key, val);
+                    }
+                });
+            },
+            justObject(from, to) {
+                _.each(from, (val, key) => {
+                    if (key[0] !== '_') {
+                        to[key] = val;
+                    }
+                });
             },
 
             //event is used in Previous handler.
@@ -755,8 +800,8 @@ window.addEventListener("load", function(event) {
 
             //Availability of Addons.
             AddonAvailableToUser(tableMeta, code, value) {
-                return (this.userHasAddon(code) || !this.user.id)
-                    && (tableMeta._is_owner || this.findAddonRight(tableMeta, code, value));
+                return (this.userHasAddon(code) || this.user.see_view) // User has subscription OR he is viewing 'View'
+                    && (tableMeta._is_owner || this.findAddonRight(tableMeta, code, value)); // Owner OR has Permission rights
             },
             userHasAddon(code) {
                 let res = false;
@@ -775,6 +820,58 @@ window.addEventListener("load", function(event) {
                     }
                 });
                 return present;
+            },
+            saveDiscourse() {
+                try {
+                    document.cookie = '_discourse_sso=' + document.getElementById('discourse_iframe').contentWindow.location.search;
+                } catch (e) {
+                    console.log(e);
+                }
+            },
+            attachFileToRow(tRow, tHeader, uFile) {
+                let row_images = tRow['_images_for_'+tHeader.field];
+                let row_files = tRow['_files_for_'+tHeader.field];
+
+                //add uploaded file to the row
+                if (uFile.is_img) {
+                    (row_images ? row_images.push(uFile) : this.$set(tRow, '_images_for_'+tHeader.field, [uFile]));
+                } else {
+                    (row_files ? row_files.push(uFile) : this.$set(tRow, '_files_for_'+tHeader.field, [uFile]));
+                }
+
+                if (tHeader) {
+                    tRow[tHeader.field] = uFile.filepath + uFile.filename;
+                }
+            },
+            getImagesFromClipboard(e) {
+                let images = [];
+                _.each(e.clipboardData ? e.clipboardData.items : [], (item) => {
+                    if (item.type.indexOf('image') != -1) {
+                        images.push(item.getAsFile());
+                    }
+                });
+                return images;
+            },
+            //COLORS
+            loadColorPalette() {
+                let palette = readLocalStorage('user_color_palette');
+                palette = palette ? JSON.parse(palette) : [];
+                _.each(this.color_palette, (val, key) => {
+                    this.color_palette[key] = palette[key] || val;
+                });
+            },
+            saveColorToPalette(clr, idx) {
+                if (idx) {
+                    this.color_palette[idx] = clr;
+                } else {
+                    _.each(this.color_palette, (val, key) => {
+                        if (!val && clr) {
+                            this.color_palette[key] = clr;
+                            clr = '';
+                        }
+                    });
+                }
+                setLocalStorage('user_color_palette', JSON.stringify(this.color_palette));
             },
         },
         created() {
@@ -819,10 +916,7 @@ window.addEventListener("load", function(event) {
                 eventBus.$emit('global-keydown', e);
             });
 
-            let palette = Cookies.get('color_palette');
-            if (palette) {
-                this.color_palette = palette.split(',');
-            }
+            this.loadColorPalette();
 
             if (this.cellHeight > 5) {
                 this.changeCellHeight(1);
@@ -830,7 +924,7 @@ window.addEventListener("load", function(event) {
 
             //user state check
             setInterval(() => {
-                if (!this.debug && !this.user.is_force_guested) {
+                if (!localStorage.getItem('no_ping') && !this.user.is_force_guested) {
                     //check if user was logout from another terminal
                     axios.post('/user_state', {
                         app_user_id: this.user.id || 0,
@@ -855,6 +949,11 @@ window.addEventListener("load", function(event) {
                 }).then(() => {
                     window.location = '/data';
                 });
+            }
+
+            this.discourse_login_iframe = decodeURIComponent(Cookies.get('_discourse_login') || '');
+            if (this.discourse_login_iframe) {
+                document.cookie = '_discourse_login=';
             }
         }
     });

@@ -63,7 +63,7 @@
                     $(this.$refs.jstree).jstree('rename_node', this.assigned_node, new_name);
 
                     //set new View in assigned
-                    if ($view) {
+                    if ($view && this.assigned_views) {
                         let assigned_view = _.find(this.assigned_views, {table_id: Number(this.table_id)});
                         if (assigned_view) {
                             assigned_view.name = $view.name;

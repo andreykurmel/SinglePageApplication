@@ -26,18 +26,18 @@
                                value="{{ Input::get('search') }}"
                                placeholder="@lang('app.search_for_users')">
 
-                            <span class="input-group-append">
-                                @if (Input::has('search') && Input::get('search') != '')
-                                    <a href="{{ route('user.list') }}"
-                                           class="btn btn-light d-flex align-items-center text-muted"
-                                           role="button">
-                                        <i class="fas fa-times"></i>
-                                    </a>
-                                @endif
-                                <button class="btn btn-light" type="submit" id="search-users-btn">
-                                    <i class="fas fa-search text-muted"></i>
-                                </button>
-                            </span>
+                        <span class="input-group-append">
+                            @if (Input::has('search') && Input::get('search') != '')
+                                <a href="{{ route('user.list') }}"
+                                       class="btn btn-light d-flex align-items-center text-muted"
+                                       role="button">
+                                    <i class="fas fa-times"></i>
+                                </a>
+                            @endif
+                            <button class="btn btn-light" type="submit" id="search-users-btn">
+                                <i class="fas fa-search text-muted"></i>
+                            </button>
+                        </span>
                     </div>
                 </div>
 

@@ -2,9 +2,8 @@
 
 namespace Vanguard\Listeners\Registration;
 
-use Illuminate\Support\Facades\Mail;
 use Vanguard\Events\User\Confirmed;
-use Vanguard\Mail\TabldaMail;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Repositories\User\UserRepository;
 
 class SendThankConfirmationEmail
@@ -22,12 +21,12 @@ class SendThankConfirmationEmail
     /**
      * Handle the event.
      *
-     * @param  Confirmed  $event
+     * @param Confirmed $event
      * @return void
      */
     public function handle(Confirmed $event)
     {
-        if (! settings('reg_email_confirmation')) {
+        if (!settings('reg_email_confirmation')) {
             return;
         }
 
@@ -37,9 +36,14 @@ class SendThankConfirmationEmail
             'from.account' => 'noreply',
             'subject' => sprintf("%s", trans('app.confirmation_thank')),
             //'subject' => sprintf("[%s] %s", settings('app_name'), trans('app.confirmation_thank')),
-            'to.address' => $user->email
+            'to.address' => $user->email,
         ];
 
-        Mail::to($user->email)->queue( new TabldaMail('tablda.emails.confirm-thank', [], $params) );
+        $data = [
+            'greeting' => 'Hello, ' . $user->username . ':',
+        ];
+
+        $mailer = new EmailWithSettings('confirm_thank_to_user', $user->email);
+        $mailer->queue($params, $data);
     }
 }

@@ -21,11 +21,11 @@
 
         <!-- Controls -->
         <template v-if="images && images.length > 1">
-            <a class="left carousel-control" role="button" data-slide="prev" @click="prevSlide()">
+            <a class="left carousel-control" role="button" data-slide="prev" @click.stop.prevent="prevSlide()">
                 <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
                 <span class="sr-only">Previous</span>
             </a>
-            <a class="right carousel-control" role="button" data-slide="next" @click="nextSlide()">
+            <a class="right carousel-control" role="button" data-slide="next" @click.stop.prevent="nextSlide()">
                 <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
                 <span class="sr-only">Next</span>
             </a>

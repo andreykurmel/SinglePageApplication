@@ -3,18 +3,18 @@
         <div class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="col-xs-7 full-height" style="padding-right: 0;">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>List</span>
                 </div>
-                <div class="permissions-panel no-padding">
+                <div class="permissions-panel no-padding vert-panel-lg">
                     <custom-table
                             :cell_component_name="'custom-cell-table-view'"
                             :global-meta="tableMeta"
                             :table-meta="$root.settingsMeta['table_views']"
                             :all-rows="tableMeta._views"
                             :rows-count="tableMeta._views.length"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :is-full-width="true"
                             :user="$root.user"
                             :behavior="'table_views'"
@@ -22,18 +22,60 @@
                             :available-columns="tableViewAva"
                             :selected-row="selectedView"
                             :use_theme="true"
-                            :fixed_ddl_pos="true"
                             :no_height_limit="true"
+                            :with_edit="!!canEditView"
                             @added-row="insertStart"
                             @updated-row="updateStart"
                             @delete-row="deleteStart"
                             @row-index-clicked="rowIndexClickedView"
                     ></custom-table>
                 </div>
+                <div class="top-text" :style="textSysStyle">
+                    <span>Additional Details of View: <span>{{ (selectedView > -1 && tableMeta._views[selectedView] ? tableMeta._views[selectedView].name : '') }}</span></span>
+                </div>
+                <div class="permissions-panel vert-panel-sm">
+                    <div class="full-frame" :style="textSysStyle">
+                        <template v-if="selectedView > -1 && tableMeta._views[selectedView]">
+                            <div><label style="font-size: 1.4em;">Filtering</label></div>
+                            <div class="flex flex--center form-group" style="justify-content: left;">
+                                <label class="switch_t" style="margin: 0 10px 0 0;">
+                                    <input type="checkbox"
+                                           :disabled="!canEditView"
+                                           v-model="tableMeta._views[selectedView].view_filtering"
+                                           @change="updateStart(tableMeta._views[selectedView])">
+                                    <span class="toggler round" :class="{'disabled': !canEditView}"></span>
+                                </label>
+                                <span style="font-size: 1.2em;">Ask for inputs and apply filters to records for loading the view.</span>
+                            </div>
+                            <div v-if="tableMeta._views[selectedView].view_filtering" class="params-wrapper border-gray" style="height: calc(100% - 125px);">
+                                <custom-table
+                                        :cell_component_name="'custom-cell-table-view'"
+                                        :global-meta="tableMeta"
+                                        :table-meta="$root.settingsMeta['table_view_filtering']"
+                                        :all-rows="tableMeta._views[selectedView]._filtering"
+                                        :rows-count="tableMeta._views[selectedView]._filtering.length"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
+                                        :is-full-width="true"
+                                        :behavior="'table_views'"
+                                        :user="$root.user"
+                                        :adding-row="addingRow"
+                                        :use_theme="true"
+                                        @added-row="addFilteringHandler"
+                                        @updated-row="updateFilteringHandler"
+                                        @delete-row="deleteFilteringHandler"
+                                ></custom-table>
+                            </div>
+                            <div>
+                                <span style="font-size: 1.2em; justify-content: left;">Only records with the values for fields meeting the criteria comparing with entered or selected values for the fields will be loaded.</span>
+                            </div>
+                        </template>
+                    </div>
+                </div>
             </div>
             <!--RIGHT SIDE-->
             <div class="col-xs-5 full-height">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>Additional Details of View: <span>{{ (selectedView > -1 && tableMeta._views[selectedView] ? tableMeta._views[selectedView].name : '') }}</span></span>
                 </div>
                 <div class="permissions-panel full-frame">
@@ -45,44 +87,14 @@
                                 :settings-meta="$root.settingsMeta"
                                 :table-row="tableMeta._views[selectedView]"
                                 :user="$root.user"
-                                :fixed_ddl_pos="true"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :behavior="'table_views'"
                                 :available-columns="colViewAvailable"
                                 :no_height_limit="true"
                                 :widths="{name: '35%', col: '65%', history: 0, no_margins: true}"
                                 @updated-cell="updateStart"
                         ></vertical-table>
-                        <div><label style="font-size: 1.4em;">Filtering</label></div>
-                        <div class="flex flex--center form-group" style="justify-content: left;">
-                            <label class="switch_t" style="margin: 0 10px 0 0;">
-                                <input type="checkbox" v-model="tableMeta._views[selectedView].view_filtering" @change="updateStart(tableMeta._views[selectedView])">
-                                <span class="toggler round"></span>
-                            </label>
-                            <span style="font-size: 1.2em;">Ask for inputs and apply filters to records for loading the view.</span>
-                        </div>
-                        <div v-if="tableMeta._views[selectedView].view_filtering" class="params-wrapper">
-                            <custom-table
-                                    :cell_component_name="'custom-cell-table-view'"
-                                    :global-meta="tableMeta"
-                                    :table-meta="$root.settingsMeta['table_view_filtering']"
-                                    :all-rows="tableMeta._views[selectedView]._filtering"
-                                    :rows-count="tableMeta._views[selectedView]._filtering.length"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
-                                    :is-full-width="true"
-                                    :fixed_ddl_pos="true"
-                                    :behavior="'table_views'"
-                                    :user="$root.user"
-                                    :adding-row="addingRow"
-                                    :use_theme="true"
-                                    @added-row="addFilteringHandler"
-                                    @updated-row="updateFilteringHandler"
-                                    @delete-row="deleteFilteringHandler"
-                            ></custom-table>
-                            <span style="font-size: 1.2em; justify-content: left;">Only records with the values for fields meeting the criteria comparing with entered or selected values for the fields will be loaded.</span>
-                        </div>
                     </template>
                 </div>
             </div>
@@ -91,10 +103,12 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../../app';
+    import {eventBus} from '../../../../../app';
 
     import CustomTable from '../../../../CustomTable/CustomTable';
     import VerticalTable from "../../../../CustomTable/VerticalTable";
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "TableViewModule",
@@ -102,10 +116,13 @@
             VerticalTable,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 curFlash: '',
-                selectedView: -1,
+                selectedView: 0,
                 addingRow: {
                     active: this.tableMeta._is_owner || (this.tableMeta._current_right && this.tableMeta._current_right.can_create_condformat),
                     position: 'bottom'
@@ -115,17 +132,20 @@
                     'name',
                     'parts_avail',
                     'parts_default',
-                    'row_group_id',
-                    'col_group_id',
                     'access_permission_id',
                 ],
                 colViewAvailable: [
+                    'row_group_id',
+                    'col_group_id',
+                    'can_show_srv',
                     'side_top',
                     'side_left_menu',
                     'side_left_filter',
                     'side_right',
                     'can_sorting',
                     'column_order',
+                    'can_filter',
+                    'can_hide',
                     'is_active',
                     '_embd',
                     'is_locked',
@@ -136,6 +156,13 @@
         props:{
             tableMeta: Object,
             table_id: Number|null,
+        },
+        computed: {
+            canEditView() {
+                return this.tableMeta._is_owner
+                    || // OR user with available rights for add View
+                    (this.tableMeta._current_right && this.tableMeta._current_right.can_create_view);
+            }
         },
         watch: {
             table_id: function(val) {
@@ -162,6 +189,14 @@
                 }
                 if (row._changed_field == 'column_order' && row.column_order) {
                     this.curFlash = 'Current column order saved to the view.';
+                    this.$emit('flash-msg', this.curFlash, true);
+                }
+                if (row._changed_field == 'can_filter' && row.can_filter) {
+                    this.curFlash = 'Current filters saved to the view.';
+                    this.$emit('flash-msg', this.curFlash, true);
+                }
+                if (row._changed_field == 'can_hide' && row.can_hide) {
+                    this.curFlash = 'Current XGrps visibility saved to the view.';
                     this.$emit('flash-msg', this.curFlash, true);
                 }
                 eventBus.$emit('global-get-view-object', '', 'update');
@@ -204,10 +239,6 @@
                     view_id: this.viewRow.id,
                     fields: fields,
                 }).then(({ data }) => {
-                    let path = window.location.href.replace(/\?view=.*/gi, '?view='+this.viewRow.name);
-                    if (path !== window.location.href) {
-                        window.history.pushState(this.viewRow.name, this.viewRow.name, path);
-                    }
                     //from ListView --- this.getTableData('page');
                 }).catch(errors => {
                     Swal('', getErrors(errors));
@@ -304,4 +335,22 @@
 
 <style lang="scss" scoped>
     @import "./TabSettingsPermissions";
+
+    .vert-panel-sm {
+        height: calc(50% - 30px) !important;
+        background-color: #FFF;
+    }
+    .vert-panel-lg {
+        height: calc(50% - 35px) !important;
+        background-color: #FFF;
+    }
+    .permissions-tab {
+        .permissions-panel {
+            .permissions-menu-body {
+                div {
+                    border: none;
+                }
+            }
+        }
+    }
 </style>

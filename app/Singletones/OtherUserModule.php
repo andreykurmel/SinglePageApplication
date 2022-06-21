@@ -20,7 +20,5 @@ class OtherUserModule extends AuthUserModule
         $this->user = $user_id
             ? User::find($user_id)
             : new User();
-
-        $this->menuTreeModule = new MenuTreeModule($this);
     }
 }

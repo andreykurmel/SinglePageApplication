@@ -1,0 +1,30 @@
+#Calc Node Values
+Calculation of Node positions.
+
+Must be: correspondence_apps.code = calc_node_values
+
+Works on CorrespondenceTables.
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    App,Array: 'params'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        name, //String
+        value, //Float
+    ]
+
+    App,Array: 'nodes'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        node_name, //String
+        restrict, //0,1
+        node_x, //Float
+        node_y, //Float
+        node_z, //Float
+    ]

@@ -2,9 +2,10 @@
 
 namespace Vanguard\Models\DataSetPermissions;
 
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableAlert;
+use Vanguard\Models\Table\TableAlertRight;
 use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableChartRight;
 use Vanguard\Models\Table\TableField;
@@ -17,6 +18,118 @@ use Vanguard\Models\User\UserGroup2TablePermission;
 use Vanguard\Singletones\AuthUserSingleton;
 use Vanguard\User;
 
+
+/**
+ * Vanguard\Models\DataSetPermissions\TablePermission
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property string|null $name
+ * @property string|null $notes
+ * @property int $can_add
+ * @property int $can_delete
+ * @property string $can_download
+ * @property int $can_see_history
+ * @property int $can_reference
+ * @property int $can_public_copy
+ * @property int $referencing_shared
+ * @property int $can_create_view
+ * @property int $can_create_condformat
+ * @property int $hide_folder_structure
+ * @property int $is_system
+ * @property int $can_see_datatab
+ * @property string $datatab_methods
+ * @property int $datatab_only_append
+ * @property int $can_edit_tb
+ * @property int $can_drag_rows
+ * @property int $enforced_theme
+ * @property int $can_drag_columns
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\Addon[] $_addons
+ * @property-read int|null $_addons_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableAlertRight[] $_alert_rights
+ * @property-read int|null $_alert_rights_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableAlert[] $_alerts
+ * @property-read int|null $_alerts_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableChartRight[] $_chart_rights
+ * @property-read int|null $_chart_rights_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableChart[] $_charts
+ * @property-read int|null $_charts_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TableColumnGroup[] $_column_groups
+ * @property-read int|null $_column_groups_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\CondFormat[] $_cond_formats
+ * @property-read int|null $_cond_formats_count
+ * @property-read \Vanguard\User $_created_user
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_addressee_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_bcc_email_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_cc_email_field
+ * @property-read \Vanguard\Models\DataSetPermissions\TableColumnGroup|null $_dcr_email_col_group
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_email_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_save_addressee_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_save_bcc_email_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_save_cc_email_field
+ * @property-read \Vanguard\Models\DataSetPermissions\TableColumnGroup|null $_dcr_save_email_col_group
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_save_email_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_upd_addressee_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_upd_bcc_email_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_upd_cc_email_field
+ * @property-read \Vanguard\Models\DataSetPermissions\TableColumnGroup|null $_dcr_upd_email_col_group
+ * @property-read \Vanguard\Models\Table\TableField|null $_dcr_upd_email_field
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionDefaultField[] $_default_fields
+ * @property-read int|null $_default_fields_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionForbidSettings[] $_forbid_settings
+ * @property-read int|null $_forbid_settings_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableFieldLinkToDcr[] $_link_limits
+ * @property-read int|null $_link_limits_count
+ * @property-read \Vanguard\User $_modified_user
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionColumn[] $_permission_columns
+ * @property-read int|null $_permission_columns_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionRow[] $_permission_rows
+ * @property-read int|null $_permission_rows_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TableRowGroup[] $_row_groups
+ * @property-read int|null $_row_groups_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermissionRow[] $_row_links
+ * @property-read int|null $_row_links_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup2TablePermission[] $_shared_tables
+ * @property-read int|null $_shared_tables_count
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup[] $_user_groups
+ * @property-read int|null $_user_groups_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableViewRight[] $_view_rights
+ * @property-read int|null $_view_rights_count
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableView[] $_views
+ * @property-read int|null $_views_count
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission applyIsActiveForUserOrPermission($table_permission_id = null, $visitor_scope = true)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission isActiveForSelectedUser($user_id)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission isActiveForUser()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission isActiveForUserOrVisitor()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission isActiveForVisitor()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanAdd($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanCreateCondformat($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanCreateView($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanDelete($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanDownload($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanDragColumns($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanDragRows($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanEditTb($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanPublicCopy($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanReference($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanSeeDatatab($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereCanSeeHistory($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereDatatabMethods($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereDatatabOnlyAppend($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereEnforcedTheme($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereHideFolderStructure($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereIsSystem($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereReferencingShared($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DataSetPermissions\TablePermission whereTableId($value)
+ * @mixin \Eloquent
+ */
 class TablePermission extends Model
 {
     protected $table = 'table_permissions';
@@ -26,164 +139,37 @@ class TablePermission extends Model
     protected $fillable = [
         'is_system',
         'table_id',
-        'active',
         'name',
         'notes',
         'can_add',
-        'can_download',// string of 7 digits '0110000' -> ['print','csv','pdf','xls','json','xml','png']
+        'can_download', // string of 7 digits '0110000' -> ['print','csv','pdf','xls','json','xml','png']
         'can_see_history',
-        'can_reference',
-        'referencing_shared',
+        'can_reference', // table available for using in DDL by Collaborators
+        'can_public_copy',
+        'referencing_shared', // Collaborator can apply RefCondition with this table
         'can_create_view',
         'can_create_condformat',
         'can_see_datatab',
         'can_edit_tb',
         'can_drag_rows',
         'can_drag_columns',
-        'datatab_methods',// string of 6 digits '011000' -> ['scratch','csv','mysql','remote','reference','paste']
+        'hide_folder_structure',
+        'datatab_methods', // string of 6 digits '011000' -> ['scratch','csv','mysql','remote','reference','paste']
         'datatab_only_append',
-        'link_hash',
-        'pass',
-        'row_request',
-        'is_request',
-        'user_link',
         'enforced_theme',
-        'dcr_hash',
-
-        'dcr_sec_background_by',
-        'dcr_sec_scroll_style',
-        'dcr_sec_line_top',
-        'dcr_sec_line_bot',
-        'dcr_sec_line_color',
-        'dcr_sec_line_thick',
-        'dcr_sec_bg_top',
-        'dcr_sec_bg_bot',
-        'dcr_sec_bg_img',
-        'dcr_sec_bg_img_fit',
-
-        'dcr_title',
-        'dcr_title_width',
-        'dcr_title_height',
-        'dcr_title_bg_color',
-        'dcr_title_font_type',
-        'dcr_title_font_size',
-        'dcr_title_font_color',
-        'dcr_title_font_style',
-        'dcr_title_bg_img',
-        'dcr_title_bg_fit',
-        'dcr_title_background_by',
-
-        'dcr_form_line_type',// ['line','space']
-        'dcr_form_line_top',
-        'dcr_form_line_bot',
-        'dcr_form_line_thick',
-        'dcr_form_line_radius',
-        'dcr_form_line_color',
-        'dcr_form_bg_color',
-        'dcr_form_transparency',
-        'dcr_form_message',
-        'dcr_form_message_font',
-        'dcr_form_message_size',
-        'dcr_form_message_color',
-        'dcr_form_message_style',
-        'dcr_form_width',
-        'dcr_form_shadow',
-        'dcr_form_shadow_color',
-        'dcr_form_shadow_dir',
-
-        'one_per_submission',
-        'dcr_record_status_id',
-        'dcr_record_url_field_id',
-        'dcr_record_allow_unfinished',
-        'dcr_record_visibility_id',
-        'dcr_record_visibility_def',
-        'dcr_record_editability_id',
-        'dcr_record_editability_def',
-
-        //submission
-        'dcr_confirm_msg',
-        'dcr_email_field_id',
-        'dcr_email_field_static',
-        'dcr_email_subject',
-        'dcr_addressee_field_id',
-        'dcr_addressee_txt',
-        'dcr_email_message',
-        'dcr_email_format',
-        'dcr_email_col_group_id',
-        //save
-        'dcr_save_confirm_msg',
-        'dcr_save_email_field_id',
-        'dcr_save_email_field_static',
-        'dcr_save_email_subject',
-        'dcr_save_addressee_field_id',
-        'dcr_save_addressee_txt',
-        'dcr_save_email_message',
-        'dcr_save_email_format',
-        'dcr_save_email_col_group_id',
-        //update
-        'dcr_upd_confirm_msg',
-        'dcr_upd_email_field_id',
-        'dcr_upd_email_field_static',
-        'dcr_upd_email_subject',
-        'dcr_upd_addressee_field_id',
-        'dcr_upd_addressee_txt',
-        'dcr_upd_email_message',
-        'dcr_upd_email_format',
-        'dcr_upd_email_col_group_id',
     ];
 
-    /**
-     * @var array
-     */
-    public $design_tab = [
-        'dcr_sec_background_by',
-        'dcr_sec_scroll_style',
-        'dcr_sec_line_top',
-        'dcr_sec_line_bot',
-        'dcr_sec_line_color',
-        'dcr_sec_line_thick',
-        'dcr_sec_bg_top',
-        'dcr_sec_bg_bot',
-        'dcr_sec_bg_img',
-        'dcr_sec_bg_img_fit',
-
-        'dcr_title',
-        'dcr_title_width',
-        'dcr_title_height',
-        'dcr_title_bg_color',
-        'dcr_title_font_type',
-        'dcr_title_font_size',
-        'dcr_title_font_color',
-        'dcr_title_font_style',
-        'dcr_title_bg_img',
-        'dcr_title_bg_fit',
-        'dcr_title_background_by',
-
-        'dcr_form_line_type',// ['line','space']
-        'dcr_form_line_top',
-        'dcr_form_line_bot',
-        'dcr_form_line_thick',
-        'dcr_form_line_radius',
-        'dcr_form_line_color',
-        'dcr_form_bg_color',
-        'dcr_form_transparency',
-        'dcr_form_message',
-        'dcr_form_message_font',
-        'dcr_form_message_size',
-        'dcr_form_message_color',
-        'dcr_form_message_style',
-        'dcr_form_width',
-        'dcr_form_shadow',
-        'dcr_form_shadow_color',
-        'dcr_form_shadow_dir',
-    ];
 
     /**
+     * Permission is active for current User
+     *
+     * @param $builder
      * @return mixed
      */
-    public function getOwner()
+    public function scopeIsActiveForVisitor($builder)
     {
-        return $this->_table->_user;
+        $builder->where('table_permissions.is_system', 1);//applied permission for 'Visitor' if 'public' Table
+        return $builder;
     }
 
 
@@ -207,10 +193,7 @@ class TablePermission extends Model
      */
     public function scopeIsActiveForUserOrVisitor($builder) {
         return $builder->isActiveForUser() //user is member of userGroup
-            ->orWhere(function ($query) {
-                $query->where('table_permissions.is_request', 0);//is not request
-                $query->where('table_permissions.is_system', 1);//applied permission for 'Visitor' if 'public' Table
-            });
+            ->orWhere('table_permissions.is_system', 1);//applied permission for 'Visitor' if 'public' Table
     }
 
     /**
@@ -273,9 +256,6 @@ class TablePermission extends Model
     public function _permission_columns() {
         return $this->hasMany(TablePermissionColumn::class, 'table_permission_id', 'id');
     }
-    public function _column_links() {
-        return $this->hasMany(TablePermissionColumn::class, 'table_permission_id', 'id');
-    }
     //--------------------------
 
     //----- table row groups
@@ -310,11 +290,19 @@ class TablePermission extends Model
     public function _chart_rights() {
         return $this->hasMany(TableChartRight::class, 'table_permission_id', 'id');
     }
+    public function _alert_rights() {
+        return $this->hasMany(TableAlertRight::class, 'table_permission_id', 'id');
+    }
 
     public function _charts() {
         return $this->belongsToMany(TableChart::class, 'table_chart_rights', 'table_permission_id', 'table_chart_id')
             ->as('_pivot')
             ->withPivot(['can_edit']);
+    }
+    public function _alerts() {
+        return $this->belongsToMany(TableAlert::class, 'table_alert_rights', 'table_permission_id', 'table_alert_id')
+            ->as('_pivot')
+            ->withPivot(['can_edit','can_activate']);
     }
 
     public function _addons() {
@@ -339,6 +327,12 @@ class TablePermission extends Model
     public function _dcr_email_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_email_field_id');
     }
+    public function _dcr_cc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_cc_email_field_id');
+    }
+    public function _dcr_bcc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_bcc_email_field_id');
+    }
     public function _dcr_addressee_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_addressee_field_id');
     }
@@ -349,6 +343,12 @@ class TablePermission extends Model
     public function _dcr_save_email_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_save_email_field_id');
     }
+    public function _dcr_save_cc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_save_cc_email_field_id');
+    }
+    public function _dcr_save_bcc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_save_bcc_email_field_id');
+    }
     public function _dcr_save_addressee_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_save_addressee_field_id');
     }
@@ -358,6 +358,12 @@ class TablePermission extends Model
     //update
     public function _dcr_upd_email_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_upd_email_field_id');
+    }
+    public function _dcr_upd_cc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_upd_cc_email_field_id');
+    }
+    public function _dcr_upd_bcc_email_field() {
+        return $this->hasOne(TableField::class, 'id', 'dcr_upd_bcc_email_field_id');
     }
     public function _dcr_upd_addressee_field() {
         return $this->hasOne(TableField::class, 'id', 'dcr_upd_addressee_field_id');

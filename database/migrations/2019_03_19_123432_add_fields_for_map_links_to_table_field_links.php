@@ -18,6 +18,7 @@ class AddFieldsForMapLinksToTableFieldLinks extends Migration
             $table->unsignedInteger('link_field_lng')->nullable();
             $table->unsignedInteger('link_field_address')->nullable();
             $table->string('web_prefix', 255)->nullable();
+            $table->unsignedInteger('hide_empty_web')->nullable();
 
             $table->foreign('link_field_lat', 'table_field_links__lat')
                 ->references('id')
@@ -52,6 +53,7 @@ class AddFieldsForMapLinksToTableFieldLinks extends Migration
             $table->dropColumn('link_field_lng');
             $table->dropColumn('link_field_address');
             $table->dropColumn('web_prefix');
+            $table->dropColumn('hide_empty_web');
         });
     }
 }

@@ -7,6 +7,7 @@ use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableView;
 use Vanguard\Models\Table\TableViewFiltering;
 use Vanguard\Models\Table\TableViewRight;
+use Vanguard\Repositories\Tablda\Permissions\TableColGroupRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Services\Tablda\HelperService;
 
@@ -37,24 +38,10 @@ class TableViewRepository
      * Get Table View By Hash.
      *
      * @param $hash
-     * @param bool $any_type
      * @return mixed
      */
-    public function getByHash($hash, $any_type = false) {
+    public function getByHash($hash) {
         return TableView::where('hash', '=', $hash)->first();
-        /*if (!$any_type) {
-            return TableView::where('hash', '=', $hash)
-                ->where(function ($v) {
-                    $v->where('is_active', 1);//active 'public access'
-                    $v->orWhere('user_id', auth()->id());//or is owner
-                    $v->orWhereHas('_table_permissions', function ($tp) {
-                        $tp->applyIsActiveForUserOrPermission(null, true);//or is collaborator
-                    });
-                })
-                ->first();
-        } else {
-            return TableView::where('hash', '=', $hash)->first();
-        }*/
     }
 
     /**
@@ -113,7 +100,7 @@ class TableViewRepository
     public function getVisitingUrl(int $table_id, TableView $sysVi = null)
     {
         $sys = $table_id ? ($sysVi ?: $this->getSys($table_id)) : null;
-        return $sys ? '/view/'.$sys->hash : '';
+        return $sys ? '/mrv/'.$sys->hash : '';
     }
 
     /**
@@ -172,6 +159,11 @@ class TableViewRepository
         $data['side_left_menu'] = $data['side_left_menu'] ?? 'show';
         $data['side_left_filter'] = $data['side_left_filter'] ?? 'show';
         $data['side_right'] = $data['side_right'] ?? 'show';
+        $data['is_active'] = 1;
+        if (empty($data['col_group_id'])) {
+            $visitor_columns = (new TableColGroupRepository())->getSys($table->id);
+            $data['col_group_id'] = $visitor_columns->id;
+        }
         $view = TableView::create( array_merge(
             $this->service->delSystemFields($data),
             $this->service->getModified(),

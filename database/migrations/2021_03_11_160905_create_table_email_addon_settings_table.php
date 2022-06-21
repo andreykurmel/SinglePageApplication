@@ -16,6 +16,8 @@ class CreateTableEmailAddonSettingsTable extends Migration
         Schema::create('table_email_addon_settings', function (Blueprint $table) {
             $table->increments('id');
             $table->unsignedInteger('table_id');
+            $table->string('name', 128);
+            $table->string('description', 255)->nullable();
             $table->string('server_type', 32)->default('google');
             $table->string('smtp_key_mode', 32)->default('account');
             $table->string('google_email', 255)->nullable();
@@ -31,10 +33,25 @@ class CreateTableEmailAddonSettingsTable extends Migration
             $table->tinyInteger('sender_reply_to_isdif')->nullable();
             $table->unsignedInteger('sender_reply_to_fld_id')->nullable();
             $table->unsignedInteger('recipient_field_id')->nullable();
+            $table->unsignedInteger('cc_recipient_field_id')->nullable();
+            $table->unsignedInteger('bcc_recipient_field_id')->nullable();
             $table->string('recipient_email', 255)->nullable();
+            $table->string('cc_recipient_email', 255)->nullable();
+            $table->string('bcc_recipient_email', 255)->nullable();
             $table->string('email_subject', 255)->nullable();
             $table->text('email_body')->nullable();
+            $table->string('email_send_time', 16)->default('now');
+            $table->tinyInteger('email_delay_by_rec')->nullable();
+            $table->dateTime('email_delay_time')->nullable();
+            $table->unsignedInteger('email_delay_record_fld_id')->nullable();
+            $table->string('email_link_width_type', 32)->default('full');
+            $table->unsignedInteger('email_link_width_size')->default(100);
+            $table->string('email_link_align', 32)->default('left');
             $table->string('hash', 64)->nullable();
+            $table->string('email_background_header', 32)->nullable();
+            $table->string('email_background_body', 32)->nullable();
+            $table->unsignedInteger('allow_resending')->nullable();
+            $table->unsignedInteger('field_id_attachments')->nullable();
             $table->unsignedInteger('limit_row_group_id')->nullable();
             $table->unsignedInteger('prepared_emails')->nullable();
             $table->unsignedInteger('sent_emails')->nullable();
@@ -65,6 +82,11 @@ class CreateTableEmailAddonSettingsTable extends Migration
                 ->onDelete('set null');
 
             $table->foreign('recipient_field_id', 'teas__recipient_field_id')
+                ->references('id')
+                ->on('table_fields')
+                ->onDelete('set null');
+
+            $table->foreign('field_id_attachments', 'teas__field_id_attachments')
                 ->references('id')
                 ->on('table_fields')
                 ->onDelete('set null');

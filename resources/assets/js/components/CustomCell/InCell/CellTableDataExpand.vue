@@ -47,7 +47,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .more_elem {
         position: absolute;
         bottom: 0;

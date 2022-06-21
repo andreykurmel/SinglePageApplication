@@ -6,7 +6,7 @@
         <div v-else="" class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="col-xs-4 full-height" style="padding-right: 0;">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>Alerts, Notifications & Automation (ANA)</span>
                 </div>
                 <div class="permissions-panel no-padding">
@@ -16,8 +16,8 @@
                             :table-meta="settingsMeta['table_alerts']"
                             :all-rows="tableMeta._alerts"
                             :rows-count="tableMeta._alerts.length"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :is-full-width="true"
                             :user="user"
                             :behavior="'alert_notif'"
@@ -30,12 +30,28 @@
                             @delete-row="deleteAlert"
                             @row-index-clicked="rowIndexClicked"
                     ></custom-table>
+                    <div v-if="sel_alert && alertDescrFld" class="description_ontop">
+                        <div><label :style="textSysStyle">Description:</label></div>
+                        <div style="height: 100px; border: 1px solid #ccc;">
+                            <single-td-field
+                                    :table-meta="settingsMeta['table_alerts']"
+                                    :table-header="alertDescrFld"
+                                    :td-value="sel_alert[alertDescrFld.field]"
+                                    :style="{width: '100%'}"
+                                    :with_edit="!!isOwner"
+                                    :force_edit="!!isOwner"
+                                    :ext-row="sel_alert"
+                                    class="full-height"
+                                    @updated-td-val="(val) => { sel_alert[alertDescrFld.field] = val; updateAlert(sel_alert) }"
+                            ></single-td-field>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!--RIGHT SIDE-->
             <div class="col-xs-8 full-height">
-                <div class="top-text">
-                    <span>{{ (selectedAlert > -1 ? tableMeta._alerts[selectedAlert].name + ':' : 'Select an A&amp;N ...') }}</span>
+                <div class="top-text" :style="textSysStyle">
+                    <span>{{ (sel_alert ? sel_alert.name + ':' : 'Select an ANA ...') }}</span>
 
                     <info-sign-link
                             :app_sett_key="'help_link_alerts_popup'"
@@ -45,13 +61,15 @@
                 </div>
                 <div class="permissions-panel">
 
-
                     <div class="permissions-menu-header">
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'triggers'}" @click="activeRightTab = 'triggers'">
-                            Triggers & Automation
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'triggers'}" @click="activeRightTab = 'triggers'">
+                            Triggers
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
                             Notifications
+                        </button>
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'automations'}" @click="activeRightTab = 'automations'">
+                            Automation
                         </button>
                     </div>
                     <div class="permissions-menu-body" style="border: 1px solid #CCC;">
@@ -60,6 +78,7 @@
                             <alert-triggers
                                     :table-meta="tableMeta"
                                     :alert_sett="sel_alert"
+                                    :can_edit="canEditAlert"
                                     @update-alert="updateAlert"
                             ></alert-triggers>
                         </div>
@@ -69,8 +88,18 @@
                                     :table_id="table_id"
                                     :table-meta="tableMeta"
                                     :alert_sett="sel_alert"
+                                    :can_edit="canEditAlert"
                                     @update-alert="updateAlert"
                             ></alert-notifs>
+                        </div>
+
+                        <div class="full-height permissions-panel" v-if="sel_alert && activeRightTab === 'automations'">
+                            <alert-automations
+                                    :table-meta="tableMeta"
+                                    :alert_sett="sel_alert"
+                                    :can_edit="canEditAlert"
+                                    @update-alert="updateAlert"
+                            ></alert-automations>
                         </div>
 
                     </div>
@@ -86,23 +115,28 @@
     import InfoSignLink from "../../../CustomTable/Specials/InfoSignLink";
     import AlertTriggers from "./AlertAddon/AlertTriggers";
     import AlertNotifs from "./AlertAddon/AlertNotifs";
+    import AlertAutomations from "./AlertAddon/AlertAutomations";
+    import SingleTdField from "../../../CommonBlocks/SingleTdField";
+
+    import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "TabAlertAndNotif",
         components: {
+            SingleTdField,
+            AlertAutomations,
             AlertNotifs,
             AlertTriggers,
             CustomTable,
             InfoSignLink,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 activeRightTab: 'triggers',
-                addingRow: {
-                    active: true,
-                    position: 'bottom'
-                },
-                selectedAlert: -1,
+                selectedAlert: 0,
                 availAlerts: [
                     'name',
                     'is_active',
@@ -113,7 +147,7 @@
             table_id: Number,
             tableMeta: Object,
             settingsMeta: Object,
-            user:  Object,
+            user: Object,
         },
         computed: {
             sel_alert() {
@@ -122,10 +156,25 @@
             sel_alert_field() {
                 return this.sel_alert ? _.find(this.tableMeta._fields, {id: Number(this.sel_alert.table_field_id)}) : null;
             },
+            alertDescrFld() {
+                return _.find(this.settingsMeta['table_alerts']._fields, {field: 'description'});
+            },
+            isOwner() {
+                return this.user.id === this.tableMeta.user_id;
+            },
+            addingRow() {
+                return {
+                    active: this.isOwner,
+                    position: 'bottom'
+                };
+            },
+            canEditAlert() {
+                return this.sel_alert && (this.isOwner || this.sel_alert._can_edit);
+            },
         },
         watch: {
             table_id(val) {
-                this.selectedAlert = -1;
+                this.selectedAlert = 0;
             }
         },
         methods: {
@@ -195,5 +244,16 @@
 </script>
 
 <style lang="scss" scoped>
-    @import "SettingsModule/TabSettingsPermissions";
+    @import "./SettingsModule/TabSettingsPermissions";
+
+    .description_ontop {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        padding: 3px;
+        border-top: 2px solid #ccc;
+    }
+    .btn-default {
+        height: 30px;
+    }
 </style>

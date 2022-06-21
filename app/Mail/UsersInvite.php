@@ -5,25 +5,29 @@ namespace Vanguard\Mail;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Vanguard\Models\User\UserInvitation;
-use Vanguard\User;
 
 class UsersInvite extends Mailable
 {
     use Queueable, SerializesModels;
 
-    private $user;
-    private $invitation;
+    protected $data;
 
     /**
-     * UsersInvite constructor.
-     * @param User $user
+     * @param string $from
+     * @param string $subject
+     * @param string $username
+     * @param string $useremail
+     * @param string $invitelink
      */
-    public function __construct(User $user, UserInvitation $invitation)
+    public function __construct(string $from, string $subject, string $username, string $useremail, string $invitelink)
     {
-        $this->user = $user;
-        $this->invitation = $invitation;
+        $this->data = [
+            'from' => $from,
+            'subject' => $subject,
+            'username' => $username,
+            'useremail' => $useremail,
+            'invitelink' => $invitelink,
+        ];
     }
 
     /**
@@ -33,18 +37,14 @@ class UsersInvite extends Mailable
      */
     public function build()
     {
-        $invite_link = config('app.url').'/register?invitation='.$this->user->personal_hash;
-        $invite_link .= '&mail='.$this->invitation->email;
-        $user_name = ($this->user->first_name ? ($this->user->first_name . ' ' . $this->user->last_name ?: '') : $this->user->username);
-
         return $this->view('emails.users_invite')
-            ->from(config('mail.from.noreply'), $user_name.' via '.config('app.name'))
-            ->subject($user_name . ' (' . $this->user->email . ') invited you to ' . config('app.name'))
+            ->from(config('mail.from.address'), $this->data['from'])
+            ->subject($this->data['subject'])
             ->with([
-                'user_name' => $user_name,
-                'user_email' => $this->user->email,
-                'logo_url' => config('app.url').'/assets/img/TablDA_w_text_full.png',
-                'link' => $invite_link,
+                'user_name' => $this->data['username'],
+                'user_email' => $this->data['useremail'],
+                'logo_url' => config('app.url') . '/assets/img/TablDA_w_text_full.png',
+                'link' => $this->data['invitelink'],
             ]);
     }
 }

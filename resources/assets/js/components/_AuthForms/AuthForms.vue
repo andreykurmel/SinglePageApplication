@@ -33,7 +33,9 @@
     export default {
         name: 'AuthForms',
         components: {
-            RemindForm, RegisterForm, LoginForm
+            RemindForm,
+            RegisterForm,
+            LoginForm,
         },
         data: function () {
             return {
@@ -43,6 +45,7 @@
             }
         },
         props: {
+            show_register: Boolean|Number,
             show_login: Boolean|Number,
             settings: {
                 type: Object,
@@ -64,6 +67,9 @@
         watch: {
             show_login(val) {
                 this.showLogin = true;
+            },
+            show_register(val) {
+                this.showRegister = true;
             }
         },
         methods: {
@@ -74,11 +80,17 @@
             }
         },
         created() {
+            if (location.search.match(/^\?register/gi)) {
+                this.showRegister = true;
+            }
+            if (location.search.match(/^\?login/gi)) {
+                this.showLogin = true;
+            }
         }
     }
 </script>
 
-<style scoped="">
+<style scoped>
     .modal-form-background{
         background-color: black;
         top: 0;

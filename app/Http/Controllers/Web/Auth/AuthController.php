@@ -38,7 +38,7 @@ class AuthController extends Controller
      */
     public function __construct(UserRepository $users)
     {
-        $this->middleware('guest', ['except' => ['getLogout']]);
+        $this->middleware('guest', ['except' => ['getLogout', 'getRegister']]);
         $this->middleware('auth', ['only' => ['getLogout']]);
         $this->middleware('registration', ['only' => ['getRegister', 'postRegister']]);
         $this->users = $users;
@@ -52,8 +52,9 @@ class AuthController extends Controller
     public function getLogin()
     {
         $socialProviders = config('auth.social.providers');
-
-        return view('auth.login', compact('socialProviders'));
+        $_scs = session()->get('_success', '');
+        return redirect()->to('/?login')->withSuccess($_scs);
+        //return view('auth.login', compact('socialProviders'));
     }
 
     /**
@@ -105,7 +106,7 @@ class AuthController extends Controller
         Auth::login($user, settings('remember_me') && $request->get('remember'));
         (new DiscourseSso())->syncLogin();
 
-        event(new LoggedIn);
+        //event(new LoggedIn);
 
         return $this->handleUserWasAuthenticated($request, $throttles, $user);
     }
@@ -145,15 +146,25 @@ class AuthController extends Controller
     }
 
     /**
+     *
+     */
+    protected function logout()
+    {
+        $usr_id = auth()->id();
+        if ($usr_id) {
+            Auth::logout();
+            (new DiscourseSso())->syncUnlog($usr_id);
+        }
+    }
+
+    /**
      * @param Request $request
      * @param Authenticatable $user
      * @return \Illuminate\Http\RedirectResponse
      */
     protected function logoutAndRedirectToTokenPage(Request $request, Authenticatable $user)
     {
-        $usr_id = auth()->id();
-        Auth::logout();
-        (new DiscourseSso())->syncUnlog($usr_id);
+        $this->logout();
 
         $request->session()->put('auth.2fa.id', $user->id);
 
@@ -344,19 +355,18 @@ class AuthController extends Controller
     /**
      * Show the application registration form.
      *
-     * @return \Illuminate\Http\Response
+     * @param Request $request
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
      */
     public function getRegister(Request $request)
     {
-        $socialProviders = config('auth.social.providers');
-        if ($request->invitation) {
-            Session::push('invitation', $request->invitation);
-            if ($request->mail && filter_var($request->mail, FILTER_VALIDATE_EMAIL)) {
-                Session::push('invited_mail', $request->mail);
-            }
-        }
+        $this->logout();
 
-        return view('auth.register', compact('socialProviders', 'ref_hash'));
+        $socialProviders = config('auth.social.providers');
+        $this->users->storeInvites($request->invite, $request->mail);
+
+        return redirect()->to('/?register');
+        //return view('auth.register', compact('socialProviders', 'ref_hash'));
     }
 
     /**
@@ -405,8 +415,12 @@ class AuthController extends Controller
                 'confirmation_token' => null
             ]);
 
+            $this->users->awardInvites();
+
             event(new Confirmed($this->users->find($user->id)));
 
+            session()->put('_success', 'Thanks for confirming your registration. You are ready to go.');
+            session()->put('_old_input', ['email' => $user->email]);
             return redirect()->to('login')
                 ->withSuccess(trans('app.email_confirmed_can_login'));
         }

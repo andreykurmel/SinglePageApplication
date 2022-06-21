@@ -1,0 +1,17 @@
+#Calc Eqpt Params
+Helper for "Distance to Node" calculation.
+
+Must be: correspondence_apps.code = calc_eqpt_params
+
+Works on CorrespondenceTables.
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    App,Array: 'eqpts'
+    APP,Property: [
+        dist_to_node, //Float
+        gctr_el, //Float
+    ]

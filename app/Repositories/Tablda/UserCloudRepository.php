@@ -8,6 +8,7 @@ use Vanguard\Models\User\UserCloud;
 use Vanguard\Modules\CloudBackup\ApiModuleInterface;
 use Vanguard\Modules\CloudBackup\DropBoxApiModule;
 use Vanguard\Modules\CloudBackup\GoogleApiModule;
+use Vanguard\Modules\CloudBackup\OneDriveApiModule;
 use Vanguard\Services\Tablda\HelperService;
 
 class UserCloudRepository
@@ -26,11 +27,10 @@ class UserCloudRepository
      * Get Cloud
      *
      * @param int $cloud_id
-     * @return mixed
+     * @return UserCloud
      */
     public function getCloud(int $cloud_id) {
         return UserCloud::where('id', $cloud_id)
-            ->where('user_id', auth()->id())
             ->first();
     }
 
@@ -81,6 +81,8 @@ class UserCloudRepository
                 break;
             case 'Dropbox': $class = DropBoxApiModule::class;
                 break;
+            case 'OneDrive': $class = OneDriveApiModule::class;
+                break;
             default: throw new \Exception('ApiModule:Undefined strategy type');
         }
         return new $class();
@@ -99,7 +101,12 @@ class UserCloudRepository
             'user_id',
             'name',
             'root_folder',
+            'token_json',
         ])->toArray();
+
+        if (!empty($data_filter['token_json'])) {
+            $data_filter['token_json'] = TabldaEncrypter::encrypt($data_filter['token_json']);
+        }
 
         return UserCloud::where('id', $user_cloud_id)
             ->update( array_merge($data_filter, $this->service->getModified()) );
@@ -126,7 +133,7 @@ class UserCloudRepository
     public function setCloudToken(int $cloud_id, string $code)
     {
         $cloud = UserCloud::where('id', $cloud_id)
-            ->where('user_id', auth()->id())
+            ->where('user_id', '=', auth()->id())
             ->first();
 
         if ($cloud) {
@@ -142,5 +149,15 @@ class UserCloudRepository
         } else {
             return 0;
         }
+    }
+
+    /**
+     * @param int $cloud_id
+     * @return string
+     */
+    public function getCloudToken(int $cloud_id)
+    {
+        $cloud = UserCloud::where('id', '=', $cloud_id)->first();
+        return $cloud ? $cloud->gettoken() : '';
     }
 }

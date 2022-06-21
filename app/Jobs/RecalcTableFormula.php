@@ -17,7 +17,6 @@ class RecalcTableFormula implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     private $table;
-    private $repository;
     private $import_id;
     private $user_id;
 
@@ -31,7 +30,6 @@ class RecalcTableFormula implements ShouldQueue
     public function __construct(Table $table, $user_id, $import_id)
     {
         $this->table = $table;
-        $this->repository = app()->make(TableDataService::class);
         $this->import_id = $import_id;
         $this->user_id = $user_id;
     }
@@ -43,7 +41,7 @@ class RecalcTableFormula implements ShouldQueue
      */
     public function handle()
     {
-        $this->repository->recalcTableFormulas($this->table, $this->user_id, [], $this->import_id);
+        (new TableDataService())->recalcTableFormulas($this->table, $this->user_id, [], $this->import_id);
     }
 
     public function failed()

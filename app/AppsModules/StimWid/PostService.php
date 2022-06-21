@@ -4,12 +4,14 @@ namespace Vanguard\AppsModules\StimWid;
 
 
 use Illuminate\Http\Request;
+use Vanguard\AppsModules\StimWid\CreateRls\RlConnCreator;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
 use Vanguard\AppsModules\StimWid\Data\UserPermisQuery;
 use Vanguard\AppsModules\StimWid\Rts\RtsInterface;
 use Vanguard\AppsModules\StimWid\Rts\RtsRotate;
 use Vanguard\AppsModules\StimWid\Rts\RtsScale;
 use Vanguard\AppsModules\StimWid\Rts\RtsTranslate;
+use Vanguard\AppsModules\StimWid\SectionsParse\SectionsParser;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
@@ -52,10 +54,20 @@ class PostService
             'search_columns' => $request->columns,
         ]);
         $query = $query->getQuery();
-        $first_usr = $table_meta->_fields->whereNotIn('field', $this->service->system_fields)->where('f_type', '=', 'User')->first();
+
+        //order Models: first are owned
+        $first_usr = $table_meta->_fields
+            ->whereNotIn('field', $this->service->system_fields)
+            ->where('f_type', '=', 'User')
+            ->first();
         if ($first_usr && auth()->id()) {
             $query->orderByRaw('(`' . $first_usr->field . '` = ' . auth()->id() . ') DESC');
             $query->orderByRaw('(`' . $first_usr->field . '` like \'%"' . auth()->id() . '"%\') DESC');
+        }
+
+        //select just owned models.
+        if ($first_usr && $request->just_owned) {
+            $query->where($first_usr->field, '=', auth()->id());
         }
 
         $count = $query->count();
@@ -71,7 +83,8 @@ class PostService
 
     /**
      * @param Request $request
-     * @return array
+     * @return int[]
+     * @throws \Exception
      */
     public function save_model(Request $request)
     {
@@ -118,7 +131,7 @@ class PostService
 
     /**
      * @param Request $request
-     * @return string
+     * @return array
      */
     public function copy_model(Request $request)
     {
@@ -169,9 +182,15 @@ class PostService
             $row_arr = $row_arr->toArray();
             $this->already_copied_ids = [];
 
-            $to_model = $this->replaceVal($request->master_table, $target_arr);
-            $to_usergroup = $this->usergroupVal($table_meta, $target_arr);
-            $replace_val = $this->modelReplaces($child_meta, $request->child_table, $to_model, $to_usergroup);
+            $model = [
+                'from' => $this->replaceVal($request->master_table, $row_arr),
+                'to' => $this->replaceVal($request->master_table, $target_arr),
+            ];
+            $usergroup = [
+                'from' => $this->usergroupVal($table_meta, $row_arr),
+                'to' => $this->usergroupVal($table_meta, $target_arr),
+            ];
+            $replace_val = $this->modelReplaces($child_meta, $request->child_table, $model, $usergroup);
 
             $new_ids = $this->cpAppTable($request->child_table, $replace_val, $row_arr);
             $this->fillCopiedValShows([$request->child_table]);
@@ -325,7 +344,8 @@ class PostService
                 //change referred IDs in 'show/val' DDLs
                 foreach ($fields as $fld) {
                     $dref = $references->where('ddl_id', '=', $fld->ddl_id)->first();
-                    $ref_corr_rows = $this->copied_row_corrs[ $dref->_ref_condition->ref_table_id ] ?? [];
+                    $ref_tb_id = $dref ? $dref->_ref_condition->ref_table_id : '';
+                    $ref_corr_rows = $this->copied_row_corrs[ $ref_tb_id ] ?? [];
                     if ($ref_corr_rows) {
                         foreach ($copied_rows as $row) {
                             if ($ref_corr_rows[ $row->{$fld->field} ] ?? null) {
@@ -347,21 +367,21 @@ class PostService
     /**
      * @param Table $app
      * @param string $app_table
-     * @param string $to_model
-     * @param string $to_usergroup
+     * @param array $model
+     * @param array $usergroup
      * @return array
      */
-    protected function modelReplaces(Table $app, string $app_table, string $to_model, string $to_usergroup)
+    protected function modelReplaces(Table $app, string $app_table, array $model, array $usergroup)
     {
-        $replaces = $this->makeReplaces($app, $to_usergroup);
+        $replaces = $this->makeReplaces($app, $usergroup['to'], $usergroup['from']);
         //prefix fld
         $prefix = $this->prefixField($app_table);
         if ($prefix) {
             $replaces[] = [
                 'force' => true,
                 'field' => $prefix->data_field,
-                'old_val' => '',//all
-                'new_val' => $to_model,
+                'old_val' => $model['from'],
+                'new_val' => $model['to'],
             ];
         }
         return $replaces;
@@ -401,9 +421,10 @@ class PostService
     /**
      * @param Table $app
      * @param string|null $master_usergroup
+     * @param null $old_val
      * @return array
      */
-    protected function makeReplaces(Table $app, string $master_usergroup = null)
+    protected function makeReplaces(Table $app, string $master_usergroup = null, $old_val = null)
     {
         $replaces = [];
         //User fields -> set as cur user
@@ -412,7 +433,7 @@ class PostService
             $replaces[] = [
                 'force' => true,
                 'field' => $usr->field,
-                'old_val' => '',//all
+                'old_val' => $old_val ?: '',//all
                 'new_val' => $master_usergroup ?: auth()->id(),
             ];
         }
@@ -446,13 +467,13 @@ class PostService
 
         if ($direct_id) {
             $request_params['row_id'] = $direct_id;
-            (new TableDataService())->deleteAllRows($table, $request_params, auth()->id());
+            (new TableDataService())->deleteAllRows($table, $request_params, $table->user_id, 'ignore');
         } else {
             [$search, $columns] = DataReceiver::build_search_array($app_table, $master_row);
             if ($search && $columns) {
                 $request_params['search_words'] = $search;
                 $request_params['search_columns'] = $columns;
-                (new TableDataService())->deleteAllRows($table, $request_params, auth()->id());
+                (new TableDataService())->deleteAllRows($table, $request_params, $table->user_id, 'ignore');
             }
         }
     }
@@ -485,6 +506,38 @@ class PostService
         } else {
             return [];
         }
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     * @throws \Exception
+     */
+    public function rl_elem_store(Request $request)
+    {
+        $creator = new RlConnCreator();
+        return ['error' => $creator->store_rl($request)];
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     * @throws \Exception
+     */
+    public function rl_elem_delete(Request $request)
+    {
+        $creator = new RlConnCreator();
+        return ['error' => $creator->delete_rl($request)];
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    public function store_eqpt_local_id(Request $request)
+    {
+        $creator = new RlConnCreator();
+        return ['error' => $creator->store_eqpt_local_id($request)];
     }
 
     /**

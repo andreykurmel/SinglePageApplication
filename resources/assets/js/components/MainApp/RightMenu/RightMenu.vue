@@ -4,10 +4,10 @@
             <label>Communications</label>
             <info-sign-link :app_sett_key="'help_link_communication'" :hgt="24" class="flo-right"></info-sign-link>
         </div>
-        <div class="menu-body" ref="menu_body">
+        <div class="menu-body" ref="menu_body" :style="textSysStyle">
             <template v-if="table_id && $root.tableMeta">
                 <div :style="{height: calcSubHeight('about')}">
-                    <a @click.prevent="showSub('about')" class="btn-sub">
+                    <a @click.prevent="showSub('about')" class="btn-sub" :style="textSysStyle">
                         About
                         <span class="state-shower">{{ 'about' === currentSub ? '-' : '+' }}</span>
                     </a>
@@ -37,7 +37,7 @@
                     </div>
                 </div>
                 <div v-if="$root.user.id" :style="{height: calcSubHeight('notes')}">
-                    <a @click.prevent="showSub('notes')" class="btn-sub">
+                    <a @click.prevent="showSub('notes')" class="btn-sub" :style="textSysStyle">
                         My Notes
                         <span class="state-shower">{{ 'notes' === currentSub ? '-' : '+' }}</span>
                     </a>
@@ -50,7 +50,7 @@
                     </div>
                 </div>
                 <div v-if="$root.user.id" :style="{height: calcSubHeight('messages')}">
-                    <a @click.prevent="showSub('messages')" class="btn-sub">
+                    <a @click.prevent="showSub('messages')" class="btn-sub" :style="textSysStyle">
                         Messages
                         <span class="state-shower">{{ 'messages' === currentSub ? '-' : '+' }}</span>
                     </a>
@@ -97,6 +97,8 @@
 </template>
 
 <script>
+    import CellStyleMixin from "../../_Mixins/CellStyleMixin";
+
     import RightMenuCell from './RightMenuCell';
     import RightMenuMessages from './RightMenuMessages';
     import FileUploaderBlock from '../../CommonBlocks/FileUploaderBlock';
@@ -111,10 +113,11 @@
             FileUploaderBlock
         },
         mixins: [
+            CellStyleMixin,
         ],
         data: function () {
             return {
-                currentSub: localStorage.getItem('right_sub') || null,
+                currentSub: readLocalStorage('right_sub') || null,
                 numberSubs: this.$root.user.id ? 3 : 1,
                 subBtnHeight: 42,
                 uploadForm: false,
@@ -127,7 +130,7 @@
         methods: {
             showSub(field) {
                 this.currentSub = field !== this.currentSub ? field : null;
-                localStorage.setItem('right_sub', this.currentSub);
+                setLocalStorage('right_sub', this.currentSub);
             },
             calcSubHeight(field) {
                 let res = this.subBtnHeight+'px';

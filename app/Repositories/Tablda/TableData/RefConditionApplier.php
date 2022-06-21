@@ -4,15 +4,16 @@ namespace Vanguard\Repositories\Tablda\TableData;
 
 use Illuminate\Database\Eloquent\Builder;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
-use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
-use Vanguard\Singletones\AuthUserSingleton;
+use Vanguard\Modules\Permissions\TableRights;
 
 class RefConditionApplier
 {
-    private $ref_condition;
+    /**
+     * @var TableRefCondition
+     */
+    protected $ref_condition;
 
     /**
-     * RefConditionApplier constructor.
      * @param TableRefCondition $ref_condition
      */
     public function __construct(TableRefCondition $ref_condition)
@@ -32,7 +33,7 @@ class RefConditionApplier
     {
         $this->checkThatCanApply();
 
-        if ($this->ref_condition->_items) {
+        if ($this->ref_condition->_items && $this->ref_condition->_items->count()) {
             $grouped_conditions = $this->ref_condition->_items->groupBy('group_clause');
             $that = $this;
             $cond_query->where(function ($query) use ($that, $grouped_conditions, $present_row) {
@@ -58,6 +59,38 @@ class RefConditionApplier
                     });
                 }
             });
+        } else {
+            $cond_query->whereRaw('true');
+        }
+        return $cond_query;
+    }
+
+    /**
+     * @param Builder $cond_query
+     * @param string $type
+     * @return Builder
+     */
+    public function joinToQuery(Builder $cond_query, string $type = 'join')
+    {
+        $this->checkThatCanApply();
+
+        $filters = $this->ref_condition->_items ? $this->ref_condition->_items->where('item_type', '=', 'P2S') : collect([]);
+        if ($filters->count()) {
+            $cond_query->{$type}($this->ref_condition->_ref_table->db_name, function ($join_query) use ($filters) {
+                foreach ($filters as $flt) {
+                    $func = $flt->logic_operator == 'OR' || $flt->group_logic == 'OR' ? 'orOn' : 'on';
+
+                    $com_db_field = $flt->_compared_field ? $flt->_compared_field->field : 'id';
+                    $com_db_field = SqlFieldHelper::getSqlFld($this->ref_condition->_ref_table, $com_db_field);
+
+                    $compared_operator = $flt->compared_operator == 'Include' ? 'Like' : ($flt->compared_operator ?: '=');
+
+                    $db_field = $flt->_field ? $flt->_field->field : 'id';
+                    $db_field = SqlFieldHelper::getSqlFld($this->ref_condition->_table, $db_field);
+
+                    $join_query->{$func}($db_field, $compared_operator, $com_db_field);
+                }
+            });
         }
         return $cond_query;
     }
@@ -67,35 +100,12 @@ class RefConditionApplier
      */
     protected function checkThatCanApply()
     {
-        //is RefCond from table to another table AND RefTable is shared.
-        if (
-            $this->ref_condition->_table->user_id != $this->ref_condition->_ref_table->user_id
-            &&
-            $this->ref_condition->_ref_table->user_id != auth()->id()
-        ) {
-
-            //TODO: check that $is_shared is needed
-            /*$shared_tables_ids = app( AuthUserSingleton::class )
-                ->sharedTablesIds('all')
-                ->toArray();*/
-            $repo = new TablePermissionRepository();
-
-            //owner of root table
-            if ($this->ref_condition->_table->user_id == auth()->id()) {
-                //ref table shared AND permission for ref table has 'can reference'
-                //$is_shared = in_array($this->ref_condition->ref_table_id, $shared_tables_ids);
-                $can_reference = $repo->canReference($this->ref_condition->ref_table_id);
-            }
-            //not owner for both tables
-            else {
-                //target table shared AND permission for ref table for target table user has 'can reference' and 'referencing shared'
-                //$is_shared = in_array($this->ref_condition->table_id, $shared_tables_ids);
-                $can_reference = $repo->canReference($this->ref_condition->ref_table_id, $this->ref_condition->_table->user_id);
-            }
-
-
-            if (/*!$is_shared || */!$can_reference) {
-                throw new \Exception('Cannot apply RefCondtion: '.$this->ref_condition->name, 1);
+        //is RefCondidition is referred to another table.
+        if ($this->ref_condition->_table->user_id != $this->ref_condition->_ref_table->user_id)
+        {
+            $permission = TableRights::permissions($this->ref_condition->_ref_table);
+            if (!$permission->is_owner && !$permission->referencing_shared) {
+                throw new \Exception('Cannot apply RefCondtion: '.$this->ref_condition->name.' (needed "Owner" or "Permission:Referencing for Sharing")', 1);
             }
         }
     }

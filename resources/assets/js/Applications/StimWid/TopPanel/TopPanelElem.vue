@@ -1,9 +1,12 @@
 <template>
     <div class="top-panel flex flex--center-v">
-        <button v-if="!!$root.user.id && cur_found_model && cur_found_model._id && cur_found_model._virtual_mr && !vuex_settings._app_cur_view"
-                class="btn btn-primary btn-sm blue-gradient"
+        <button v-if="!!$root.user.id && cur_found_model && cur_found_model._id && !cur_found_model._virtual_mr && !vuex_settings._app_cur_view"
+                class="btn btn-primary btn-sm blue-gradient ps-absolute"
                 @click="showAppViews()"
                 :style="$root.themeButtonStyle">Views</button>
+
+        <!--FEEDBACK PART-->
+        <feedback-block v-if="vuex_settings._app_cur_view" class="ps-absolute"></feedback-block>
 
         <!--MODEL SEARCH-->
         <template v-for="(stims,tab) in vuex_settings.tabs" v-if="tab">
@@ -30,6 +33,7 @@
                                 v-if="!vuex_settings._app_cur_view || vuex_settings._app_cur_view.v_select === vert_k"
                                 :value="vert_k">{{ tab_object.init_select }}</option>
                     </select>
+
                 </div>
             </template>
         </template>
@@ -52,11 +56,14 @@
 
         <!--VIEWS-->
         <app-views-popup :cur_tab="vuex_cur_tab" :cur_sel="vuex_cur_select" :found_row="cur_found_model"></app-views-popup>
+
+        <!--VIEW REQUEST EMAIL-->
+        <views-email-request-popup></views-email-request-popup>
     </div>
 </template>
 
 <script>
-    import {eventBus} from './../../../app';
+    import {eventBus} from '../../../app';
 
     import {SpecialFuncs} from '../../../classes/SpecialFuncs';
 
@@ -64,12 +71,16 @@
 
     import WidSearchModel from "./WidSearchModel";
     import AppViewsPopup from "./AppViewsPopup";
+    import ViewsEmailRequestPopup from "./ViewsEmailRequestPopup";
+    import FeedbackBlock from "./Feedback/FeedbackBlock";
 
     export default {
         name: 'TopPanelElem',
         mixins: [
         ],
         components: {
+            FeedbackBlock,
+            ViewsEmailRequestPopup,
             AppViewsPopup,
             WidSearchModel,
         },
@@ -144,14 +155,11 @@
         },
         mounted() {
             $('#main_navbar').css('height', '85px');
-            $('#folder-icon-array').css('height', '80px')
-                .css('left', 'initial')
-                .css('right', '33%');
         }
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .top-panel {
         position: fixed;
         top: 0;
@@ -159,8 +167,12 @@
         height: 85px;
         z-index: 1000;
 
+        .ps-absolute {
+            position: absolute;
+        }
+
         .m-left {
-            margin-left: 45px;
+            margin-left: 125px;
         }
 
         .nav-tabs {
@@ -198,6 +210,16 @@
             max-width: 130px;
             padding: 6px;
             margin-left: 40px;
+        }
+    }
+
+    @media (max-width: 1440px) {
+        .top-panel {
+            left: 130px;
+
+            .nav-tabs {
+                right: 30%;
+            }
         }
     }
 </style>

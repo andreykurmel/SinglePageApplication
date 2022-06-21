@@ -1,7 +1,7 @@
 <template>
     <div>
         <div class="popup" v-show="show_popup" :style="getPopupStyle()" ref="popup_wrapper" :class="[activePop ? 'active-popup' : 'passive-popup']">
-            <div class="flex flex--col">
+            <div v-if="draw" class="flex flex--col">
 
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
@@ -10,21 +10,29 @@
                             <span v-html="getPopupHeader()"></span>
                         </div>
                         <div class="" style="position: relative">
-                            <span class="glyphicon glyphicon-remove pull-right header-btn" @click="startClose()"></span>
+                            <span class="glyphicon glyphicon-remove pull-right header-btn" @click="closePopup()"></span>
                             <span class="fa fa-cog pull-right header-btn" @click="showLinkSettingsCustPopup()" style="right: 25px;"></span>
-                            <i style="right: 50px;" class="fas pull-right header-btn" :class="viewTypeIcon" :title="viewTypeTooltip" @click="changeView()"></i>
+                            <div class="header-btn" style="right: 50px;" @mouseenter="show_vtype = true" @mouseleave="show_vtype = false">
+                                <i style="color: #FFF;margin-left: 3px;" class="fas pull-right" :title="viewTypeTitle" :class="viewTypeIcon"></i>
+                                <div v-if="show_vtype" class="view-type-wrapper">
+                                    <i v-if="popupViewType != viewTypeListing" class="fas pull-right fa-th-list" title="List" @click="changeView(viewTypeListing)"></i>
+                                    <i v-if="popupViewType != viewTypeTable" class="fas pull-right fa-th" title="Grid" @click="changeView(viewTypeTable)"></i>
+                                    <i v-if="popupViewType != viewTypeBoards" class="fas pull-right fa-bars" title="Board" @click="changeView(viewTypeBoards)"></i>
+                                </div>
+                            </div>
+
                         </div>
                     </div>
                 </div>
 
-                <div class="flex__elem-remain popup-content" v-if="linkTableMeta">
+                <div class="flex__elem-remain popup-content" v-if="popupMetaTable">
                     <div class="flex__elem__inner">
                         <div class="flex flex-row full-height">
                             <div class="flex flex--col many-rows" v-if="rowsCount > 1 && popupViewType === viewTypeListing">
                                 <div class="full-height">
                                     <div class="many-rows--height">
                                         <select class="form-control" v-model="listing_field" @changed="changeListingField(listing_field)">
-                                            <option v-for="fld in linkTableMeta._fields"
+                                            <option v-for="fld in popupMetaTable._fields"
                                                     v-if="!inArray(fld.field, $root.systemFields)"
                                                     :value="fld.field"
                                             >{{ $root.uniqName(fld.name) }}</option>
@@ -38,7 +46,7 @@
 
                                     <table-pagination
                                             :page="curPage"
-                                            :table-meta="linkTableMeta"
+                                            :table-meta="popupMetaTable"
                                             :rows-count="rowsCount"
                                             :is_link="true"
                                             :compact="true"
@@ -80,95 +88,82 @@
 
                                         <div class="flex__elem-remain popup-tab" v-show="activeTab === 'details'">
                                             <div class="flex__elem__inner">
-                                                <div class="flex full-height">
-                                                    <div class="flex__elem-remain" v-if="linkTableMeta">
-                                                        <div class="flex__elem__inner">
+                                                <div class="flex full-height" v-if="popupMetaTable">
 
-                                                            <vertical-table
-                                                                v-if="popupViewType === viewTypeListing"
-                                                                class="vert-table"
-                                                                :td="$root.tdCellComponent(linkTableMeta.is_system)"
-                                                                :global-meta="linkTableMeta"
-                                                                :table-meta="linkTableMeta"
-                                                                :settings-meta="settingsMeta"
-                                                                :table-row="linkRecordSelIdx > -1 ? linkRecordRows[linkRecordSelIdx] : objectForAdd"
-                                                                :user="user"
-                                                                :cell-height="$root.cellHeight"
-                                                                :max-cell-rows="$root.maxCellRows"
-                                                                :behavior="'link_popup'"
-                                                                :forbidden-columns="forbiddenColumns"
-                                                                :available-columns="availableColumns"
-                                                                :can-see-history="canSeeHistory"
-                                                                :is_small_spacing="is_small_spacing"
-                                                                :is-add-row="linkRecordSelIdx === -1"
-                                                                @updated-cell="checkRowAutocomplete"
-                                                                @toggle-history="toggleHistory"
-                                                                @show-add-ddl-option="showAddDDLOption"
-                                                                @show-src-record="showSrcRecord"
-                                                            ></vertical-table>
+                                                    <vertical-table-with-history
+                                                        v-if="popupViewType === viewTypeListing"
+                                                        :td="$root.tdCellComponent(popupMetaTable.is_system)"
+                                                        :global-meta="popupMetaTable"
+                                                        :table-meta="popupMetaTable"
+                                                        :settings-meta="settingsMeta"
+                                                        :table-row="linkRecordSelIdx > -1 ? linkRecordRows[linkRecordSelIdx] : objectForAdd"
+                                                        :user="user"
+                                                        :cell-height="$root.cellHeight"
+                                                        :max-cell-rows="$root.maxCellRows"
+                                                        :behavior="'link_popup'"
+                                                        :forbidden-columns="forbiddenColumns"
+                                                        :available-columns="availableColumns"
+                                                        :can-see-history="canSeeHistory"
+                                                        :is_small_spacing="is_small_spacing"
+                                                        :is-add-row="linkRecordSelIdx === -1"
+                                                        class="vert-table"
+                                                        @updated-cell="vertUpdated"
+                                                        @toggle-history="toggleHistory"
+                                                        @show-add-ddl-option="showAddDDLOption"
+                                                        @show-src-record="showSrcRecord"
+                                                    ></vertical-table-with-history>
 
-                                                            <custom-table-with-popup
-                                                                v-if="popupViewType === viewTypeTable"
-                                                                :global-meta="linkTableMeta"
-                                                                :table-meta="linkTableMeta"
-                                                                :settings-meta="settingsMeta"
-                                                                :all-rows="linkRecordRows"
-                                                                :rows-count="linkRecordRows.length"
-                                                                :cell-height="$root.cellHeight"
-                                                                :max-cell-rows="$root.maxCellRows"
-                                                                :adding-row="addingRow"
-                                                                :user="user"
-                                                                :behavior="'link_popup'"
-                                                                :forbidden-columns="$root.systemFields"
-                                                                :available-columns="availableColumns"
-                                                                :del-restricted="!canDelete"
-                                                                :link_popup_conditions="link_rules"
-                                                                :link_popup_tablerow="metaRow"
-                                                                :show_rows_sum="!!link.show_sum"
-                                                                @added-row="insertRowFromTable"
-                                                                @updated-row="updateRowFromTable"
-                                                                @delete-row="deleteRow"
-                                                                @show-src-record="showSrcRecord"
-                                                                @row-index-clicked="changeManyRow"
-                                                            ></custom-table-with-popup>
+                                                    <custom-table-with-popup
+                                                        v-if="popupViewType === viewTypeTable"
+                                                        :global-meta="popupMetaTable"
+                                                        :table-meta="popupMetaTable"
+                                                        :settings-meta="settingsMeta"
+                                                        :all-rows="linkRecordRows"
+                                                        :rows-count="linkRecordRows.length"
+                                                        :cell-height="$root.cellHeight"
+                                                        :max-cell-rows="$root.maxCellRows"
+                                                        :adding-row="addingRow"
+                                                        :user="user"
+                                                        :behavior="'link_popup'"
+                                                        :forbidden-columns="$root.systemFields"
+                                                        :available-columns="availableColumns"
+                                                        :del-restricted="!canDelete"
+                                                        :link_popup_conditions="link_rules"
+                                                        :link_popup_tablerow="metaRow"
+                                                        :show_rows_sum="!!link.show_sum"
+                                                        @added-row="insertRowFromTable"
+                                                        @updated-row="updateRowFromTable"
+                                                        @delete-row="deleteRow"
+                                                        @show-src-record="showSrcRecord"
+                                                        @row-index-clicked="changeManyRow"
+                                                    ></custom-table-with-popup>
 
-                                                            <board-table
-                                                                v-if="popupViewType === viewTypeBoards"
-                                                                :board-settings="globalMeta"
-                                                                :global-meta="linkTableMeta"
-                                                                :table-meta="linkTableMeta"
-                                                                :all-rows="linkRecordRows"
-                                                                :rows-count="linkRecordRows.length"
-                                                                :cell-height="$root.cellHeight"
-                                                                :max-cell-rows="$root.maxCellRows"
-                                                                :user="user"
-                                                                :behavior="'link_popup'"
-                                                                :forbidden-columns="$root.systemFields"
-                                                                :available-columns="availableColumns"
-                                                                @added-row="insertRowFromTable"
-                                                                @updated-row="updateRowFromTable"
-                                                                @delete-row="deleteRow"
-                                                                @show-src-record="showSrcRecord"
-                                                                @selected-row="changeManyRow"
-                                                            ></board-table>
+                                                    <board-table
+                                                        v-if="popupViewType === viewTypeBoards"
+                                                        :global-meta="popupMetaTable"
+                                                        :table-meta="popupMetaTable"
+                                                        :all-rows="linkRecordRows"
+                                                        :rows-count="linkRecordRows.length"
+                                                        :cell-height="$root.cellHeight"
+                                                        :max-cell-rows="$root.maxCellRows"
+                                                        :user="user"
+                                                        :behavior="'link_popup'"
+                                                        :forbidden-columns="$root.systemFields"
+                                                        :available-columns="availableColumns"
+                                                        @added-row="insertRowFromTable"
+                                                        @updated-row="updateRowFromTable"
+                                                        @delete-row="deleteRow"
+                                                        @show-src-record="showSrcRecord"
+                                                        @selected-row="changeManyRow"
+                                                    ></board-table>
 
-                                                        </div>
-                                                    </div>
-                                                    <history-elem
-                                                            v-if="open_history && linkRecordSelIdx > -1 && popupViewType === viewTypeListing"
-                                                            class="popup-tab"
-                                                            :user="user"
-                                                            :table-meta="tableMeta"
-                                                            :table_field="history_header"
-                                                            :row_id="linkRecordRows[linkRecordSelIdx].id"
-                                                    ></history-elem>
                                                 </div>
                                             </div>
                                         </div>
                                         <div class="flex__elem-remain popup-tab" v-show="activeTab === 'attachments'">
-                                            <div class="flex__elem__inner" v-if="linkTableMeta">
+                                            <div class="flex__elem__inner" v-if="popupMetaTable">
                                                 <attachments-block
-                                                        :table-meta="linkTableMeta"
+                                                        :table-meta="popupMetaTable"
                                                         :table-row="linkRecordSelIdx > -1 ? linkRecordRows[linkRecordSelIdx] : objectForAdd"
                                                         :role="linkRecordSelIdx > -1 ? 'update' : 'add'"
                                                         :user="user"
@@ -182,7 +177,7 @@
                                         <div class="popup-buttons" v-if="popupViewType === viewTypeTable || popupViewType === viewTypeBoards">
                                             <table-pagination
                                                     :page="curPage"
-                                                    :table-meta="linkTableMeta"
+                                                    :table-meta="popupMetaTable"
                                                     :rows-count="rowsCount"
                                                     :is_link="true"
                                                     @change-page="changePage"
@@ -208,10 +203,10 @@
 
         <!--Add Select Option Popup-->
         <add-option-popup
-                v-if="addOptionPopup.show"
+                v-if="popupMetaTable && addOptionPopup.show"
                 :table-header="addOptionPopup.tableHeader"
                 :table-row="addOptionPopup.tableRow"
-                :table-meta="linkTableMeta"
+                :table-meta="popupMetaTable"
                 :settings-meta="settingsMeta"
                 :user="user"
                 @updated-row="checkRowAutocomplete"
@@ -222,12 +217,14 @@
 
         <!--All Table Settings  -->
         <table-settings-all-popup
-                :table-meta="linkTableMeta"
+                v-if="popupMetaTable"
+                :table-meta="popupMetaTable"
                 :settings-meta="settingsMeta"
                 :cell-height="$root.cellHeight"
                 :max-cell-rows="$root.maxCellRows"
                 :user="$root.user"
                 :uid="sett_uid"
+                @settings-closed="settingsClose()"
         ></table-settings-all-popup>
     </div>
 </template>
@@ -236,6 +233,7 @@
     import {eventBus} from '../../app';
 
     import {SpecialFuncs} from '../../classes/SpecialFuncs';
+    import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
 
     import CanEditMixin from '../_Mixins/CanViewEditMixin';
     import LinkEmptyObjectMixin from "../_Mixins/LinkEmptyObjectMixin";
@@ -250,6 +248,7 @@
     import TablePagination from "../CustomTable/Pagination/TablePagination";
     import CustomTableWithPopup from "../CustomTable/CustomTableWithPopup";
     import TableSettingsAllPopup from "./TableSettingsAllPopup";
+    import VerticalTableWithHistory from "../CustomTable/VerticalTableWithHistory";
 
     export default {
         name: "LinkPopUp",
@@ -260,6 +259,7 @@
             PopupAnimationMixin,
         ],
         components: {
+            VerticalTableWithHistory,
             TableSettingsAllPopup,
             CustomTableWithPopup,
             TablePagination,
@@ -271,6 +271,7 @@
         },
         data: function () {
             return {
+                draw: true,
                 sett_uid: uuidv4(),
                 viewTypeListing: 'Listing',
                 viewTypeTable: 'Table',
@@ -283,8 +284,7 @@
                 },
                 activeTab: 'details',
                 show_popup: false,
-                open_history: 0,
-                history_header: null,
+                open_history: false,
                 linkRecordRows: [],
                 linkRecordSelIdx: -1,
                 linkTableMeta: null,
@@ -292,10 +292,12 @@
                 activePop: true,
                 popupViewType: this.link.popup_display,
                 link_rules: null,
-                is_small_spacing: localStorage.getItem('is_small_spacing') || 'no',
+                is_small_spacing: readLocalStorage('is_small_spacing') || 'no',
 
                 curPage: 1,
                 rowsCount: 0,
+                should_update: false,
+                show_vtype: false,
             };
         },
         props:{
@@ -326,19 +328,32 @@
             view_authorizer: Object,
         },
         computed: {
+            popupMetaTable() {
+                return this.linkTableMeta && this.globalMeta && this.linkTableMeta.id == this.globalMeta.id
+                    ? this.globalMeta
+                    : this.linkTableMeta;
+            },
             canAddvialink() {
                 return this.canAdd && this.limitLinkAvail;
             },
             limitLinkAvail() {
-                return isNaN(this.link.add_record_limit) || (to_float(this.rowsCount) < to_float(this.link.add_record_limit));
+                return !isNumber(this.link.add_record_limit) || (to_float(this.rowsCount) < to_float(this.link.add_record_limit));
             },
             viewTypeIcon() {
                 switch (this.popupViewType) {
-                    case this.viewTypeListing: return ['fa-th'];
-                    case this.viewTypeTable: return ['fa-bars'];
-                    case this.viewTypeBoards: return ['fa-th-list'];
+                    case this.viewTypeListing: return ['fa-th-list'];
+                    case this.viewTypeTable: return ['fa-th'];
+                    case this.viewTypeBoards: return ['fa-bars'];
                 }
                 return [''];
+            },
+            viewTypeTitle() {
+                switch (this.popupViewType) {
+                    case this.viewTypeListing: return 'List';
+                    case this.viewTypeTable: return 'Table';
+                    case this.viewTypeBoards: return 'Board';
+                }
+                return '';
             },
             viewTypeTooltip() {
                 switch (this.popupViewType) {
@@ -355,26 +370,20 @@
                 };
             },
             getPopupWidth() {
-                if (this.popupViewType === this.viewTypeBoards) {
-                    return 768;
-                }
-                let add_pixel = this.linkRecordRows && this.linkRecordRows.length > 1 ? 220 : 0;
-                add_pixel += this.open_history ? 305 : 0;
-                add_pixel = (this.popupViewType === this.viewTypeListing ? add_pixel : 305+220);
-                return 768 + add_pixel;
+                return this.linkPopWi(this.popupViewType);
             },
             canSeeHistory() {
-                return this.linkTableMeta && this.linkRecordSelIdx > -1 &&
+                return this.popupMetaTable && this.linkRecordSelIdx > -1 &&
                     (
-                        this.linkTableMeta._is_owner
+                        this.popupMetaTable._is_owner
                         ||
-                        (this.linkTableMeta._current_right && this.linkTableMeta._current_right.can_see_history)
+                        (this.popupMetaTable._current_right && this.popupMetaTable._current_right.can_see_history)
                     );
             },
             hasUnits() {
                 let has = false;
-                if (this.linkTableMeta) {
-                    _.each(this.linkTableMeta._fields, function (el) {
+                if (this.popupMetaTable) {
+                    _.each(this.popupMetaTable._fields, function (el) {
                         if (el.unit) {
                             has = true;
                         }
@@ -383,7 +392,7 @@
                 return has;
             },
             hasAttachments() {
-                return this.linkTableMeta && _.findIndex(this.linkTableMeta._fields, {f_type: 'Attachment'}) > -1;
+                return this.popupMetaTable && _.findIndex(this.popupMetaTable._fields, {f_type: 'Attachment'}) > -1;
             },
             imgCount() {
                 let res = 0;
@@ -405,20 +414,28 @@
             }
         },
         methods: {
+            linkPopWi(type) {
+                if (type === this.viewTypeBoards) {
+                    return 768;
+                }
+                let add_pixel = this.linkRecordRows && this.linkRecordRows.length > 1 ? 220 : 0;
+                add_pixel += this.open_history ? 305 : 0;
+                add_pixel = (type === this.viewTypeListing ? add_pixel : 305+220);
+                return 768 + add_pixel;
+            },
             //sys methods
             hideMenu(e) {
-                console.log(e.keyCode === 27 , !this.$root.e__used);
                 if (e.keyCode === 27 && !this.$root.e__used) {
-                    this.startClose();
+                    this.closePopup();
                     this.$root.set_e__used(this);
                 }
             },
             showListingManyRows(i) {
                 if (this.listing_field) {
-                    let header = _.find(this.linkTableMeta._fields, {id: Number(this.link.listing_field_id)});
+                    let header = _.find(this.popupMetaTable._fields, {field: this.listing_field});
                     let val = this.linkRecordRows[i-1][this.listing_field];
                     if (val && header && this.$root.isMSEL(header.input_type)) {
-                        let arr = JSON.parse(val);
+                        let arr = SpecialFuncs.parseMsel(val);
                         val = '';
                         _.each(arr, (el) => {
                             val += '<span class="is_select">'+el+'</span> ';
@@ -441,20 +458,16 @@
                     this.leftPos += 152;
                 }
                 this.linkRecordSelIdx = idx;
-                this.open_history = 0;
+                this.open_history = false;
             },
             changeListingField(fld) {
                 this.listing_field = fld;
             },
-            toggleHistory(tableHeader) {
-                if (this.open_history !== tableHeader.id && this.linkRecordSelIdx > -1) {
-                    if (this.open_history === 0) {
-                        this.leftPos -= 152;
-                    }
-                    this.open_history = tableHeader.id;
-                    this.history_header = tableHeader;
+            toggleHistory(open_history) {
+                this.open_history = open_history;
+                if (this.open_history) {
+                    this.leftPos -= 152;
                 } else {
-                    this.open_history = 0;
                     this.leftPos += 152;
                 }
             },
@@ -462,24 +475,18 @@
                 let container = $(this.$refs.popup_wrapper);
                 this.activePop = container.has(e.target).length !== 0;
             },
-            changeView() {
-                if (this.popupViewType === this.viewTypeListing) {
-                    this.popupViewType = this.viewTypeTable;
-                    this.leftPos -= (this.open_history ? 0 : 152) + (this.linkRecordRows.length > 1 ? 0 : 110);
-                } else
-                if (this.popupViewType === this.viewTypeTable) {
-                    this.popupViewType = this.viewTypeBoards;
-                    this.leftPos += 152 + 110;
-                } else {
-                    this.popupViewType = this.viewTypeListing;
-                    this.leftPos -= (this.open_history ? 0 : 152) + (this.linkRecordRows.length > 1 ? 0 : 110);
-                }
+            changeView(type) {
+                this.open_history = this.popupViewType === this.viewTypeListing ? this.open_history : false;
+                let oldWi = this.linkPopWi(this.popupViewType);
+                let newWi = this.linkPopWi(type);
+                this.popupViewType = type;
+                this.leftPos += (oldWi - newWi)/2;
                 this.activeTab = 'details';
             },
             getPopupHeader() {
-                let linkTableName = (this.linkTableMeta ? '['+this.linkTableMeta.name+'] - ' : '');
+                let linkTableName = (this.popupMetaTable ? '['+this.popupMetaTable.name+'] - ' : '');
 
-                let headers = this.linkTableMeta ? this.linkTableMeta._fields : [];
+                let headers = this.popupMetaTable ? this.popupMetaTable._fields : [];
                 let row = this.linkRecordRows[Math.max(this.linkRecordSelIdx, 0)];
                 let globalShows = [];
                 _.each(headers, (hdr) => {
@@ -493,21 +500,28 @@
             },
 
             //row edit functions
+            vertUpdated(tableRow) {
+                if (this.linkRecordSelIdx === -1) {
+                    this.checkRowAutocomplete();
+                } else {
+                    this.updateRowFromTable(tableRow);
+                }
+            },
             insertRowFromTable(tableRow) {
                 this.insertRow(tableRow, true);
             },
             updateRowFromTable(tableRow) {
-                this.updateRow(tableRow, this.linkTableMeta.id);
+                this.updateRow(tableRow, this.popupMetaTable.id);
             },
             insertRow(tableRow, no_close) {
                 let fields = _.cloneDeep(tableRow);//copy object
 
                 this.$root.sm_msg_type = 1;
                 axios.post('/ajax/table-data', {
-                    table_id: this.linkTableMeta.id,
+                    table_id: this.popupMetaTable.id,
                     fields: fields,
                     get_query: {
-                        table_id: this.linkTableMeta.id,
+                        table_id: this.popupMetaTable.id,
                         page: 1,
                         rows_per_page: 0,
                     },
@@ -519,8 +533,9 @@
                     }
                     this.addMode(false);
                     this.link.already_added_records = to_float(this.link.already_added_records) + 1;
+                    this.should_update = true;
                     if (!no_close) {
-                        this.startClose(true);
+                        this.closePopup();
                     }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
@@ -532,6 +547,9 @@
                 let row_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
+
+                //front-end RowGroups and CondFormats
+                RefCondHelper.updateRGandCFtoRow(this.popupMetaTable, tableRow);
 
                 this.$root.sm_msg_type = 1;
                 this.$root.prevent_cell_edit = true;
@@ -548,6 +566,7 @@
                     if (data.rows && data.rows.length) {
                         SpecialFuncs.assignProps(tableRow, data.rows[0]);
                     }
+                    this.should_update = true;
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -560,7 +579,7 @@
                 this.$root.sm_msg_type = 1;
                 axios.delete('/ajax/table-data', {
                     params: {
-                        table_id: this.linkTableMeta.id,
+                        table_id: this.popupMetaTable.id,
                         row_id: tableRow.id,
                     }
                 }).then(({ data }) => {
@@ -570,8 +589,9 @@
                         this.rowsCount = this.linkRecordRows.length;
                         this.linkRecordSelIdx = 0;
                     }
+                    this.should_update = true;
                     if (!this.linkRecordRows.length) {
-                        this.startClose(true);
+                        this.closePopup();
                     }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
@@ -586,7 +606,7 @@
                     this.checkRowAutocomplete();
                 } else {
                     if (!this.linkRecordRows.length) {
-                        this.startClose();
+                        this.closePopup();
                     }
                 }
             },
@@ -604,24 +624,23 @@
             checkRowAutocomplete() {
                 let tableRow = this.linkRecordSelIdx > -1 ? this.linkRecordRows[this.linkRecordSelIdx] : this.objectForAdd;
                 let link_params = this.getLinkParams(this.link_rules, this.metaRow);
-                this.checkRowOnBackend(this.linkTableMeta.id, tableRow, link_params).then((data) => {
-                    tableRow.id ? this.updateRow(tableRow, this.linkTableMeta.id) : null;
-                });
+                let promise = this.checkRowOnBackend(this.popupMetaTable.id, tableRow, link_params);
+                if (promise) {
+                    promise.then((data) => {
+                        tableRow.id ? this.updateRow(tableRow, this.popupMetaTable.id) : null;
+                    });
+                }
             },
 
             //
-            startClose(should_update) {
-                //this.updateRow(this.metaRow, this.metaHeader.table_id, true, should_update);
-                this.closePopup(should_update);
-            },
-            closePopup(should_update) {
-                let $id = this.linkTableMeta ? this.linkTableMeta.id : null;
-                this.$emit('link-popup-close', this.popupKey, should_update, $id);
+            closePopup() {
+                let $id = this.popupMetaTable ? this.popupMetaTable.id : null;
+                this.$emit('link-popup-close', this.popupKey, this.should_update, $id);
             },
 
             smallSpace() {
                 this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                localStorage.setItem('is_small_spacing', this.is_small_spacing);
+                setLocalStorage('is_small_spacing', this.is_small_spacing);
             },
             anotherRow(is_next) {
                 if (is_next && this.linkRecordSelIdx < this.linkRecordRows.length) {
@@ -681,8 +700,18 @@
             rhUpdate() {
                 this.metaRow.row_hash = uuidv4();
             },
+            settingsClose() {
+                this.getHeaders();
+                this.draw = false;
+                this.$nextTick(() => {
+                    this.draw = true;
+                });
+            },
         },
         mounted() {
+            this.$root.tablesZidx += 10;
+            this.zIdx = this.$root.tablesZidx;
+
             eventBus.$on('table-settings-all-popup__closed', this.rhUpdate);
             eventBus.$on('global-keydown', this.hideMenu);
             eventBus.$on('global-click', this.setActivePopup);
@@ -761,5 +790,18 @@
     }
     .passive-popup {
         z-index: 1600;
+    }
+    .view-type-wrapper {
+        right: 21px;
+        position: absolute;
+        background-color: transparent;
+        width: max-content;
+        white-space: nowrap;
+        top: -3px;
+
+        .fas {
+            color: #fff;
+            margin: 3px;
+        }
     }
 </style>

@@ -5,6 +5,7 @@ namespace Vanguard\AppsModules\StimWid;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
+use Vanguard\AppsModules\StimWid\CreateRls\RlConnCreator;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
 use Vanguard\AppsModules\StimWid\Data\UserPermisQuery;
 use Vanguard\AppsModules\StimWid\Rts\RtsInterface;
@@ -60,22 +61,12 @@ class Loader3D
      */
     public function WidSettings()
     {
-        $g_setts = $this->get_wid_sett();
+        $g_setts = $this->get_wid_sett(auth()->id());//User settings
         if (!$g_setts) {
-            if (auth()->id()) {
-                $this->insert_wid_sett();
-                $g_setts = $this->get_wid_sett();
-            } else {
-                $g_setts = [];
-            }
-
-            /*$owner_setts = $this->get_wid_sett();
-
-            if ($g_setts && $owner_setts) {
-                $owner_setts = (new HelperService())->delSystemFields($owner_setts);
-                unset($owner_setts['usergroup']);
-                $g_setts = array_merge($g_setts, $owner_setts);
-            }*/
+            $g_setts = $this->get_wid_sett();//Model owner settings
+        }
+        if (!$g_setts) {
+            $g_setts = [];
         }
         return $g_setts;
     }
@@ -85,6 +76,22 @@ class Loader3D
      * @return array|null
      */
     protected function get_wid_sett(int $user_id = null)
+    {
+        $ws = $this->wid_sett_loader($user_id);
+
+        if (!$ws) {
+            $id = $this->insert_wid_sett();//Create User Settings
+            $ws = $this->wid_sett_loader($user_id);
+        }
+
+        return $ws;
+    }
+
+    /**
+     * @param int|null $user_id
+     * @return array|null
+     */
+    protected function wid_sett_loader(int $user_id = null)
     {
         $tbtb = $this->stimRepo->findInheritTb('', 'wid_sett', '3d');
         $ws = (new Model3dService( $tbtb, false ))
@@ -97,9 +104,10 @@ class Loader3D
     }
 
     /**
-     * @return mixed
+     * @param int|null $user_id
+     * @return int
      */
-    protected function insert_wid_sett()
+    protected function insert_wid_sett(int $user_id = null)
     {
         $sett_tb = $this->stimRepo->findInheritTb('', 'wid_sett', '3d');
         $table_meta = DataReceiver::meta_table($sett_tb);
@@ -108,7 +116,9 @@ class Loader3D
         $data = [];
         foreach (['usergroup', 'model', 'curtab'] as $appfld) {
             $fld_obj = $sett_tb_info['_app_fields']->where('app_field', '=', $appfld)->first();
-            $data[ $fld_obj->data_field ] = $appfld == 'usergroup' ? auth()->id() : $this->{$appfld};
+            $data[ $fld_obj->data_field ] = $appfld == 'usergroup'
+                ? ($user_id ?: auth()->id())
+                : $this->{$appfld};
             //prevent 'null'
             if (!$data[ $fld_obj->data_field ]) {
                 $data[ $fld_obj->data_field ] = ' ';
@@ -138,6 +148,7 @@ class Loader3D
             'eqs' => $this->findMaEquipments($this->app_table, $this->master_model, $this->excluded_colors),
             'colors' => $this->findMaColors($this->app_table, $this->master_model),
             'libs' => $this->findMaLibs($this->app_table, $this->master_model),
+            'rls' => $this->findMaRLs($this->app_table, $this->master_model),
         ];
     }
 
@@ -191,6 +202,40 @@ class Loader3D
             'all_statuses' => array_pluck($lcs, 'status'),
             '_lcs_tb' => $tablda_lc,
             '_eqs_tb' => $tablda_eq,
+        ];
+    }
+
+    /**
+     * @param string $ma_table
+     * @param array $ma_model
+     * @return array
+     */
+    protected function findMaRLs(string $ma_table, array $ma_model)
+    {
+        $RL = new RlConnCreator();
+        $rl_master = RlConnCreator::rl_master($ma_model);
+
+        $receiver = (new Model3dService($RL->get('rl')['app_table']))->queryReceiver();
+        $rl_elems = $receiver->where('usergroup', '=', $rl_master['usergroup'])
+            ->where('mg_name', '=', $rl_master['mg_name'])
+            ->get();
+
+        $receiver_n = (new Model3dService($RL->get('node')['app_table']))->queryReceiver();
+        $rl_nodes = $receiver_n->where('usergroup', '=', $rl_master['usergroup'])
+            ->where('mg_name', '=', $rl_master['mg_name'])
+            ->get();
+        $rl_nodes = collect($rl_nodes);
+
+        foreach ($rl_elems as &$rl_elem) {
+            $rl_elem['mbr_node'] = $rl_nodes->where('name', '=', $rl_elem['mbr_node'])->first();
+            $rl_elem['eqpt_node'] = $rl_nodes->where('name', '=', $rl_elem['eqpt_node'])->first();
+        }
+
+        $tablda_rls = $this->tbRepo->getTableByDB($receiver->getModelTable());
+
+        return [
+            'rows' => $rl_elems,
+            '_rl_tb' => $tablda_rls,
         ];
     }
 
@@ -303,13 +348,13 @@ class Loader3D
             //Exclude some Materials and Members
             $exclude_materials = [];
             foreach ($materials as $mat) {
-                if (in_array($mat['color_gr'], $excluded_colors)) {
+                if (in_array($mat['color_gr']??'', $excluded_colors)) {
                     $exclude_materials[] = $mat['name'];
                 }
             }
 
             foreach ($members as $member) {
-                if (!in_array($member['Mat'], $exclude_materials)) {
+                if (!in_array($member['Mat']??'', $exclude_materials)) {
                     $avail_members[] = $member;
                 }
             }

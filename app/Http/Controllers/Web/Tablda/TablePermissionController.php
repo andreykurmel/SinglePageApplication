@@ -3,7 +3,8 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
-use Ramsey\Uuid\Uuid;
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Support\Collection;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\TablePermission\AddonRightRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\AddonRightUpdateRequest;
@@ -13,32 +14,20 @@ use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionChangeRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionCopyRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionDefaultFieldRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionDeleteRequest;
-use Vanguard\Http\Requests\Tablda\TablePermission\TablePermission2ColumnGroupsRequest;
-use Vanguard\Http\Requests\Tablda\TablePermission\TablePermission2RowGroupsRequest;
-use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionFileRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionForbidRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionUpdateColumnGroupsRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TablePermissionUpdateRowGroupsRequest;
-use Vanguard\Models\DataSetPermissions\TablePermission;
-use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
-use Vanguard\Models\DataSetPermissions\TablePermissionForbidSettings;
 use Vanguard\Models\Table\TableData;
-use Vanguard\Models\User\Addon;
-use Vanguard\Repositories\Tablda\Permissions\TableColGroupRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionForbidRepository;
-use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Services\Tablda\Permissions\TablePermissionService;
 use Vanguard\Services\Tablda\TableService;
-use Vanguard\User;
 
 class TablePermissionController extends Controller
 {
     private $tableService;
     private $tablePermissionRepository;
     private $tablePermissionService;
-    private $colGroupRepository;
-    private $rowGroupRepository;
 
     /**
      * TablePermissionController constructor.
@@ -46,41 +35,21 @@ class TablePermissionController extends Controller
      * @param TableService $tableService
      * @param TablePermissionRepository $tablePermissionRepository
      * @param TablePermissionService $tablePermissionService
-     * @param TableColGroupRepository $colGroupRepository
-     * @param TableRowGroupRepository $rowGroupRepository
      */
     public function __construct(
-        TableService $tableService,
+        TableService              $tableService,
         TablePermissionRepository $tablePermissionRepository,
-        TablePermissionService $tablePermissionService,
-        TableColGroupRepository $colGroupRepository,
-        TableRowGroupRepository $rowGroupRepository
+        TablePermissionService    $tablePermissionService
     )
     {
         $this->tableService = $tableService;
         $this->tablePermissionRepository = $tablePermissionRepository;
         $this->tablePermissionService = $tablePermissionService;
-        $this->colGroupRepository = $colGroupRepository;
-        $this->rowGroupRepository = $rowGroupRepository;
-    }
-
-    /**
-     * @param TablePermissionDeleteRequest $request
-     * @return mixed
-     */
-    public function checkPermis(TablePermissionDeleteRequest $request)
-    {
-        $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
-        $table = $this->tableService->getTable($permission->table_id);
-
-        //$this->authorize('isOwner', [TableData::class, $table]);
-
-        return $permission;
     }
 
     /**
      * @param TablePermissionCopyRequest $request
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function copyPermis(TablePermissionCopyRequest $request)
     {
@@ -92,14 +61,9 @@ class TablePermissionController extends Controller
         //$this->authorize('isOwner', [TableData::class, $table_from]);
         $this->authorize('isOwner', [TableData::class, $table_to]);
 
-        $fields = $request->as_template ? (new TablePermission())->design_tab : [];
-        $this->tablePermissionRepository->copyPermission($from_permission, $to_permission, !!$request->as_template, $fields);
+        $this->tablePermissionRepository->copyPermission($from_permission, $to_permission);
         $table_to->_is_owner = true;
-        if ($request->as_template) {
-            return (new TableService())->getTbPermissions($table_to, $to_permission->id);
-        } else {
-            return (new TableService())->getTbPermissions($table_to)->where('is_request', '=', 0)->values();
-        }
+        return (new TableService())->getTbPermissions($table_to)->values();
     }
 
     /**
@@ -108,22 +72,15 @@ class TablePermissionController extends Controller
      * @param TablePermissionAddRequest $request
      * @return mixed
      */
-    public function insertTablePermission(TablePermissionAddRequest $request) {
+    public function insertTablePermission(TablePermissionAddRequest $request)
+    {
         $table = $this->tableService->getTable($request->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        if (empty($request->fields['is_request'])) {//insert standard TablePermission
-            $arr = array_merge($request->fields, [
-                'table_id' => $request->table_id
-            ]);
-        } else {//insert Data Request
-            $arr = array_merge($request->fields, [
-                'table_id' => $request->table_id,
-                'can_add' => 1,
-                'link_hash' => Uuid::uuid4(),
-            ]);
-        }
+        $arr = array_merge($request->fields, [
+            'table_id' => $request->table_id
+        ]);
 
         if (!empty($request->fields['user_link']) && $this->tablePermissionRepository->checkAddress($table->name, $request->fields['user_link'])) {
             return response('Address taken! Enter a different one.', 400);
@@ -138,7 +95,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionChangeRequest $request
      * @return array
      */
-    public function updateTablePermission(TablePermissionChangeRequest $request) {
+    public function updateTablePermission(TablePermissionChangeRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -147,7 +105,7 @@ class TablePermissionController extends Controller
         if (!empty($request->fields['user_link']) && $this->tablePermissionRepository->checkAddress($table->name, $request->fields['user_link'], $permission->id)) {
             return response('Address taken! Enter a different one.', 400);
         } else {
-            return $this->tablePermissionRepository->updatePermission($permission->id, $request->fields);
+            return $this->tablePermissionRepository->updatePermission($permission, $request->fields);
         }
     }
 
@@ -157,13 +115,14 @@ class TablePermissionController extends Controller
      * @param TablePermissionDeleteRequest $request
      * @return mixed
      */
-    public function deleteTablePermission(TablePermissionDeleteRequest $request) {
+    public function deleteTablePermission(TablePermissionDeleteRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->tablePermissionRepository->deletePermission($permission->id, $permission->table_id);
+        return $this->tablePermissionRepository->deletePermission($permission, $permission->table_id);
     }
 
     /**
@@ -172,7 +131,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionDeleteRequest $request
      * @return mixed
      */
-    public function checkPass(TablePermissionDeleteRequest $request) {
+    public function checkPass(TablePermissionDeleteRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
 
         return ['status' => $permission->pass == $request->pass];
@@ -184,7 +144,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionUpdateColumnGroupsRequest $request
      * @return mixed
      */
-    public function updateColumnInTablePermission(TablePermissionUpdateColumnGroupsRequest $request) {
+    public function updateColumnInTablePermission(TablePermissionUpdateColumnGroupsRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -205,13 +166,14 @@ class TablePermissionController extends Controller
      * @param TablePermission2UserGroup $request
      * @return mixed
      */
-    public function addUserGroupToTablePermission(TablePermission2UserGroup $request) {
+    public function addUserGroupToTablePermission(TablePermission2UserGroup $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->tablePermissionRepository->attachUserGroupPermission($permission, $request->user_group_id, $request->is_active);
+        return $this->tablePermissionService->attachUserGroupPermission($permission, $request->user_group_id, $request->is_active);
     }
 
     /**
@@ -220,13 +182,14 @@ class TablePermissionController extends Controller
      * @param TablePermission2UserGroup $request
      * @return mixed
      */
-    public function updateUserGroupFromTablePermission(TablePermission2UserGroup $request) {
+    public function updateUserGroupFromTablePermission(TablePermission2UserGroup $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return ['status' => $this->tablePermissionRepository->updateUserGroupPermission($permission, $request->user_group_id, $request->is_active)];
+        return ['status' => $this->tablePermissionService->updateUserGroupPermission($permission, $request->user_group_id, $request->is_active)];
     }
 
     /**
@@ -235,13 +198,14 @@ class TablePermissionController extends Controller
      * @param TablePermission2UserGroup $request
      * @return mixed
      */
-    public function deleteUserGroupFromTablePermission(TablePermission2UserGroup $request) {
+    public function deleteUserGroupFromTablePermission(TablePermission2UserGroup $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->tablePermissionRepository->detachUserGroupPermission($permission, $request->user_group_id);
+        return $this->tablePermissionService->detachUserGroupPermission($permission, $request->user_group_id);
     }
 
     /**
@@ -250,7 +214,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionUpdateRowGroupsRequest $request
      * @return mixed
      */
-    public function updateRowInTablePermission(TablePermissionUpdateRowGroupsRequest $request) {
+    public function updateRowInTablePermission(TablePermissionUpdateRowGroupsRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -272,7 +237,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionDefaultFieldRequest $request
      * @return mixed
      */
-    public function defaultField(TablePermissionDefaultFieldRequest $request) {
+    public function defaultField(TablePermissionDefaultFieldRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -286,9 +252,10 @@ class TablePermissionController extends Controller
      *
      * @param AddonRightRequest $request
      * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function insertAddonRight(AddonRightRequest $request) {
+    public function insertAddonRight(AddonRightRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -302,9 +269,10 @@ class TablePermissionController extends Controller
      *
      * @param AddonRightUpdateRequest $request
      * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function updateAddonRight(AddonRightUpdateRequest $request) {
+    public function updateAddonRight(AddonRightUpdateRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -318,9 +286,10 @@ class TablePermissionController extends Controller
      *
      * @param AddonRightRequest $request
      * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function deleteAddonRight(AddonRightRequest $request) {
+    public function deleteAddonRight(AddonRightRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -330,46 +299,13 @@ class TablePermissionController extends Controller
     }
 
     /**
-     * Add DCR File.
-     *
-     * @param TablePermissionFileRequest $request
-     * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
-     */
-    public function addDcrFile(TablePermissionFileRequest $request) {
-        $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
-        $table = $this->tableService->getTable($permission->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return [
-            'filepath' => $this->tablePermissionRepository->insertDCRFile($permission, $request->field, $request->u_file)
-        ];
-    }
-
-    /**
-     * Delete DCR File.
-     *
-     * @param TablePermissionFileRequest $request
-     * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
-     */
-    public function deleteDcrFile(TablePermissionFileRequest $request) {
-        $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
-        $table = $this->tableService->getTable($permission->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return ['status' => $this->tablePermissionRepository->deleteDCRFile($permission, $request->field)];
-    }
-
-    /**
      * addForbidSetting
      *
      * @param TablePermissionForbidRequest $request
      * @return mixed
      */
-    public function addForbidSetting(TablePermissionForbidRequest $request) {
+    public function addForbidSetting(TablePermissionForbidRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 
@@ -390,7 +326,8 @@ class TablePermissionController extends Controller
      * @param TablePermissionForbidRequest $request
      * @return mixed
      */
-    public function deleteForbidSetting(TablePermissionForbidRequest $request) {
+    public function deleteForbidSetting(TablePermissionForbidRequest $request)
+    {
         $permission = $this->tablePermissionRepository->getPermission($request->table_permission_id);
         $table = $this->tableService->getTable($permission->table_id);
 

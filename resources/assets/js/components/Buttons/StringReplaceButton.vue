@@ -1,7 +1,7 @@
 <template>
     <div ref="search_button" class="string_replace_button" title="Replace Values">
         <button class="btn btn-primary btn-sm blue-gradient"
-                @click="toggleSearch(!this.menu_opened)"
+                @click="toggleSearch(!menu_opened)"
                 :style="$root.themeButtonStyle"
         >
             <img src="/assets/img/replace1.png" width="25" height="25">
@@ -34,6 +34,7 @@
                         :fixed-width="150"
                         :with_edit="true"
                         :force_edit="true"
+                        :ext-row="firstSelected"
                         style="border: 1px solid #CCC;"
                         @updated-td-val="(val) => {replace_string = val}"
                 ></single-td-field>
@@ -50,7 +51,7 @@
                     <label class="setting_label">Rows:</label>
                     <select class="form-control input-sm" v-model="request_type">
                         <option value="all_table">Entire Table</option>
-                        <option value="list_view">List View (All Pages)</option>
+                        <option value="list_view">Grid View (All Pages)</option>
                         <option value="current_page">Current Page</option>
                         <option value="checked_rows">Checked / Selected</option>
                     </select>
@@ -87,6 +88,8 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+
     import {eventBus} from './../../app';
 
     import CanEditMixin from "../_Mixins/CanViewEditMixin";
@@ -116,7 +119,6 @@
             }
         },
         props:{
-            request_params: Object,
             tableMeta: Object,
             table_id: Number,
         },
@@ -136,6 +138,9 @@
                 return this.edit_columns.length === 1
                     ? _.find(this.tableMeta._fields, {field: this.edit_columns[0]})
                     : null;
+            },
+            firstSelected() {
+                return _.find(this.$root.listTableRows, {_checked_row: true});
             },
         },
         methods: {
@@ -184,6 +189,7 @@
                 axios.post('/ajax/table-data/field/get-all-values', {
                     table_id: this.table_id,
                     field_id: field.id,
+                    special_params: SpecialFuncs.specialParams(),
                 }).then(({data}) => {
                     this.single_field_vals = data;
                 }).catch(errors => {
@@ -191,15 +197,7 @@
                 });
             },
             getRequestParams() {
-                let rows_ids = [];
-                let all_rows_checked = true;
-                _.each(this.$root.listTableRows, (row) => {
-                    if (row._checked_row) {
-                        rows_ids.push(row.id);
-                    } else {
-                        all_rows_checked = false;
-                    }
-                });
+                let check_obj = this.$root.checkedRowObject(this.$root.listTableRows);
 
                 let request_opt;
                 switch (this.request_type)
@@ -213,26 +211,26 @@
                         break;
 
                     case 'list_view':
-                        request_opt = _.cloneDeep(this.request_params);
+                        request_opt = _.cloneDeep(this.$root.request_params);
                         request_opt.page = 1;
                         request_opt.rows_per_page = 0;
                         break;
 
                     case 'current_page':
-                        request_opt = _.cloneDeep(this.request_params);
+                        request_opt = _.cloneDeep(this.$root.request_params);
                         request_opt.page = 1;
                         request_opt.rows_per_page = 0;
                         request_opt.row_id = _.map(this.$root.listTableRows, (row) => { return row.id });
                         break;
 
                     case 'checked_rows':
-                        if (all_rows_checked) {
-                            request_opt = _.cloneDeep(this.request_params);
+                        if (check_obj.all_checked) {
+                            request_opt = _.cloneDeep(this.$root.request_params);
                             request_opt.rows_per_page = 0;
-                        } else if (rows_ids.length) {
+                        } else if (check_obj.rows_ids.length) {
                             request_opt = {
                                 table_id: this.table_id,
-                                row_id: rows_ids,
+                                row_id: check_obj.rows_ids,
                                 page: 1,
                                 rows_per_page: 0,
                             };
@@ -243,6 +241,7 @@
 
                     default: Swal('Incorrect Request Type! Check the replace settings');
                 }
+                request_opt.special_params = SpecialFuncs.specialParams();
                 return request_opt;
             },
             goReplace() {
@@ -258,7 +257,7 @@
                         request_params: request_params,
                     }).then(({data}) => {
                         Swal({
-                            title: 'Total ' + data.total + ' items found. Total ' + data.can_replace + ' items can be replaced. Confirm to replace?',
+                            title: 'Total ' + data.total + ' item(s) found. Total ' + data.can_replace + ' item(s) will be replaced. Confirm to proceed?',
                             confirmButtonClass: 'btn-danger',
                             confirmButtonText: 'Yes',
                             showCancelButton: true,

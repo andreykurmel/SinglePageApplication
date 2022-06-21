@@ -3,12 +3,15 @@
 namespace Vanguard\Repositories\Tablda;
 
 use Illuminate\Database\Eloquent\Collection;
+use Ramsey\Uuid\Uuid;
 use Vanguard\Classes\FormulaSymbolCreator;
+use Vanguard\Classes\Randoms;
 use Vanguard\Models\Correspondences\CorrespField;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\Table\TableKanbanSettings;
 use Vanguard\Models\Table\UserHeaders;
+use Vanguard\Repositories\Tablda\TableData\FormulaUpdaterRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\TableDataService;
@@ -16,6 +19,10 @@ use Vanguard\Services\Tablda\TableDataService;
 class TableFieldRepository
 {
     protected $service;
+    protected $presaved = 'presaved';
+    protected $prevented = [
+        'mselect' => [],
+    ];
 
     /**
      * TableFieldRepository constructor.
@@ -44,6 +51,19 @@ class TableFieldRepository
                 ? TableField::where($dbname.'.id', '=', $field_ids)->joinHeader(auth()->id(), $table)->first()
                 : TableField::where($dbname.'.id', '=', $field_ids)->first();
         }
+    }
+
+    /**
+     * @param int $table_id
+     * @param string $field
+     * @param $search
+     * @return TableField|null
+     */
+    public function getFieldBy(int $table_id, string $field, $search)
+    {
+        return TableField::where('table_id', '=', $table_id)
+            ->where($field, '=', $search)
+            ->first();
     }
 
     /**
@@ -153,7 +173,7 @@ class TableFieldRepository
     {
         $table_fields = $table->_fields()->get();
         $table_fields = $table_fields->sortBy(function ($field, $key) {
-            if ($field->field === 'id') {
+            if ($field->field == 'id') {
                 $res = 0;
             } elseif (!in_array($field->field, $this->service->system_fields)) {
                 $res = $field->id;
@@ -192,21 +212,20 @@ class TableFieldRepository
      * @param Collection|Table $tables
      * @param $user_id - integer|null
      * @param $type - string: ['view' or 'edit']
-     * @param $table_permission_id
      * @return Collection of Table or TableField
      */
-    public function loadFieldsWithPermissions($tables, $user_id, $type = 'view', $table_permission_id = null)
+    public function loadFieldsWithPermissions($tables, $user_id, $type = 'view')
     {
         $repo = $this;
         if ($tables instanceof Table) {
             $query = $tables->_fields();
-            $this->fieldsPermissionsQuery($query, $user_id, $type, $table_permission_id, $tables->is_system);
+            $this->fieldsPermissionsQuery($query, $user_id, $type, $tables);
             //TableFields
             return $query->get();
         } else {
             $tables->load([
-                '_fields' => function ($query) use ($repo, $user_id, $type, $table_permission_id) {
-                    $repo->fieldsPermissionsQuery($query, $user_id, $type, $table_permission_id);
+                '_fields' => function ($query) use ($repo, $user_id, $type) {
+                    $repo->fieldsPermissionsQuery($query, $user_id, $type, new Table());
                 }
             ]);
             //Tables
@@ -215,35 +234,40 @@ class TableFieldRepository
     }
 
     /**
-     * Set query.
-     *
      * @param $query
-     * @param $user_id - integer|null
-     * @param $type - string: ['view' or 'edit']
-     * @param $table_permission_id
-     * @param $sys_table
-     * @return Collection
+     * @param $user_id
+     * @param string $type
+     * @param Table $table
      */
-    private function fieldsPermissionsQuery($query, $user_id, $type = 'view', $table_permission_id = null, $sys_table = false)
+    protected function fieldsPermissionsQuery($query, $user_id, $type = 'view', Table $table)
     {
-        $visitor_scope = $sys_table || !$user_id || $this->service->use_visitor_scope;
+        $visitor_scope = $table->is_system || !$user_id || $this->service->use_visitor_scope;
         $query->joinOwnerHeader();
-        $query->where(function ($inner) use ($visitor_scope, $user_id, $type, $table_permission_id) {
+        $query->where(function ($inner) use ($visitor_scope, $user_id, $type, $table) {
             //user is owner
             $inner->whereHas('_table', function ($t) use ($user_id) {
                 $t->where('user_id', $user_id);
             });
             //or user has permission to view field
-            $inner->orWhereHas('_table_column_groups', function ($tcg) use ($visitor_scope, $type, $table_permission_id) {
+            $inner->orWhereHas('_table_column_groups', function ($tcg) use ($visitor_scope, $type, $table) {
 
-                $tcg->whereHas('_table_permission_columns', function ($tpc) use ($visitor_scope, $type, $table_permission_id) {
+                $tcg->orWhereHas('_table_permission_columns', function ($tpc) use ($visitor_scope, $type, $table) {
                     //can view
                     $tpc->where($type, 1);
                     //and has permission
-                    $tpc->whereHas('_table_permission', function ($tp) use ($visitor_scope, $table_permission_id) {
-                        $tp->applyIsActiveForUserOrPermission($table_permission_id, $visitor_scope);
+                    $tpc->whereHas('_table_permission', function ($tp) use ($visitor_scope, $table) {
+                        $tp->applyIsActiveForUserOrPermission($table->__data_permission_id, $visitor_scope);
                     });
                 });
+
+                if ($table->__data_dcr_id) {
+                    $tcg->orWhereHas('_table_dcr_columns', function ($tpc) use ($visitor_scope, $type, $table) {
+                        //can view
+                        $tpc->where($type, 1);
+                        //and linked to DCR
+                        $tpc->where('table_data_requests_id', $table->__data_permission_id);
+                    });
+                }
 
             });
         });
@@ -302,7 +326,7 @@ class TableFieldRepository
      * Add records into the 'table_fields' for just created table
      *
      * @param int $table_id
-     * @param $datas :
+     * @param array $datas :
      * [
      *  [
      *      +field: string,
@@ -311,20 +335,56 @@ class TableFieldRepository
      *  ],
      *  ...
      * ]
+     * @param bool $presave
+     * @return array
      */
-    public function addFieldsForCreatedTable(int $table_id, $datas)
+    public function addFieldsForCreatedTable(int $table_id, array $datas, bool $presave = false)
     {
-        $arr = [];
         //$symCreator = new FormulaSymbolCreator();
-        foreach ($datas as $data) {
+        $new_models = [];
+        foreach ($datas as $idx => $data) {
             $data = array_merge($data, $this->service->getCreated(), $this->service->getModified());
+            $data['name'] = $data['name'] ?: 'col_' . $idx;
+            $data['field'] = empty($data['field']) ? $this->getDbField($data['name'], $idx) : $data['field'];
             $data['table_id'] = $table_id;
             $data['ddl_auto_fill'] = $data['ddl_auto_fill'] ?? 0;
             $data['ddl_add_option'] = $data['ddl_add_option'] ?? 0;
             $data['f_default'] = $data['f_default'] ?? $this->service->getDefaultOnType($data['f_type']);
-            $arr[] = $data;
+            $data['row_hash'] = $presave ? $this->presaved : Uuid::uuid4();
+            $new_models[] = TableField::updateOrCreate([
+                'table_id' => $data['table_id'],
+                'field' => $data['field'],
+            ], $data);
         }
-        TableField::insert($arr);
+        return $new_models;
+    }
+
+    /**
+     * @param Table $table
+     * @return mixed
+     */
+    public function removePresaved(Table $table)
+    {
+        return TableField::where('table_id', '=', $table->id)
+            ->where('row_hash', '=', $this->presaved)
+            ->delete();
+    }
+
+    /**
+     * Get db_name for field from name
+     *
+     * @param $name
+     * @param $idx
+     * @return string
+     */
+    public function getDbField($name, $idx)
+    {
+        $name = strtolower($name);
+        if (preg_match('/[^a-zA-Z]/i', $name)) {
+            $name = 'f' . substr($name, 1);
+        }
+        $name = preg_replace('/ /i', '_', substr($name, 0, 50));
+        return preg_replace('/[^\w\d_]/i', '', $name) . '_' . ($idx);// . Randoms::rand_one();
     }
 
     /**
@@ -348,14 +408,15 @@ class TableFieldRepository
     public function changeFieldsForModifiedTable(Table $table, $datas)
     {
         //$symCreator = new FormulaSymbolCreator();
-        $dataRepo = new TableDataRepository();
+        $fileRepo = new FileRepository();
+        $dataRepo = new FormulaUpdaterRepository();
         $fldRepo = new TableFieldRepository();
-        $order = 0;
+        $order = 1;//'id';
         $nodef = [];
         foreach ($datas as $data) {
             $selflds = in_array($data['field'], $nodef)
-                ? ['field', 'name', 'formula_symbol', 'f_type', 'f_size', 'f_required', 'f_format']
-                : ['field', 'name', 'formula_symbol', 'f_type', 'f_size', 'f_default', 'f_required', 'f_format'];
+                ? ['field', 'name', 'formula_symbol', 'f_type', 'f_size', 'f_required', 'f_format', 'rating_icon']
+                : ['field', 'name', 'formula_symbol', 'f_type', 'f_size', 'f_default', 'f_required', 'f_format', 'rating_icon'];
             $arr = collect($data)
                 ->whereNotIn('field', $this->service->system_fields)
                 ->only($selflds)
@@ -365,22 +426,30 @@ class TableFieldRepository
                 $arr['order'] = $order;
             }
 
-            if ($data['status'] === 'del') {
+            if ($data['status'] == 'del') {
+                if ($data['f_type'] == 'Attachment') {
+                    $fileRepo->deleteAttachmentsOfColumn($table, $arr['field']);
+                }
                 TableField::where('table_id', '=', $table->id)->where('field', '=', $arr['field'])->delete();
-                CorrespField::where('user_id', '=', $table->user_id)->where('data_field', '=', $arr['field'])->delete();
+                //CorrespField::where('user_id', '=', $table->user_id)->where('data_field', '=', $arr['field'])->delete();
             }
-            if ($data['status'] === 'edit') {
+            if ($data['status'] == 'edit') {
                 $arr = $this->setSpecialConditions($arr, 'update');
                 $db_field = TableField::where('table_id', '=', $table->id)->where('field', '=', $arr['field'])->first();
                 $fldRepo->updateTableField( $table, $db_field->id, array_merge($arr, $this->service->getModified()) );
                 $nodef = array_merge( $dataRepo->updateNamesInFormulaes($table, $db_field, $arr) );
-                //$dataRepo->updateDatabaseDefaults($table, $arr['field'], (string)$arr['f_default']);
+                //$repo->updateDatabaseDefaults($table, $arr['field'], (string)$arr['f_default']);
             }
-            if ($data['status'] === 'add') {
+            if ($data['status'] == 'add') {
                 $arr['table_id'] = $table->id;
                 $arr = $this->setSpecialConditions($arr, 'add');
                 $fldRepo->addFieldsForCreatedTable($table->id, [$arr]);
-                //$dataRepo->updateDatabaseDefaults($table, $arr['field'], (string)$arr['f_default']);
+                //$repo->updateDatabaseDefaults($table, $arr['field'], (string)$arr['f_default']);
+            }
+
+            //fill empty auto strings
+            if (in_array($data['f_type'], ['Auto String'])) {
+                (new ImportRepository())->fillEmptyAutoRows($table, $data);
             }
         }
     }
@@ -472,18 +541,19 @@ class TableFieldRepository
         /*if (in_array($combined['f_type'] ?? '', ['User'])) {
             $combined['input_type'] = 'S-Select';
         }*/
-        if ($combined['input_type'] === 'Input' && $combined['ddl_auto_fill']) {
+        if ($combined['input_type'] == 'Input' && $combined['ddl_auto_fill']) {
             $combined['ddl_auto_fill'] = 0;
         }
-        if ($combined['input_type'] === 'Input' && $combined['ddl_add_option']) {
+        if ($combined['input_type'] == 'Input' && $combined['ddl_add_option']) {
             $combined['ddl_add_option'] = 0;
         }
-        if ($combined['input_type'] !== 'Formula' && $combined['is_uniform_formula']) {
+        if ($combined['input_type'] != 'Formula' && $combined['is_uniform_formula']) {
             $combined['is_uniform_formula'] = 0;
         }
         if ($fld['unit'] != $combined['unit']) {
             $combined['unit_display'] = $combined['unit'];
         }
+        $combined['row_hash'] = Uuid::uuid4();
 
         $uniform_active_and_changed_formula = $combined['is_uniform_formula'] && $old_f_formula != $new_f_formula;
         $uniform_is_activated = !$fld['is_uniform_formula'] && $combined['is_uniform_formula'];

@@ -19,12 +19,16 @@
             :headers-with-check="headersWithCheck"
             @updated-row="updateRow"
             @delete-row="deleteRow"
+            @mass-updated-rows="massUpdatedRows"
+            @delete-selected-rows="deleteSelectedRowsHandler"
             @change-page="changePage"
             @sort-by-field="sortByField"
             @sub-sort-by-field="subSortByField"
             @toggle-favorite-row="toggleFavoriteRow"
+            @toggle-all-favorites="toggleAllFavorites"
             @row-index-clicked="rowIndexClicked"
             @check-row="toggleAllCheckBoxes"
+            @show-add-ddl-option="showAddDDLOption"
         ></custom-table>
         <custom-edit-pop-up
             v-if="tableMeta && editPopUpRow"
@@ -52,9 +56,10 @@
     import CustomTable from './../../../CustomTable/CustomTable';
     import CustomEditPopUp from '../../../CustomPopup/CustomEditPopUp';
 
-    import {eventBus} from './../../../../app';
+    import {eventBus} from '../../../../app';
 
     import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
+    import {RefCondHelper} from "../../../../classes/helpers/RefCondHelper";
 
     export default {
         name: "TabFavorite",
@@ -79,8 +84,6 @@
             settingsMeta: Object,
             fullWidthCell: Boolean,
             isPagination: Boolean,
-            cellHeight: Number,
-            maxCellRows: Number,
             table_id: Number,
             user:  Object,
             searchObject: Object,
@@ -103,7 +106,7 @@
             },
             getHeadersCheck() {
                 return this.tableMeta.db_name === 'plans_view'
-                    ? ['plan_basic', 'plan_advanced', 'plan_enterprise']
+                    ? ['plan_basic', 'plan_standard', 'plan_advanced', 'plan_enterprise']
                     : [];
             },
             changePage(page) {
@@ -126,7 +129,7 @@
                 };
             },
             getTableData(){
-                $.LoadingOverlay('show');
+                this.$root.sm_msg_type = 1;
                 axios.post('/ajax/table-data/get', this.newRequestParams()
                 ).then(({ data }) => {
                     console.log('FavoriteData', data);
@@ -138,7 +141,7 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    $.LoadingOverlay('hide');
+                    this.$root.sm_msg_type = 0;
                 });
             },
             setDefaultValues(tableRow) {
@@ -151,25 +154,39 @@
                 }
             },
             updateRow(tableRow) {
-                this.setDefaultValues(tableRow);
+                this.massUpdatedRows([tableRow]);
+            },
+            massUpdatedRows(massTableRows) {
+                let row_datas = {};
+                _.each(massTableRows, (tableRow) => {
+                    this.setDefaultValues(tableRow);
 
-                let row_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-                this.setDefault(fields);
+                    let row_id = tableRow.id;
+                    let fields = _.cloneDeep(tableRow);//copy object
+                    this.$root.deleteSystemFields(fields);
+                    this.setDefault(fields);
+
+                    //front-end RowGroups and CondFormats
+                    RefCondHelper.updateRGandCFtoRow(this.tableMeta, tableRow);
+
+                    row_datas[row_id] = fields;
+                });
 
                 this.$root.sm_msg_type = 1;
                 this.$root.prevent_cell_edit = true;
-                axios.put('/ajax/table-data', {
+                axios.put('/ajax/table-data/mass', {
                     table_id: this.tableMeta.id,
-                    row_id: row_id,
-                    fields: tableRow,
+                    row_datas: row_datas,
                     get_query: this.newRequestParams(),
                 }).then(({ data }) => {
-                    let idx = _.findIndex(this.$root.favoriteTableRows, {id: row_id});
-                    if (idx > -1 && data.rows && data.rows.length) {
-                        Object.assign(this.$root.favoriteTableRows[idx], data.rows[0]);
-                    }
+                    _.each(row_datas, (row) => {
+                        let oldrow = _.find(this.$root.favoriteTableRows, {id: row.id});
+                        let newrow = _.find(data.rows, {id: row.id});
+                        if (oldrow && newrow) {
+                            this.$root.assignObject(newrow, oldrow);
+                            this.redraw_table++;
+                        }
+                    });
                     this.$emit('update-meta-params', {
                         fav_rows_count: data.rows_count,
                         version_hash: data.version_hash,
@@ -177,7 +194,7 @@
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
-                    eventBus.$emit('sync-list-view-update', tableRow);
+                    eventBus.$emit('sync-list-view-update', row_datas);
                     this.$root.sm_msg_type = 0;
                     this.$root.prevent_cell_edit = false;
                 });
@@ -234,6 +251,28 @@
                     this.$root.sm_msg_type = 0;
                 });
             },
+            toggleAllFavorites(status) {
+                let check_obj = this.$root.checkedRowObject(this.$root.favoriteTableRows);
+
+                this.$root.sm_msg_type = 1;
+
+                let request_params = _.cloneDeep(this.$root.request_params);
+                request_params.page = 1;
+                request_params.rows_per_page = 0;
+
+                axios.put('/ajax/table-data/favorite/all', {
+                    table_id: this.tableMeta.id,
+                    rows_ids: (check_obj.all_checked ? null : check_obj.rows_ids),
+                    request_params: (check_obj.all_checked ? request_params : null),
+                    status: (status ? 1 : 0)
+                }).then(({ data }) => {
+                    eventBus.$emit('reload-page');
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                }).finally(() => {
+                    this.$root.sm_msg_type = 0;
+                });
+            },
             toggleAllCheckBoxes(field, status, ids) {
                 this.toggleAllCheckMix(this.$root.favoriteTableRows, this.tableMeta, field, status, ids);
             },
@@ -246,11 +285,13 @@
             },
 
             //EVENT BUS HANDLERS
-            syncFavoritesUpdateHandler(row) {
-                let idx = _.findIndex(this.$root.favoriteTableRows, {id: row.id});
-                if (idx > -1) {
-                    Object.assign(this.$root.favoriteTableRows[idx], row);
-                }
+            syncFavoritesUpdateHandler(massTableRows) {
+                _.each(massTableRows, (row_data, row_id) => {
+                    let oldrow = _.find(this.$root.favoriteTableRows, {id: row_id});
+                    if (oldrow) {
+                        this.$root.assignObject(row_data, oldrow);
+                    }
+                });
             },
             syncFavoritesDeleteHandler(row) {
                 let idx = _.findIndex(this.$root.favoriteTableRows, {id: row.id});
@@ -270,6 +311,9 @@
                     }
                 }
             },
+            deleteSelectedRowsHandler() {
+                this.deleteSelectedRowsMix(this.$root.favoriteTableRows, this.$root.request_params, this.table_id, this.tableMeta._fav_rows_count);
+            },
             changedFilterHandler() {
                 this.$nextTick(function () {
                     this.getTableData('filter');
@@ -285,7 +329,10 @@
                 if (this.$root.favoriteTableRows && this.$root.favoriteTableRows.length) {
                     this.changePage(this.page);
                 }
-            }
+            },
+            showAddDDLOption(tableHeader, tableRow) {
+                this.$emit('show-add-ddl-option', tableHeader, tableRow);
+            },
         },
         mounted() {
             if (this.table_id) {

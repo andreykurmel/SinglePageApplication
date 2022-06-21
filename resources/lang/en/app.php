@@ -83,7 +83,7 @@ return [
     'update_password' => 'Update Password',
     'forgot_your_password' => 'Forgot Your Password?',
     'please_provide_your_email_below' => 'Please provide your email below and we will send you a password reset link.',
-    'pick_new_password_below' => 'Please provide your email and enter a new password below.',
+    'pick_new_password_below' => 'Please enter a new password below.',
 
     // 2FA
     'two_factor_authentication' => 'Two-Factor Authentication',
@@ -186,7 +186,7 @@ return [
 
     // Users
     'add_user' => 'Add User',
-    'add_bulk_users' => 'Add Bulk Users (CSV Import)',
+    'add_bulk_users' => 'Add Bulk Users',
     'create_new_user' => 'Create New User',
     'user_details' => 'User Details',
     'create_user' => 'Create User',

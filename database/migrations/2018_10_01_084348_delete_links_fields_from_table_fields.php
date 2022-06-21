@@ -16,7 +16,6 @@ class DeleteLinksFieldsFromTableFields extends Migration
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropForeign('listing_field_foreign');
             $table->dropColumn('link_type');
-            $table->dropColumn('table_ref_condition_id');
             $table->dropColumn('listing_field_id');
             $table->dropColumn('address_field_id');
         });
@@ -31,7 +30,6 @@ class DeleteLinksFieldsFromTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->string('link_type', 20)->nullable();
-            $table->unsignedInteger('table_ref_condition_id')->nullable();
             $table->unsignedInteger('listing_field_id')->nullable();
             $table->unsignedInteger('address_field_id')->nullable();
 

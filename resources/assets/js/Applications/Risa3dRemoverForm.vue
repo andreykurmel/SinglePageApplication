@@ -23,13 +23,14 @@
             }
         },
         props: {
-            usergroup: Object,
+            usergroup: String,
             mg_name: String,
             tables_delete: String,
         },
         methods: {
             userString() {
-                return this.$root.getUserSimple(this.usergroup, {
+                let ugr = JSON.parse(this.usergroup);
+                return this.$root.getUserSimple(ugr, {
                     user_fld_show_first: true,
                     user_fld_show_last: true,
                 });
@@ -71,7 +72,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-wrapper {
         height: 100%;
         display: flex;

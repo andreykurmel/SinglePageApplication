@@ -7,9 +7,13 @@ namespace Vanguard\Services\Tablda;
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Classes\SysColumnCreator;
 use Vanguard\Jobs\AutoFillAllDdls;
+use Vanguard\Jobs\FillMirrorValues;
+use Vanguard\Jobs\WatchRemoteFiles;
+use Vanguard\Models\DDL;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\Table\UserHeaders;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
@@ -41,13 +45,15 @@ class TableFieldService
      *
      * @param $table
      * @param $user_id - integer|null
-     * @param $table_permission_id - integer|null
      * @param $view_columns - array // column fields ['col_1','col_5',...]
      *
      * @return Collection of TableFields
      */
-    public function getWithSettings($table, $user_id, $table_permission_id = null, array $view_columns = []) {
-        if ($table_permission_id) {
+    public function getWithSettings($table, $user_id, array $view_columns = [])
+    {
+        $this->fieldRepository->removePresaved($table);
+
+        if ($table->__data_permission_id || $table->__data_dcr_id) {
             $user_id = null;
         }
 
@@ -68,20 +74,25 @@ class TableFieldService
             $view_columns['hidden'] = array_merge($view_columns['hidden'] ?? [], $this->service->c2m2_fields);
         }
 
-        //hide columns which were hidden OR were not present in 'View'
-        if (!empty($view_columns['hidden']) || !empty($view_columns['visible'])) {
+        //disable columns which were not present in 'View'
+        if (isset($view_columns['visible'])) {
             $visi = $view_columns['visible'] ?? [];
-            $hide = $view_columns['hidden'] ?? [];
             foreach ($settings as $col) {
-                if (
-                    ($hide && in_array($col->field, $hide))
-                    ||
-                    ($visi && !in_array($col->field, $visi))
-                ) {
+                if (!in_array($col->field, $visi)) {
                     //IF edited by owner just hide columns ELSE set columns as unavailable
                     (!empty($view_columns['edited_by_owner'])
                         ? $col->is_showed = 0
                         : $col->_permis_hidden = true);//equivalent of '_current_right.view_fields[i]
+                }
+            }
+        }
+
+        //hide columns which were hidden in 'View'
+        if (!empty($view_columns['temp_hidden'])) {
+            $hide = $view_columns['temp_hidden'] ?? [];
+            foreach ($settings as $col) {
+                if ($hide && in_array($col->field, $hide)) {
+                    $col->is_showed = 0;
                 }
             }
         }
@@ -100,12 +111,13 @@ class TableFieldService
 
         //apply permissions if:
         //user not owner AND (table is not system OR system available for all)
+        $permis = TableRights::permissions($table);
         if (
-            $table->user_id !== $user_id
+            !$permis->is_owner
             &&
             (!$table->is_system || in_array($table->db_name, $this->service->system_tables_for_all))
         ) {
-            $view_fields = $this->permissionsService->getAvailableColumnsArr($table, $user_id, 'view', $table_permission_id);
+            $view_fields = $permis->view_fields->toArray();
             foreach ($settings as $col) {
                 if (!in_array($col->field, $view_fields)) {
                     $col->is_showed = 0;
@@ -133,7 +145,7 @@ class TableFieldService
         if ($table->add_kanban) {
             $table_fields->load([
                 '_kanban_setting' => function ($q) {
-                    $q->with('_columns');
+                    $q->with('_fields_pivot');
                 },
             ]);
         }
@@ -251,6 +263,16 @@ class TableFieldService
                 }
             }
 
+            //Run background process to fill All DDLs in table if activated ddl_auto_fill
+            if ($field_name == 'mirror_rc_id' || $field_name == 'mirror_field_id' || $field_name == 'mirror_part') {
+                dispatch(new FillMirrorValues($field->id));
+            }
+
+            //Run background process to fill All DDLs in table if activated ddl_auto_fill
+            if ($field_name == 'fetch_source_id') {
+                dispatch(new WatchRemoteFiles($field->table_id, $field->id));
+            }
+
             //watch for sys columns
             if ($field_name == 'input_type') {
                 $new_field = $this->fieldRepository->getField($field_id);
@@ -276,11 +298,39 @@ class TableFieldService
 
     /**
      * @param int $table_id
+     * @param array $datas
+     * @return mixed
+     */
+    public function justUserSetts(int $table_id, array $datas)
+    {
+        $this->tableRepository->saveUserSettings($table_id, $datas);
+        return $this->tableRepository->getUserSettings($table_id);
+    }
+
+    /**
+     * @param int $table_id
      * @param array $ids
      * @return mixed
      */
     public function selFields(int $table_id, array $ids)
     {
         return $this->fieldRepository->selFields($table_id, $ids);
+    }
+
+    /**
+     * @param Table $table
+     * @param string $field
+     * @param DDL $ddl
+     * @param string $select_type
+     */
+    public function applyDDLtoField(Table $table, string $field, DDL $ddl, string $select_type = 'M-Select')
+    {
+        $fld = $this->fieldRepository->getFieldBy($table->id, 'field', $field);
+        if ($fld) {
+            $this->fieldRepository->updateTableField($table, $fld->id, [
+                'ddl_id' => $ddl->id,
+                'input_type' => $select_type,
+            ]);
+        }
     }
 }

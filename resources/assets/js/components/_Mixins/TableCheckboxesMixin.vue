@@ -2,18 +2,10 @@
     export default {
         methods: {
             deleteSelectedRowsMix(tableRows, requestParams, tableId, listViewRowsCount) {
-                let rows_ids = [];
-                let all_rows_checked = true;
-                _.each(tableRows, (row) => {
-                    if (row._checked_row) {
-                        rows_ids.push(row.id);
-                    } else {
-                        all_rows_checked = false;
-                    }
-                });
+                let check_obj = this.$root.checkedRowObject(tableRows);
 
                 Swal({
-                    title: 'Confirm to delete data for '+(all_rows_checked ? listViewRowsCount : rows_ids.length)+' records?',
+                    title: 'Confirm to delete data for '+(check_obj.all_checked ? listViewRowsCount : check_obj.rows_ids.length)+' records?',
                     confirmButtonClass: 'btn-danger',
                     confirmButtonText: 'Yes',
                     showCancelButton: true,
@@ -28,10 +20,14 @@
 
                         axios.post('/ajax/table-data/delete-selected', {
                             table_id: tableId,
-                            rows_ids: (all_rows_checked ? null : rows_ids),
-                            request_params: (all_rows_checked ? request_params : null)
+                            rows_ids: (check_obj.all_checked ? null : check_obj.rows_ids),
+                            request_params: (check_obj.all_checked ? request_params : null)
                         }).then(({ data }) => {
-                            this.getTableData('page');
+                            if (check_obj.all_checked) {
+                                Swal('Deletion process is started. Table will be reloaded after finishing.');
+                            } else {
+                                this.getTableData('page');
+                            }
                         }).catch(errors => {
                             Swal('', getErrors(errors));
                         }).finally(() => $.LoadingOverlay('hide'));

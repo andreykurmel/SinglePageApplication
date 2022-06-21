@@ -1,11 +1,15 @@
 <template>
-    <div class="flex full-height" @click.self="selCards = []">
+    <div class="flex full-height"
+         :class="{'flex--center-h': tableMeta.kanban_center_align, 'flex--wrap': tableMeta.kanban_center_align}"
+         @click.self="selCards = []"
+    >
         <div v-for="el in distVals"
              v-if="!tableMeta.kanban_hide_empty_tab || (el.rows && el.rows.length)"
              class="kanban_column"
              :style="{
                     borderLeft: dragColumn && overVal === el.val ? '5px dashed #000' : null,
                     backgroundColor: dragRow && overVal === el.val ? '#F77' : null,
+                    minHeight: (Number(tableMeta.kanban_card_height)+70)+'px',
                 }"
              @dragover.prevent=""
              @dragenter="overVal = el.val"
@@ -80,8 +84,8 @@
                 :input_component_name="$root.tdCellComponent(tableMeta.is_system)"
                 :behavior="'list_view'"
                 :user="$root.user"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 @popup-insert="insertRow"
                 @popup-update="updateRow"
                 @popup-copy="copyRow"
@@ -94,7 +98,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../../app';
+    import {eventBus} from '../../../../../app';
 
     import KanbanCard from "./KanbanCard";
     import CustomEditPopUp from "../../../../CustomPopup/CustomEditPopUp";
@@ -217,8 +221,14 @@
             dragMove(tableRow) {
                 this.dragRow = tableRow;
                 if (window.event.clientY && window.event.clientX) {
-                    this.dragPos.off_left = this.dragPos.off_left
-                        || (window.event.offsetX > 0 ? window.event.offsetX : 0);
+                    if (!this.dragPos.off_top && !this.dragPos.off_left) {
+                        let rect = window.event.target.getBoundingClientRect();
+//                        //cannot be used because of not working moving between tabs.
+//                        this.dragPos.off_top = Math.max( this.$root.lastMouseClick.clientY - rect.top, 0 );
+//                        this.dragPos.off_top = Math.min( this.dragPos.off_top, rect.height );
+                        this.dragPos.off_left = Math.max( this.$root.lastMouseClick.clientX - rect.left, 0 );
+                        this.dragPos.off_left = Math.min( this.dragPos.off_left, rect.width );
+                    }
                     this.dragPos.top = (window.event.clientY - this.dragPos.off_top)+1;
                     this.dragPos.left = (window.event.clientX - this.dragPos.off_left);
                 }

@@ -1,6 +1,3 @@
-#import_main_columns {
-    table-layout: auto;
-}
 
 .tab-data {
     height: 100%;
@@ -77,14 +74,14 @@
 
         .data-tab-main {
             height: calc(100% - 60px);
-            overflow: auto;
+            overflow: hidden;
 
             .w {
                 display: inline-block;
                 margin-right: 10px;
             }
             .w-mid {
-                width: 200px;
+                width: 180px;
             }
             .w-long {
                 width: 400px;

@@ -5,14 +5,11 @@ namespace Vanguard\Http\Controllers\Web\Tablda;
 
 use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
-use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupAddConditionRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupAddMassRegularRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupAddRegularRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupAddRequest;
-use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupDeleteConditionRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupDeleteRegularRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupDeleteRequest;
-use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupUpdateConditionRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupUpdateRegularRequest;
 use Vanguard\Http\Requests\Tablda\TableRowGroup\TableRowGroupUpdateRequest;
 use Vanguard\Models\Table\TableData;
@@ -27,7 +24,7 @@ class TableRowGroupController extends Controller
 
     /**
      * TableRowGroupController constructor.
-     * 
+     *
      * @param TableService $tableService
      * @param TableRowGroupRepository $rowGroupRepository
      */
@@ -61,7 +58,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupAddRequest $request
      * @return mixed
      */
-    public function insertRowGroup(TableRowGroupAddRequest $request){
+    public function insertRowGroup(TableRowGroupAddRequest $request)
+    {
         $table = $this->tableService->getTable($request->table_id);
 
         $this->authorize('isOwner', [TableData::class, $table]);
@@ -77,7 +75,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupUpdateRequest $request
      * @return array
      */
-    public function updateRowGroup(TableRowGroupUpdateRequest $request){
+    public function updateRowGroup(TableRowGroupUpdateRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroup($request->table_row_group_id);
         $table = $this->tableService->getTable($row_group->table_id);
 
@@ -92,7 +91,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupDeleteRequest $request
      * @return mixed
      */
-    public function deleteRowGroup(TableRowGroupDeleteRequest $request){
+    public function deleteRowGroup(TableRowGroupDeleteRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroup($request->table_row_group_id);
         $table = $this->tableService->getTable($row_group->table_id);
 
@@ -102,62 +102,13 @@ class TableRowGroupController extends Controller
     }
 
     /**
-     * Add Row Group Condition
-     *
-     * @param TableRowGroupAddConditionRequest $request
-     * @return mixed
-     */
-    public function insertRowGroupCondition(TableRowGroupAddConditionRequest $request){
-        $row_group = $this->rowGroupRepository->getRowGroup($request->table_row_group_id);
-        $table = $this->tableService->getTable($row_group->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return $this->rowGroupRepository->addRowGroupCondition(
-            array_merge($request->fields, ['table_row_group_id' => $request->table_row_group_id])
-        );
-    }
-
-    /**
-     * Update Row Group Condition
-     *
-     * @param TableRowGroupUpdateConditionRequest $request
-     * @return mixed
-     */
-    public function updateRowGroupCondition(TableRowGroupUpdateConditionRequest $request){
-        $row_group = $this->rowGroupRepository->getRowGroupByCondId($request->table_row_group_condition_id);
-        $table = $this->tableService->getTable($row_group->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return $this->rowGroupRepository->updateRowGroupCondition(
-            $request->table_row_group_condition_id,
-            array_merge($request->fields, ['table_row_group_id' => $row_group->id])
-        );
-    }
-
-    /**
-     * Delete Row Group Condition
-     *
-     * @param TableRowGroupDeleteConditionRequest $request
-     * @return mixed
-     */
-    public function deleteRowGroupCondition(TableRowGroupDeleteConditionRequest $request){
-        $row_group = $this->rowGroupRepository->getRowGroupByCondId($request->table_row_group_condition_id);
-        $table = $this->tableService->getTable($row_group->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return $this->rowGroupRepository->deleteRowGroupCondition($request->table_row_group_condition_id);
-    }
-
-    /**
      * Add Row Group Regular
      *
      * @param TableRowGroupAddMassRegularRequest $request
      * @return mixed
      */
-    public function insertRowGroupRegularMass(TableRowGroupAddMassRegularRequest $request){
+    public function insertRowGroupRegularMass(TableRowGroupAddMassRegularRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroup($request->table_row_group_id);
         $table = $this->tableService->getTable($row_group->table_id);
 
@@ -165,7 +116,7 @@ class TableRowGroupController extends Controller
 
         return ($request->rows_ids
             ? $this->rowGroupRepository->addRowGroupRegularMass($table, $request->table_row_group_id, $request->rows_ids)
-            : $this->rowGroupRepository->addRowGroupAllToRegular($table, $request->table_row_group_id, $request->request_params, auth()->id()) );
+            : $this->rowGroupRepository->addRowGroupAllToRegular($table, $request->table_row_group_id, $request->request_params, auth()->id()));
     }
 
     /**
@@ -174,7 +125,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupAddRegularRequest $request
      * @return mixed
      */
-    public function insertRowGroupRegular(TableRowGroupAddRegularRequest $request){
+    public function insertRowGroupRegular(TableRowGroupAddRegularRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroup($request->table_row_group_id);
         $table = $this->tableService->getTable($row_group->table_id);
 
@@ -191,7 +143,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupUpdateRegularRequest $request
      * @return mixed
      */
-    public function updateRowGroupRegular(TableRowGroupUpdateRegularRequest $request){
+    public function updateRowGroupRegular(TableRowGroupUpdateRegularRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroupByRegId($request->table_row_group_regular_id);
         $table = $this->tableService->getTable($row_group->table_id);
 
@@ -209,7 +162,8 @@ class TableRowGroupController extends Controller
      * @param TableRowGroupDeleteRegularRequest $request
      * @return mixed
      */
-    public function deleteRowGroupRegular(TableRowGroupDeleteRegularRequest $request){
+    public function deleteRowGroupRegular(TableRowGroupDeleteRegularRequest $request)
+    {
         $row_group = $this->rowGroupRepository->getRowGroupByRegId($request->table_row_group_regular_id);
         $table = $this->tableService->getTable($row_group->table_id);
 

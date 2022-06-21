@@ -8,17 +8,20 @@
                 <button v-if="tableMeta._is_owner"
                         class="btn btn-default btn-sm left-btn"
                         :class="{active : acttab === 'settings'}"
+                        :style="textSysStyle"
                         @click="changeActab('settings')"
                 >Settings</button>
                 <template v-for="hdr in ActiveKanbanFields">
                     <button class="btn btn-default btn-sm left-btn"
                             :class="{active : acttab === hdr.field}"
+                            :style="textSysStyle"
                             style="margin-right: 3px;"
                             @click="changeActab(hdr.field)"
-                    ><i class="fab fa-trello"></i>&nbsp;{{ hdr.name }}</button>
+                    ><i class="fab fa-trello"></i>&nbsp;{{ hdr.kanban_field_name || hdr.name }}</button>
                 </template>
                 <button v-show="acttab !== 'settings'"
                         class="btn btn-primary btn-sm blue-gradient pull-right"
+                        :disabled="!canAdd"
                         :style="$root.themeButtonStyle"
                         @click="add_click++"
                 >Add</button>
@@ -57,8 +60,15 @@
     import KanbanSettings from "./Kanban/KanbanSettings";
     import KanbanTab from "./Kanban/KanbanTab";
 
+    import CanEditMixin from "../../../_Mixins/CanViewEditMixin";
+    import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
+
     export default {
         name: "TabKanbanView",
+        mixins: [
+            CanEditMixin,
+            CellStyleMixin,
+        ],
         components: {
             KanbanTab,
             KanbanSettings,
@@ -73,11 +83,13 @@
             table_id: Number,
             tableMeta: Object,
             settingsMeta: Object,
-            user:  Object,
+            user: Object,
         },
         computed: {
             ActiveKanbanFields() {
-                return _.filter(this.tableMeta._fields, {kanban_group: 1});
+                return _.filter(this.tableMeta._fields, (fld) => {
+                    return fld.kanban_group == 1 && fld._kanban_setting && fld._kanban_setting.kanban_group_field_id;
+                });
             },
             selectedKanbanFld() {
                 return _.find(this.tableMeta._fields, {field: this.acttab});
@@ -106,12 +118,14 @@
                 axios.put('/ajax/table', {
                     table_id: this.tableMeta.id,
                     kanban_form_table: this.tableMeta.kanban_form_table,
+                    kanban_center_align: this.tableMeta.kanban_center_align,
                     kanban_card_width: this.tableMeta.kanban_card_width,
                     kanban_card_height: this.tableMeta.kanban_card_height,
                     kanban_sort_type: this.tableMeta.kanban_sort_type,
                     kanban_header_color: this.tableMeta.kanban_header_color,
                     kanban_hide_empty_tab: this.tableMeta.kanban_hide_empty_tab,
-                    kanban_picture_style: this.tableMeta.kanban_picture_style,
+                    kanban_picture_field: this.tableMeta.kanban_picture_field,
+                    kanban_picture_width: this.tableMeta.kanban_picture_width,
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
@@ -173,6 +187,10 @@
             bottom: 5px;
             background-color: #005fa4;
             border-radius: 5px;
+        }
+
+        .btn-default {
+            height: 30px;
         }
     }
 </style>

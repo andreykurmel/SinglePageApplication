@@ -15,6 +15,8 @@
                 user: this.init_user,
                 present_activity: true,
                 show_login: 0,
+                show_register: 0,
+                ping_errors: 0,
             }
         },
         props: {
@@ -23,7 +25,8 @@
             vue_labels: Object,
             init_user: Object,
             flash_message: String,
-            jsValidatorFunctions: Array
+            jsValidatorFunctions: Array,
+            no_settings: Number,
         },
         computed: {
         },
@@ -45,7 +48,7 @@
 
                     this.checkInactiveClouds();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('', getErrors(errors) || 'Server Error');
                 }).finally(() => $.LoadingOverlay('hide'));
             },
             checkInactiveClouds() {
@@ -66,18 +69,23 @@
             this.$root.debug = this.app_debug;
             this.$root.app_name = this.app_name;
             this.$root.labels = this.vue_labels;
+            this.$root.isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            this.$root.isIphone = navigator.platform.indexOf("iPhone") > -1;
 
-            //redirect for mobiles (available only homepage and /dcr/, /view/)
+            //redirect for mobiles (available only homepage and /dcr/, /mrv/, /srv/)
             if (
                 window.screen.width < 768
                 && window.location.pathname != '/'
                 && window.location.pathname.substr(0,5).toLowerCase() != '/dcr/'
-                && window.location.pathname.substr(0,6).toLowerCase() != '/view/'
+                && window.location.pathname.substr(0,6).toLowerCase() != '/mrv/'
+                && window.location.pathname.substr(0,6).toLowerCase() != '/srv/'
             ) {
                 window.location.href = '/';
             }
 
-            this.loadSettings();
+            if (this.no_settings != 1) {
+                this.loadSettings();
+            }
 
             //set authorized user
             this.$root.user = this.init_user;
@@ -89,7 +97,7 @@
             }
 
             setInterval(() => {
-                if (!this.$root.debug && this.$root.user.id) {
+                if (this.$root.user.id && !localStorage.getItem('no_ping')) {
                     //check if user was logout from another terminal
                     axios.post('/ping', {
                         app_user: {
@@ -99,13 +107,13 @@
                         },
                         pathname: window.location.pathname,
                     }).then(({ data }) => {
+                        this.ping_errors = 0;
                         if (data.error) {
                             if (data.error_code == 1) {
                                 window.location = '/logout';
                             } else {
                                 let $msg = data.error;
                                 if ($msg) {
-                                    this.$root.debug = true;
                                     Swal('', $msg.replace(/\+/gi, ' ')).then(() => {
                                         //Cookies.set('sync_page_reload', 1);
                                         window.location.reload();
@@ -120,17 +128,17 @@
                             eventBus.$emit('event-reload-menu-tree');
                         }
                     }).catch((err) => {
+                        this.ping_errors++;
                         let $msg = Cookies.get('ping_message');
                         if ($msg) {
-                            this.$root.debug = true;
                             Swal('', $msg.replace(/\+/gi, ' ')).then(() => {
                                 //Cookies.set('sync_page_reload', 1);
                                 window.location.reload();
                             });
-                        } else {
-                            this.$root.debug = true;
-                            Swal('Server ping error');
-                            //window.location = '/logout';
+                        }
+                        if (this.ping_errors >= 3 && err && err.message !== 'Network Error') {
+                            //Swal('Server ping error');
+                            window.location = '/logout';
                         }
                     });
                 }

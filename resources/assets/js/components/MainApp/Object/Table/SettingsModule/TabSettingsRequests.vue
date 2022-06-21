@@ -6,19 +6,19 @@
         <div v-else="" class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="col-xs-5 full-height" style="padding-right: 0;">
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>Data Collection & Request (DCR)</span>
                 </div>
                 <div class="permissions-panel no-padding">
                     <custom-table
                         v-if="isVisible"
-                        :cell_component_name="'custom-cell-settings-permission'"
+                        :cell_component_name="'custom-cell-settings-dcr'"
                         :global-meta="tableMeta"
-                        :table-meta="$root.settingsMeta['table_permissions']"
+                        :table-meta="$root.settingsMeta['table_data_requests']"
                         :all-rows="tableMeta._table_requests"
                         :rows-count="tableMeta._table_requests.length"
-                        :cell-height="$root.cellHeight"
-                        :max-cell-rows="$root.maxCellRows"
+                        :cell-height="1"
+                        :max-cell-rows="0"
                         :is-full-width="true"
                         :with_edit="tableMeta._is_owner"
                         :behavior="'table_permission_group'"
@@ -31,62 +31,44 @@
                         @delete-row="deleteGroup"
                         @row-index-clicked="rowIndexClickedGroup"
                     ></custom-table>
-                    <!--<vertical-rows-table-->
-                        <!--v-if="isVisible"-->
-                        <!--:cell_component_name="'custom-cell-settings-permission'"-->
-                        <!--:global-meta="tableMeta"-->
-                        <!--:table-meta="$root.settingsMeta['table_permissions']"-->
-                        <!--:all-rows="tableMeta._table_requests"-->
-                        <!--:page="1"-->
-                        <!--:rows-count="tableMeta._table_requests.length"-->
-                        <!--:cell-height="$root.cellHeight"-->
-                        <!--:max-cell-rows="$root.maxCellRows"-->
-                        <!--:is-full-width="true"-->
-                        <!--:with_edit="tableMeta._is_owner"-->
-                        <!--:behavior="'table_permission_group'"-->
-                        <!--:user="user"-->
-                        <!--:adding-row="addingRow"-->
-                        <!--:selected-row="selectedGroup"-->
-                        <!--:available-columns="requestAvailable"-->
-                        <!--@added-row="addGroup"-->
-                        <!--@updated-row="updateGroup"-->
-                        <!--@delete-row="deleteGroup"-->
-                        <!--@row-index-clicked="rowIndexClickedGroup"-->
-                    <!--&gt;</vertical-rows-table>-->
                 </div>
             </div>
             <!--RIGHT SIDE-->
             <div class="col-xs-7 full-height">
-                <div class="top-text">
-                    <span>Specifications of Current DCR ( <span>{{ (selectedGroup > -1 ? tableMeta._table_requests[selectedGroup].name : '') }}</span> )</span>
+                <div class="top-text" :style="textSysStyle">
+                    <span>Specifications of Current DCR ( <span>{{ (tableMeta._table_requests[selectedGroup] ? tableMeta._table_requests[selectedGroup].name : '') }}</span> )</span>
                 </div>
-                <div class="permissions-panel">
+                <div class="permissions-panel" :style="{height: activeRightTab === 'columns' ? 'calc(40% - 35px)' : 'calc(100% - 35px)'}">
                     <div class="permissions-menu-header">
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'design'}" @click="activeRightTab = 'design'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'design'}" @click="activeRightTab = 'design'">
                             Design
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'columns'}" @click="activeRightTab = 'columns'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'columns'}" @click="activeRightTab = 'columns'">
                             Columns
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'defaults'}" @click="activeRightTab = 'defaults'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'defaults'}" @click="activeRightTab = 'defaults'">
                             Defaults
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'actions'}" @click="activeRightTab = 'actions'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'actions'}" @click="activeRightTab = 'actions'">
                             Action & Status
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
                             Notifications
+                        </button>
+                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'access'}" @click="activeRightTab = 'access'">
+                            Access
                         </button>
                     </div>
                     <div class="permissions-menu-body">
 
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'design' && selectedGroup > -1" style="padding: 0">
+                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'design'" style="padding: 0">
                             <tab-settings-requests-row
+                                    v-if="tableMeta._table_requests[selectedGroup]"
                                     :table_id="tableMeta.id"
                                     :table-meta="tableMeta"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
-                                    :table-request="$root.settingsMeta['table_permissions']"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
+                                    :table-request="$root.settingsMeta['table_data_requests']"
                                     :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
                                     :with_edit="tableMeta._is_owner"
                                     @updated-cell="updateGroup"
@@ -95,21 +77,22 @@
                             ></tab-settings-requests-row>
                         </div>
 
-                        <div class="full-frame" v-show="activeRightTab === 'columns'">
+                        <div class="full-frame no-padding defaults-tab" v-show="activeRightTab === 'columns'">
                             <custom-table
-                                :cell_component_name="'custom-cell-settings-permission'"
+                                v-if="tableMeta._table_requests[selectedGroup]"
+                                :cell_component_name="'custom-cell-settings-dcr'"
                                 :global-meta="tableMeta"
-                                :table-meta="$root.settingsMeta['table_permissions_2_table_column_groups']"
-                                :all-rows="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup]._permission_columns : null"
-                                :rows-count="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup]._permission_columns.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :table-meta="$root.settingsMeta['table_data_requests_2_table_column_groups']"
+                                :all-rows="tableMeta._table_requests[selectedGroup]._data_request_columns"
+                                :rows-count="tableMeta._table_requests[selectedGroup]._data_request_columns.length"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :with_edit="tableMeta._is_owner"
                                 :adding-row="selectedGroup > -1 ? addingRow : {active: false}"
                                 :user="user"
                                 :show-info-key="'add_notes'"
-                                :behavior="'permission_group_col'"
+                                :behavior="'dcr_group'"
                                 :forbidden-columns="$root.systemFields"
                                 :excluded_row_values="[{ field: 'view', excluded: [0] }]"
                                 @added-row="addGroupColumnPermis"
@@ -118,64 +101,96 @@
                             ></custom-table>
                         </div>
 
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'defaults'">
+                        <div class="full-frame defaults-tab" v-if="activeRightTab === 'defaults'">
                             <default-fields-table
-                                    v-if="selectedGroup > -1 && activeRightTab === 'defaults'"
-                                    :table-permission-id="tableMeta._table_requests[selectedGroup].id"
+                                    v-if="tableMeta._table_requests[selectedGroup]"
+                                    :table-dcr-id="tableMeta._table_requests[selectedGroup].id"
                                     :user-group-id="null"
                                     :table-meta="tableMeta"
                                     :default-fields="tableMeta._table_requests[selectedGroup]._default_fields"
                                     :user="user"
                                     :with_edit="tableMeta._is_owner"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
                             ></default-fields-table>
                         </div>
 
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'actions' && selectedGroup > -1">
+                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'actions'">
                             <tab-settings-submission-row
+                                    v-if="tableMeta._table_requests[selectedGroup]"
                                     :table-meta="tableMeta"
                                     :table_id="tableMeta.id"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
-                                    :table-request="$root.settingsMeta['table_permissions']"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
+                                    :table-request="$root.settingsMeta['table_data_requests']"
                                     :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
                                     :with_edit="tableMeta._is_owner"
                                     @updated-cell="updateGroup"
                             ></tab-settings-submission-row>
                         </div>
 
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'notifs' && selectedGroup > -1" style="padding: 0;">
+                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'notifs'" style="padding: 0;">
                             <tab-settings-request-notifs
+                                    v-if="tableMeta._table_requests[selectedGroup]"
+                                    :table-meta="tableMeta"
                                     :table_id="tableMeta.id"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
-                                    :table-request="$root.settingsMeta['table_permissions']"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
+                                    :table-request="$root.settingsMeta['table_data_requests']"
                                     :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
                                     :with_edit="tableMeta._is_owner"
                                     @updated-cell="updateGroup"
                             ></tab-settings-request-notifs>
                         </div>
 
+                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'access'">
+                            <tab-settings-access-row
+                                    v-if="tableMeta._table_requests[selectedGroup]"
+                                    :table-meta="tableMeta"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
+                                    :table-request="$root.settingsMeta['table_data_requests']"
+                                    :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
+                                    :with_edit="tableMeta._is_owner"
+                                    @updated-cell="updateGroup"
+                            ></tab-settings-access-row>
+                        </div>
+
                     </div>
                 </div>
+
+                <template v-if="tableMeta._table_requests[selectedGroup] && activeRightTab === 'columns'">
+                    <div class="top-text" :style="textSysStyle">Embed Linked Tables</div>
+                    <div class="permissions-panel" style="height: calc(60% - 30px)">
+                        <tab-settings-requests-linked-tables
+                            :table-meta="tableMeta"
+                            :dcr-object="tableMeta._table_requests[selectedGroup]"
+                        ></tab-settings-requests-linked-tables>
+                    </div>
+                </template>
             </div>
         </div>
     </div>
 </template>
 
 <script>
-    import CustomTable from '../../../../CustomTable/CustomTable';
-    import DefaultFieldsTable from '../../../../CustomPopup/DefaultFieldsTable';
-    import VerticalTable from "../../../../CustomTable/VerticalTable";
-    import TabSettingsRequestsRow from "./TabSettingsRequestsRow";
-    import TabSettingsSubmissionRow from "./TabSettingsSubmissionRow";
-    import VerticalRowsTable from "../../../../CustomTable/VerticalRowsTable";
-    import TabSettingsRequestNotifs from "./TabSettingsRequestNotifs";
+import CustomTable from '../../../../CustomTable/CustomTable';
+import DefaultFieldsTable from '../../../../CustomPopup/DefaultFieldsTable';
+import VerticalTable from "../../../../CustomTable/VerticalTable";
+import TabSettingsRequestsRow from "./TabSettingsRequestsRow";
+import TabSettingsSubmissionRow from "./TabSettingsSubmissionRow";
+import VerticalRowsTable from "../../../../CustomTable/VerticalRowsTable";
+import TabSettingsRequestNotifs from "./TabSettingsRequestNotifs";
+import TabSettingsRequestsLinkedTables from "./TabSettingsRequestsLinkedTables";
+import TabSettingsAccessRow from "./TabSettingsAccessRow";
 
-    export default {
+import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
+export default {
         name: "TabSettingsRequests",
         components: {
+            TabSettingsAccessRow,
+            TabSettingsRequestsLinkedTables,
             TabSettingsRequestNotifs,
             VerticalRowsTable,
             TabSettingsSubmissionRow,
@@ -184,10 +199,13 @@
             CustomTable,
             DefaultFieldsTable,
         },
+        mixins: [
+            CellStyleMixin
+        ],
         data: function () {
             return {
                 activeRightTab: 'design',
-                selectedGroup: -1,
+                selectedGroup: 0,
                 addingRow: {
                     active: true,
                     position: 'bottom'
@@ -195,23 +213,19 @@
                 requestAvailable: [
                     'name',
                     'pass',
-                    //'user_link',
                     'active',
-                    '_embed_dcr',
                 ],
             }
         },
         props:{
             tableMeta: Object,
-            cellHeight: Number,
-            maxCellRows: Number,
             table_id: Number|null,
             user:  Object,
             isVisible: Boolean,
         },
         watch: {
             table_id: function(val) {
-                this.selectedGroup = -1;
+                this.selectedGroup = 0;
                 this.activeRightTab = 'design';
             }
         },
@@ -227,9 +241,8 @@
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
                 fields.active = fields.active ? 1 : 0;
-                fields.is_request = 1;
 
-                axios.post('/ajax/table-permission', {
+                axios.post('/ajax/table-data-request', {
                     table_id: this.tableMeta.id,
                     fields: fields,
                 }).then(({ data }) => {
@@ -252,8 +265,8 @@
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
 
-                axios.put('/ajax/table-permission', {
-                    table_permission_id: group_id,
+                axios.put('/ajax/table-data-request', {
+                    table_data_request_id: group_id,
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
@@ -268,9 +281,9 @@
             },
             deleteGroup(tableRow) {
                 this.$root.sm_msg_type = 1;
-                axios.delete('/ajax/table-permission', {
+                axios.delete('/ajax/table-data-request', {
                     params: {
-                        table_permission_id: tableRow.id
+                        table_dcr_id: tableRow.id
                     }
                 }).then(({ data }) => {
                     let idx = _.findIndex(this.tableMeta._table_requests, {id: Number(tableRow.id)});
@@ -288,10 +301,10 @@
                 this.$root.sm_msg_type = 1;
                 let group_id = tableRow.id;
                 let formData = new FormData();
-                formData.append('table_permission_id', group_id);
+                formData.append('table_data_request_id', group_id);
                 formData.append('field', field);
                 formData.append('u_file', file);
-                axios.post('/ajax/table-permission/dcr-file', formData, {
+                axios.post('/ajax/table-data-request/dcr-file', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data'
                     }
@@ -306,9 +319,9 @@
             delGroupFile(tableRow, field) {
                 this.$root.sm_msg_type = 1;
                 let group_id = tableRow.id;
-                axios.delete('/ajax/table-permission/dcr-file', {
+                axios.delete('/ajax/table-data-request/dcr-file', {
                     params: {
-                        table_permission_id: group_id,
+                        table_data_request_id: group_id,
                         field: field,
                         u_file: 'delete',
                     }
@@ -323,44 +336,93 @@
 
             //User Group Columns Functions
             addGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, 1, 0, undefined);
+                this.updateGroupColumn(tableColumn.table_column_group_id, 1, 0);
             },
             updateGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, tableColumn.view, tableColumn.edit, tableColumn.shared);
+                this.updateGroupColumn(tableColumn.table_column_group_id, tableColumn.view, tableColumn.edit);
             },
             deleteGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, 0, 0, undefined);
+                this.updateGroupColumn(tableColumn.table_column_group_id, 0, 0);
             },
-            shareGroupColumn(column_id, shared) {
-                this.updateGroupColumn(column_id, undefined, undefined, shared);
-            },
-            updateGroupColumn(tb_column_group_id, viewed, edited, shared) {
+            updateGroupColumn(tb_column_group_id, viewed, edited) {
 
-                let permis_columns = this.tableMeta._table_requests[this.selectedGroup]._permission_columns;
-                let columnGr = _.find(permis_columns, {table_column_group_id: Number(tb_column_group_id)});
+                let req_columns = this.tableMeta._table_requests[this.selectedGroup]._data_request_columns;
+                let columnGr = _.find(req_columns, {table_column_group_id: Number(tb_column_group_id)});
 
                 if (columnGr) {
                     viewed = viewed === undefined ? columnGr.view : viewed;
                     edited = edited === undefined ? columnGr.edit : edited;
-                    shared = shared === undefined ? columnGr.shared : shared;
                 }
 
                 this.$root.sm_msg_type = 1;
-                axios.post('/ajax/table-permission/column', {
-                    table_permission_id: this.tableMeta._table_requests[this.selectedGroup].id,
+                axios.post('/ajax/table-data-request/column', {
+                    table_data_request_id: this.tableMeta._table_requests[this.selectedGroup].id,
                     table_column_group_id: tb_column_group_id,
                     view: viewed ? 1 : 0,
                     edit: edited ? 1 : 0,
-                    shared: shared ? 1 : 0,
                 }).then(({ data }) => {
-                    let idx = _.findIndex(permis_columns, (el) => {
+                    let idx = _.findIndex(req_columns, (el) => {
                         return el.table_column_group_id == tb_column_group_id;
                     });
                     if (idx > -1) {
-                        permis_columns.splice(idx, 1 ,data);
+                        req_columns.splice(idx, 1 ,data);
                     } else {
-                        permis_columns.push( data );
+                        req_columns.push( data );
                     }
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                }).finally(() => {
+                    this.$root.sm_msg_type = 0;
+                });
+            },
+
+            //Linked Tables for DCR
+            addLinkedDcr(tableRow) {
+                Swal('', 'Unavailable');return;
+                this.$root.sm_msg_type = 1;
+
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+                fields.active = fields.active ? 1 : 0;
+
+                axios.post('/ajax/table-data-request/linked-dcr', {
+                    table_id: this.tableMeta.id,
+                    fields: fields,
+                }).then(({ data }) => {
+                    //
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                }).finally(() => {
+                    this.$root.sm_msg_type = 0;
+                });
+            },
+            updateLinkedDcr(tableRow) {
+                Swal('', 'Unavailable');return;
+                this.$root.sm_msg_type = 1;
+
+                let group_id = tableRow.id;
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                axios.put('/ajax/table-data-request/linked-dcr', {
+                    table_data_request_id: group_id,
+                    fields: fields
+                }).then(({ data }) => {
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                }).finally(() => {
+                    this.$root.sm_msg_type = 0;
+                });
+            },
+            deleteLinkedDcr(tableRow) {
+                Swal('', 'Unavailable');return;
+                this.$root.sm_msg_type = 1;
+                axios.delete('/ajax/table-data-request/linked-dcr', {
+                    params: {
+                        table_data_request_id: tableRow.id
+                    }
+                }).then(({ data }) => {
+                    //
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -377,4 +439,16 @@
 
 <style lang="scss" scoped>
     @import "./TabSettingsPermissions";
+
+    .part-panel-sm {
+        height: calc(30% - 8px);
+        background-color: #FFF;
+    }
+    .part-panel-lg {
+        height: calc(70% - 8px);
+        background-color: #FFF;
+    }
+    .btn-default {
+        height: 30px;
+    }
 </style>

@@ -60,6 +60,13 @@
                                 >
                                     <span>Customizable</span>
                                 </button>
+                                <button v-if="isAvail('bas_popup')"
+                                        class="btn btn-default"
+                                        :class="{active: activeTab === 'bas_popup'}"
+                                        @click="activeTab = 'bas_popup';redraw_tab=true;"
+                                >
+                                    <span>Pop-up</span>
+                                </button>
 
                                 <div class="right-icons flex flex--automargin pull-right">
                                     <button class="btn btn-sm btn-primary blue-gradient" @click="smallSpace()" :style="$root.themeButtonStyle">
@@ -85,8 +92,8 @@
                                             :settings-meta="settingsMeta"
                                             :table-row="tableRow"
                                             :user="user"
-                                            :cell-height="$root.cellHeight"
-                                            :max-cell-rows="$root.maxCellRows"
+                                            :cell-height="1"
+                                            :max-cell-rows="0"
                                             :behavior="'settings_display'"
                                             :available-columns="getAvaCols"
                                             :forbidden-columns="forbiddenColumns"
@@ -121,6 +128,8 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../classes/SpecialFuncs';
+
     import {eventBus} from '../../app';
 
     import CanEditMixin from '../_Mixins/CanViewEditMixin';
@@ -153,7 +162,7 @@
                 },
                 activeTab: null,
                 getPopupWidth: 768,
-                is_small_spacing: localStorage.getItem('is_small_spacing') || 'no',
+                is_small_spacing: readLocalStorage('is_small_spacing') || 'no',
             };
         },
         watch: {
@@ -192,13 +201,7 @@
         },
         computed: {
             forbiddenColumns() {
-                let forbid = [];
-                if (this.tableMeta._current_right) {
-                    _.each(this.tableMeta._current_right.forbidden_col_settings, (db_name) => {
-                        forbid.push(db_name);
-                    });
-                }
-                return forbid;
+                return SpecialFuncs.forbiddenCustomizables(this.globalMeta);
             },
             getAvaCols() {
                 switch (this.activeTab) {
@@ -207,12 +210,13 @@
                     case 'map_tab': return this.$root.availableMapColumns;
                     case 'inps': return this.$root.availableInpsColumns;
                     case 'standard': return this.$root.availableSettingsColumns;
+                    case 'bas_popup': return this.$root.availablePopupDisplayColumns;
                     default: return this.$root.availableNotOwnerDisplayColumns;
                 }
             },
             availTabs() {
                 return this.extAvailTabs
-                    || (this.globalMeta._is_owner ? ['inps','standard','customizable'] : ['customizable']);
+                    || (this.globalMeta._is_owner ? ['inps','standard','customizable','bas_popup'] : ['customizable']);
             },
         },
         methods: {
@@ -266,15 +270,21 @@
 
             //backend autocomplete
             checkRowAutocomplete() {
-                this.checkRowOnBackend( this.tableMeta.id, this.tableRow ).then((data) => {
-                    this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
-                    this.tableRow.id ? this.popupUpdate() : null;
-                });
+                if (this.tableRow.id) {
+                    this.popupUpdate();
+                } else {
+                    let promise = this.checkRowOnBackend(this.tableMeta.id, this.tableRow);
+                    if (promise) {
+                        promise.then((data) => {
+                            this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
+                        });
+                    }
+                }
             },
 
             smallSpace() {
                 this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                localStorage.setItem('is_small_spacing', this.is_small_spacing);
+                setLocalStorage('is_small_spacing', this.is_small_spacing);
             },
             anotherRow(is_next) {
                 this.$emit('another-row', is_next);

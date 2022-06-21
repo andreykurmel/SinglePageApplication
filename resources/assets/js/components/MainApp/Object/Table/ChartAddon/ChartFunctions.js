@@ -163,8 +163,12 @@ export class ChartFunctions {
     static emptySettings() {
         let obj = {
             id: null,
+            name: '',
             elem_type: 'pivot_table',
             active_type: 'settings',
+            no_auto_update: false,
+            wait_for_update: false,
+            table_to_export: null,
             excluded_hors: {
                 // db_field: [v1,v2,v3,v4,v5,...]
             },
@@ -234,23 +238,30 @@ export class ChartFunctions {
                 },
                 len_about: 1,
                 stack_about: false,
+                referenced_tables: false,
                 about: {
                     field: null,
                     calc_val: 1,
                     group_function: 'sum',
                     show_zeros: false,
+                    abo_type: 'field',
+                    formula_string: '',
                 },
                 about_2: {
                     field: null,
                     calc_val: 1,
                     group_function: 'sum',
                     show_zeros: false,
+                    abo_type: 'field',
+                    formula_string: '',
                 },
                 about_3: {
                     field: null,
                     calc_val: 1,
                     group_function: 'sum',
                     show_zeros: false,
+                    abo_type: 'field',
+                    formula_string: '',
                 },
             },
             text_data: {
@@ -260,11 +271,15 @@ export class ChartFunctions {
             },
         };
         for (let i = 1; i <= this.maxLVL(); i++) {
+            obj.pivot_table.horizontal['l'+i+'_reference'] = null;//'field' -> the same table, 'id' -> another table
+            obj.pivot_table.horizontal['l'+i+'_ref_link'] = null;//'id' just for '_reference'
             obj.pivot_table.horizontal['l'+i+'_field'] = null;
             obj.pivot_table.horizontal['l'+i+'_hide_empty'] = false;
             obj.pivot_table.horizontal['l'+i+'_show_links'] = false;
             obj.pivot_table.horizontal['l'+i+'_sub_total'] = false;
             obj.pivot_table.horizontal['l'+i+'_split'] = false;
+            obj.pivot_table.vertical['l'+i+'_reference'] = null;//'field' -> the same table, 'id' -> another table
+            obj.pivot_table.vertical['l'+i+'_ref_link'] = null;//'id' just for '_reference'
             obj.pivot_table.vertical['l'+i+'_field'] = null;
             obj.pivot_table.vertical['l'+i+'_hide_empty'] = false;
             obj.pivot_table.vertical['l'+i+'_show_links'] = false;

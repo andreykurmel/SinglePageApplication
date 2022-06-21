@@ -10,7 +10,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     export default {
         name: "HoverBlock",
@@ -21,14 +21,15 @@
         data: function () {
             return {
                 prevent: true,
+                maxwi: 350,
             };
         },
         computed: {
             hovWidth() {
-                return Math.min(this.html_str.length*7.5 + 12, 300);
+                return Math.min(this.html_str.length*7.5 + 12, this.maxwi);
             },
             hovPos() {
-                let style = {};
+                let style = { maxWidth: this.maxwi+'px' };
                 let c_off = to_float(this.c_offset);
 
                 let x = (this.p_left || this.$root.lastMouseClick.clientX) - 5;

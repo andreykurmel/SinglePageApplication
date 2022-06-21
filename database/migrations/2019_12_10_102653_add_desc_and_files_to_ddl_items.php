@@ -15,7 +15,8 @@ class AddDescAndFilesToDdlItems extends Migration
     {
         Schema::table('ddl_items', function (Blueprint $table) {
             $table->string('description', 512)->nullable();
-            $table->string('image_path', 256)->nullable();
+            $table->string('image_path', 255)->nullable();
+            $table->string('show_option', 255)->nullable();
         });
 
         Schema::table('ddl_references', function (Blueprint $table) {
@@ -44,6 +45,7 @@ class AddDescAndFilesToDdlItems extends Migration
         Schema::table('ddl_items', function (Blueprint $table) {
             $table->dropColumn('description');
             $table->dropColumn('image_path');
+            $table->dropColumn('show_option');
         });
 
         Schema::table('ddl_references', function (Blueprint $table) {

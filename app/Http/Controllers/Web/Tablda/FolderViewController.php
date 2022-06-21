@@ -47,7 +47,7 @@ class FolderViewController extends Controller
      * @return mixed
      */
     public function insertFolderView(FolderViewAddRequest $request){
-        $folder = $this->folderService->getFolder($request->folder_id);
+        $folder = $this->folderService->getFolder($request->folder_id) ?? new Folder();
 
         $this->authorize('isOwner', [Folder::class, $folder]);
 
@@ -66,7 +66,7 @@ class FolderViewController extends Controller
      */
     public function updateFolderView(FolderViewChangeRequest $request){
         $view = $this->folderViewRepository->getView($request->folder_view_id);
-        $folder = $this->folderService->getFolder($view->folder_id);
+        $folder = $this->folderService->getFolder($view->folder_id) ?? new Folder();
 
         $this->authorize('isOwner', [Folder::class, $folder]);
 
@@ -81,7 +81,7 @@ class FolderViewController extends Controller
      */
     public function deleteFolderView(FolderViewDeleteRequest $request){
         $view = $this->folderViewRepository->getView($request->folder_view_id);
-        $folder = $this->folderService->getFolder($view->folder_id);
+        $folder = $this->folderService->getFolder($view->folder_id) ?? new Folder();
 
         $this->authorize('isOwner', [Folder::class, $folder]);
 
@@ -96,7 +96,7 @@ class FolderViewController extends Controller
      */
     public function setFolderViews(SetFolderViewsRequest $request) {
         $view = $this->folderViewRepository->getView($request->folder_view_id);
-        $folder = $this->folderService->getFolder($view->folder_id);
+        $folder = $this->folderService->getFolder($view->folder_id) ?? new Folder();
 
         $this->authorize('isOwner', [Folder::class, $folder]);
 
@@ -111,7 +111,7 @@ class FolderViewController extends Controller
      */
     public function getFolderViewTable(GetFolderViewsTableRequest $request) {
         $view = $this->folderViewRepository->getView($request->folder_view_id);
-        $folder = $this->folderService->getFolder($view->folder_id);
+        $folder = $this->folderService->getFolder($view->folder_id) ?? new Folder();
         $table = $this->tableService->getTable($request->table_id);
 
         $this->authorize('isOwner', [Folder::class, $folder]);
@@ -130,7 +130,7 @@ class FolderViewController extends Controller
      */
     public function setFolderViewTable(SetFolderViewsTableRequest $request) {
         $view = $this->folderViewRepository->getView($request->folder_view_id);
-        $folder = $this->folderService->getFolder($view->folder_id);
+        $folder = $this->folderService->getFolder($view->folder_id) ?? new Folder();
 
         $this->authorize('isOwner', [Folder::class, $folder]);
 

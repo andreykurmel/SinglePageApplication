@@ -3,16 +3,23 @@
 namespace Vanguard\Modules\CloudBackup;
 
 
+use Illuminate\Support\Facades\Storage;
+use Vanguard\Repositories\Tablda\FileRepository;
+
 class GoogleApiModule implements ApiModuleInterface
 {
     /**
      * @param int $cloud_id
      * @return string
      */
-    public function getCloudActivationUrl(int $cloud_id)
+    public function getCloudActivationUrl(int $cloud_id): string
     {
         $client = $this->getClient();
-        $client->setScopes([\Google_Service_Sheets::SPREADSHEETS_READONLY, \Google_Service_Drive::DRIVE_FILE]);
+        $client->setScopes([
+            \Google_Service_Sheets::SPREADSHEETS_READONLY,
+            \Google_Service_Drive::DRIVE_FILE,
+            \Google_Service_Drive::DRIVE_READONLY
+        ]);
         $client->setState(json_encode([
             'cloud_id' => $cloud_id
         ]));
@@ -51,9 +58,10 @@ class GoogleApiModule implements ApiModuleInterface
 
     /**
      * @param string $code
+     * @param bool $is_refresh
      * @return array
      */
-    public function getTokenFromCode(string $code)
+    public function getTokenFromCode(string $code, bool $is_refresh = false): array
     {
         $client = $this->getClient();
         return $client->fetchAccessTokenWithAuthCode($code);
@@ -63,9 +71,10 @@ class GoogleApiModule implements ApiModuleInterface
      * Get Access Token.
      *
      * @param string $token_json
-     * @return array
+     * @param int $cloud_id
+     * @return string
      */
-    public function accessToken(string $token_json)
+    public function accessToken(string $token_json, int $cloud_id = 0): string
     {
         $result = [];
         $token = json_decode($token_json, true);
@@ -88,16 +97,16 @@ class GoogleApiModule implements ApiModuleInterface
             }
 
         }
-        return $result;
+        return json_encode($result);
     }
 
     /**
-     * @param array $access_token
+     * @param string $access_token
      * @param string $name_path
      * @param string $source_path
      * @return \Google_Service_Drive_DriveFile | null
      */
-    public function saveFileToDisk(array $access_token, string $name_path, string $source_path)
+    public function saveFileToDisk(string $access_token, string $name_path, string $source_path)
     {
         $folders = explode(DIRECTORY_SEPARATOR, $name_path);
         $folders = array_filter($folders);
@@ -119,16 +128,22 @@ class GoogleApiModule implements ApiModuleInterface
             $parentId = $present->id;
         }
 
-        if (!$this->findFile($driveService, $name, $parentId)) {
-            $metaData = $this->getMetaFile($name, $parentId);
-            $result = $driveService->files->create($metaData, [
-                'data' => file_get_contents($source_path),
-                'fields' => 'id, parents'
-            ]);
-            return $result;
+        $metaData = $this->getMetaFile($name, $parentId);
+        $content = [
+            'data' => file_get_contents($source_path),
+            'fields' => 'id, parents'
+        ];
+        $present = $this->findFile($driveService, $name, $parentId);
+        if ($present && $present->id) {
+            $info = new \SplFileInfo($source_path);
+            $drive = new \Google_Service_Drive_DriveFile(['name' => $name]);
+            $result = !in_array(strtolower($info->getExtension()), FileRepository::$img_extensions)
+                ? $driveService->files->update($present->id, $drive, ['data' => file_get_contents($source_path)])
+                : $present;
         } else {
-            return null;
+            $result = $driveService->files->create($metaData, $content);
         }
+        return $result;
     }
 
     /**
@@ -167,5 +182,68 @@ class GoogleApiModule implements ApiModuleInterface
             $metaData->setMimeType('application/vnd.google-apps.folder');
         }
         return $metaData;
+    }
+
+    /**
+     * @param string $token_json
+     * @param string $sheet_id
+     * @return array : ['Sheet1','Sheet2',...]
+     */
+    public function getSheetsFromTable(string $token_json, string $sheet_id)
+    {
+        $client = $this->clientWithCredentialsOrPublic($token_json);
+        $service = new \Google_Service_Sheets($client);
+        $table = $service->spreadsheets->get($sheet_id);
+        $result = [];
+        foreach ($table->sheets as $sheet) {
+            $result[] = $sheet->properties->title;
+        }
+        return $result;
+    }
+
+    /**
+     * @param string $token_json
+     * @param string $file_id
+     * @param string $store_path
+     * @param string $export
+     * @return string
+     */
+    public function storeGoogleFile(string $token_json, string $file_id, string $store_path, string $export = '')
+    {
+        $client = $this->clientWithCredentialsOrPublic($token_json);
+        $service = new \Google_Service_Drive($client);
+        $content = $export
+            ? $service->files->export($file_id, $export, ["alt" => "media"])
+            : $service->files->get($file_id, ["alt" => "media"]);
+
+        Storage::put('tmp_import/'.$store_path, '');
+        $handle = fopen(storage_path('app/tmp_import/'.$store_path), "w+");
+        while (!$content->getBody()->eof()) {
+            fwrite($handle, $content->getBody()->read(1024));
+        }
+        fclose($handle);
+        return $store_path;
+    }
+
+    /**
+     * @param string $token_json
+     * @param string $mime
+     * @return array : [ ['id'=>'h35raw3', 'name'=>'Table1'], ... ]
+     */
+    public function driveFindFiles(string $token_json, string $mime = '')
+    {
+        $mime = $mime ?: 'application/vnd.google-apps.spreadsheet';
+        $client = $this->clientWithCredentialsOrPublic($token_json);
+        $driveService = new \Google_Service_Drive($client);
+        $file_list = $driveService->files
+                ->listFiles(['q' => "mimeType='".$mime."'"])
+                ->getFiles();
+
+        return array_map(function ($item) {
+            return [
+                'id' => $item->id,
+                'name' => $item->name,
+            ];
+        }, $file_list);
     }
 }

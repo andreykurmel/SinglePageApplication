@@ -15,11 +15,15 @@
                     </label>
 
                     <a v-else-if="!isAddRow && inArray(tableHeader.field, ['name'])"
+                       title="Open the view in a new tab."
                        target="_blank"
                        :href="getLink()">{{ tableRow.name }}</a>
 
                     <div v-else-if="!isAddRow && inArray(tableHeader.field, ['user_link'])" class="flex flex--center">
-                        <a :target="tableRow.is_active ? '_blank' : ''" :href="tableRow.is_active ? getLink() : '#'">
+                        <a :target="tableRow.is_active ? '_blank' : ''"
+                           :href="tableRow.is_active ? getLink() : '#'"
+                           title="Open the view in a new tab."
+                        >
                             <button class="btn btn-default"
                                     :disabled="!tableRow.is_active"
                                     title="Public access address"
@@ -54,7 +58,7 @@
                     <div v-else-if="inArray(tableHeader.field, ['parts_avail','parts_default'])">
                         <span v-for="el in showParts()" :class="{'is_select': is_sel, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type)}">
                             <span v-html="el.show"></span>
-                            <span v-if="is_sel && $root.isMSEL(tableHeader.input_type)"
+                            <span v-if="is_sel && $root.isMSEL(tableHeader.input_type) && with_edit"
                                   class="m_sel__remove"
                                   @click.prevent.stop=""
                                   @mousedown.prevent.stop="updateCheckedDDL(el.val)"
@@ -82,7 +86,7 @@
                     :options="globalPermis()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -96,7 +100,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -110,7 +114,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -123,7 +127,7 @@
                     :options="globalFields()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -140,7 +144,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -153,7 +157,7 @@
                     :hdr_field="tableHeader.field"
                     :fld_input_type="tableHeader.input_type"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -168,7 +172,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -191,16 +195,16 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {eventBus} from './../../app';
 
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+import {SpecialFuncs} from './../../classes/SpecialFuncs';
 
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import EmbedButton from "../Buttons/EmbedButton";
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import EmbedButton from "../Buttons/EmbedButton";
 
-    export default {
+export default {
         name: "CustomCellTableView",
         mixins: [
             CellStyleMixin,
@@ -208,12 +212,6 @@
         components: {
             EmbedButton,
             TabldaSelectSimple,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -230,7 +228,12 @@
             cellHeight: Number,
             maxCellRows: Number,
             user: Object,
-            isAddRow: Boolean
+            isAddRow: Boolean,
+            no_height_limit: Boolean,
+            with_edit: {
+                type: Boolean|Number,
+                default: true
+            },
         },
         watch: {
         },
@@ -261,6 +264,7 @@
                 let obj = this.getWrapperStyle;
                 if (this.tableHeader.field === '_embd') {
                     obj.overflow = 'visible';
+                    obj.maxHeight = 'initial';
                 }
                 return obj;
             },
@@ -274,7 +278,7 @@
         methods: {
             getLink() {
                 let view = this.tableRow;
-                return this.$root.clear_url+'/view/'+ view.hash;//(view.user_link ? this.globalMeta.id+'/'+this.globalMeta.name+'/'+view.user_link : view.hash);
+                return this.$root.clear_url+'/mrv/'+ view.hash;//(view.user_link ? this.globalMeta.id+'/'+this.globalMeta.name+'/'+view.user_link : view.hash);
             },
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
@@ -358,7 +362,7 @@
                     vals = this.tableHeader.field === 'parts_avail' ? this.filterParts(vals) : vals;
                     _.each(vals, (el) => {
                         switch (el) {
-                            case 'tab-list-view': res.push({val: 'tab-list-view', show: 'List View'}); break;
+                            case 'tab-list-view': res.push({val: 'tab-list-view', show: 'Grid View'}); break;
                             case 'tab-settings': res.push({val: 'tab-settings', show: 'Settings'}); break;
                             case 'tab-map-add': res.push({val: 'tab-map-add', show: 'Addon GSI'}); break;
                             case 'tab-bi-add': res.push({val: 'tab-bi-add', show: 'Addon BI'}); break;
@@ -392,6 +396,10 @@
                 if (this.tableHeader.field === 'field_id' && this.tableRow.field_id) {
                     let fld = _.find(this.globalMeta._fields, {id: Number(this.tableRow.field_id)});
                     res = fld ? fld.name : '';
+                }
+                else
+                if (this.tableHeader.field === 'lock_pass' && this.tableRow.lock_pass) {
+                    res = this.globalMeta._is_owner ? this.tableRow.lock_pass : String(this.tableRow.lock_pass).replace(/./g, '*');
                 }
                 else
                 if (this.inArray(this.tableHeader.field, ['side_top','side_left_menu','side_left_filter','side_right'])) {
@@ -493,7 +501,7 @@
             },
             availParts() {
                 let parts = [
-                    {val: 'tab-list-view', show: 'List View'},
+                    {val: 'tab-list-view', show: 'Grid View'},
                     {val: 'tab-settings', show: 'Settings'},
                 ];
                 if (this.globalMeta.add_bi) {

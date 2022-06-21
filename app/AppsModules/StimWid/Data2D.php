@@ -24,9 +24,11 @@ use Vanguard\Services\Tablda\TableDataService;
 class Data2D
 {
     protected $stimRepo;
+    protected $dataRepo;
 
     protected $app_table;
     protected $master_model;
+    protected $just_filters;
 
     /**
      * Loader3D constructor.
@@ -35,9 +37,11 @@ class Data2D
     public function __construct(Request $request)
     {
         $this->stimRepo = new StimSettingsRepository();
+        $this->dataRepo = new TableDataRepository();
 
         $this->app_table = $request->app_table;
         $this->master_model = $request->master_model ?: [];
+        $this->just_filters = !!$request->just_filters;
     }
 
     /**
@@ -54,18 +58,38 @@ class Data2D
                 $g_setts = (object)[];
             }
         }
-        return [
-            'eqpt_lib' => $this->equipmentsFind($this->app_table, $this->master_model, 'eqpt_lib'),
-            'line_lib' => $this->libLinesFind($this->app_table, $this->master_model, 'line_lib'),
-            'sectors' => $this->findData($this->app_table, $this->master_model, 'sectors', ['sector','pos_num','pos_widths']),
-            'pos' => $this->posFind($this->app_table, $this->master_model),
-            'data_eqpt' => $this->equipmentsFind($this->app_table, $this->master_model, 'data_eqpt'),
-            'data_conn' => $this->dataLinesFind($this->app_table, $this->master_model, 'data_conn'),
-            'colors_eq' => $this->findEqptColors($this->app_table, $this->master_model),
-            'tech_list' => $this->findData($this->app_table, $this->master_model, 'tech_list', ['technology']),
-            'g_settings' => $g_setts,
-            'popup_tables' => $this->getArrayOfInherits(),
-        ];
+
+        if ($this->just_filters) {
+            return [
+                'data_filters' => $this->getEqptFilters($this->app_table, 'filters'),
+            ];
+        } else {
+            return [
+                'eqpt_lib' => $this->equipmentsFind($this->app_table, $this->master_model, 'eqpt_lib'),
+                'line_lib' => $this->libLinesFind($this->app_table, $this->master_model, 'line_lib'),
+                'sectors' => $this->findData($this->app_table, $this->master_model, 'sectors', ['sector', 'pos_num', 'pos_widths']),
+                'pos' => $this->posFind($this->app_table, $this->master_model),
+                'data_eqpt' => $this->equipmentsFind($this->app_table, $this->master_model, 'data_eqpt'),
+                'data_conn' => $this->dataLinesFind($this->app_table, $this->master_model, 'data_conn'),
+                'data_filters' => $this->getEqptFilters($this->app_table, 'filters'),
+                'colors_eq' => $this->findEqptColors($this->app_table, $this->master_model),
+                'tech_list' => $this->findData($this->app_table, $this->master_model, 'tech_list', ['technology']),
+                'g_settings' => $g_setts,
+                'popup_tables' => $this->getArrayOfInherits(),
+            ];
+        }
+    }
+
+    /**
+     * @param string $app_tb
+     * @param string $inherit_type
+     * @return array
+     */
+    protected function getEqptFilters(string $app_tb, string $inherit_type): array
+    {
+        $inherit_tb = $this->stimRepo->findInheritTb($app_tb, $inherit_type, '2d');
+        $table_meta = DataReceiver::meta_table($inherit_tb);
+        return $this->dataRepo->getFilters($table_meta->id, [], auth()->id());
     }
 
     /**
@@ -83,6 +107,7 @@ class Data2D
             'status_2d' => strtolower( $this->findInherit($this->app_table, 'eqpt_colors') ),
             'tech_2d' => strtolower( $this->findInherit($this->app_table, 'tech_list') ),
             'sectors_2d' => strtolower( $this->findInherit($this->app_table, 'sectors') ),
+            'filters_2d' => strtolower( $this->findInherit($this->app_table, 'filters') ),
         ];
     }
 
@@ -160,13 +185,14 @@ class Data2D
      * @param string $app_tb
      * @param array $tablda_model
      * @param string $inherit_type
-     * @return array
+     * @param array $filters
+     * @return array|array[]
      */
-    public function equipmentsFind(string $app_tb, array $tablda_model, string $inherit_type)
+    public function equipmentsFind(string $app_tb, array $tablda_model, string $inherit_type, array $filters = [])
     {
         $select = ['equipment','location','sector','pos','status','elev_pd','elev_g','elev_rad',
             'qty','pos_left','label_side','label_dir','technology'];
-        $data_eqpts = $this->findData($app_tb, $tablda_model, $inherit_type, $select);
+        $data_eqpts = $this->findData($app_tb, $tablda_model, $inherit_type, $select, $filters['eqpt'] ?? []);
         $models = array_pluck($data_eqpts, 'equipment');
 
         $eqpt_tb = $this->stimRepo->findInheritTb($app_tb, 'equipment', '2d');
@@ -278,16 +304,19 @@ class Data2D
      * @param array $tablda_model
      * @param string $inherit_type
      * @param array $selects
-     * @return array
+     * @param array $front_filters
+     * @return array|array[]
      */
-    public function findData(string $app_tb, array $tablda_model, string $inherit_type, array $selects = [])
+    public function findData(string $app_tb, array $tablda_model, string $inherit_type, array $selects = [], array $front_filters = [])
     {
         $selects[] = '_id';
 
         $inherit_tb = $this->stimRepo->findInheritTb($app_tb, $inherit_type, '2d');
 
         $rows = $inherit_tb
-            ? (new Model3dService( $inherit_tb, false ))->queryFindModel($tablda_model)->get()
+            ? (new Model3dService( $inherit_tb, false ))
+                ->queryFindModel($tablda_model, $front_filters)
+                ->get()
             : [];
 
         return array_map(function ($el) use ($selects) {

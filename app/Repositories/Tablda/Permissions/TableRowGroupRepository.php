@@ -3,11 +3,12 @@
 namespace Vanguard\Repositories\Tablda\Permissions;
 
 
+use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
 use Vanguard\Models\DataSetPermissions\TableRowGroup;
-use Vanguard\Models\DataSetPermissions\TableRowGroupCondition;
 use Vanguard\Models\DataSetPermissions\TableRowGroupRegular;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\User\UserGroup;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
@@ -67,35 +68,19 @@ class TableRowGroupRepository
     }
 
     /**
-     * Get Available Row Groups.
-     *
-     * @param $table_id
-     * @param null $table_permission_id
-     * @param null $row_group_edit
+     * @param array $row_group_ids
      * @return mixed
      */
-    public function getAvailableRowGroups($table_id, $table_permission_id = null, $row_group_edit = null)
+    public function getAvailableRowGroups(array $row_group_ids)
     {
-        return TableRowGroup::where('table_id', $table_id)
-            ->whereHas('_table_permission_rows', function ($tpc) use ($table_permission_id, $row_group_edit) {
-                $tpc->where($row_group_edit ? 'edit' : 'view', 1);
-                $tpc->whereHas('_table_permission', function ($tp) use ($table_permission_id) {
-                    $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
-                });
-            })
+        return TableRowGroup::whereIn('id', $row_group_ids)
+            ->with([
+                '_ref_condition' => function ($q) {
+                    $q->with('_items');
+                },
+                '_regulars'
+            ])
             ->get();
-    }
-
-    /**
-     * Get Group of Rows By Condition ID.
-     *
-     * @param $condition_id
-     * @return mixed
-     */
-    public function getRowGroupByCondId($condition_id)
-    {
-        $tb_row = TableRowGroupCondition::where('id', '=', $condition_id)->first();
-        return TableRowGroup::where('id', '=', $tb_row->table_row_group_id)->first();
     }
 
     /**
@@ -165,62 +150,6 @@ class TableRowGroupRepository
     public function deleteRowGroup($group_id)
     {
         return TableRowGroup::where('id', $group_id)->delete();
-    }
-
-    /**
-     * Add Row Group Condition.
-     *
-     * @param $data
-     * [
-     *  +table_row_group_id: int,
-     *  +table_field_id: int,
-     *  +compared_operator: string,
-     *  +compared_value: string,
-     *  -logic_operator: string,
-     * ]
-     * @return mixed
-     */
-    public function addRowGroupCondition($data)
-    {
-        $rg_cond = TableRowGroupCondition::create( array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()) );
-        return TableRowGroupCondition::where('id', $rg_cond->id)
-            ->with('_field')
-            ->first();
-    }
-
-    /**
-     * Update Row Group Condition.
-     *
-     * @param int $group_id
-     * @param $data
-     * [
-     *  -table_row_group_id: int,
-     *  -table_field_id: int,
-     *  -compared_operator: string,
-     *  -compared_value: string,
-     *  -logic_operator: string,
-     * ]
-     * @return array
-     */
-    public function updateRowGroupCondition($group_id, $data)
-    {
-        TableRowGroupCondition::where('id', $group_id)
-            ->update( array_merge($this->service->delSystemFields($data), $this->service->getModified()) );
-
-        return TableRowGroupCondition::where('id', $group_id)
-            ->with('_field')
-            ->first();
-    }
-
-    /**
-     * Delete Row Group Condition.
-     *
-     * @param int $group_id
-     * @return mixed
-     */
-    public function deleteRowGroupCondition($group_id)
-    {
-        return TableRowGroupCondition::where('id', $group_id)->delete();
     }
 
     /**

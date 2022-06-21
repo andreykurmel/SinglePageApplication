@@ -19,10 +19,9 @@
                                         :table-meta="$root.settingsMeta['table_ref_conditions']"
                                         :all-rows="tableMeta ? tableMeta._ref_conditions : []"
                                         :rows-count="tableMeta ? tableMeta._ref_conditions.length : 0"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :is-full-width="true"
-                                        :fixed_ddl_pos="true"
                                         :behavior="'data_sets'"
                                         :user="user"
                                         :adding-row="addingRow"
@@ -38,17 +37,17 @@
                             <div class="section-text">
                                 <span v-if="selectedRefGroup < 0">Select a RC</span>
                                 <span v-else="">Logic Conditions (LCs) of selected RC:
-                                    <span>{{ tableMeta._ref_conditions ? tableMeta._ref_conditions[selectedRefGroup].name : '' }}</span>
+                                    <span>{{ tableMeta._ref_conditions[selectedRefGroup] ? tableMeta._ref_conditions[selectedRefGroup].name : '' }}</span>
                                 </span>
 
-                                <div v-if="selectedRefGroup > -1" class="right-elem">
+                                <div v-if="selectedRefGroup > -1 && tableMeta._ref_conditions[selectedRefGroup]" class="right-elem">
                                     <button class="btn btn-default btn-sm blue-gradient full-height"
                                             :style="$root.themeButtonStyle"
                                             @click="copyLCs()"
                                     >Copy</button>
                                     <select class="form-control full-height" v-model="rc_for_copy">
                                         <option v-for="ref in tableMeta._ref_conditions"
-                                                v-if="ref.id != tableMeta._ref_conditions[selectedRefGroup].id"
+                                                v-if="ref && ref.id != tableMeta._ref_conditions[selectedRefGroup].id"
                                                 :value="ref.id"
                                         >{{ ref.name }}</option>
                                     </select>
@@ -61,15 +60,14 @@
                                         :table-meta="$root.settingsMeta['table_ref_condition_items']"
                                         :all-rows="selectedRefGroup > -1 ? selectedRefCondItems : []"
                                         :rows-count="selectedRefGroup > -1 ? selectedRefCondItems.length : 0"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :is-full-width="true"
                                         :user="user"
                                         :adding-row="addingRowRC"
                                         :behavior="'data_sets_ref_condition_items'"
                                         :forbidden-columns="$root.systemFields"
                                         :selected-row="selectedRefItem"
-                                        :fixed_ddl_pos="true"
                                         :ref_tb_from_refcond="ref_tb_from_refcond"
                                         @added-row="addRefGroupItem"
                                         @updated-row="updateRefGroupItem"

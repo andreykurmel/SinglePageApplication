@@ -11,7 +11,9 @@
                         :real-value="str"
                         :is_select="true"
                         :user="user"
+                        :behavior="behavior"
                         @unselect-val="unselectVal(str)"
+                        @show-src-record="showSrcRecord"
                 ></cell-table-content-data>
             </span>
         </template>
@@ -25,6 +27,8 @@
                     :real-value="editValue"
                     :is_select="fldTypeSelect"
                     :user="user"
+                    :behavior="behavior"
+                    @show-src-record="showSrcRecord"
             ></cell-table-content-data>
         </template>
     </div>
@@ -72,6 +76,7 @@
             tableRow: Object,
             editValue: String|Number,
             user: Object,
+            behavior: String,
         },
         watch: {
             maxCellRows(val) {
@@ -112,8 +117,12 @@
 
                 //for field types == User
                 if (this.inArray(this.tableHeader.f_type, ['User'])) {
-                    let usr = this.$root.smallUserStr(this.tableRow, this.tableHeader, editValue, true);
-                    res = this.$root.getUserSimple(usr, this.tableMeta._owner_settings);
+                    if (editValue === '{$visitor}') {
+                        res = editValue;
+                    } else {
+                        let usr = this.$root.smallUserStr(this.tableRow, this.tableHeader, editValue, true);
+                        res = this.$root.getUserSimple(usr, this.tableMeta._owner_settings);
+                    }
                 }
                 else
                 if (this.tableHeader.field === 'plan_id') {
@@ -153,6 +162,11 @@
                     res = $mod ? $mod.show : this.tableRow.type_tablda;
                 }
                 else
+                //User Activity
+                if (['description_time','ending_time'].indexOf(this.tableHeader.field) > -1 && this.tableRow[this.tableHeader.field]) {
+                    res = moment.unix( this.tableRow[this.tableHeader.field] ).format('YYYY-MM-DD HH:mm:ss');
+                }
+                else
                 if (this.inArray(this.tableHeader.field, ['_data_table_id', 'data_table'])) {
                     res = this.tableRow['__'+this.tableHeader.field]
                         || (this.tableRow._table ? this.tableRow._table.data_table : this.tableRow[this.tableHeader.field]);
@@ -176,6 +190,10 @@
 
                 return res;
             },
+            //show link popup
+            showSrcRecord(link, header, tableRow) {
+                this.$emit('show-src-record', link, header, tableRow);
+            },
 
             //content sizes
             recalcContent() {
@@ -190,7 +208,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     span {
         display: inline-block;
     }

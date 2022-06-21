@@ -47,18 +47,19 @@ class UserInvitationsSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
+
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+
                 'modified_on' => now(),
             ]);
         }
 
         //headers
         $this->create('email', 'Email', $table, $user);
-        $this->create('date_send', 'Date,Sent', $table, $user, 'Date');
-        $this->create('date_accept', 'Date,Accepted', $table, $user, 'Date');
+        $this->create('date_send', 'Date Time,Sent', $table, $user, 'Date Time');
+        $this->create('date_accept', 'Date Time,Accepted', $table, $user, 'Date Time');
+        $this->create('date_confirm', 'Date Time,Confirmed', $table, $user, 'Date Time');
         $this->create('rewarded', 'Rewarded credit', $table, $user, 'Currency');
 
         //add right to Visitor
@@ -67,19 +68,23 @@ class UserInvitationsSeeder extends Seeder
     }
 
     private function create($field, $name, $table, $user, $type = 'String') {
-        if (!$table->_fields->where('field', $field)->count()) {
+        $present = $table->_fields()->where('field', $field)->first();
+        if (!$present) {
             TableField::create([
                 'table_id' => $table->id,
                 'field' => $field,
                 'name' => $name,
                 'f_type' => $type,
+                'show_zeros' => 0,
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now()
             ]);
+        } else {
+            $present->name = $name;
+            $present->f_type = $type;
+            $present->save();
         }
     }
 }

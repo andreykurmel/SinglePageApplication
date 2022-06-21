@@ -18,6 +18,13 @@
                         >
                             <!--MASTERS-->
                             <template v-if="tb.table === tab_object.master_table && tb.type_tablda === 'vertical' && !$root.user.view_all">
+                                <button v-if="permis[tbkey(tb)].has_rl_calculator && modelUser"
+                                        :disabled="!permis[tbkey(tb)].can_add || !permis[tbkey(tb)].can_edit"
+                                        :style="$root.themeButtonStyle"
+                                        class="btn btn-success btn-top--icon blue-gradient"
+                                        @click="doRLCalculation(tab_object.master_table)"
+                                        title="Create RL Brackets"
+                                ><span class="btn-wrapper">RL</span></button>
                                 <show-hide-button v-if="vuex_fm[tb.table] && vuex_fm[tb.table].meta.params"
                                                   v-show="permis[tbkey(tb)].has_halfmoon"
                                                   :table-meta="vuex_fm[tb.table].meta.params"
@@ -66,6 +73,21 @@
 
                             <!--BUTTONS (not masters)-->
                             <template v-if="tb.table !== tab_object.master_table && ['vertical','table'].indexOf(tb.type_tablda) > -1 && !$root.user.view_all">
+                                <button v-if="modelUser && permis[tbkey(tb)].can_add && permis[tbkey(tb)].has_copy_childrene"
+                                        :style="$root.themeButtonStyle"
+                                        class="btn btn-success btn-top--icon blue-gradient"
+                                        @click="copyFromModelClicked(tb)"
+                                        title="Copy From Another Model"
+                                >
+                                    <span class="btn-wrapper">CoFr</span>
+                                </button>
+                                <button v-if="permis[tbkey(tb)].has_rl_calculator && modelUser"
+                                        :disabled="!permis[tbkey(tb)].can_add || !permis[tbkey(tb)].can_edit"
+                                        :style="$root.themeButtonStyle"
+                                        class="btn btn-success btn-top--icon blue-gradient"
+                                        @click="doRLCalculation(tb)"
+                                        title="Create RL Brackets"
+                                ><span class="btn-wrapper">RL</span></button>
                                 <button v-show="tb.type_tablda === 'table' && permis[tbkey(tb)].has_fill_attachments && vuex_fm[tb.table].meta.params"
                                         :style="$root.themeButtonStyle"
                                         class="btn btn-success btn-top--icon blue-gradient"
@@ -89,6 +111,7 @@
                                     <span>Views</span>
                                 </button>
                                 <cell-height-button v-if="tb.type_tablda === 'table' && permis[tbkey(tb)].has_cellheight_btn && vuex_fm[tb.table].meta.params"
+                                                    :table_meta="vuex_fm[tb.table].meta.params"
                                                     :cell-height="$root.cellHeight"
                                                     :max-cell-rows="$root.maxCellRows"
                                                     @change-cell-height="$root.changeCellHeight"
@@ -146,12 +169,6 @@
                                         @click="copyRowsClicked(tb)"
                                         title="Copy Selected Rows"
                                 ><div class="btn-wrapper"><i class="fa fa-clone"></i></div></button>
-                                <button v-if="modelUser && permis[tbkey(tb)].can_add && permis[tbkey(tb)].has_copy_childrene"
-                                        :style="$root.themeButtonStyle"
-                                        class="btn btn-success btn-top--icon blue-gradient"
-                                        @click="copyFromModelClicked(tb)"
-                                        title="Copy From Another Model"
-                                ><div class="btn-wrapper"><i class="fas fa-file-import"></i></div></button>
                                 <add-button
                                         :available="modelUser && permis[tbkey(tb)].can_add"
                                         :adding-row="addingRows[tbkey(tb)]"
@@ -195,6 +212,7 @@
                             :copy_from_model_handler_click="handlers[tbkey(tb)].copy_from_model_clicked"
                             :show_cond_popup_handler_click="handlers[tbkey(tb)].show_cond_popup_clicked"
                             :fill_attachments_handler_click="handlers[tbkey(tb)].fill_attachments_clicked"
+                            :rl_calculation_handler_click="handlers[tbkey(tb)].rl_calculation_clicked"
                             :foreign_meta_table="vuex_fm[tb.table].meta"
                             :foreign_all_rows="vuex_fm[tb.table].rows"
                             :style="{maxWidth: tb.type_tablda === 'vertical' ? '800px' : 'initial'}"
@@ -306,7 +324,7 @@
         },
         mounted() {
             let filtered_tbls = _.filter(this.tab_object.tables, (tb) => {
-                return this.no_hidden(tb);
+                return this.is_visible(tb) && this.no_hidden(tb);
             });
             this.accordions = _.groupBy(filtered_tbls, 'accordion_low');
 
@@ -317,6 +335,6 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "CommonStyles";
 </style>

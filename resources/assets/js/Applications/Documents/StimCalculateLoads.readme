@@ -1,0 +1,18 @@
+#Stim Calculate Loads
+Use special repository for loads calculation https://tablda.com/_external_api_/tia_222/api_design.php
+
+Must be: correspondence_apps.code = stim_calculate_loads
+
+Works on CorrespondenceTables.
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    //table for setting
+    App,Array: 'loads_ma'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+    ]

@@ -16,28 +16,27 @@
                 <div>{{ msg.message }}</div>
             </div>
         </div>
-        <div class="message-add" :style="{height: addMsgHeight+'px'}">
-            <div v-show="owner" class="user-wrapper">
-                <label class="user-label">To: </label>
-                <div class="user-select">
-                    <select ref="search_user" :title="txaTitle"></select>
-                </div>
-            </div>
-            <div :style="{height: (addMsgHeight-(owner ? 40 : 10))+'px'}">
-                <textarea class="form-control message-text" v-model="newMessage" @keydown="keyPressedOnText()"></textarea>
-                <button class="btn btn-sm btn-primary message-btn" :style="$root.themeButtonStyle" @click="sendMessage()">
-                    <i class="glyphicon glyphicon-send"></i>
-                </button>
-            </div>
-        </div>
+        <send-message-block
+            :add-msg-height="addMsgHeight"
+            :owner="owner"
+            :owner_id="owner_id"
+            :table_id="table_id"
+            :with_group="true"
+            @send-message="sendMessage"
+        ></send-message-block>
     </div>
 </template>
 
 <script>
     import MessageUserInfo from "./MessageUserInfo";
+    import SendMessageBlock from "../../CommonBlocks/SendMessageBlock";
 
     export default {
-        components: {MessageUserInfo}, name: "RightMenuMessages",
+        components: {
+            SendMessageBlock,
+            MessageUserInfo,
+        },
+        name: "RightMenuMessages",
         mixins: [
         ],
         data: function () {
@@ -58,26 +57,15 @@
             }
         },
         methods: {
-            sendMessage() {
+            sendMessage(message, to_user_id, to_group_id) {
                 $.LoadingOverlay('show');
-                let to_user, to_user_group;
-                if (this.owner) {
-                    let val = $(this.$refs.search_user).val();
-                    to_user = val && val[0] !== '_' ? (val || 0) : 0;
-                    to_user_group = val && val[0] === '_' ? (val.substr(1) || null) : null;
-                } else {
-                    to_user = this.owner_id;
-                    to_user_group = null;
-                }
                 axios.post('/ajax/table/message', {
                     table_id: this.table_id,
-                    to_user_id: to_user,
-                    to_user_group_id: to_user_group,
-                    message: this.newMessage
+                    to_user_id: to_user_id,
+                    to_user_group_id: to_group_id,
+                    message: message
                 }).then(({ data }) => {
                     this.tableMessages.splice(0, 0, data);
-                    this.newMessage = '';
-                    $(this.$refs.search_user).val(null).trigger('change');
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -120,7 +108,7 @@
                         }
                     },
                 },
-                minimumInputLength: 3,
+                minimumInputLength: {val:3},
                 width: '100%'
             });
             $(this.$refs.search_user).next().css('height', '28px');
@@ -141,31 +129,6 @@
                 font-size: 2em;
                 cursor: pointer;
             }
-        }
-    }
-    .message-add {
-        position: relative;
-        padding: 5px;
-        border-top: 1px solid #CCC;
-
-        .user-wrapper {
-            height: 30px;
-
-            .user-label {
-                line-height: 28px;
-            }
-            .user-select {
-                float: right;
-                width: 200px;
-            }
-        }
-        .message-text, .message-btn {
-            height: 100%;
-        }
-        .message-text {
-            width: 192px;
-            float: left;
-            resize: none;
         }
     }
 </style>

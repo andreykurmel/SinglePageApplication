@@ -124,7 +124,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-wrapper {
         height: 100%;
         display: flex;

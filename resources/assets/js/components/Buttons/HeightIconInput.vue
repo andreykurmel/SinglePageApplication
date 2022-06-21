@@ -34,7 +34,7 @@
     }
 </script>
 
-<style scoped="">
+<style scoped>
     .input-wrapper {
         position: absolute;
         top: 0;

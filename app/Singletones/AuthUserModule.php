@@ -25,8 +25,6 @@ class AuthUserModule implements AuthUserSingleton
     protected $apps_folder;
     protected $menu_tree;
 
-    protected $menuTreeModule;
-
     /**
      * AuthUserModule constructor.
      */
@@ -35,8 +33,6 @@ class AuthUserModule implements AuthUserSingleton
         $this->user = auth()->id()
             ? User::find(auth()->id())
             : new User();
-
-        $this->menuTreeModule = new MenuTreeModule($this);
     }
 
     /**
@@ -57,6 +53,8 @@ class AuthUserModule implements AuthUserSingleton
     }
 
     /**
+     * Get 'Usergroups' for table from 'Assigned Permissions' and to which user is belongs.
+     *
      * @param bool $attach_user_id
      * @param int|null $filter_table_id
      * @return array
@@ -81,6 +79,8 @@ class AuthUserModule implements AuthUserSingleton
     }
 
     /**
+     * Get all UserGroups (or just for selected $filter_table_id)
+     *
      * @param int|null $filter_table_id
      * @return \Illuminate\Database\Eloquent\Collection|static[]
      */
@@ -106,7 +106,7 @@ class AuthUserModule implements AuthUserSingleton
     /**
      * @return Collection
      */
-    public function getIdsUserGroupsEditAdded()
+    public function getManagerOfUserGroups(bool $unserscored = false)
     {
         if (!$this->user_groups_edit_allowed_ids) {
             $this->user_groups_edit_allowed_ids = $this->getUserGroupsMember()
@@ -114,7 +114,14 @@ class AuthUserModule implements AuthUserSingleton
                 ->pluck('id');
             $this->user_groups_edit_allowed_ids[] = 0;
         }
-        return $this->user_groups_edit_allowed_ids;
+
+        $result = $this->user_groups_edit_allowed_ids;
+        if ($unserscored) {
+            $result = $result->filter()->map(function ($item) {
+                return '_' . $item;
+            });
+        }
+        return $result;
     }
 
 
@@ -126,9 +133,9 @@ class AuthUserModule implements AuthUserSingleton
         if (!$this->table_permission_ids_member) {
             $ug_ids = $this->getUserGroupsMember()->pluck('id');
             $this->table_permission_ids_member = TablePermission::whereHas('_user_groups', function ($ug) use ($ug_ids) {
-                    $ug->where('user_groups_2_table_permissions.is_active', 1);
-                    $ug->whereIn('user_groups_2_table_permissions.user_group_id', $ug_ids);
-                })
+                $ug->where('user_groups_2_table_permissions.is_active', 1);
+                $ug->whereIn('user_groups_2_table_permissions.user_group_id', $ug_ids);
+            })
                 ->select('id')
                 ->get()
                 ->pluck('id');
@@ -146,12 +153,25 @@ class AuthUserModule implements AuthUserSingleton
     {
         switch ($type) {
             //tables for 'SHARED' folder.
-            case 'shared': return $this->getTablesIdsInSharedFolder();
+            case 'shared':
+                return $this->getTablesIdsInSharedFolder();
             //tables for 'APPs' folder.
-            case 'apps': return $this->getTablesIdsInAppsFolder();
+            case 'apps':
+                return $this->getTablesIdsInAppsFolder();
             //tables for 'APPs' and 'SHARED' folder.
-            default: return $this->getAllSharedTablesIds();
+            default:
+                return $this->getAllSharedTablesIds();
         }
+    }
+
+    /**
+     * @return Collection
+     */
+    protected function getTablesIdsInSharedFolder()
+    {
+        return $this->getAllSharedTables()
+            ->where('is_app', 0)
+            ->pluck('table_id');
     }
 
     /**
@@ -170,19 +190,62 @@ class AuthUserModule implements AuthUserSingleton
     /**
      * @return Collection
      */
+    protected function getTablesIdsInAppsFolder()
+    {
+        return $this->getAllSharedTables()
+            ->where('is_app', 1)
+            ->pluck('table_id');
+    }
+
+    /**
+     * @return Collection
+     */
     protected function getAllSharedTablesIds()
     {
         return $this->getAllSharedTables()->pluck('table_id');
     }
 
     /**
-     * @return Collection
+     * Get Folder with structure view for js-tree.
+     *
+     * @param $folder_id
+     * @param $structure
+     * @return array
      */
-    protected function getTablesIdsInAppsFolder()
+    public function getMenuTreeFolder(int $folder_id, string $structure = 'private')
     {
-        return $this->getAllSharedTables()
-            ->where('is_app', 1)
-            ->pluck('table_id');
+        $menutree = $this->getMenuTree();
+        return (new MenuTreeModule($this))->findInTree($menutree[$structure] ?? [], $folder_id);
+    }
+
+    /**
+     * Get Folders and Tables available to User in structure view for js-tree.
+     *
+     * @return array
+     */
+    public function getMenuTree()
+    {
+        if (!$this->menu_tree) {
+            $this->menu_tree = (new MenuTreeModule($this))->build();
+        }
+        return $this->menu_tree;
+    }
+
+    /**
+     * @param int $table_id
+     * @param string $table_name
+     * @return string
+     */
+    public function getTableUrl(int $table_id, string $table_name)
+    {
+        $menu = $this->getMenuTree();
+        foreach ($menu as $part) {
+            $tb_node = (new MenuTreeModule($this))->findInTree($part ?? [], $table_id, 'table');
+            if ($tb_node) {
+                return $tb_node['a_attr']['href'] . $table_name;
+            }
+        }
+        return '';
     }
 
     /**
@@ -199,57 +262,5 @@ class AuthUserModule implements AuthUserSingleton
                 ->pluck('table_id');
         }
         return $this->rejected_ids;
-    }
-
-    /**
-     * @return Collection
-     */
-    protected function getTablesIdsInSharedFolder()
-    {
-        return $this->getAllSharedTables()
-            ->where('is_app', 0)
-            ->pluck('table_id');
-    }
-
-    /**
-     * Get Folder with structure view for js-tree.
-     *
-     * @param $folder_id
-     * @return array
-     */
-    public function getMenuTreeFolder(int $folder_id)
-    {
-        $menutree = $this->getMenuTree();
-        return $this->menuTreeModule->findInTree($menutree['private'] ?? [], $folder_id);
-    }
-
-    /**
-     * Get Folders and Tables available to User in structure view for js-tree.
-     *
-     * @return array
-     */
-    public function getMenuTree()
-    {
-        if (!$this->menu_tree) {
-            $this->menu_tree = $this->menuTreeModule->build();
-        }
-        return $this->menu_tree;
-    }
-
-    /**
-     * @param int $table_id
-     * @param string $table_name
-     * @return string
-     */
-    public function getTableUrl(int $table_id, string $table_name)
-    {
-        $menu = $this->getMenuTree();
-        foreach ($menu as $part) {
-            $tb_node = $this->menuTreeModule->findInTree($part ?? [], $table_id, 'table');
-            if ($tb_node) {
-                return $tb_node['a_attr']['href'] . $table_name;
-            }
-        }
-        return '';
     }
 }

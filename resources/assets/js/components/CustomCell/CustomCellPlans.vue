@@ -35,19 +35,13 @@
 </template>
 
 <script>
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    export default {
+export default {
         name: "CustomCellPlans",
         mixins: [
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editing: false,
@@ -60,6 +54,7 @@
                     return {};
                 }
             },
+            tableMeta: Object,//style mixin
             tableHeader: Object,
             tableRow: Object,
             cellHeight: Number,
@@ -136,6 +131,6 @@
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 </style>

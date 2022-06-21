@@ -2,10 +2,12 @@
 
 namespace Vanguard\Http\Controllers\Web;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Events\User\Banned;
 use Vanguard\Events\User\Deleted;
+use Vanguard\Events\User\Registered;
 use Vanguard\Events\User\TwoFactorDisabledByAdmin;
 use Vanguard\Events\User\TwoFactorEnabledByAdmin;
 use Vanguard\Events\User\UpdatedByAdmin;
@@ -158,56 +160,19 @@ class UsersController extends Controller
      * @param CreateBulkUsersRequest $request
      * @return mixed
      */
-    public function storeBulk(CreateBulkUsersRequest $request)
+    public function storeBulkCsv(CreateBulkUsersRequest $request)
     {
         $tmp_csv = time()."_".rand().".csv";
-        $request->users->storeAs('csv', $tmp_csv);
+        $request->csv_emails->storeAs('tmp_import', $tmp_csv);
 
-        $columns = 0;
-        $row_idx = 0;
-        $existing_users = [];
-        $role = Role::where('name', 'User')->first();
-        $fileHandle = fopen(storage_path("app/csv/".$tmp_csv), 'r');
-
+        $emails = [];
+        $fileHandle = fopen(storage_path("app/tmp_import/".$tmp_csv), 'r');
         while (($row = fgetcsv($fileHandle)) !== FALSE) {
-            $row_idx++;
-            if (!$columns) {
-                $columns = count($row);
-            }
-
-            if ($columns != count($row)) {
-                return ['error' => "Incorrect csv format (your rows have different number of columns)!"];
-            }
-
-            if ($row_idx == 1 && ((strtolower($row[0]) == 'username') || (strtolower($row[1]) == 'email') || (strtolower($row[2]) == 'password'))) {
-                continue; //it seems that first row is 'header'
-            }
-
-            $data = [
-                'username' => preg_replace('/[^\w\d_]/i', '', $row[0]),
-                'email' => trim($row[1]),
-                'password' => trim($row[2]),
-                'first_name' => trim($row[3]),
-                'last_name' => trim($row[4]),
-                'role_id' => $role->id,
-                'status' => UserStatus::ACTIVE
-            ];
-
-            if (!$data['username'] || !$data['email'] || !$data['password']) {
-                continue; //it seems that row doens't contain required fields
-            }
-
-            // When user is created by administrator, we will set his
-            // status to Active by default.
-            if (!$this->users->findByEmailOrUsername($data['email'], $data['username'])) {
-                $user = $this->users->create($data);
-            } else {
-                $filter_data = collect($data)->except(['role_id', 'status'])->toArray();
-                array_push( $existing_users, implode(', ', $filter_data ) );
-            }
+            $emails[] = array_first($row);
         }
+        Storage::delete("tmp_import/".$tmp_csv);
 
-        Storage::delete(storage_path("app/csv/".$tmp_csv));
+        $existing_users = $this->createBulkUsers($emails);
 
         if (count($existing_users)) {
             $str = trans('app.user_bulk_created_with_existings', ['list' => implode('<br>', $existing_users)] );
@@ -217,6 +182,68 @@ class UsersController extends Controller
 
         return redirect()->route('user.list')
             ->withSuccess($str);
+    }
+
+    /**
+     * Stores new bulk users into the database if uploaded pasted data.
+     *
+     * @param CreateBulkUsersRequest $request
+     * @return mixed
+     */
+    public function storeBulkPaste(CreateBulkUsersRequest $request)
+    {
+        $emails = preg_split('/,|;|\s|\r\n|\r|\n/', $request->pasted_emails);
+        $existing_users = $this->createBulkUsers($emails);
+
+        if (count($existing_users)) {
+            $str = trans('app.user_bulk_created_with_existings', ['list' => implode('<br>', $existing_users)] );
+        } else {
+            $str = trans('app.user_bulk_created');
+        }
+
+        return redirect()->route('user.list')
+            ->withSuccess($str);
+    }
+
+    /**
+     * @param array $emails
+     * @return array
+     */
+    protected function createBulkUsers(array $emails)
+    {
+        $existing_users = [];
+
+        $role = Role::where('name', '=', 'User')->first();
+
+        $status = settings('reg_email_confirmation')
+            ? UserStatus::UNCONFIRMED
+            : UserStatus::ACTIVE;
+
+        foreach ($emails as $uemail) {
+            if ($uemail && filter_var($uemail, FILTER_VALIDATE_EMAIL)) {
+
+                $uname = array_first( explode('@', $uemail) );
+
+                $data = [
+                    'username' => preg_replace('/[^\w\d_]/i', '', $uname),
+                    'email' => $uemail,
+                    'password' => str_random(12),
+                    'role_id' => $role->id,
+                    'status' => $status
+                ];
+
+                // Create user if not found
+                if (!$this->users->findByEmail($uemail)) {
+                    $user = $this->users->create($data);
+                    $user->setRelation('_tmp_pass', $data['password']);
+                    event(new Registered($user));
+                } else {
+                    $filter_data = collect($data)->only(['email'])->toArray();
+                    array_push($existing_users, implode(', ', $filter_data));
+                }
+            }
+        }
+        return $existing_users;
     }
 
     /**
@@ -418,9 +445,15 @@ class UsersController extends Controller
                 ->withErrors(trans('app.2fa_not_enabled_user'));
         }
 
-        Authy::delete($user);
-
+        $user->two_factor_options = null;
         $user->save();
+
+        try {
+            Authy::delete($user);
+        } catch (\Exception $e) {
+            Log::info('Authy Error');
+            Log::info($e->getMessage());
+        }
 
         event(new TwoFactorDisabledByAdmin($user));
 

@@ -1,6 +1,6 @@
 <template>
     <div class="full-frame">
-        <div class="webgl-wrapper" :style="{zIndex: popup_row_id ? 1450 : 'initial'}">
+        <div class="webgl-wrapper" :style="{zIndex: popup_row_id ? 1405 : 'initial'}">
             <!--NOTE: ALL IS COPIED FROM 'WID' PROJECT AND CHANGED FOR "VUE"-->
             <div class="flex flex--center" style="position: absolute; z-index: 200;">
                 <div class="logo">
@@ -27,6 +27,16 @@
                                 <span class="toggler round"></span>
                             </label>
                             <label>&nbsp;Members</label>
+                        </div>
+                        <div class="flex flex--center-v">
+                            <div style="height: 24px;width: 48px;position: relative;">
+                                <tablda-colopicker
+                                        :init_color="viewSettings.edges_color"
+                                        :avail_null="true"
+                                        @set-color="setEdgeclr"
+                                ></tablda-colopicker>
+                            </div>
+                            <label>&nbsp;Color</label>
                         </div>
                     </div>
                 </div>
@@ -244,7 +254,6 @@
                     <label class="colorPicker" style="margin-left: 10px;">
                         <tablda-colopicker
                                 :init_color="viewSettings.defMemberColor"
-                                :saved_colors="$root.color_palette"
                                 :avail_null="viewSettings.defMemberColor != '#aaaaaa'"
                                 @set-color="(clr) => { setclr('defMemberColor', clr) }"
                         ></tablda-colopicker>
@@ -272,12 +281,36 @@
                     <label class="colorPicker" style="margin-left: 67px;">
                         <tablda-colopicker
                                 :init_color="viewSettings.defEqptColor"
-                                :saved_colors="$root.color_palette"
                                 :avail_null="viewSettings.defEqptColor != '#aaaaaa'"
                                 @set-color="(clr) => { setclr('defEqptColor', clr) }"
                         ></tablda-colopicker>
                     </label>
                 </div>
+
+                <div class="checkbox flex flex--center-v">
+                    <span style="float: left; width: 80px;">Bracket RL:</span>
+                    <label style="width: 65px;">
+                        <span class="indeterm_check__wrap">
+                            <span class="indeterm_check" @click="viewSettings.rl_view = !viewSettings.rl_view;can_save_sett = true">
+                                <i v-if="viewSettings.rl_view" class="glyphicon glyphicon-ok group__icon"></i>
+                            </span>
+                        </span>
+                        <span>View&nbsp;</span>
+                    </label>
+                    <label style="">
+                        <span>Size:</span>
+                        <input style="width: 75px;display: inline-block;" class="form-control" type="number" @change="can_save_sett = true;drawWholeGeom();" min="0" max="10" v-model="viewSettings.rl_size">
+                    </label>
+                    <label class="colorPicker" style="margin-left: 27px;">
+                        <span>Color:</span>
+                        <tablda-colopicker
+                                :init_color="viewSettings.defRLColor"
+                                :avail_null="viewSettings.defRLColor != '#aaaaaa'"
+                                @set-color="(clr) => { setclr('defRLColor', clr) }"
+                        ></tablda-colopicker>
+                    </label>
+                </div>
+                <!--ABOVE SAVE SETTINGS-->
                 <div class="row envRow">
                     <div class="environment">
 
@@ -293,7 +326,6 @@
                                 <span class="colorPicker" v-show="viewSettings.skybox === 'skyboxColorPicker'">
                                     <tablda-colopicker
                                             :init_color="viewSettings.skyboxColor"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => { viewSettings.skyboxColor = clr;can_save_sett = true }"
                                     ></tablda-colopicker>
@@ -311,7 +343,6 @@
                                 <span class="colorPicker" v-show="viewSettings.terrain === 'terrainColorPicker'">
                                     <tablda-colopicker
                                             :init_color="viewSettings.terrainColor"
-                                            :saved_colors="$root.color_palette"
                                             :avail_null="true"
                                             @set-color="(clr) => { viewSettings.terrainColor = clr;can_save_sett = true }"
                                     ></tablda-colopicker>
@@ -475,6 +506,7 @@
 
 <script>
     //
+    import {ThreeHelper} from '../../classes/helpers/ThreeHelper';
     import {MetaTabldaRows} from '../../classes/MetaTabldaRows';
     import {Settings} from './Configurator/Settings';
     import {WidSettings} from './WidSettings';
@@ -506,6 +538,8 @@
         },
         data() {
             return {
+                direct_row_3d: null,
+                local_load_data: null,
                 sett_top: 0,
                 sett_left: 0,
                 eqptPop: null,
@@ -579,10 +613,13 @@
                 cam_menu: false,
                 cur_cam_orto: false,
                 sync_in_process: false,
+                progress_rl: 0,
+                ticker: null,
             }
         },
         computed: {
             ...mapState({
+                vuex_redraw_soft_counter: (state) => state.redraw_soft_counter,
                 vuex_redraw_counter: (state) => state.redraw_counter,
                 vuex_settings: state => state.stim_settings,
                 vuex_links: state => state.stim_links_container,
@@ -621,6 +658,9 @@
             vuex_redraw_counter(newValue) {
                 this.redrawModel('vuex_redraw_counter');
             },
+            vuex_redraw_soft_counter(newValue) {
+                this.redrawModel('vuex_redraw_soft_counter');
+            },
             cur_tab_sel(newValue) {
                 this.closeSettingsReload();
             },
@@ -632,11 +672,17 @@
                 ...mapMutations([
                     'SET_WIDTH_3D',
                 ]),
+                setEdgeclr(clr) {
+                    setTimeout(() => {
+                        this.viewSettings.edges_color = clr || null;
+                        this.can_save_sett = true;
+                        this.vSettSave();
+                    }, 100);
+                },
                 setclr(fld, clr) {
                     setTimeout(() => {
                         this.viewSettings[fld] = clr || '#aaaaaa';
                         this.can_save_sett = true;
-                        this.drawWholeGeom();
                     }, 100);
                 },
                 settActCamera(cam) {
@@ -650,6 +696,7 @@
                 vSettSave() {
                     if (!this.$root.user.see_view) {
                         this.viewSettings.saveSettings();
+                        this.drawWholeGeom();
                     }
                     this.can_save_sett = false;
                     this.can_save_cam = false;
@@ -763,9 +810,10 @@
                                     excluded_colors: excluded,
                                     front_filters: this.getFrontFilters(),
                                 }).then(({data}) => {
+                                    this.local_load_data = data;
                                     this.checkMaStatusClrs(data.colors.ma, data.eqs.all_statuses, excluded);
                                     this.checkGeomClrs(data.colors.geom, _.map(data.params.materials, 'color_gr'), []);
-                                    this.Three3dRedraw(data.params, 'geometry', data.eqs, data.libs);
+                                    this.Three3dRedraw(data.params, 'geometry', data.eqs, data.libs, data.rls);
                                 }).catch(errors => {
                                     Swal('', getErrors(errors));
                                 });
@@ -780,25 +828,6 @@
                     }
 
                     this.loadWidSettings(from);
-                },
-                quickUpdate3D(startHash, tableRow, type) {
-    //                TODO: temp switched-off
-    //                if (startHash) {
-    //                    this.checkDrawedArr(this.drawed_geometry.materials, startHash, tableRow, type);
-    //                    this.checkDrawedArr(this.drawed_geometry.members, startHash, tableRow, type);
-    //                    this.checkDrawedArr(this.drawed_geometry.nodes, startHash, tableRow, type);
-    //                    this.checkDrawedArr(this.drawed_geometry.sections, startHash, tableRow, type);
-    //                    this.drawedEqptsCheck(startHash, tableRow, type);
-    //                    switch (this.vuex_tab_object.type_3d) {
-    //                        case '3d:equipment':
-    //                            this.Three3dRedraw(this.drawed_geometry, 'equipment', []);
-    //                            break;
-    //                        case '3d:structure':
-    //                        case '3d:ma':
-    //                            this.Three3dRedraw(this.drawed_geometry, 'geometry', this.drawed_equipments);
-    //                            break;
-    //                    }
-    //                }
                 },
                 drawedEqptsCheck(start_hash, table_row, type) {
                     if (this.drawed_equipments) {
@@ -880,7 +909,7 @@
                     this.$root.tablda_highlights = [];
                     //just standard click
                     _.each(intersel_arr, (itersect) => {
-                        let sel_ty = itersect.type === 'node' ? 'node' : itersect.parent.type;
+                        let sel_ty = this.getMeshType(itersect);
                         if (sel_ty === 'node' && this.tabldas.node) {
                             this.tablda_push(this.tabldas.node, itersect.item);
                         }
@@ -900,6 +929,9 @@
                         if (sel_ty === 'equipment' && this.tabldas.lcs) {
                             this.tablda_push(this.tabldas.lcs, itersect.parent.lc_id);
                         }
+                        if (sel_ty === 'rl_bracket' && this.tabldas.rls) {
+                            this.tablda_push(this.tabldas.rls, itersect.rl_id);
+                        }
                     });
                     //scroll all tablda-components - to last clicked ////
                     if (this.$root.tablda_highlights.length) {
@@ -908,9 +940,14 @@
                         });
                     }
                 },
+                getMeshType(mesh) {
+                    return mesh.type === 'node'
+                        ? 'node'
+                        : (mesh.single_type || mesh.parent.type);
+                },
                 selectedFunction(mesh, intersel_arr) {
                     if (mesh) {
-                        let sel_type = mesh.type === 'node' ? 'node' : mesh.parent.type;
+                        let sel_type = this.getMeshType(mesh);
                         //has selected item in Lib
                         //add Eqpt to Member
                         if (sel_type === 'member' && mesh.item_no && mesh.parent && this.confSett.drag_eqpt) {
@@ -966,16 +1003,16 @@
                 rClickFunction(mesh, intersel_arr) {
                     if (mesh) {
                         this.popup_row_id = null;
-                        this.popup_type = mesh.type === 'node' ? 'node' : mesh.parent.type;
-                        let key;
+                        this.popup_type = this.getMeshType(mesh);
+                        //Node popup
                         if (this.popup_type === 'node' && mesh.item) {
-                            key = this.vuex_settings.popups_models.nodes;
-                            this.setPopupParams(mesh.item, key);
+                            this.setPopupParams(mesh.item, this.vuex_settings.popups_models.nodes);
                         }
+                        //Member popup
                         if (this.popup_type === 'member' && mesh.item_no) {
-                            key = this.vuex_settings.popups_models.members;
-                            this.setPopupParams(mesh.item_no, key);
+                            this.setPopupParams(mesh.item_no, this.vuex_settings.popups_models.members);
                         }
+                        //Eqpt menu popup
                         if (this.popup_type === 'equipment' && mesh.parent.lc_id && mesh.parent.eqpt_id) {
                             this.eqptPop = {
                                 lc_id: mesh.parent.lc_id,
@@ -983,6 +1020,10 @@
                             };
                             this.sett_top = this.$root.lastMouseClick.clientY;
                             this.sett_left = this.$root.lastMouseClick.clientX;
+                        }
+                        //RL Bracket popup
+                        if (this.popup_type === 'rl_bracket' && mesh.rl_id) {
+                            this.setPopupParams(mesh.rl_id, this.vuex_settings.popups_models.rls);
                         }
                     }
 
@@ -1007,34 +1048,89 @@
 
                 //direct popups
                 preInsert(startHash, tableRow) {
-                    //
+                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
                 },
                 preUpdate(startHash, tableRow) {
-                    let metaRows = new MetaTabldaRows(this.vuex_links[this.popup_app_tb]);
-                    this.quickUpdate3D(startHash, metaRows.convertOne(tableRow), 'update');
+                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
+                    this.quickUpdate3D(startHash, this.direct_row_3d, 'update');
                 },
                 preDelete(startHash, tableRow) {
-                    let metaRows = new MetaTabldaRows(this.vuex_links[this.popup_app_tb]);
-                    this.quickUpdate3D(startHash, metaRows.convertOne(tableRow), 'del');
+                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
+                    this.quickUpdate3D(startHash, this.direct_row_3d, 'del');
                 },
                 directInsert(data) {
                     if (data.rows && data.rows.length) {
                         this.popup_row_id = data.rows[0].id;
+                        this.direct_row_3d._id = data.rows[0].id;
                     }
-                    this.fullReload();
+                    this.checkRecalcRL(false) || this.fullReload();
                 },
                 directUpdate(data) {
-                    this.fullReload();
+                    this.checkRecalcRL(false) || this.fullReload();
                 },
                 directDelete(data) {
                     this.popup_row_id = null;
-                    this.fullReload();
+                    this.checkRecalcRL(true) || this.fullReload();
                 },
                 fullReload() {
                     if (this.link_rows && this.link_rows.is_loaded) {
                         this.link_rows.loadRows();
                     }
                     this.redrawModel('fullReload');
+                },
+                checkRecalcRL(to_delete) {
+                    let cur_stim_link = this.popup_app_tb ? this.vuex_links[this.popup_app_tb] : '';
+                    let avail = this.direct_row_3d
+                        && cur_stim_link
+                        && cur_stim_link.app_table_options.indexOf('recalc_rl:true') > -1;
+                    
+                    if (avail) {
+                        let app_tb = this.vuex_tab_object.master_table;
+                        let cur_fm = this.vuex_fm[app_tb];
+                        let master_model = cur_fm.rows.get3D(0);
+
+                        if (this.local_load_data) {
+                            this.rlstartRecalc(master_model, to_delete);
+                        } else {
+                            ThreeHelper.loadDataServer(this.master_stim_link.app_table, master_model).then(({data}) => {
+                                this.local_load_data = data;
+                                this.rlstartRecalc(master_model, to_delete);
+                            }).catch(errors => {
+                                Swal('', getErrors(response.errors));
+                            });
+                        }
+                    }
+                    
+                    return avail;
+                },
+                rlstartRecalc(master_model, to_delete) {
+                    if (to_delete) {
+                        this.direct_row_3d._id = null;
+                    }
+                    let helper = new ThreeHelper(this.local_load_data, master_model);
+                    helper.startCalculationRL(this.direct_row_3d);
+                    this.direct_row_3d = null;
+
+                    this.progress_rl = 0;
+                    let timeint = setInterval(() => {
+                        this.progress_rl = helper.getProgress();
+                        if (this.progress_rl >= 100) {
+                            clearInterval(timeint);
+                            this.fullReload();
+                        }
+                    }, 500);
+                },
+                afterThreeJsDistanceCalc(lc) {
+                    let app_tb = this.vuex_tab_object.master_table;
+                    let cur_fm = this.vuex_fm[app_tb];
+                    let master_model = cur_fm.rows.get3D(0);
+                    this.direct_row_3d = lc;
+                    this.rlstartRecalc(master_model);
+                    /*ThreeHelper.loadDataServer(this.master_stim_link.app_table, master_model).then(({data}) => {
+                        this.local_load_data = data;
+                    }).catch(errors => {
+                        Swal('', getErrors(errors));
+                    });*/
                 },
 
                 //another popup row/////////////////////////////
@@ -1051,6 +1147,9 @@
                         rows = _.map(collect, (elem) => {
                             return elem.lc;
                         });
+                    }
+                    if (this.popup_type === 'rl_bracket') {
+                        rows = this.drawed_rls.rows;
                     }
                     return rows;
                 },
@@ -1078,7 +1177,7 @@
 
                 //Lib functions
                 libToggle(hidden) {
-                    this.SET_WIDTH_3D({main: !hidden, d3: true});
+                    //this.SET_WIDTH_3D({main: !hidden, d3: true});
                 },
                 set_id_obj(id_object, key, map) {
                     if (this.tabldas[key]) {
@@ -1140,7 +1239,7 @@
 
                 //data changes watcher//
                 intervalTickHandler() {
-                    if (!this.drawed_geometry || this.sync_in_process) {
+                    if (!this.drawed_geometry || this.sync_in_process || this.$root.sm_msg_type) {
                         return;
                     }
 
@@ -1153,6 +1252,7 @@
                     can = this.set_id_obj(id_object, 'node', this.drawed_geometry.nodes) || can;
                     can = this.set_id_obj(id_object, 'sect', this.drawed_geometry.sections) || can;
                     can = this.set_id_obj(id_object, 'memb', this.drawed_geometry.members) || can;
+                    can = this.set_id_obj(id_object, 'rls', this.drawed_rls ? this.drawed_rls.rows : []) || can;
 
                     if (!can) {
                         return;
@@ -1166,7 +1266,8 @@
                             || (this.tabldas.mat && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.mat.version_hash; }))
                             || (this.tabldas.node && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.node.version_hash; }))
                             || (this.tabldas.sect && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.sect.version_hash; }))
-                            || (this.tabldas.memb && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.memb.version_hash; }));
+                            || (this.tabldas.memb && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.memb.version_hash; }))
+                            || (this.tabldas.rls && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.rls.version_hash; }));
                         if (changed) {
                             this.tabldas = {};
                             this.redrawModel('intervalTickHandler');
@@ -1185,29 +1286,30 @@
             webgl.selected(this.selectedFunction);
             webgl.rightClickSelected(this.rClickFunction);
             webgl.cameraUpdate(this.syncSettPosition);
+            webgl.onCalcDist(this.afterThreeJsDistanceCalc);
 
-            this.loadWidSettings();
+            //this.loadWidSettings();//
 
             //sync datas with collaborators
-            setInterval(() => {
-                if (!this.$root.debug) {
+            this.ticker = setInterval(() => {
+                if (!localStorage.getItem('no_ping')) {
                     this.intervalTickHandler();
                 }
-            }, 1000 * 1.5);
+            }, this.$root.version_hash_delay);
 
-            eventBus.$on('quick-update-3d', this.quickUpdate3D);
             eventBus.$on('global-click', this.hideSett);
             eventBus.$on('global-keydown', this.widPressKey);
         },
         beforeDestroy() {
-            eventBus.$off('quick-update-3d', this.quickUpdate3D);
+            clearInterval(this.ticker);
+
             eventBus.$off('global-click', this.hideSett);
             eventBus.$off('global-keydown', this.widPressKey);
         },
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .webgl-wrapper {
         position: relative;
         width: 100%;

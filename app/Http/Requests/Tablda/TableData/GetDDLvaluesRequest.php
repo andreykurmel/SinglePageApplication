@@ -25,6 +25,7 @@ class GetDDLvaluesRequest extends FormRequest
     public function rules()
     {
         return [
+            'table_id' => 'required|integer|exists:tables,id',
             'ddl_id' => 'required|integer|exists:ddl,id',
             'row' => 'present|array',
             'search' => 'nullable|string',

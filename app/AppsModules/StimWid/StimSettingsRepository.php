@@ -3,12 +3,14 @@
 namespace Vanguard\AppsModules\StimWid;
 
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Correspondences\CorrespField;
 use Vanguard\Models\Correspondences\CorrespStim3D;
 use Vanguard\Models\Correspondences\CorrespTable;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Singletones\AuthUserSingleton;
 
 class StimSettingsRepository
 {
@@ -30,9 +32,6 @@ class StimSettingsRepository
      */
     public function __construct()
     {
-        if (empty(self::$settings)) {
-            self::$settings = $this->load();
-        }
     }
 
     /**
@@ -40,6 +39,9 @@ class StimSettingsRepository
      */
     public function get()
     {
+        if (empty(self::$settings)) {
+            self::$settings = $this->load();
+        }
         return self::$settings;
     }
 
@@ -54,6 +56,16 @@ class StimSettingsRepository
             ->first();
 
         return $first ? $first->app_table : '';
+    }
+
+    /**
+     * @param string $field
+     * @param $search
+     * @return mixed
+     */
+    public function getTableBy(string $field, $search)
+    {
+        return CorrespTable::where($field, '=', $search)->first();
     }
 
     /**
@@ -155,7 +167,18 @@ class StimSettingsRepository
      */
     protected function load()
     {
+        $auth = app()->make(AuthUserSingleton::class);
+        $user_id_and_groups = $auth->getUserIdAndUnderscoreGroups(true);
+        if (!$auth->user->id) {
+            $user_id_and_groups[] = '{$visitor}';
+        }
+        $user_id_and_groups[] = '';
+
         $rows = CorrespStim3D::where('row_hash', '!=', (new HelperService())->sys_row_hash['cf_temp'])
+            ->where(function (Builder $query) use ($user_id_and_groups) {
+                $query->whereNull('avail_to_user');
+                $query->orWhereIn('avail_to_user', $user_id_and_groups);
+            })
             ->orderBy('row_order')
             ->get();
 
@@ -261,5 +284,28 @@ class StimSettingsRepository
             }
         }
         return $converted;
+    }
+
+    /**
+     * @param string $tab
+     * @param string $select
+     * @return Collection
+     */
+    public function stimTables(string $tab, string $select): Collection
+    {
+        return $this->get()
+            ->where('top_tab_low', '=', strtolower($tab))
+            ->where('select_low', '=', strtolower($select));
+    }
+
+    /**
+     * @param string $tab
+     * @param string $select
+     * @return Collection
+     */
+    public function tabsTree(string $tab, string $select): Collection
+    {
+        $data = $this->stimTables($tab, $select);
+        return $data->groupBy('horizontal');
     }
 }

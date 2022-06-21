@@ -8,7 +8,7 @@
                 v-if="tableHeader.field === 'compared_value' && tableRow.item_type === 'S2V' && refTbHeader"
                 :table-meta="ref_tb_from_refcond"
                 :table-header="refTbHeader"
-                :td-value="tableRow.compared_value"
+                :td-value="tableRow.spec_show || tableRow.compared_value"
                 :with_edit="true"
                 :force_edit="true"
                 :style="{width: '100%'}"
@@ -20,7 +20,49 @@
             <div class="wrapper-inner" :style="getWrapperStyle">
 
                 <div v-if="tableHeader.field === 'ref_table_id'" class="inner-content">
-                    <a target="_blank" :href="showField('link')" @click.stop="">{{ showField() }}</a>
+                    <a target="_blank"
+                       title="Open the “Visiting” view in a new tab."
+                       :href="showField('__visiting_url')"
+                       @click.stop=""
+                       v-html="showField()"></a>
+                    <a v-if="refIsOwner()"
+                       title="Open the source table in a new tab."
+                       target="_blank"
+                       :href="showField('__url')"
+                       @click.stop="">(Table)</a>
+                </div>
+
+                <div v-else-if="tableHeader.field === '_uses_rows'" class="inner-content">
+                    <span v-for="rg in tableRow._uses_rows" class="is_select m_sel__wrap">
+                        <a title="Open row group in popup." @click.stop="showGrPopup('row', rg.id)">{{ rg.name }}</a>
+                        <span class="m_sel__remove"
+                              @click.prevent.stop=""
+                              @mousedown.prevent.stop="usesChecked(rg.id, rg.name)"
+                              @mouseup.prevent.stop=""
+                        >&times;</span>
+                    </span>
+                </div>
+
+                <div v-else-if="tableHeader.field === '_uses_links'" class="inner-content">
+                    <span v-for="lnk in tableRow._uses_links" class="is_select m_sel__wrap">
+                        <a title="Open link in popup." @click.stop="showLnkPopup(lnk.table_field_id, lnk.id)">{{ lnk.name }}</a>
+                        <span class="m_sel__remove"
+                              @click.prevent.stop=""
+                              @mousedown.prevent.stop="usesChecked(lnk.id, lnk.name)"
+                              @mouseup.prevent.stop=""
+                        >&times;</span>
+                    </span>
+                </div>
+
+                <div v-else-if="tableHeader.field === '_uses_ddls'" class="inner-content">
+                    <span v-for="ddl in tableRow._uses_ddls" class="is_select m_sel__wrap">
+                        <a title="Open ddl in popup." @click.stop="showDdlPopup(ddl.id)">{{ ddl.name }}</a>
+                        <span class="m_sel__remove"
+                              @click.prevent.stop=""
+                              @mousedown.prevent.stop="usesChecked(ddl.id, ddl.name)"
+                              @mouseup.prevent.stop=""
+                        >&times;</span>
+                    </span>
                 </div>
 
                 <div v-else="" class="inner-content">{{ showField() }}</div>
@@ -46,13 +88,27 @@
                     :style="getEditStyle">
             </select-with-folder-structure>
 
+            <tablda-select-simple
+                v-else-if="inArray(tableHeader.field, ['_uses_rows','_uses_links','_uses_ddls'])"
+                :options="usesOptions()"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fixed_pos="true"
+                :fld_input_type="tableHeader.input_type"
+                :embed_func_txt="'Add New'"
+                :style="getEditStyle"
+                @selected-item="usesChecked"
+                @hide-select="hideEdit"
+                @embed-func="usesAddNew"
+            ></tablda-select-simple>
+
             <!--Conditions Cells-->
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'table_field_id'"
                     :options="nameFields()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -66,7 +122,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -80,7 +136,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -97,7 +153,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -114,7 +170,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -126,26 +182,11 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
-
-            <!--<tablda-select-simple-->
-                    <!--v-else-if="tableHeader.field === 'compared_value'-->
-                        <!--&& inArray(tableRow.compared_operator, ['=', '!='])-->
-                        <!--&& behavior !== 'sett_usergroup_conds'-->
-                        <!--&& compared_values.length !== 0"-->
-                    <!--:options="comparedVals()"-->
-                    <!--:table-row="tableRow"-->
-                    <!--:hdr_field="tableHeader.field"-->
-                    <!--:can_empty="true"-->
-                    <!--:fixed_pos="reactive_provider.fixed_ddl_pos"-->
-                    <!--:style="getEditStyle"-->
-                    <!--@selected-item="updateCheckedDDL"-->
-                    <!--@hide-select="hideEdit"-->
-            <!--&gt;</tablda-select-simple>-->
 
             <input
                     v-else-if="tableHeader.field === 'compared_value'"
@@ -173,14 +214,19 @@
 </template>
 
 <script>
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import {eventBus} from '../../app';
 
-    import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple.vue";
-    import SingleTdField from "../CommonBlocks/SingleTdField";
+import {SpecialFuncs} from '../../classes/SpecialFuncs';
+import {OptionsHelper} from '../../classes/helpers/OptionsHelper';
 
-    export default {
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+
+import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple.vue";
+import SingleTdField from "../CommonBlocks/SingleTdField";
+
+export default {
         name: "CustomCellRefConds",
         mixins: [
             Select2DDLMixin,
@@ -190,12 +236,6 @@
             SingleTdField,
             TabldaSelectSimple,
             SelectWithFolderStructure,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -213,7 +253,7 @@
                 return obj;
             },
             canCellEdit() {
-                let prev_row = this.reactive_provider.allRows ? this.reactive_provider.allRows[this.rowIndex-1] : null;
+                let prev_row = this.allRows ? this.allRows[this.rowIndex-1] : null;
                 let can_logic_operator = prev_row && prev_row.group_clause === this.tableRow.group_clause;
                 let can_group_logic = prev_row && prev_row.group_clause !== this.tableRow.group_clause;
                 let can_details_value = this.tableRow.item_type === 'S2V';
@@ -243,6 +283,7 @@
             isAddRow: Boolean,
             behavior: String,
             user: Object,
+            allRows: Object|null,
             ref_tb_from_refcond: Object|null,
         },
         methods: {
@@ -281,8 +322,11 @@
             hideEdit: function () {
                 this.editing = false;
             },
-            updateSingle(val) {
+            updateSingle(val, header, ddl_option) {
                 this.tableRow.compared_value = val;
+                if (ddl_option && this.tableHeader.field === 'compared_value') {
+                    this.tableRow.spec_show = ddl_option.show;
+                }
                 this.$emit('updated-cell', this.tableRow);
             },
             updateValue() {
@@ -296,9 +340,6 @@
             },
             updateCheckedDDL(item, show) {
                 this.tableRow[this.tableHeader.field] = item;
-                if (show && this.tableHeader.field === 'compared_value') {
-                    this.tableRow.spec_show = show;
-                }
                 this.updateValue();
             },
             showField(link) {
@@ -315,21 +356,17 @@
                 if (this.tableHeader.field === 'ref_table_id' && this.tableRow.ref_table_id) {
                     let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow.ref_table_id)});
                     if (tb) {
-                        if (link) {
-                            res = tb.__visiting_url;
-                        } else {
-                            res = (tb._referenced ? ('@' + tb._referenced + '/') : '') + tb.name;
-                        }
+                        res = link
+                            ? tb[link]
+                            : (tb.id == this.globalMeta.id
+                                ? '<span style="color: #00F;">SELF</span>'
+                                : ((tb._referenced ? ('@' + tb._referenced + '/') : '') + tb.name));
                     }
                 }
                 else
                 if (this.tableHeader.field === 'compared_field_id' && this.tableRow.compared_field_id) {
                     let ref_tb = _.find(this.ref_tb_from_refcond._fields, {id: Number(this.tableRow.compared_field_id)});
                     res = ref_tb ? this.$root.uniqName( ref_tb.name ) : '';
-                }
-                else
-                if (this.tableHeader.field === 'compared_value') {
-                    res = this.tableRow.spec_show || this.tableRow.compared_value;
                 }
                 else
                 if (this.tableHeader.field === 'table_field_id') {
@@ -354,6 +391,7 @@
                     params: {
                         table_id: table_id,
                         field_id: field_id,
+                        special_params: SpecialFuncs.specialParams(),
                     }
                 }).then(({ data }) => {
                     this.compared_values = data;
@@ -364,6 +402,10 @@
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
+            },
+            refIsOwner() {
+                let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow.ref_table_id)});
+                return tb && tb.user_id == this.user.id;
             },
 
             //arrays for selects
@@ -384,11 +426,72 @@
                     return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
                 });
             },
+
+            //settings popups
+            showGrPopup(type, id) {
+                eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, type, id);
+            },
+            showLnkPopup(table_field_id, id) {
+                eventBus.$emit('show-display-links-settings-popup', table_field_id, id);
+            },
+            showDdlPopup(id) {
+                eventBus.$emit('show-ddl-settings-popup', this.globalMeta.db_name, id);
+            },
+
+            //Uses
+            usesOptions() {
+                switch (this.tableHeader.field) {
+                    case '_uses_rows': return OptionsHelper.rowGroup(this.globalMeta);
+                    case '_uses_links': return OptionsHelper.linksGrouped(this.globalMeta);
+                    case '_uses_ddls': return OptionsHelper.ddlsReferences(this.globalMeta);
+                }
+            },
+            usesChecked(key, show) {
+                switch (this.tableHeader.field) {
+                    case '_uses_rows': this.uRowGroupChecked(key); break;
+                    case '_uses_links': this.uLinksChecked(key); break;
+                    case '_uses_ddls': this.uDdlsChecked(key); break;
+                }
+            },
+            uRowGroupChecked(key) {
+                let rowGroup = _.find(this.globalMeta._row_groups, {id: key});
+                let present = _.find(this.tableRow._uses_rows, {id: key});
+                rowGroup.row_ref_condition_id = present ? null : this.tableRow.id;
+                eventBus.$emit('event-update-row-group', this.globalMeta.id, rowGroup);
+            },
+            uLinksChecked(key) {
+                let fieldLink = null;
+                _.each(this.globalMeta._fields, (field) => {
+                    fieldLink = fieldLink || _.find(field._links, {id: key});
+                });
+                let present = _.find(this.tableRow._uses_links, {id: key});
+                fieldLink.table_ref_condition_id = present ? null : this.tableRow.id;
+                eventBus.$emit('event-update-field-link', this.globalMeta.id, fieldLink);
+            },
+            uDdlsChecked(key) {
+                let ddlElem = _.find(this.globalMeta._ddls, {id: key});
+                let present = _.find(this.tableRow._uses_ddls, {id: key});
+                _.each(ddlElem._references, (ddlRef) => {
+                    if (present) {
+                        eventBus.$emit('event-delete-ddl-reference-row', this.globalMeta.id, ddlRef);
+                    } else {
+                        ddlRef.table_ref_condition_id = this.tableRow.id;
+                        eventBus.$emit('event-update-ddl-reference-row', this.globalMeta.id, ddlRef);
+                    }
+                });
+            },
+            usesAddNew() {
+                switch (this.tableHeader.field) {
+                    case '_uses_rows': this.showGrPopup('row'); break;
+                    case '_uses_links': this.showLnkPopup(); break;
+                    case '_uses_ddls': this.showDdlPopup(); break;
+                }
+            },
         }
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 
     .folder-option {

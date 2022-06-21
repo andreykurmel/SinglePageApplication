@@ -3,9 +3,12 @@
 namespace Vanguard\Repositories\Tablda\Permissions;
 
 
+use Illuminate\Database\Eloquent\Collection;
+use Vanguard\Jobs\WatchMirrorValues;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\DataSetPermissions\TableRefConditionItem;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Watchers\RefCondRenameWatcher;
@@ -13,6 +16,9 @@ use Vanguard\Services\Tablda\HelperService;
 
 class TableRefConditionRepository
 {
+    /**
+     * @var HelperService
+     */
     protected $service;
 
     /**
@@ -109,23 +115,27 @@ class TableRefConditionRepository
     }
 
     /**
-     * @param int $ref_cond_id
-     * @return TableRefCondition
+     * @param int|array $ref_cond_id
+     * @return TableRefCondition|Collection
      */
-    public function loadRefCondWithRelations(int $ref_cond_id)
+    public function loadRefCondWithRelations($ref_cond_id)
     {
-        return TableRefCondition::where('id', $ref_cond_id)
-            ->with([
-                '_items',
-                '_ref_table' => function ($q) {
-                    $q->with([
-                        '_fields' => function ($f) {
-                            $f->joinOwnerHeader();
-                        },
-                    ]);
-                }
-            ])
-            ->first();
+        if (is_array($ref_cond_id)) {
+            $sql = TableRefCondition::whereIn('id', $ref_cond_id);
+        } else {
+            $sql = TableRefCondition::where('id', '=', $ref_cond_id);
+        }
+        $sql->with([
+            '_items',
+            '_ref_table' => function ($q) {
+                $q->with([
+                    '_fields' => function ($f) {
+                        $f->joinOwnerHeader();
+                    },
+                ]);
+            }
+        ]);
+        return is_array($ref_cond_id) ? $sql->get() : $sql->first();
     }
 
     /**
@@ -157,8 +167,10 @@ class TableRefConditionRepository
             ]);
         }
 
-        TableRefCondition::where('id', $group_id)
+        TableRefCondition::where('id', '=', $group_id)
             ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
+
+        dispatch(new WatchMirrorValues($old->table_id));
 
         return $this->loadRefCondWithRelations($group_id);
     }
@@ -167,7 +179,7 @@ class TableRefConditionRepository
      * Get Referencing Condition.
      *
      * @param $ref_cond_id
-     * @return mixed
+     * @return TableRefCondition
      */
     public function getRefCondition($ref_cond_id)
     {
@@ -182,6 +194,12 @@ class TableRefConditionRepository
      */
     public function deleteRefCondition($group_id)
     {
+        TableField::where('mirror_rc_id', '=', $group_id)->update([
+            'mirror_rc_id' => null,
+            'mirror_field_id' => null,
+            'mirror_part' => 'show',
+        ]);
+
         return TableRefCondition::where('id', $group_id)->delete();
     }
 
@@ -222,11 +240,16 @@ class TableRefConditionRepository
      */
     public function addRefConditionItem($data)
     {
-        return TableRefConditionItem::create(
+        $rc_item = TableRefConditionItem::create(
             array_merge($this->service->delSystemFields($data),
                 $this->service->getModified(),
                 $this->service->getCreated())
         );
+
+        $rc = $this->getRefCondition($data['table_ref_condition_id']);
+        dispatch(new WatchMirrorValues($rc->table_id));
+
+        return $rc_item;
     }
 
     /**
@@ -246,8 +269,14 @@ class TableRefConditionRepository
      */
     public function updateRefConditionItem($group_id, $data)
     {
-        return TableRefConditionItem::where('id', $group_id)
+        $result = TableRefConditionItem::where('id', '=', $group_id)
             ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
+
+        $rc_item = TableRefConditionItem::where('id', '=', $group_id)->first();
+        $rc = $this->getRefCondition($rc_item->table_ref_condition_id);
+        (new WatchMirrorValues($rc->table_id))->handle();
+
+        return $result;
     }
 
     /**
@@ -258,6 +287,12 @@ class TableRefConditionRepository
      */
     public function deleteRefConditionItem($group_id)
     {
-        return TableRefConditionItem::where('id', $group_id)->delete();
+        $rc_item = TableRefConditionItem::where('id', '=', $group_id)->first();
+        $result = TableRefConditionItem::where('id', $group_id)->delete();
+
+        $rc = $this->getRefCondition($rc_item->table_ref_condition_id);
+        dispatch(new WatchMirrorValues($rc->table_id));
+
+        return $result;
     }
 }

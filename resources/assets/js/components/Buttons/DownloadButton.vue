@@ -108,7 +108,6 @@
                     request_params.rows_per_page = 0;
                 } else {
                     request_params = {
-                        table_meta: this.tableMeta,
                         table_id: this.tableMeta.id,
                         page: 1,
                         rows_per_page: 0,

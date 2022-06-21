@@ -136,6 +136,7 @@ class JsonService
                 $t = microtime(true);
                 $this->json_obj = $this->setTableInObject($this->json_obj, $tree, $ma_table, $row);
                 $this->setAdditionalTables($ma_table, $row, [], 1);
+                $this->json_obj = $this->filterUnused($this->json_obj);
 
                 $json_object = json_encode($this->json_obj, JSON_PRETTY_PRINT);
                 $json_file = $row[$this->app_table['_app_maps']['model']] . '.json';
@@ -143,7 +144,7 @@ class JsonService
             }
 
         } else {
-            $this->errors_present[] = 'Clicked Row not found!';
+            $this->errors_present[] = ' - Clicked Row not found!';
         }
 
         return [$this->errors_present, $this->warnings_present];
@@ -183,30 +184,30 @@ class JsonService
         $keys = ['usergroup', 'model', 'siteinfo', 'design', 'structure', 'pos2mbr', 'loading', 'json_file'];
         foreach ($keys as $k) {
             if (!$this->app_table['_app_maps'][$k] ?? null) {
-                $this->errors_present[] = '"' . $k . '" not found in Correspondences/Fields';
+                $this->errors_present[] = ' - "' . $k . '" not found in Correspondences/Fields';
             }
         }
 
         if (!$row[$this->app_table['_app_maps']['usergroup']] ?? null) {
-            $this->errors_present[] = 'MA needs to be assigned to a user';
+            $this->errors_present[] = ' - MA needs to be assigned to a user';
         }
         if (!$row[$this->app_table['_app_maps']['model']] ?? null) {
-            $this->errors_present[] = 'Name can’t be left blank';
+            $this->errors_present[] = ' - Name can’t be left blank';
         }
         if (!$row[$this->app_table['_app_maps']['siteinfo']] ?? null) {
-            $this->warnings_present[] = 'SiteInfo is blank';
+            $this->warnings_present[] = ' - SiteInfo is blank';
         }
         if (!$row[$this->app_table['_app_maps']['design']] ?? null) {
-            $this->warnings_present[] = 'Design is blank';
+            $this->warnings_present[] = ' - Design is blank';
         }
         if (!$row[$this->app_table['_app_maps']['structure']] ?? null) {
-            $this->warnings_present[] = 'Structure is blank';
+            $this->warnings_present[] = ' - Structure is blank';
         }
         if (!$row[$this->app_table['_app_maps']['pos2mbr']] ?? null) {
-            $this->warnings_present[] = 'POS2MBR is blank';
+            $this->warnings_present[] = ' - POS2MBR is blank';
         }
         if (!$row[$this->app_table['_app_maps']['loading']] ?? null) {
-            $this->warnings_present[] = 'Loading is blank';
+            $this->warnings_present[] = ' - Loading is blank';
         }
 
         if (!$this->errors_present) {
@@ -266,7 +267,9 @@ class JsonService
         foreach ($table->_fields as $hdr) {
             if ($hdr->formula_symbol) {
                 //value
-                $tmp = [ 'value' => MselectData::tryParse($row[$hdr->field] ?? '') ];
+                $result = MselectData::tryParse($row[$hdr->field] ?? '');
+                $result = MselectData::ddlShowId($row, $hdr->field, $result);
+                $tmp = [ 'value' => $result ];
                 //unit
                 if ($hdr->unit && $hdr->unit_ddl_id) {
                     $tmp['unit'] = $hdr->unit;
@@ -293,7 +296,24 @@ class JsonService
                 $values[$hdr->formula_symbol] = $tmp;
             }
         }
+        $present = $this->filterUnused($present);
         return array_merge($present, $values);
+    }
+
+    /**
+     * @param array $present
+     * @return array
+     */
+    protected function filterUnused(array $present)
+    {
+        $keys = array_keys($present);
+        foreach ($keys as $k) {
+            //filter unused like: "Materials_6038"
+            if (preg_match('/[\w]+_[\d]+/i', $k)) {
+                unset($present[$k]);
+            }
+        }
+        return $present;
     }
 
     /**
@@ -335,7 +355,7 @@ class JsonService
                         $link_table = (new TableRepository())->getTable($link->_ref_condition->ref_table_id);
                         $this->loadRelations($link_table);
 
-                        [$rows_count, $link_rows] = $this->data_serv->getFieldRows($link_table, $link->toArray(), $row);
+                        [$rows_count, $link_rows] = $this->data_serv->getFieldRows($link_table, $link->toArray(), $row, 1, 250);
 
                         //single record has "folder path" only if it is not in array of records
                         $full_tree = $arr_tree

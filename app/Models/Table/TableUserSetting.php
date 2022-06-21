@@ -5,6 +5,37 @@ namespace Vanguard\Models\Table;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableUserSetting
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property int $user_id
+ * @property int $initial_view_id
+ * @property int $user_fld_show_image
+ * @property int $user_fld_show_first
+ * @property int $user_fld_show_last
+ * @property int $user_fld_show_email
+ * @property int $history_user_show_image
+ * @property int $history_user_show_first
+ * @property int $history_user_show_last
+ * @property int $history_user_show_email
+ * @property int $user_fld_show_username
+ * @property int $history_user_show_username
+ * @property int $vote_user_show_image
+ * @property int $vote_user_show_first
+ * @property int $vote_user_show_last
+ * @property int $vote_user_show_email
+ * @property int $vote_user_show_username
+ * @property int $max_cell_rows
+ * @property int $cell_height
+ * @property int $left_menu_width
+ * @property int $stim_filter_width
+ * @property-read \Vanguard\Models\Table\TableView|null $_initial_view
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Vanguard\User $_user
+ * @mixin \Eloquent
+ */
 class TableUserSetting extends Model
 {
     protected $table = 'table_user_settings';
@@ -53,6 +84,11 @@ class TableUserSetting extends Model
         'vote_user_show_last',
         'vote_user_show_email',
         'vote_user_show_username',
+
+        'max_cell_rows',
+        'cell_height',
+        'left_menu_width',
+        'stim_filter_width',
     ];
 
 

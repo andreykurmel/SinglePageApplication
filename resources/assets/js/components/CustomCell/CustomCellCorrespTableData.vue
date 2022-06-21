@@ -35,7 +35,9 @@
                             :table-header="tableHeader"
                             :edit-value="editValue"
                             :user="user"
+                            :behavior="behavior"
                             @unselect-val="updateCheckedDDL"
+                            @show-src-record="showSrcRecord"
                     ></cell-table-sys-content>
 
                 </div>
@@ -48,8 +50,21 @@
         <!-- ABSOLUTE EDITINGS -->
         <div v-if="isEditing()" class="cell-editing">
 
+            <tablda-user-select
+                v-if="tableHeader.f_type === 'User' && tableMeta.db_name === 'correspondence_stim_3d'"
+                :edit_value="editValue"
+                :table_meta="tableMeta"
+                :can_empty="true"
+                :fixed_pos="true"
+                :multiselect="$root.isMSEL(input_type)"
+                :style="getEditStyle"
+                :extra_vals="['visitor']"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-user-select>
+
             <select
-                    v-if="tableHeader.f_type === 'User'"
+                    v-else-if="tableHeader.f_type === 'User'"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit()"
                     @change="updateValue()"
@@ -81,7 +96,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -94,7 +109,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -106,7 +121,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -114,11 +129,11 @@
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'correspondence_table_id'"
-                    :options="corrTables()"
+                    :options="corrTables(false)"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -126,12 +141,24 @@
 
             <!--STIM 3D-->
             <tablda-select-simple
+                v-else-if="tableHeader.field === 'db_table'"
+                :options="corrTables(true)"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :can_empty="true"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
                     v-else-if="tableHeader.field === 'style'"
                     :options="styleVariants"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -143,7 +170,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -155,7 +182,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -169,12 +196,12 @@
                             && tableHeader.ddl_style === 'ddl'"
                     :ddl_id="tableHeader.ddl_id"
                     :table-row="tableRow"
+                    :table_id="tableMeta.id"
                     :hdr_field="tableHeader.field"
                     :fld_input_type="input_type"
                     :has_embed_func="tableHeader.ddl_add_option == 1 && !no_ddl_colls"
                     :style="getEditStyle"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
-                    :abstract_values="ddl_abstract_values"
+                    :fixed_pos="true"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
                     @embed-func="showAddDDLOption"
@@ -208,22 +235,23 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
-    import {SelectedCells} from './../../classes/SelectedCells';
+import {SpecialFuncs} from './../../classes/SpecialFuncs';
+import {SelectedCells} from './../../classes/SelectedCells';
 
-    import {eventBus} from './../../app';
+import {eventBus} from './../../app';
 
-    import CanEditMixin from '../_Mixins/CanViewEditMixin';
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin';
-    import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CanEditMixin from '../_Mixins/CanViewEditMixin';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin';
+import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import SelectWithFolderStructure from './InCell/SelectWithFolderStructure';
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
-    import CellTableSysContent from "./InCell/CellTableSysContent";
+import SelectWithFolderStructure from './InCell/SelectWithFolderStructure';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
+import CellTableSysContent from "./InCell/CellTableSysContent";
+import TabldaUserSelect from "./Selects/TabldaUserSelect";
 
-    export default {
+export default {
         name: "CustomCellCorrespTableData",
         mixins: [
             CanEditMixin,
@@ -232,16 +260,11 @@
             CellStyleMixin,
         ],
         components: {
+            TabldaUserSelect,
             CellTableSysContent,
             TabldaSelectDdl,
             TabldaSelectSimple,
             SelectWithFolderStructure,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -305,7 +328,6 @@
             isVertTable: Boolean,
             hasFloatColumns: Boolean,
             no_align: Boolean,
-            ddl_abstract_values: Boolean,
         },
         watch: {
             table_id: function (val) {
@@ -351,9 +373,9 @@
                 }
             },
             correspondence_tables() {
-                if (this.tableHeader.field === 'correspondence_table_id') {
+                if (['correspondence_table_id','db_table'].indexOf(this.tableHeader.field) > -1) {
                     let res = [];
-                    let app = _.find(this.$root.settingsMeta.table_apps_data, {id: Number(this.tableRow.correspondence_app_id)});
+                    let app = _.find(this.$root.settingsMeta.table_apps_data, {code: 'stim_3d'});
                     if (app) {
                         _.each(app._tables, (tb) => {
                             res.push({
@@ -405,7 +427,7 @@
                 return Boolean(res);
             },
             isSelected() {
-                return this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex);
+                return this.selectedCell && this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex);
             },
         },
         methods: {
@@ -428,7 +450,7 @@
                 ) {
                     this.selectedCell.single_select(this.tableHeader, this.rowIndex);
                 } else {
-                    if (this.inArray(this.tableHeader.f_type, ['Color','Boolean','Star Rating','Progress Bar']) || this.$root.prevent_cell_edit) {
+                    if (this.inArray(this.tableHeader.f_type, ['Color','Boolean','Rating','Progress Bar']) || this.$root.prevent_cell_edit) {
                         return;
                     }
                     //edit cell
@@ -540,9 +562,12 @@
                     return { val: corr_app.id, show: corr_app.name, }
                 });
             },
-            corrTables() {
+            corrTables(no_id) {
                 return _.map(this.correspondence_tables, (corr_tb) => {
-                    return { val: corr_tb.id, show: corr_tb.app_table, }
+                    return {
+                        val: no_id ? corr_tb.app_table : corr_tb.id,
+                        show: corr_tb.app_table,
+                    }
                 });
             },
             corrFields() {
@@ -570,6 +595,10 @@
                 return _.map(fields, (fld) => {
                     return { val: fld.field, show: this.$root.uniqName(fld.name), }
                 });
+            },
+            //show link popup
+            showSrcRecord(link, header, tableRow) {
+                this.$emit('show-src-record', link, header, tableRow);
             },
 
             //KEYBOARD

@@ -26,6 +26,7 @@
         },
         props:{
             paypal_amount: Number|String,
+            paypal_description: Number|String,
         },
         methods: {
             mountPaypal() {
@@ -41,7 +42,8 @@
                             purchase_units: [{
                                 amount: {
                                     value: Number(this.paypal_amount)
-                                }
+                                },
+                                description: this.paypal_description || '',
                             }]
                         });
                     },

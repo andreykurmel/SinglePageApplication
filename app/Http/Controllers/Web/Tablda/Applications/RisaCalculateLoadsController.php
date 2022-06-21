@@ -71,7 +71,7 @@ class RisaCalculateLoadsController extends Controller implements AppControllerIn
             $ma_table = $fld->_table;
             $row = $tds->getDirectRow($ma_table, $request->row_id);
 
-            [$rc, $link_rows] = $tds->getFieldRows($link_table, $link->toArray(), $row->toArray(), 1);
+            [$rc, $link_rows] = $tds->getFieldRows($link_table, $link->toArray(), $row->toArray(), 1, 250);
             $link_rows = array_first($link_rows);
         } catch (\Exception $e) {
             $errors_present[] = 'Link Param "row_id" not present or not present Geometry Row!';

@@ -71,6 +71,8 @@ class AddGoogleAddressSettingsToTables extends Migration
 
         Schema::table('plan_features', function (Blueprint $table) {
             $table->unsignedInteger('can_google_autocomplete')->nullable();
+            $table->unsignedInteger('field_type_user')->nullable();
+            $table->unsignedInteger('apps_are_avail')->nullable();
         });
     }
 
@@ -112,6 +114,8 @@ class AddGoogleAddressSettingsToTables extends Migration
 
         Schema::table('plan_features', function (Blueprint $table) {
             $table->dropColumn('can_google_autocomplete');
+            $table->dropColumn('field_type_user');
+            $table->dropColumn('apps_are_avail');
         });
     }
 }

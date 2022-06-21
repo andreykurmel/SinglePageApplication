@@ -2,6 +2,7 @@
 
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
+use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\TableData\RealignChartsRequest;
 use Vanguard\Http\Requests\Tablda\TableData\SaveChartRequest;
@@ -35,10 +36,10 @@ class TableChartController extends Controller
      * Save Charts.
      *
      * @param SaveChartRequest $request
-     * @return string
+     * @return array
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function saveChart(SaveChartRequest $request)
+    public function saveChart(SaveChartRequest $request): array
     {
         $user = auth()->check() ? auth()->user() : new User();
         $table = $this->tableService->getTable($request->table_id);
@@ -52,6 +53,7 @@ class TableChartController extends Controller
             'user_id' => auth()->id(),
             'row_idx' => $request->row_idx,
             'col_idx' => $request->col_idx,
+            'name' => $request->name ?: '',
             'title' => $request->title ?: '',
             'chart_settings' => json_encode($all_settings),
         ];
@@ -61,6 +63,7 @@ class TableChartController extends Controller
             return [];
         } else {
             $ch = $this->chartService->getChart($data);
+
             [$chart_data, $table_data] = $this->chartService->getChartAndTableData($table, $all_settings, $request->request_params);
             if ($all_settings && $all_settings['elem_type'] == 'pivot_table' && $all_settings['pivot_table']) {
                 $a_len = $all_settings['pivot_table']['len_about'] ?? 1;
@@ -78,8 +81,8 @@ class TableChartController extends Controller
 
             return [
                 'id' => $ch->id,
-                'chart_data' => $chart_data,
-                'table_data' => $table_data,
+                'chart_data' => $chart_data ?? null,
+                'table_data' => $table_data ?? null,
                 'table_data_2' => $table_data_2 ?? null,
                 'table_data_3' => $table_data_3 ?? null,
                 'chart_obj' => $ch,
@@ -97,6 +100,40 @@ class TableChartController extends Controller
         $table = $this->tableService->getTable($request->table_id);
         $this->authorizeForUser($user, 'isOwner', [TableData::class, $table]);
         return ['status' => $this->chartService->realignCharts($table, $request->charts)];
+    }
+
+    /**
+     * @param Request $request
+     * @return array|\Illuminate\Contracts\Routing\ResponseFactory|\Illuminate\Foundation\Application|\Illuminate\Http\Response
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function exportChart(Request $request)
+    {
+        $user = auth()->check() ? auth()->user() : new User();
+        $target_table = $this->tableService->getTable($request->target_table_id);
+        $this->authorizeForUser($user, 'isOwner', [TableData::class, $target_table]);
+
+        $chid = $request->chart_settings ? $request->chart_settings['id'] : '';
+        $chart = $this->chartService->getChart(['id' => $chid]);
+        if ($chart->user_id == auth()->id()) {
+            return $this->chartService->exportChart($chart->_table, $request->chart_settings, $target_table, $request->request_params ?? []);
+        } else {
+            return response('Forbidden', 403);
+        }
+    }
+
+    /**
+     * @param Request $request
+     * @return array|\Illuminate\Contracts\Routing\ResponseFactory|\Illuminate\Foundation\Application|\Illuminate\Http\Response
+     */
+    public function saveChartSettings(Request $request)
+    {
+        $chart = $this->chartService->getChart(['id' => $request->chart_id]);
+        if ($chart->user_id == auth()->id()) {
+            return $this->chartService->updateChartSettings($chart, $request->chart_settings);
+        } else {
+            return response('Forbidden', 403);
+        }
     }
 
     /**

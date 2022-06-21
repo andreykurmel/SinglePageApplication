@@ -84,7 +84,7 @@ class UserCloudController extends Controller
             $this->variablesService->getVariables(),
             [
                 'msg' => $msg ?? 'Incorrect request!',
-                'lightweight' => true,
+                'no_settings' => true,
                 'embed' => true,
             ]
         ));

@@ -5,6 +5,7 @@ namespace Vanguard\Services\Tablda;
 
 use Dompdf\Dompdf;
 use Maatwebsite\Excel\Facades\Excel;
+use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 
 class DownloadService
@@ -28,30 +29,31 @@ class DownloadService
     /**
      * Download table data.
      *
-     * @param array $table
+     * @param Table $table
      * @param string $filename
      * @param array $data
      * @return string
      */
-    public function download(array $table, string $filename, array $data, $time) {
+    public function download(Table $table, string $filename, array $data, $time) {
         $res = "";
         switch ($filename) {
             case 'CSV': $dwn_mode = "csv";
-                $res = $this->downloader_csv($table, $data, $table['name']." " . $time);
+                $this->downloader_csv($table, $data, $table->name." " . $time);
                 break;
             case 'XLSX': $dwn_mode = "xlsx";
-                $res = $this->downloader_xlsx($table, $data, $table['name']." " . $time);
+                $res = $this->downloader_xlsx($table, $data, $table->name." " . $time);
                 break;
             case 'PDF': $dwn_mode = "pdf";
-                $res = $this->downloader_pdf($table, $data, $table['name']." ".$time.".pdf");
+                $this->downloader_pdf($table, $data, $table->name." ".$time.".pdf");
                 break;
             case 'JSON': $dwn_mode = "json";
                 $this->downloader_json($table, $data);
                 break;
             case 'XML': $dwn_mode = "xml";
-                $res = $this->downloader_xml($table, $data);
+                $this->downloader_xml($table, $data);
                 break;
         }
+        return $res;
     }
 
     /**
@@ -133,13 +135,13 @@ class DownloadService
     /*
      * Prepare Excel writer class
      */
-    private function prepare_Excel(array $table, $post, $filename) {
+    private function prepare_Excel(Table $table, array $post, $filename) {
         $post['page'] = 1;
         $post['rows_per_page'] = 10000;
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
         $data = [ 0 => [] ];
-        foreach ($table['_fields'] as $val) {
+        foreach ($table->_fields as $val) {
             if ($val['is_showed']) {
                 $data[0][] = implode(' ', array_unique(explode(',', $val['name'])));
             }
@@ -148,7 +150,7 @@ class DownloadService
         foreach ($tableRows['rows'] as $row) {
             $row = (array)$row;
             $tmp_row = [];
-            foreach ($table['_fields'] as $hdr) {
+            foreach ($table->_fields as $hdr) {
                 if ($hdr['is_showed']) {
                     $tmp_row[] = $row[$hdr['field']];
                 }
@@ -163,17 +165,21 @@ class DownloadService
         });
     }
 
-    /*
+    /**
      * Create data flow for csv file
+     *
+     * @param Table $table
+     * @param array $post
+     * @param string $filename
      */
-    private function downloader_csv(array $table, $post, $filename) {
+    private function downloader_csv(Table $table, array $post, string $filename) {
         $post['page'] = 1;
         $post['rows_per_page'] = 10000;
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
         $headers = [];
         $to_print = [];
-        foreach ($table['_fields'] as $hdr) {
+        foreach ($table->_fields as $hdr) {
             if ($hdr['is_showed']) {
                 $headers[$hdr['field']] = '';
                 $to_print[] = '"'.str_replace('"','', $hdr['name']).'"';
@@ -210,7 +216,7 @@ class DownloadService
     /*
      * Create data flow for xlsx file
      */
-    private function downloader_xlsx(array $table, $post, $filename) {
+    private function downloader_xlsx(Table $table, array $post, $filename) {
         $writer = $this->prepare_Excel($table, $post, $filename);
         return $writer->export('xlsx');
     }
@@ -218,10 +224,10 @@ class DownloadService
     /*
      * Create data flow for pdf file
      */
-    private function downloader_pdf(array $table, $post, string $filename) {
+    private function downloader_pdf(Table $table, $post, string $filename) {
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
-        $tableHeaders = array_filter($table['_fields'], function ($header) {
+        $tableHeaders = array_filter($table->_fields, function ($header) {
             return $header['is_showed'];
         });
 
@@ -267,13 +273,13 @@ class DownloadService
     /*
      * Create data flow for json file
      */
-    private function downloader_json(array $table, $post) {
+    private function downloader_json(Table $table, $post) {
         $post['page'] = 1;
         $post['rows_per_page'] = 10000;
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
         $headers = [];
-        foreach ($table['_fields'] as $hdr) {
+        foreach ($table->_fields as $hdr) {
             if ($hdr['is_showed']) {
                 $headers[$hdr['field']] = '';
             }
@@ -281,7 +287,7 @@ class DownloadService
 
 
         $to_print = [];
-        foreach ($table['_fields'] as $hdr) {
+        foreach ($table->_fields as $hdr) {
             if ($hdr['is_showed']) {
                 $to_print[] = ['field' => $hdr['field'], 'title' => $hdr['name']];
             }
@@ -320,13 +326,13 @@ class DownloadService
     /*
      * Create data flow for xml file
      */
-    private function downloader_xml(array $table, $post) {
+    private function downloader_xml(Table $table, $post) {
         $post['page'] = 1;
         $post['rows_per_page'] = 10000;
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
         $headers = [];
-        foreach ($table['_fields'] as $hdr) {
+        foreach ($table->_fields as $hdr) {
             if ($hdr['is_showed']) {
                 $headers[$hdr['field']] = '';
             }
@@ -334,7 +340,7 @@ class DownloadService
 
         echo "<table><header>";
 
-        foreach ($table['_fields'] as $hdr) {
+        foreach ($table->_fields as $hdr) {
             if (isset($headers[$hdr['field']])) {
                 echo "<".$hdr['field'].">" . str_replace('"','', $hdr['name']) . "</".$hdr['field'].">";
             }

@@ -15,6 +15,7 @@ class AddAutoUpdateDataToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->tinyInteger('autoload_new_data')->default(1);
+            $table->tinyInteger('enabled_activities')->default(0);
         });
     }
 
@@ -27,6 +28,7 @@ class AddAutoUpdateDataToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->dropColumn('autoload_new_data');
+            $table->dropColumn('enabled_activities');
         });
     }
 }

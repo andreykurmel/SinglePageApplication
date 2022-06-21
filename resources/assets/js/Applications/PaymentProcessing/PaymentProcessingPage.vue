@@ -17,11 +17,13 @@
                     v-if="payment_method === 'stripe' && input_link._stripe_user_key"
                     :stripe_key="input_link._stripe_user_key.public_key"
                     :confirm_pay="true"
-                    @payment-confirmed="StripeByPay()"
+                    :independent_cards="true"
+                    @pay-by-card="StripeByPay"
             ></stripe-block>
             <paypal-block
                     v-if="payment_method === 'paypal' && input_link._paypal_user_key"
                     :paypal_amount="payment_amount"
+                    :paypal_description="paypal_description"
                     @payment-confirmed="PaypalByPay"
             ></paypal-block>
         </div>
@@ -54,6 +56,10 @@
                 let amofld = this.input_link._payment_amount_fld ? this.input_link._payment_amount_fld.field : '';
                 return this.input_row[amofld];
             },
+            paypal_description() {
+                let descfld = this.input_link._payment_description_fld ? this.input_link._payment_description_fld.field : '';
+                return this.input_row[descfld];
+            },
             payment_method() {
                 let methodfld = this.input_link._payment_method_fld ? this.input_link._payment_method_fld.field : '';
                 let strmethod = String(this.input_row[methodfld]).toLowerCase();
@@ -63,24 +69,24 @@
             },
         },
         methods: {
-            StripeByPay() {
-                if (this.$root.user._cards.length) {
-                    this.sendPaying('StripeCard', 0);
+            StripeByPay($token) {
+                if ($token) {
+                    this.sendPaying('StripeCard', 0, $token);
                 } else {
-                    Swal('', 'You should link card before you can confirm payment.');
+                    Swal('', 'You should add card before you can confirm payment.');
                 }
             },
             PaypalByPay(paypal) {
                 this.sendPaying('PayPalCard', paypal.orderID);
             },
-            sendPaying(url, order_id) {
+            sendPaying(url, order_id, $token) {
                 order_id = order_id || '';
                 $.LoadingOverlay('show');
                 axios.post('/ajax/payment/via'+url, {
                     row_id: this.input_row.id,
                     link_id: this.input_link.id,
                     order_id: order_id,
-                    amount: this.payment_amount,
+                    token: $token,
                 }).then(({ data }) => {
                     if (data.error) {
                         Swal('', data.error);
@@ -104,7 +110,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-wrapper {
         height: 100%;
         display: flex;

@@ -111,33 +111,33 @@
                     });
                 }, 1);
             },
-            showHideDatePicker() {
+            showHideDatePicker(noformat) {
                 if (this.$refs.inline_input) {
                     let defDate = this.editValue || null;
                     let format = '';
                     switch (this.tableHeader.f_type) {
-                        case 'Date':
-                            format = SpecialFuncs.dateFormat();
-                            break;
-                        case 'Date Time':
-                            format = SpecialFuncs.dateTimeFormat();
-                            break;
-                        case 'Time':
-                            format = SpecialFuncs.timeFormat();
-                            break;
+                        case 'Date': format = SpecialFuncs.dateFormat(); break;
+                        case 'Date Time': format = SpecialFuncs.dateTimeFormat(); break;
+                        case 'Time': format = SpecialFuncs.timeFormat(); break;
                     }
-                    defDate = SpecialFuncs.format(this.tableHeader, defDate);
+                    if (!noformat) {
+                        defDate = SpecialFuncs.format(this.tableHeader, defDate);
+                    }
+                    if (this.tableHeader.f_type === 'Time') {
+                        defDate = defDate ? '0001-01-01 '+defDate : '';
+                    }
                     $(this.$refs.inline_input).datetimepicker({
                         useCurrent: false,
                         defaultDate: defDate || null,
                         format: format,
-                        widgetPositioning: {
-                            horizontal: 'right',
-                            vertical: 'bottom',
-                        },
                     }).on('dp.hide', (e) => {
                         if (this.$refs.inline_input) {
                             $(this.$refs.inline_input).datetimepicker('destroy');
+                        }
+                    }).on("input", (e) => {
+                        let val = $(this.$refs.inline_input).val();
+                        if (String(val).match(/am|pm/gi)) {
+                            $(this.$refs.inline_input).val( moment( val ).format('YYYY-MM-DD HH:mm:ss') );
                         }
                     });
                     $(this.$refs.inline_input).focus();
@@ -158,7 +158,7 @@
                                 }
                             },
                         },
-                        minimumInputLength: 1,
+                        minimumInputLength: {val:3},
                         width: '150%',
                         height: '100%',
                     }).on('change', (e) => {

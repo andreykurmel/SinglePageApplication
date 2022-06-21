@@ -6,7 +6,8 @@
         <input class="form-control" placeholder="type 3 or more characters to search"
                :disabled="is_disabled"
                :style="as_input_style ? as_input_style.form_control : {}"
-               @keyup="inputKey(search_obj.string)"
+               @focus="inputKey(true)"
+               @keyup="inputKey(false)"
                v-model="search_obj.string"/>
 
         <button v-if="!as_input_style"
@@ -33,7 +34,10 @@
 
         <div v-if="popup_rows.length" class="search_popup_wrapper" :style="as_input_style ? as_input_style.search_popup_wrapper : {}">
             <div class="search__results" :class="[total_found > search_results_len ? 'popup_border-r-top' : '']">
-                <div v-for="(row, idx) in popup_rows"
+<!--                <div>-->
+<!--                    <input class="form-control input-sm i-filter" placeholder="Filter" v-model="result_filter">-->
+<!--                </div>-->
+                <div v-for="(row, idx) in available_popup_rows"
                      class="search_popup_item"
                      @click="AutoRowClicked(row)"
                      @mouseover="hover_row = idx"
@@ -59,11 +63,11 @@
     import {TabObject} from '../../../classes/TabObject';
     import {StimLinkParams} from '../../../classes/StimLinkParams';
     import {FoundModel} from '../../../classes/FoundModel';
-    import {SpecialFuncs} from "./../../../classes/SpecialFuncs";
+    import {SpecialFuncs} from "../../../classes/SpecialFuncs";
 
     import { mapState } from 'vuex';
 
-    import { eventBus } from "./../../../app";
+    import { eventBus } from "../../../app";
 
     import ModelChecker from "./ModelChecker.vue";
 
@@ -76,6 +80,7 @@
         },
         data: function () {
             return {
+                result_filter: '',
                 search_obj: {
                     string: '',
                     model_columns: [],
@@ -101,7 +106,9 @@
             tab_object: TabObject,
             is_visible: Boolean,
             is_disabled: Boolean,
+            just_owned: Boolean,
             as_input_style: Object,
+            left_offset: Number,
         },
         computed: {
             loaded_model() {
@@ -109,6 +116,18 @@
             },
             hasSearch() {
                 return this.search_obj.string;
+            },
+            available_popup_rows() {
+                if (this.result_filter) {
+                    return _.filter(this.popup_rows, (row) => {
+                        return _.find(this.search_obj.model_columns, (col) => {
+                            return this.showInAutopop(col)
+                                && String(row[col.field]).indexOf(this.result_filter) > -1;
+                        });
+                    });
+                } else {
+                    return this.popup_rows;
+                }
             },
         },
         watch: {
@@ -203,12 +222,10 @@
                 this.setFoundModel(null);
                 this.hideAbsolutes();
             },
-            inputKey(word) {
-                if (window.event.keyCode == 13) {
+            inputKey(immediate) {
+                if (immediate) {
                     this.sendAutoComplete();
-                }
-                else
-                if (word.length >= 3) {
+                } else {
                     clearTimeout(this.timerout);
                     this.timerout = setTimeout(this.sendAutoComplete, 500);
                 }
@@ -224,6 +241,7 @@
             },
             sendAutoComplete() {
                 axios.post('?method=search_model', {
+                    just_owned: this.just_owned ? 1 : 0,
                     string: this.search_obj.string,
                     columns: this.selectedModelColumnFields(),
                     app_table: this.stim_link_params.app_table,
@@ -316,7 +334,7 @@
     .search_popup_wrapper {
         font-size: 12px;
         position: absolute;
-        right: -30px;
+        left: 27px;
         z-index: 550;
         white-space: nowrap;
         top: 100%;
@@ -375,5 +393,10 @@
         white-space: nowrap;
         max-width: 100%;
         text-overflow: ellipsis;
+    }
+
+    .i-filter {
+        padding: 3px 6px;
+        height: 24px;
     }
 </style>

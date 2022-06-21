@@ -6,7 +6,7 @@
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
                         <div class="flex__elem-remain">
-                            <span>A&amp;N (Alerts & Notifications)</span><br>
+                            <span>Alerts, Notifications & Automations (ANA)</span><br>
                         </div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close', false)"></span>

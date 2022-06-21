@@ -33,6 +33,36 @@ class TableSeeder extends Seeder
                 'val' => '/dcr/b4551f41-ab9d-442a-bd2e-0d8e7a60b981/Online%20Contact/Contact',
             ]);
         }
+        if ( ! AppSetting::where('key', 'app_plan_comparison')->first()) {
+            AppSetting::create([
+                'key' => 'app_plan_comparison',
+                'val' => '/mrv/e39626ec-560a-4d97-9eac-a97621d2b4a0',
+            ]);
+        }
+        if ( ! AppSetting::where('key', 'app_our_benefits')->first()) {
+            AppSetting::create([
+                'key' => 'app_our_benefits',
+                'val' => '/introduction/A%20Glance/Top%20Reasons%20Why%20TablDA_',
+            ]);
+        }
+        if ( ! AppSetting::where('key', 'app_pricing_view')->first()) {
+            AppSetting::create([
+                'key' => 'app_pricing_view',
+                'val' => '/introduction/Registration%20_%20Subscription',
+            ]);
+        }
+        if ( ! AppSetting::where('key', 'app_usr_public_domains')->first()) {
+            AppSetting::create([
+                'key' => 'app_usr_public_domains',
+                'val' => 'gmail.com, yahoo.com, hotmail.com, outlook.com',
+            ]);
+        }
+        if ( ! AppSetting::where('key', 'addon_email_body_info')->first()) {
+            AppSetting::create([
+                'key' => 'addon_email_body_info',
+                'val' => 'Max. 50 rows of data allowed. Additional rows will be ignored.',
+            ]);
+        }
 
 
         //settings for system tables
@@ -46,10 +76,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -62,10 +90,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -79,10 +105,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -96,10 +120,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -113,10 +135,23 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'ddl_reference_colors')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'ddl_reference_colors',
+                'name' => 'DDL Reference Colors',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
                 'modified_on' => now(),
             ]);
         }
@@ -133,10 +168,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -150,10 +183,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -167,10 +198,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -184,10 +213,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -205,10 +232,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -222,10 +247,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -239,10 +262,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -256,10 +277,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -273,10 +292,72 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+                'modified_on' => now(),
+            ]);
+        }
+
+
+        // DATA REQUEST TABLES
+
+
+        if (!Table::where('db_name', 'table_data_requests')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'table_data_requests',
+                'name' => 'Table Data Requests',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'table_data_requests_2_table_column_groups')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'table_data_requests_2_table_column_groups',
+                'name' => 'Table Data Request Columns',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'table_data_requests_def_fields')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'table_data_requests_def_fields',
+                'name' => 'Table Data Request Defaults',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'dcr_linked_tables')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'dcr_linked_tables',
+                'name' => 'DCR Linked Tables',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
                 'modified_on' => now(),
             ]);
         }
@@ -294,10 +375,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -311,10 +390,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -328,10 +405,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -349,10 +424,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -366,10 +439,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -387,10 +458,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -404,10 +473,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -425,10 +492,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -446,10 +511,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -463,10 +526,68 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'alert_ufv_tables')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'alert_ufv_tables',
+                'name' => 'Alert Ufv Table',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'alert_ufv_table_fields')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'alert_ufv_table_fields',
+                'name' => 'Alert Ufv Field',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'alert_anr_tables')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'alert_anr_tables',
+                'name' => 'Alert Anr Table',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        if (!Table::where('db_name', 'alert_anr_table_fields')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'alert_anr_table_fields',
+                'name' => 'Alert Anr Field',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
                 'modified_on' => now(),
             ]);
         }
@@ -484,10 +605,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -505,10 +624,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -526,10 +643,8 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
                 'modified_on' => now(),
             ]);
         }
@@ -544,10 +659,56 @@ class TableSeeder extends Seeder
                 'rows_per_page' => 100,
                 'source' => 'scratch',
                 'created_by' => $user->id,
-                'created_name' => $user->first_name . ' ' . $user->last_name,
                 'created_on' => now(),
                 'modified_by' => $user->id,
-                'modified_name' => $user->first_name . ' ' . $user->last_name,
+                'modified_on' => now(),
+            ]);
+        }
+
+        // Incoming Links
+        if (!Table::where('db_name', 'incoming_links')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'incoming_links',
+                'name' => 'Incoming Links',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        // Email Settings
+        if (!Table::where('db_name', 'email_settings')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'email_settings',
+                'name' => 'Emails',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
+                'modified_on' => now(),
+            ]);
+        }
+
+        // Uploading File Formats
+        if (!Table::where('db_name', 'uploading_file_formats')->first()) {
+            Table::create([
+                'is_system' => 1,
+                'db_name' => 'uploading_file_formats',
+                'name' => 'Uploading File Formats',
+                'user_id' => $user->id,
+                'rows_per_page' => 100,
+                'source' => 'scratch',
+                'created_by' => $user->id,
+                'created_on' => now(),
+                'modified_by' => $user->id,
                 'modified_on' => now(),
             ]);
         }

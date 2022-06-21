@@ -149,9 +149,13 @@ Route::group(['middleware' => 'auth'], function () {
         'uses' => 'UsersController@bulk'
     ]);
 
-    Route::post('user/bulk', [
-        'as' => 'user.store_bulk',
-        'uses' => 'UsersController@storeBulk'
+    Route::post('user/bulk/csv', [
+        'as' => 'user.store_bulk_csv',
+        'uses' => 'UsersController@storeBulkCsv'
+    ]);
+    Route::post('user/bulk/paste', [
+        'as' => 'user.store_bulk_paste',
+        'uses' => 'UsersController@storeBulkPaste'
     ]);
 
     Route::get('user/{user}/show', [
@@ -394,7 +398,7 @@ Route::post('/send-mail', 'Tablda\AppController@sendMail');
 Route::get('/discourse/sso', 'Tablda\AppController@discourseSSO');
 Route::get('/discourse/redirect', 'Tablda\AppController@discourseRedirect')->name('discourse-redirect');
 Route::get('/discourse/exit', 'Tablda\AppController@getDiscourseLogout')->name('discourse-exit');
-Route::get('/discourselogout', 'Tablda\AppController@getDiscourseLogout')->name('discourselogout');
+Route::get('/discourse/logout', 'Tablda\AppController@getDiscourseLogout')->name('discourse/logout');
 Route::get('/storage/{filepath}', 'Tablda\AppController@protectFile')->where(['filepath' => '.+'])->name('old_protect');
 Route::get('/file/{filehash}', 'Tablda\AppController@protectFile')->where(['filehash' => '.+'])->name('protect_file');
 
@@ -435,7 +439,9 @@ Route::group(['middleware' => ['subdomains.redirect']], function () {
     Route::get('/visiting/{table_id}', 'Tablda\AppController@tableId')->name('visiting')->where(['table_id' => '.+']);
     Route::get('/embed/{view}', 'Tablda\AppController@embed')->name('embed')->where(['view' => '.+']);
     Route::get('/embed-dcr/{code}', 'Tablda\AppController@tableRequest')->name('embed-request')->where(['code' => '.+']);
-    Route::get('/view/{view}', 'Tablda\AppController@view')->name('view')->where(['view' => '.+']);
+    Route::get('/srv/{tablehash}', 'Tablda\AppController@singleRecordView')->name('srv')->where(['tablehash' => '.+']);
+    Route::get('/mrv/{view}', 'Tablda\AppController@multiRecordView')->name('mrv')->where(['view' => '.+']);
+    Route::get('/view/{view}', 'Tablda\AppController@folderView')->name('view')->where(['view' => '.+']);
     Route::get('/dcr/{code}', 'Tablda\AppController@tableRequest')->name('request')->where(['code' => '.+']);
 
     //static pages
@@ -462,9 +468,12 @@ Route::prefix('ajax')->group(function () {
     //table data
     Route::post('/table-data', 'Tablda\TableDataController@insert');
     Route::put('/table-data', 'Tablda\TableDataController@update');
+    Route::put('/table-data/mass', 'Tablda\TableDataController@massUpdate');
     Route::delete('/table-data', 'Tablda\TableDataController@delete');
     Route::prefix('table-data')->group(function () {
-        Route::post('/search', 'Tablda\TableDataController@search');
+        Route::post('/search-on-map', 'Tablda\TableDataController@searchOnMap');
+        Route::post('/remove-duplicates', 'Tablda\TableDataController@removeDuplicates');
+        Route::post('/batch-uploading', 'Tablda\TableDataController@batchUploading');
         Route::post('/find-replace', 'Tablda\TableDataController@findReplace');
         Route::post('/do-replace', 'Tablda\TableDataController@doReplace');
         Route::post('/info-row', 'Tablda\TableDataController@infoRow');
@@ -472,6 +481,7 @@ Route::prefix('ajax')->group(function () {
         Route::post('/get', 'Tablda\TableDataController@get');
         Route::post('/get-map-bounds', 'Tablda\TableDataController@getMapBounds');
         Route::post('/get-map-markers', 'Tablda\TableDataController@getMapMarkers');
+        Route::post('/get-dcr-rows', 'Tablda\TableDataController@getDcrRows');
         Route::get('/marker-popup', 'Tablda\TableDataController@getMarkerPopup');
         Route::post('/get-preset', 'Tablda\TableDataController@loadPreset');
         Route::post('/get-headers', 'Tablda\TableDataController@loadHeaders');
@@ -486,7 +496,6 @@ Route::prefix('ajax')->group(function () {
         Route::post('/recalc-all', 'Tablda\TableDataController@formulasTableRecalc');
 
         Route::get('/field/get-distinctive', 'Tablda\TableDataController@getDistinctiveField');
-        Route::post('/delete-all', 'Tablda\TableDataController@deleteAll');
         Route::post('/delete-selected', 'Tablda\TableDataController@deleteSelected');
         Route::put('/favorite', 'Tablda\TableDataController@favoriteToggleRow');
         Route::put('/favorite/all', 'Tablda\TableDataController@toggleAllFavorites');
@@ -504,22 +513,34 @@ Route::prefix('ajax')->group(function () {
     });
 
     //check pass for table request
-    Route::get('/table-permission/check-pass', 'Tablda\TablePermissionController@checkPass');
+    Route::get('/table-data-request/check-pass', 'Tablda\TableDataRequestController@checkPass');
     //table data if filled via table request
     Route::post('/table-request', 'Tablda\TableDataController@requestInsert');
-    Route::post('/table-request/finished', 'Tablda\TableDataController@requestFinished');
+    Route::post('/table-request/row-pass', 'Tablda\TableDataRequestController@requestRowPass');
     Route::put('/table-request', 'Tablda\TableDataController@requestUpdate');
     Route::delete('/table-request', 'Tablda\TableDataController@requestDelete');
 
     //history data
     Route::get('/history', 'Tablda\HistoryController@get');
+    Route::get('/history/all', 'Tablda\HistoryController@getAll');
+    Route::post('/history/comment', 'Tablda\HistoryController@postComment');
     Route::delete('/history', 'Tablda\HistoryController@delete');
+
+    //single record views
+    Route::get('/srv/row', 'Tablda\SrvController@getSrv');
+    Route::post('/srv/row-pass', 'Tablda\SrvController@checkPass');
+    Route::post('/srv/bgi-file', 'Tablda\SrvController@insertBgiFile');
+    Route::delete('/srv/bgi-file', 'Tablda\SrvController@deleteBgiFile');
 
     //table views
     Route::post('/table-view', 'Tablda\TableViewController@insert');
     Route::post('/table-view/lock-pass', 'Tablda\TableViewController@lockPass');
 
+    //ddl options
+    Route::post('/ddl/add-option', 'Tablda\DDLController@newOption');
+
     //users
+    Route::post('/user/admin-balance', 'Tablda\UserController@setBalance');
     Route::get('/cur-user', 'Tablda\UserController@curUser');
     Route::post('/user/finds', 'Tablda\UserController@findUsersInfo');
     Route::post('/user/get-info', 'Tablda\UserController@getUserOrGroupInfo');
@@ -531,6 +552,38 @@ Route::prefix('ajax')->group(function () {
     Route::post('/files', 'Tablda\FileController@insert');
     Route::put('/files', 'Tablda\FileController@update');
     Route::delete('/files', 'Tablda\FileController@delete');
+
+    Route::get('settings/table-fields', 'Tablda\SettingsTableController@getFieldsForTable');
+    Route::post('/table/alert/anr_proceed', 'Tablda\TableAlertsController@proceedANR');
+
+    Route::prefix('table')->group(function () {
+        Route::prefix('/alert')->group(function () {
+            Route::post('/condition', 'Tablda\TableAlertsController@insertCond');
+            Route::put('/condition', 'Tablda\TableAlertsController@updateCond');
+            Route::delete('/condition', 'Tablda\TableAlertsController@deleteCond');
+            Route::post('/anr', 'Tablda\TableAlertsController@insertAnrTable');
+            Route::put('/anr', 'Tablda\TableAlertsController@updateAnrTable');
+            Route::delete('/anr', 'Tablda\TableAlertsController@deleteAnrTable');
+            Route::post('/anr_tmp_to_main', 'Tablda\TableAlertsController@storeAnrChanges');
+            Route::prefix('/anr')->group(function () {
+                Route::post('/copy', 'Tablda\TableAlertsController@copyAnrFields');
+                Route::post('/fld', 'Tablda\TableAlertsController@insertAnrField');
+                Route::put('/fld', 'Tablda\TableAlertsController@updateAnrField');
+                Route::delete('/fld', 'Tablda\TableAlertsController@deleteAnrField');
+            });
+            Route::post('/ufv', 'Tablda\TableAlertsController@insertUfvTable');
+            Route::put('/ufv', 'Tablda\TableAlertsController@updateUfvTable');
+            Route::delete('/ufv', 'Tablda\TableAlertsController@deleteUfvTable');
+            Route::prefix('/ufv')->group(function () {
+                Route::post('/copy', 'Tablda\TableAlertsController@copyUfvFields');
+                Route::post('/fld', 'Tablda\TableAlertsController@insertUfvField');
+                Route::put('/fld', 'Tablda\TableAlertsController@updateUfvField');
+                Route::delete('/fld', 'Tablda\TableAlertsController@deleteUfvField');
+            });
+            Route::post('/right', 'Tablda\TableAlertsController@toggleAlertRight');
+            Route::delete('/right', 'Tablda\TableAlertsController@delAlertRight');
+        });
+    });
 
     Route::group(['middleware' => 'auth'], function () { // AUTH ROUTES ------------------------------------------------
         //static pages
@@ -588,15 +641,12 @@ Route::prefix('ajax')->group(function () {
             Route::post('/alert', 'Tablda\TableAlertsController@insert');
             Route::put('/alert', 'Tablda\TableAlertsController@update');
             Route::delete('/alert', 'Tablda\TableAlertsController@delete');
-            Route::prefix('/alert')->group(function () {
-                Route::post('/condition', 'Tablda\TableAlertsController@insertCond');
-                Route::put('/condition', 'Tablda\TableAlertsController@updateCond');
-                Route::delete('/condition', 'Tablda\TableAlertsController@deleteCond');
-            });
             Route::prefix('/shared')->group(function () {
                 Route::post('/rename', 'Tablda\TableController@renameShared');
             });
             Route::prefix('/chart')->group(function () {
+                Route::put('/settings', 'Tablda\TableChartController@saveChartSettings');
+                Route::post('/export', 'Tablda\TableChartController@exportChart');
                 Route::post('/right', 'Tablda\TableChartController@toggleChartRight');
                 Route::delete('/right', 'Tablda\TableChartController@delChartRight');
             });
@@ -613,9 +663,18 @@ Route::prefix('ajax')->group(function () {
             Route::delete('/filtering', 'Tablda\TableViewController@deleteFiltering');
         });
 
+        //table Refers
+        Route::post('/refer', 'Tablda\TableReferController@insert');
+        Route::put('/refer', 'Tablda\TableReferController@update');
+        Route::delete('/refer', 'Tablda\TableReferController@delete');
+        Route::prefix('refer')->group(function () {
+            Route::post('/corrs', 'Tablda\TableReferController@insertCorrs');
+            Route::put('/corrs', 'Tablda\TableReferController@updateCorrs');
+            Route::delete('/corrs', 'Tablda\TableReferController@deleteCorrs');
+        });
+
         //table settings
         Route::prefix('settings')->group(function () {
-            Route::get('/table-fields', 'Tablda\SettingsTableController@getFieldsForTable');
             Route::post('/import-tooltips', 'Tablda\SettingsTableController@importTooltips');
             Route::get('/fees', 'Tablda\SettingsTableController@getFees');
             Route::put('/data', 'Tablda\SettingsTableController@updateSettingsRow');
@@ -629,6 +688,7 @@ Route::prefix('ajax')->group(function () {
                 Route::get('/cond-formats', 'Tablda\SettingsTableController@loadCondFormats');
             });
             Route::prefix('data')->group(function () {
+                Route::post('/just_user_setts', 'Tablda\SettingsTableController@justUserSetts');
                 Route::post('/link', 'Tablda\TableFieldLinkController@insertLink');
                 Route::put('/link', 'Tablda\TableFieldLinkController@updateLink');
                 Route::delete('/link', 'Tablda\TableFieldLinkController@deleteLink');
@@ -645,13 +705,28 @@ Route::prefix('ajax')->group(function () {
             });
         });
 
+        //table-data-requests
+        Route::post('/table-data-request', 'Tablda\TableDataRequestController@insertTableDataRequest');
+        Route::put('/table-data-request', 'Tablda\TableDataRequestController@updateTableDataRequest');
+        Route::delete('/table-data-request', 'Tablda\TableDataRequestController@deleteTableDataRequest');
+        Route::prefix('table-data-request')->group(function () {
+            Route::post('/check', 'Tablda\TableDataRequestController@checkPermis');
+            Route::post('/copy', 'Tablda\TableDataRequestController@copyPermis');
+            Route::put('/default-field', 'Tablda\TableDataRequestController@defaultField');
+            Route::post('/column', 'Tablda\TableDataRequestController@updateColumnInTableDataRequest');
+            Route::post('/dcr-file', 'Tablda\TableDataRequestController@addDcrFile');
+            Route::delete('/dcr-file', 'Tablda\TableDataRequestController@deleteDcrFile');
+            Route::post('/linked-table', 'Tablda\TableDataRequestController@insertLinkedTable');
+            Route::put('/linked-table', 'Tablda\TableDataRequestController@updateLinkedTable');
+            Route::delete('/linked-table', 'Tablda\TableDataRequestController@deleteLinkedTable');
+        });
+
         //------ DATA SETS TAB ------
         //table-permissions
         Route::post('/table-permission', 'Tablda\TablePermissionController@insertTablePermission');
         Route::put('/table-permission', 'Tablda\TablePermissionController@updateTablePermission');
         Route::delete('/table-permission', 'Tablda\TablePermissionController@deleteTablePermission');
         Route::prefix('table-permission')->group(function () {
-            Route::post('/check', 'Tablda\TablePermissionController@checkPermis');
             Route::post('/copy', 'Tablda\TablePermissionController@copyPermis');
             Route::put('/default-field', 'Tablda\TablePermissionController@defaultField');
             Route::post('/addon-right', 'Tablda\TablePermissionController@insertAddonRight');
@@ -662,8 +737,6 @@ Route::prefix('ajax')->group(function () {
             Route::post('/user-group', 'Tablda\TablePermissionController@addUserGroupToTablePermission');
             Route::put('/user-group', 'Tablda\TablePermissionController@updateUserGroupFromTablePermission');
             Route::delete('/user-group', 'Tablda\TablePermissionController@deleteUserGroupFromTablePermission');
-            Route::post('/dcr-file', 'Tablda\TablePermissionController@addDcrFile');
-            Route::delete('/dcr-file', 'Tablda\TablePermissionController@deleteDcrFile');
             Route::post('/forbid-settings', 'Tablda\TablePermissionController@addForbidSetting');
             Route::delete('/forbid-settings', 'Tablda\TablePermissionController@deleteForbidSetting');
         });
@@ -674,9 +747,6 @@ Route::prefix('ajax')->group(function () {
         Route::delete('/row-group', 'Tablda\TableRowGroupController@deleteRowGroup');
         Route::prefix('row-group')->group(function () {
             Route::post('/count', 'Tablda\TableRowGroupController@countRowGroup');
-            Route::post('/condition', 'Tablda\TableRowGroupController@insertRowGroupCondition');
-            Route::put('/condition', 'Tablda\TableRowGroupController@updateRowGroupCondition');
-            Route::delete('/condition', 'Tablda\TableRowGroupController@deleteRowGroupCondition');
             Route::post('/regular-mass', 'Tablda\TableRowGroupController@insertRowGroupRegularMass');
             Route::post('/regular', 'Tablda\TableRowGroupController@insertRowGroupRegular');
             Route::put('/regular', 'Tablda\TableRowGroupController@updateRowGroupRegular');
@@ -701,6 +771,7 @@ Route::prefix('ajax')->group(function () {
             Route::post('/item', 'Tablda\TableRefConditionController@insertRefConditionItem');
             Route::put('/item', 'Tablda\TableRefConditionController@updateRefConditionItem');
             Route::delete('/item', 'Tablda\TableRefConditionController@deleteRefConditionItem');
+            Route::post('/incom', 'Tablda\TableRefConditionController@updIncomRef');
         });
 
         //table columns groups
@@ -717,6 +788,7 @@ Route::prefix('ajax')->group(function () {
         //USER SETTINGS
         Route::prefix('user')->group(function () {
             Route::put('/set-sel-theme', 'Tablda\UserController@setSelTheme');
+            Route::put('/set-ectracttable-terms', 'Tablda\UserController@setEctracttableTerms');
         });
 
         //User Connections
@@ -740,11 +812,15 @@ Route::prefix('ajax')->group(function () {
         Route::delete('/user-email-acc', 'Tablda\UserConnController@deleteEmailAcc');
 
         //Addon Email Settings
+        Route::post('/addon-email-sett', 'Tablda\TableEmailAddonController@insert');
         Route::put('/addon-email-sett', 'Tablda\TableEmailAddonController@update');
+        Route::delete('/addon-email-sett', 'Tablda\TableEmailAddonController@delete');
+        Route::post('/addon-email-sett/copy', 'Tablda\TableEmailAddonController@copyAdn');
         Route::post('/addon-email-sett/cancel', 'Tablda\TableEmailAddonController@cancelEmail');
         Route::post('/addon-email-sett/send', 'Tablda\TableEmailAddonController@sendEmail');
         Route::post('/addon-email-sett/preview', 'Tablda\TableEmailAddonController@previewEmail');
         Route::get('/addon-email-sett/status', 'Tablda\TableEmailAddonController@emailStatus');
+        Route::delete('/addon-email-sett/history', 'Tablda\TableEmailAddonController@clearHistory');
 
         //User Clouds
         Route::post('/user-cloud', 'Tablda\UserCloudController@insert');
@@ -774,14 +850,21 @@ Route::prefix('ajax')->group(function () {
         Route::prefix('ddl')->group(function () {
             Route::post('/fill-from-field', 'Tablda\DDLController@fillFromField');
             Route::post('/parse-options', 'Tablda\DDLController@parseOptions');
-            Route::post('/add-option', 'Tablda\DDLController@newOption');
+            Route::post('/copy-from-table', 'Tablda\DDLController@copyDDLfromTable');
             Route::post('/item', 'Tablda\DDLController@insertDDLItem');
             Route::put('/item', 'Tablda\DDLController@updateDDLItem');
             Route::delete('/item', 'Tablda\DDLController@deleteDDLItem');
             Route::post('/reference', 'Tablda\DDLController@insertDDLReference');
             Route::put('/reference', 'Tablda\DDLController@updateDDLReference');
             Route::delete('/reference', 'Tablda\DDLController@deleteDDLReference');
-            Route::post('/copy-from-table', 'Tablda\DDLController@copyDDLfromTable');
+            Route::prefix('reference')->group(function () {
+                Route::post('/color', 'Tablda\DDLController@addDDLReferenceColor');
+                Route::put('/color', 'Tablda\DDLController@updateDDLReferenceColor');
+                Route::delete('/color', 'Tablda\DDLController@deleteDDLReferenceColor');
+                Route::prefix('color')->group(function () {
+                    Route::post('/create-and-load', 'Tablda\DDLController@createAndLoadRefColors');
+                });
+            });
         });
 
         //folders
@@ -790,6 +873,7 @@ Route::prefix('ajax')->group(function () {
         Route::put('/folder', 'Tablda\FolderController@update');
         Route::delete('/folder', 'Tablda\FolderController@delete');
         Route::prefix('folder')->group(function () {
+            Route::post('/link', 'Tablda\FolderController@createLink');
             //folder-permissions
             Route::post('/copy', 'Tablda\FolderController@copyTo');
             Route::prefix('permission')->group(function () {
@@ -818,14 +902,34 @@ Route::prefix('ajax')->group(function () {
 
         //table import module
         Route::prefix('import')->group(function () {
+            Route::post('/presave-column', 'Tablda\ImportController@presaveColumn');
             Route::post('/create-table', 'Tablda\ImportController@createTable');
             Route::post('/modify-table', 'Tablda\ImportController@modifyTable');
             Route::delete('/delete-table', 'Tablda\ImportController@deleteTable');
+
             Route::post('/get-fields/csv', 'Tablda\ImportController@getFieldsFromCSV');
             Route::post('/get-fields/mysql', 'Tablda\ImportController@getFieldsFromMySQL');
             Route::post('/get-fields/paste', 'Tablda\ImportController@getFieldsFromPaste');
             Route::post('/get-fields/g-sheet', 'Tablda\ImportController@getFieldsFromGSheet');
             Route::post('/get-fields/web-scrap', 'Tablda\ImportController@getScrapWeb');
+            Route::post('/get-fields/airtable', 'Tablda\ImportController@getAirtable');
+
+            Route::post('/airtable/col-values', 'Tablda\ImportController@getAirtableColValues');
+
+            Route::post('/ocr/check-key', 'Tablda\ImportController@ocrCheckKey');
+            Route::post('/ocr/parse-image', 'Tablda\ImportController@ocrParseImage');
+
+            Route::post('/google-drive/all-files', 'Tablda\ImportController@allGoogleFiles');
+            Route::post('/google-drive/sheets-for-table', 'Tablda\ImportController@sheetsForGoogleTable');
+            Route::post('/google-drive/store-file', 'Tablda\ImportController@storeGoogleFile');
+
+            Route::post('/dropbox/all-files', 'Tablda\ImportController@allDropboxFiles');
+            Route::post('/dropbox/store-file', 'Tablda\ImportController@storeDropboxFile');
+
+            Route::post('/one-drive/all-files', 'Tablda\ImportController@allOneDriveFiles');
+            Route::post('/one-drive/store-file', 'Tablda\ImportController@storeOneDriveFile');
+
+            Route::post('/xls-sheets', 'Tablda\ImportController@getXlsSheets');
             Route::get('/status', 'Tablda\ImportController@getImportStatus');
             Route::get('/remote-dbs', 'Tablda\ImportController@getRemoteDBS');
             Route::get('/remote-tables', 'Tablda\ImportController@getRemoteTables');
@@ -854,5 +958,18 @@ Route::prefix('ajax')->group(function () {
     Route::post('/wid_view', 'Tablda\Applications\StimWidController@insertAppView');
     Route::put('/wid_view', 'Tablda\Applications\StimWidController@updateAppView');
     Route::delete('/wid_view', 'Tablda\Applications\StimWidController@deleteAppView');
+    Route::prefix('wid_view')->group(function () {
+        Route::post('/state', 'Tablda\Applications\StimWidController@stateAppView');
+        Route::post('/feedback', 'Tablda\Applications\StimWidController@insertAppViewFeedback');
+        Route::put('/feedback', 'Tablda\Applications\StimWidController@updateAppViewFeedback');
+        Route::delete('/feedback', 'Tablda\Applications\StimWidController@deleteAppViewFeedback');
+        Route::prefix('feedback')->group(function () {
+            Route::post('/check-pass', 'Tablda\Applications\StimWidController@checkAppViewFeedbackPass');
+            Route::post('/email', 'Tablda\Applications\StimWidController@sendFeedbackEmail');
+            Route::post('/result', 'Tablda\Applications\StimWidController@insertAppViewFeedbackResult');
+            Route::put('/result', 'Tablda\Applications\StimWidController@updateAppViewFeedbackResult');
+            Route::delete('/result', 'Tablda\Applications\StimWidController@deleteAppViewFeedbackResult');
+        });
+    });
 });
 

@@ -1,15 +1,15 @@
 <template>
     <div class="container-fluid full-height">
-        <div class="row full-height permissions-tab">
-            <div class="top-text" style="height: 50px;">
+        <div class="row full-height permissions-tab" :style="textSysStyle">
+            <div class="top-text" :style="textSysStyle">
                 <span>Map marker icon association</span>
                 <span>&nbsp;&nbsp;&nbsp;Style:</span>
-                <select v-model="tableMeta.map_icon_style" class="form-control fixed_control" @change="colChanged()">
+                <select :style="textSysStyle" v-model="tableMeta.map_icon_style" class="form-control fixed_control" @change="colChanged()">
                     <option value="dist">Distinctive</option>
                     <option value="comp">Complete</option>
                 </select>
                 <span>&nbsp;&nbsp;&nbsp;Field for icons:</span>
-                <select v-model="tableMeta.map_icon_field_id" class="form-control fixed_control" @change="colChanged()">
+                <select :style="textSysStyle" v-model="tableMeta.map_icon_field_id" class="form-control fixed_control" @change="colChanged()">
                     <option></option>
                     <option v-for="(fld, idx) in mapFields" :value="fld.id">{{ $root.uniqName(fld.name) }}</option>
                 </select>
@@ -19,16 +19,23 @@
                     <table class="full-width">
                         <thead class="table-head">
                         <tr>
-                            <th>Field Value</th>
-                            <th>Icon</th>
-                            <th>Height</th>
-                            <th>Upload</th>
+                            <th :style="textSysStyle">Field Value</th>
+                            <th :style="textSysStyle">Icon</th>
+                            <th :style="textSysStyle">Height</th>
+                            <th :style="textSysStyle">Upload</th>
                         </tr>
                         </thead>
                         <tbody class="table-body">
                         <tr v-for="(col, idx) in columnValues">
-                            <td>{{col.row_val}}</td>
-                            <td>
+                            <td>{{ col.row_val }}</td>
+                            <td :ref="'cell_icon_'+idx"
+                                @dragenter="iconEnter(idx)"
+                                @dragover.prevent=""
+                                @dragleave.prevent=""
+                                @dragend="iconLeave"
+                                @drop.prevent.stop="(e) => { iconDrop(e, idx); }"
+                                :style="iconStyle(idx)"
+                            >
                                 <template v-if="col.icon_path">
                                     <img class="preview_icon" :src="$root.fileUrl({url:col.icon_path})"/>
                                     <span class="delete-icon-btn" @click="deleteIcon(col, idx)">&times;</span>
@@ -48,8 +55,12 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
+
     import CustomTable from '../../../../CustomTable/CustomTable';
     import HeightIconInput from '../../../../Buttons/HeightIconInput';
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "MapIcons",
@@ -57,6 +68,9 @@
             CustomTable,
             HeightIconInput
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 addingRow: {
@@ -64,13 +78,11 @@
                     position: 'bottom'
                 },
                 selectedFile: null,
+                attach_overed: -1,
             }
         },
         props:{
             tableMeta: Object,
-            settingsMeta: Object,
-            table_id: Number|null,
-            user:  Object,
             columnValues: Array,
         },
         computed: {
@@ -90,6 +102,7 @@
                     { field_id: this.iconFld.id } :
                     { table_id: this.tableMeta.id };
                 data.map_style = this.tableMeta.map_icon_style;
+                data.special_params = SpecialFuncs.specialParams();
 
                 this.$root.sm_msg_type = 2;
                 axios.get('/ajax/table-data/field/map-icons', {
@@ -102,14 +115,15 @@
                     this.$root.sm_msg_type = 0;
                 });
             },
-            uploadIcon(col_idx) {
+            uploadIcon(col_idx, fore_file) {
                 let data = new FormData();
-                let file = this.$refs['upload_'+col_idx][0].files[0];
+                let file = fore_file || this.$refs['upload_'+col_idx][0].files[0];
                 data.append('table_field_id', this.iconFld.id);
                 data.append('row_val', this.columnValues[col_idx].row_val);
                 data.append('file', file);
                 data.append('height', null);
                 data.append('width', null);
+                data.append('special_params', JSON.stringify(SpecialFuncs.specialParams()) );
 
                 if (file) {
                     this.$root.sm_msg_type = 1;
@@ -150,6 +164,7 @@
                         row_val: row_val,
                         height: Number(new_height),
                         width: Number(new_width) || Number(new_height),
+                        special_params: SpecialFuncs.specialParams(),
                     }).then(({ data }) => {
                         this.colChanged();
                     }).catch(errors => {
@@ -170,7 +185,8 @@
                         axios.delete('/ajax/table-data/field/map-icons', {
                             params: {
                                 table_field_id: this.tableMeta.map_icon_field_id,
-                                row_val: col.row_val
+                                row_val: col.row_val,
+                                special_params: SpecialFuncs.specialParams(),
                             }
                         }).then(({ data }) => {
                             this.columnValues[idx].icon_path = '';
@@ -185,6 +201,27 @@
                         });
                     }
                 });
+            },
+
+            //drag&drop to the cell directly
+            iconStyle(idx) {
+                if (idx == this.attach_overed) {
+                    return {border: '4px dashed #F77'};
+                }
+                return {};
+            },
+            iconEnter(idx) {
+                this.attach_overed = idx;
+            },
+            iconLeave(e, idx) {
+                this.attach_overed = -1;
+            },
+            iconDrop(ev, idx) {
+                let file = ev.dataTransfer.items && ev.dataTransfer.items[0] && ev.dataTransfer.items[0].kind === 'file'
+                    ? ev.dataTransfer.items[0].getAsFile()
+                    : null;
+                this.uploadIcon(idx, file);
+                this.attach_overed = -1;
             },
         },
         mounted() {
@@ -201,14 +238,20 @@
 
     .permissions-tab {
         .permissions-panel {
-            height: calc(100% - 56px);
+            height: calc(100% - 38px);
             background-color: inherit;
+            padding: 0;
         }
         .top-text {
-            padding: 10px;
+            height: 38px;
+            padding: 3px 10px;
+            color: #555;
+            font-size: 1.1em;
+            background: linear-gradient(to bottom, #efeff4, #d6dadf);
 
-            span {
-                font-size: 1.2em;
+            .form-control {
+                padding: 3px 6px;
+                height: 32px;
             }
         }
     }

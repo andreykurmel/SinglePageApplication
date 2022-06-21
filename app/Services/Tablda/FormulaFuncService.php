@@ -6,6 +6,7 @@ namespace Vanguard\Services\Tablda;
 
 use Carbon\Carbon;
 use Carbon\CarbonInterval;
+use Vanguard\Classes\DurationConvert;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
@@ -35,6 +36,19 @@ class FormulaFuncService
      */
     public function __construct()
     {
+    }
+
+    /**
+     * @param $value
+     * @return mixed|string
+     */
+    protected static function val($value)
+    {
+        //remove '0000-00-00'
+        if ($value === '0000-00-00' || $value === '0000-00-00 00:00:00') {
+            $value = '';
+        }
+        return $value;
     }
 
     /**
@@ -320,6 +334,19 @@ class FormulaFuncService
     }
 
     /**
+     * @param $field
+     * @param null $val1
+     * @param null $val2
+     * @return bool
+     */
+    public static function isEmpty($field, $val1 = null, $val2 = null)
+    {
+        return !self::val($field)
+            ? ($val1 ?: true)
+            : ($val2 ?: false);
+    }
+
+    /**
      * @param $condition
      * @param $if_true
      * @param null $if_false
@@ -327,7 +354,61 @@ class FormulaFuncService
      */
     public static function ifCondition($condition, $if_true, $if_false = null)
     {
-        return !!$condition ? $if_true : $if_false;
+        //convert Duration
+        $string = [];
+        preg_match('/\'(.+)\'|"(.+)"/i', $condition, $string);
+        if (count($string) == 2 || count($string) == 3) {
+            $string[1] = $string[1] ?: $string[2];
+            if (count($string) >= 2 && DurationConvert::isDuration($string[1])) {
+                $string[1] = DurationConvert::duration2second($string[1]);
+                $condition = str_replace($string[0], $string[1], $condition);
+            }
+        }
+
+        //Calc condition
+        $avail_operators = ['==', '!=', '<=', '>=', '<>', '<', '>'];
+        foreach ($avail_operators as $operator) {
+            if (strpos($condition, $operator) !== false) {
+                $arr = explode($operator, $condition);
+                switch ($operator) {
+                    case '<>':
+                    case '!=': $condition = floatval($arr[0]) != floatval($arr[1]); break;
+                    case '<=': $condition = floatval($arr[0]) <= floatval($arr[1]); break;
+                    case '>=': $condition = floatval($arr[0]) >= floatval($arr[1]); break;
+                    case '==': $condition = floatval($arr[0]) == floatval($arr[1]); break;
+                    case '<': $condition = floatval($arr[0]) < floatval($arr[1]); break;
+                    case '>': $condition = floatval($arr[0]) > floatval($arr[1]); break;
+                }
+            }
+        }
+
+        return !!self::val($condition) ? $if_true : $if_false;
+    }
+
+    /**
+     * @param $conditions
+     * @return bool
+     */
+    public static function ifAnd($conditions)
+    {
+        $result = true;
+        foreach ($conditions as $el) {
+            $result = $result && !!self::val($el);
+        }
+        return $result;
+    }
+
+    /**
+     * @param $conditions
+     * @return bool
+     */
+    public static function ifOr($conditions)
+    {
+        $result = false;
+        foreach ($conditions as $el) {
+            $result = $result || !!self::val($el);
+        }
+        return $result;
     }
 
     /**
@@ -376,14 +457,14 @@ class FormulaFuncService
      */
     private static function checkDate($date = null)
     {
-        if (!$date || $date < Carbon::minValue()) {
-            $date = '0001-01-01 00:00:00';
-        }
-        if (!preg_match('/\s\d\d:\d\d:\d\d/i', $date)) {
-            $date .= ' 00:00:00';
-        }
-
         try {
+            if (!$date || $date < Carbon::minValue()) {
+                $date = '0001-01-01 00:00:00';
+            }
+            if (!preg_match('/\s\d\d:\d\d:\d\d/i', $date)) {
+                $date .= ' 00:00:00';
+            }
+
             return new Carbon($date);
         } catch (\Exception $e) {
             return '';

@@ -4,7 +4,7 @@
             <div class="flex flex--col">
                 <div class="popup-header">
                     <span v-if="selectedCol < 0">You should select column</span>
-                    <span v-else="">Link(s) for <span>{{ $root.uniqName(tableMeta._fields[selectedCol].name) }}</span></span>
+                    <span v-else="">Link(s) at Column: <span>{{ $root.uniqName(tableMeta._fields[selectedCol].name) }}</span></span>
                     <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
                 </div>
                 <div class="flex__elem-remain popup-content">
@@ -19,10 +19,9 @@
                                         :settings-meta="settingsMeta"
                                         :all-rows="selectedCol > -1 ? tableMeta._fields[selectedCol]._links : []"
                                         :rows-count="selectedCol > -1 ? tableMeta._fields[selectedCol]._links.length : 0"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :is-full-width="true"
-                                        :fixed_ddl_pos="true"
                                         :adding-row="addingRow"
                                         :user="user"
                                         :behavior="'settings_display_links'"
@@ -47,9 +46,8 @@
                                         :settings-meta="settingsMeta"
                                         :table-row="linkRow"
                                         :user="user"
-                                        :fixed_ddl_pos="true"
-                                        :cell-height="$root.cellHeight"
-                                        :max-cell-rows="$root.maxCellRows"
+                                        :cell-height="1"
+                                        :max-cell-rows="0"
                                         :available-columns="availableLinkColumns"
                                         :widths="{name: '35%', col: '65%', history: 0, no_margins: true}"
                                         @show-add-ref-cond="showAddRefCond"

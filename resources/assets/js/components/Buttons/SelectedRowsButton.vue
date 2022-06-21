@@ -1,31 +1,42 @@
 <template>
-    <div ref="selected_rows" class="table_selected_rows" v-show="hasSelectedRows" title="Actions with selected Rows">
-        <button class="btn btn-primary btn-sm blue-gradient flex flex--center"
-                @click="toggleMenu(!this.menu_opened)"
+    <div ref="selected_rows" class="table_selected_rows flex flex--center-v flex--space" v-show="hasSelectedRows">
+
+        <button title="Operations on selected rows"
+                v-if="tableMeta.user_id === $root.user.id"
+                class="btn btn-primary btn-sm blue-gradient flex flex--center"
+                @click="toggleMenu(!menu_opened)"
                 :style="$root.themeButtonStyle"
         >
             <i class="glyphicon glyphicon-cog"></i>
         </button>
-        <div v-show="menu_opened" class="selected_rows_menu">
 
-            <div class="selected_rows_action" :class="[canAdd ? 'disabled' : '']" @click="canAdd ? copySelectedRows() : ''">
-                <label><i class="glyphicon glyphicon-copy"></i> Copy</label>
-            </div>
-            <!--<div v-if="canDelete" class="selected_rows_action" @click="DeleteSelectedRows">-->
-                <!--<label><i class="glyphicon glyphicon-remove" style="color: #039;"></i> Delete</label>-->
-            <!--</div>-->
-            <div v-if="tableMeta.user_id === $root.user.id" class="selected_rows_action">
-                <label @click="groupingClick()"><i class="glyphicon glyphicon-tasks"></i> Grouping</label>
-                <div v-show="group_menu_opened" class="selected_rows_menu">
-                    <div v-for="(r_gr, idx) in tableMeta._row_groups"
-                         class="selected_rows_action"
-                         @click="addToRowGroup(idx)"
-                    >
-                        <label>{{ r_gr.name }}</label>
-                    </div>
-                </div>
+        <button title="Copy w/ Replacements"
+                class="btn btn-primary btn-sm blue-gradient flex flex--center"
+                :class="[!canAdd ? 'disabled' : '']"
+                @click="canAdd ? copySelectedRows() : ''"
+                :style="$root.themeButtonStyle"
+        >
+            <i class="fa fa-clone"></i>
+        </button>
+
+        <div v-show="menu_opened" class="selected_rows_menu" 
+             title="Operations on selected rows">
+             
+            <div class="selected_rows_action">
+                <label>
+                    <i class="glyphicon glyphicon-tasks"></i>
+                    <a @click.stop="showGroupsPopup('row')">Grouping</a>
+                </label>
             </div>
 
+            <div title="Add to this Row Group"
+                 v-for="(r_gr, idx) in tableMeta._row_groups"
+                 class="selected_rows_action"
+                 @click="addToRowGroup(idx)"
+            >
+                <label>{{ r_gr.name }}</label>
+            </div>
+            <div v-if="!tableMeta._row_groups.length">No row group<br>has been defined.</div>
         </div>
 
         <copy-and-replace-pop-up
@@ -41,7 +52,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     import CanEditMixin from "../_Mixins/CanViewEditMixin.vue";
     import CanViewEditMixin from "../_Mixins/CanViewEditMixin.vue";
@@ -60,7 +71,6 @@
         data: function () {
             return {
                 menu_opened: false,
-                group_menu_opened: false,
                 showCopyPopup: false,
                 //for IsShowFieldMixin
                 behavior: 'list_view',
@@ -83,16 +93,8 @@
             },
         },
         methods: {
-            groupingClick() {
-                if (this.tableMeta._row_groups.length) {
-                    this.group_menu_opened = !this.group_menu_opened;
-                } else {
-                    Swal('No row group has been defined.');
-                }
-            },
             toggleMenu(val) {
                 this.menu_opened = val;
-                this.group_menu_opened = false;
             },
             copySelectedRows() {
                 this.showCopyPopup = true;
@@ -102,15 +104,7 @@
                 /**/
             },
             addToRowGroup(gr_idx) {
-                let rows_ids = [];
-                let all_rows_checked = true;
-                _.each(this.$root.listTableRows, (row) => {
-                    if (row._checked_row) {
-                        rows_ids.push(row.id);
-                    } else {
-                        all_rows_checked = false;
-                    }
-                });
+                let check_obj = this.$root.checkedRowObject(this.$root.listTableRows);
 
                 $.LoadingOverlay('show');
                 axios.put('/ajax/row-group', {
@@ -129,8 +123,8 @@
 
                     axios.post('/ajax/row-group/regular-mass', {
                         table_row_group_id: this.tableMeta._row_groups[gr_idx].id,
-                        rows_ids: (all_rows_checked ? null : rows_ids),
-                        request_params: (all_rows_checked ? request_params : null)
+                        rows_ids: (check_obj.all_checked ? null : check_obj.rows_ids),
+                        request_params: (check_obj.all_checked ? request_params : null)
                     }).then(({ data }) => {
                         this.toggleMenu(false);
                         this.tableMeta._row_groups[gr_idx]._regulars = data;
@@ -170,7 +164,11 @@
                 if (container.has(e.target).length === 0 && this.menu_opened) {
                     this.toggleMenu(false);
                 }
-            }
+            },
+            showGroupsPopup(type, id) {
+                this.menu_opened = false;
+                eventBus.$emit('show-grouping-settings-popup', this.tableMeta.db_name, type, id);
+            },
         },
         created() {
             eventBus.$on('global-click', this.hideMenu);
@@ -183,22 +181,17 @@
 
 <style lang="scss" scoped>
     .table_selected_rows {
-        cursor: pointer;
-        height: 30px;
-        width: 35px;
-        padding: 0;
-        font-size: 22px;
+        width: 75px;
         background-color: transparent;
         position: relative;
-        outline: none;
 
         button {
-            width: 100%;
-            height: 100%;
-            font-size: 0.9em;
+            cursor: pointer;
+            height: 30px;
+            width: 35px;
+            font-size: 22px;
             padding: 0;
-            display: flex;
-            justify-content: center;
+            outline: none;
 
             i {
                 padding: 0 !important;
@@ -229,9 +222,6 @@
         font-size: 16px;
         width: 100%;
         margin-bottom: 0;
-
-        &:hover {
-            color: #222;
-        }
+        color: #222;
     }
 </style>

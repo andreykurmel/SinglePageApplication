@@ -2,17 +2,11 @@
 
 namespace Vanguard\Repositories\Tablda\TableData;
 
-use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Vanguard\Models\DataSetPermissions\TableRowGroup;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
-use Vanguard\Models\User\UserGroup;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Services\Tablda\HelperService;
-use Vanguard\User;
 
 class TableDataFiltersModule
 {
@@ -38,9 +32,9 @@ class TableDataFiltersModule
         $this->query_sql = clone $tdq->getQuery();
         $this->query_sql->distinct();
 
-        if ($tdq->groups_hidden_row_ids) {
+        if ($tdq->hidden_row_groups) {
             $this->rowgroup_sql = (clone $tdq->getQuery())->distinct();
-            $tdq->applyHiddenRowIds($this->rowgroup_sql, $tdq->groups_hidden_row_ids);
+            $tdq->applyHiddenRowGroups($this->rowgroup_sql, $tdq->hidden_row_groups);
         }
 
         $this->service = new HelperService();
@@ -87,41 +81,27 @@ class TableDataFiltersModule
      */
     public function getFilters(array $data)
     {
-        $applied_filters = !empty($data['applied_filters']) ? $this->prepareApplied($data['applied_filters']) : [];
-        $extra_params = [
-            'temp_filters' => array_pluck($data['temp_filters'] ?? [], 'id'),
-            'first_init_view' => $data['first_init_view'] ?? 0,
-            'just_temp' => $data['just_temp'] ?? 0,
-        ];
-
-        $applied_filter_fields = array_pluck($applied_filters, 'field');
+        //Visitor or user in View can activate temp filters.
+        $applied_filter_fields = empty($data['user_id'])
+            ? array_pluck($data['applied_filters'] ?? [], 'field')
+            : [];
 
         //get Table Filters
         $filters = $this->table
             ->_fields
-            ->filter(function ($value, $key) use ($extra_params, $applied_filter_fields) {
-                if ($extra_params['just_temp']) {
-                    return in_array($value['id'], $extra_params['temp_filters']);
-                } else {
-                    return (is_null($value['filter']) && in_array($value['field'], $applied_filter_fields))
-                        || $value['filter'] == 1
-                        || in_array($value['id'], $extra_params['temp_filters']);
-                }
+            ->filter(function ($value, $key) use ($applied_filter_fields) {
+                return $applied_filter_fields
+                    ? in_array($value['field'], $applied_filter_fields)
+                    : $value['filter'] == 1;
             })
             ->values();
 
+        //select only with 'applied_index'
+        $applied_filters = $this->prepareApplied($data['applied_filters'] ?? []);
+        $present_ids = array_pluck($applied_filters, 'id');
+
         if (!count($filters)) {
             return [];
-        }
-
-        //apply temp filter settings
-        if (count($data['temp_filters'] ?? [])) {
-            foreach ($data['temp_filters'] ?? [] as $t_f) {
-                $filter = $filters->where('id', '=', $t_f['id'])->first();
-                if ($filter) {
-                    $filter->filter_type = $t_f['filter_type'] ?? 'value';
-                }
-            }
         }
 
         //fill applied filters
@@ -143,9 +123,10 @@ class TableDataFiltersModule
         //fill not applied filters
         foreach ($filters as $key => $filter) {
             $filter->filter_type = $filter->filter_type ?: 'value';
-            if (!in_array($filter->field, $applied_filter_fields)) {
+            if (!in_array($filter->id, $present_ids)) {
                 if ($filter->filter_type == 'value') {
-                    $filter = $this->getFilterValues($filter, $extra_params);
+                    //Initial view 'Blank' works for Table only if filters are present
+                    $filter = $this->getFilterValues($filter, ['first_init_view' => $data['first_init_view'] ?? 0]);
                 }
                 if ($filter->filter_type == 'range') {
                     $filter = $this->getFilterRanges($filter, []);
@@ -175,7 +156,7 @@ class TableDataFiltersModule
         foreach ($filters as &$elem) {
             if (($elem['filter_type'] ?? 'value') == 'value') {
                 $elem['values'] = array_filter($elem['values'], function ($val) {
-                    return !!$val['checked'];
+                    return !!$val['checked'] ?? '';
                 });
                 $elem['values'] = $this->removeNulls($elem['values']);
             }
@@ -204,8 +185,8 @@ class TableDataFiltersModule
      * Get Applied Filter with type 'value'.
      *
      * @param $filter
-     * @param int $applied_index
      * @param array $checked_values
+     * @param int $applied_index
      * @return mixed
      */
     protected function getAppliedFilterValues($filter, array $checked_values, int $applied_index)
@@ -276,7 +257,7 @@ class TableDataFiltersModule
         $sql->select( $this->tdq->getSqlFld($filter_field) );
         //check max filter elements
         if (!$is_rg_sql && $sql->count( $this->tdq->getSqlFld($filter_field) ) > $this->max_el) {
-            throw new \Exception('The number of elements exceed '.$this->max_el.'. The filter is not displayed.');
+            throw new \Exception('The number of distinctive values exceeds set limit: '.$this->max_el.'. The filter is not displayed. Try applying other filter(s) first and/or use SEARCH.');
         }
         $all_vals = $sql->get()->pluck($filter_field)->toArray();
 
@@ -458,7 +439,7 @@ class TableDataFiltersModule
             $filter_field_sql = $this->tdq->getSqlFld($filter_field_sql);
 
             $sql = clone $this->query_sql;
-            $this->tdq->applyHiddenRowIds($sql, $this->tdq->groups_hidden_row_ids);
+            $this->tdq->applyHiddenRowGroups($sql, $this->tdq->hidden_row_groups);
 
             if (in_array($filter->f_type, ['Date', 'Date Time'])) {
                 $min_val = $sql->select(DB::raw(' MIN(' . $filter_field_sql . ') as mval '))->first();

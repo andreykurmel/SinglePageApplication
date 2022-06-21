@@ -5,6 +5,17 @@ namespace Vanguard\Models\Table;
 use Illuminate\Database\Eloquent\Model;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableSharedName
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property int $user_id
+ * @property string $name
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Vanguard\User $_user
+ * @mixin \Eloquent
+ */
 class TableSharedName extends Model
 {
     protected $table = 'table_shared_names';

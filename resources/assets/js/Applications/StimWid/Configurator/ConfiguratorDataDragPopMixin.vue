@@ -8,6 +8,9 @@
     import {Tech} from "./Tech";
     import {Status} from "./Status";
     import {Sector} from "./Sector";
+    import {MetaTabldaRows} from "../../../classes/MetaTabldaRows";
+
+    import { eventBus } from '../../../app';
 
     export default {
         methods: {
@@ -36,6 +39,7 @@
                 }
                 //Redraw
                 this.redrawAll();
+                this.load2Dfilters();
             },
             setLineBetweenEqpt(line) {
                 let tmp_fr = this.get_eqpt_pos(true, line._from_eqpt, line.from_port_pos, line.from_port_idx);
@@ -184,9 +188,14 @@
                         this.params.clearSel();
                         this.reloadTablda(app_tb); // reload rows in another StimApp tabs
 
-                        should_copy
-                            ? this.load2D(true, should_copy)
-                            : this.redrawAll(); // reload all data
+                        if (should_copy) {
+                            this.load2D(true, should_copy);
+                        } else {
+                            this.redrawAll(); // reload all data
+                            this.$nextTick(() => {
+                                this.load2Dfilters();
+                            });
+                        }
                     });
                 });
             },
@@ -289,6 +298,8 @@
                     if (this.params.add_new) {
                         this.load2D(true); // reload all data
                         //this.params.add_new = false; //disabled - multi adding from LIB is not working
+                    } else {
+                        this.load2Dfilters();
                     }
                     this.reloadTablda(app_tb); // reload rows in another StimApp tabs
                     this.params.clearSel(sel_exclude);
@@ -306,31 +317,45 @@
             },
 
             //load data
-            load2D(no_clear_sel, no_redraw) {
-                this.params.global_draggable = false;
-                this.$nextTick(() => {
-                    this.init_wrap_x = this.$refs.wrap_canvas ? this.$refs.wrap_canvas.clientWidth : 0;
-                    this.init_wrap_y = this.$refs.wrap_canvas ? this.$refs.wrap_canvas.clientHeight - this.params.get_glob_top() : 0;
-                    this.setWrapSize();
-                });
+            load2Dfilters() {
+                this.load2D(true, true, true);
+            },
+            load2D(no_clear_sel, no_redraw, just_filters) {
+                if (!just_filters) {
+                    this.params.global_draggable = false;
+                    this.$nextTick(() => {
+                        this.init_wrap_x = this.$refs.wrap_canvas ? this.$refs.wrap_canvas.clientWidth : 0;
+                        this.init_wrap_y = this.$refs.wrap_canvas ? this.$refs.wrap_canvas.clientHeight - this.params.get_glob_top() : 0;
+                        this.setWrapSize();
+                    });
+                }
 
                 axios.post('?method=load_2d_data', {
                     type: 'configurator',
                     app_table: this.master_table,
                     master_model: this.master_row,
+                    just_filters: !!just_filters,
                 }).then(({data}) => {
-                    this.popup_tables = data.popup_tables;
-                    this.params.applySettings(data.g_settings, no_clear_sel);
 
-                    this.setData(data);
-                    this.setSettings();
+                    if (just_filters) {
+                        this.prepareAndApplyFilters(data.data_filters);
+                    } else {
+                        this.popup_tables = data.popup_tables;
+                        this.params.applySettings(data.g_settings, no_clear_sel);
 
-                    this.checkStatClrs(data.colors_eq);
-                    this.applyCanvColors();
-                    this.changedFilter();
+                        this.setData(data);
+                        this.setSettings();
 
-                    (no_redraw ? null : this.redrawAll()); // redraw canvas
-                    this.params.global_draggable = true;
+                        this.checkStatClrs(data.colors_eq);
+                        this.applyCanvColors();
+
+                        this.prepareAndApplyFilters(data.data_filters);
+
+                        (no_redraw ? null : this.redrawAll()); // redraw canvas
+
+                        this.params.global_draggable = true;
+                    }
+
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
@@ -407,17 +432,12 @@
                 let all_statuses = _.map(this.data_eqpt, 'status');
                 all_statuses = all_statuses.concat( _.map(this.data_conn, 'status') );
 
-                model_colors.push({name: 'null', color: null});
-                let excluded = _.map(_.filter(this.EqptStatuses.colors, {checked: false}), (clr) => {
-                    return clr.key;
-                });
-
                 let res = {};
+                model_colors.push({name: 'null', color: null});
                 _.each(model_colors, (clr) => {
                     res[clr.name] = {
                         key: clr.name,
                         model_val: clr.color,
-                        checked: !in_array(clr.name, excluded),
                         show: in_array(clr.name, all_statuses),
                     };
                 });
@@ -441,18 +461,84 @@
                     }
                 });
             },
+            setFilters(d_filters) {
+                //save currently unchecked options
+                if (this.EqptStatuses.eqpt_filters) {
+                    _.each(d_filters, (filter) => {
+                        let old_filter = _.find(this.EqptStatuses.eqpt_filters, (old) => {
+                            return old.id === filter.id;
+                        });
+                        if (old_filter) {
+                            filter.applied_index = old_filter.applied_index;
+                            _.each(filter.values, (vv) => {
+                                let found = _.find(old_filter.values, {val: vv.val});
+                                vv.checked = Boolean(!found || found.checked);
+                            });
+                        }
+                    });
+                }
+
+                //set filters
+                this.EqptStatuses.eqpt_filters = d_filters;
+
+                //limit options to values of currently loaded model
+                _.each(this.EqptStatuses.eqpt_filters, (filter) => {
+                    let eq_key = this.eqpt_all_rows.convertKey(filter.field);
+                    filter.values = _.filter(filter.values, (vv) => {
+                        return _.find(this.data_eqpt, (eqpt) => {
+                            if (this.$root.isMSEL(filter.input_type)) {
+                                return String(eqpt[eq_key]).indexOf('"' + vv.val + '"') > -1;
+                            } else {
+                                return eqpt[eq_key] == vv.val;
+                            }
+                        });
+                    });
+                });
+            },
+            prepareAndApplyFilters(d_filters) {
+                this.autoloadMetaEqpt(d_filters);
+                this.setFilters(d_filters);
+                this.changedFilter();
+            },
+            autoloadMetaEqpt(d_filters) {
+                if (!this.eqpt_tablda_table && this.popup_tables) {
+                    let eqpt_tb = this.popup_tables.filters_2d;
+
+                    this.eqpt_tablda_table = this.vuex_fm[eqpt_tb].meta;
+                    this.eqpt_tablda_table.loadHeaders();
+                    this.eqpt_all_rows = this.vuex_fm[eqpt_tb].rows;
+
+                    let avail_keys = _.map(this.eqpt_all_rows.maps, (tablda) => { return tablda; });
+                    this.eqpt_avail_filters = _.intersection(avail_keys, this.vuex_links[eqpt_tb].avail_columns_for_app);
+                }
+            },
             changedFilter() {
-                _.each(this.data_eqpt, (eqpt) => {
-                    let clrs = this.EqptStatuses.colors;
-                    eqpt._hidden = eqpt.status
-                        ? !(clrs[eqpt.status] && clrs[eqpt.status].checked)
-                        : false;
+                //show all
+                _.each(this.data_eqpt, (eqpt) => { eqpt._hidden = false; });
+                _.each(this.data_conn, (line) => { line._hidden = false; });
+
+                //hide filtered
+                _.each(this.EqptStatuses.eqpt_filters, (filter) => {
+                    let eq_key = this.eqpt_all_rows.convertKey(filter.field);
+
+                    if (eq_key && filter.values && filter.values.length) {
+                        _.each(this.data_eqpt, (eqpt) => {
+                            let found = null;
+                            if (this.$root.isMSEL(filter.input_type)) {
+                                found = _.find(filter.values, (vv) => {
+                                    return String(eqpt[eq_key]).indexOf('"' + vv.val + '"') > -1;
+                                });
+                            } else {
+                                found = _.find(filter.values, {val: eqpt[eq_key]});
+                            }
+                            eqpt._hidden = eqpt._hidden || (found && !found.checked);
+                        });
+                    }
+
                 });
                 _.each(this.data_conn, (line) => {
-                    let clrs = this.EqptStatuses.colors;
-                    line._hidden = line.status
-                        ? !(clrs[line.status] && clrs[line.status].checked)
-                        : false;
+                    line._hidden = !line._from_eqpt || line._from_eqpt._hidden
+                        || !line._to_eqpt || line._to_eqpt._hidden;
                 });
             },
             reloadFull(ex_app_tb) {
@@ -500,6 +586,7 @@
                 let app_tb = this.popup_tables.eqptlib_2d;
                 eqpt.quickSave(app_tb);
                 this.reloadTablda(app_tb);
+                this.load2Dfilters();
             },
             settStyle() {
                 return {
@@ -586,12 +673,10 @@
                 //
             },
             preUpdate(startHash, tableRow) {
-                let metaRows = new MetaTabldaRows(this.vuex_links[this.popup_app_tb], this.$root.app_stim_uh);
-                eventBus.$emit('quick-update-3d', startHash, metaRows.convertOne(tableRow), 'update');
+                //
             },
             preDelete(startHash, tableRow) {
-                let metaRows = new MetaTabldaRows(this.vuex_links[this.popup_app_tb], this.$root.app_stim_uh);
-                eventBus.$emit('quick-update-3d', startHash, metaRows.convertOne(tableRow), 'del');
+                //
             },
             directInsert(data) {
                 if (data.rows && data.rows.length) {

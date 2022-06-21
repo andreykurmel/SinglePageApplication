@@ -109,6 +109,15 @@ export class SpecialFuncs {
     }
 
     /**
+     *
+     * @param str
+     * @returns {string}
+     */
+    static lowerCase(str) {
+        return String(str).toLowerCase();
+    }
+
+    /**
      * prepareFilters
      * @param initial_filters
      * @param updated_filters
@@ -150,6 +159,21 @@ export class SpecialFuncs {
 
     /**
      *
+     * @param str
+     * @returns {*}
+     */
+    static tryJson(str) {
+        let result = null;
+        try {
+            result = JSON.parse( String(str || '') );
+        } catch (e) {
+            result = null;
+        }
+        return result;
+    }
+
+    /**
+     *
      * @param string
      * @param nohtml
      * @returns {string}
@@ -169,7 +193,7 @@ export class SpecialFuncs {
             return '';
         }
 
-        allowed = allowed ? allowed : '<a><img><span><p><ul><ol><li><b><i><s><sub><sup><u><span><h1><h2><h3><h4><h5><h6>';
+        allowed = allowed ? allowed : '<br><a><img><span><p><ul><ol><li><b><i><s><sub><sup><u><span><h1><h2><h3><h4><h5><h6>';
         // making sure the allowed arg is a string containing only tags in lowercase (<a><b><c>)
         allowed = (((allowed || "") + "").toLowerCase().match(/<[a-z][a-z0-9]*>/g) || []).join('');
 
@@ -183,6 +207,19 @@ export class SpecialFuncs {
 
     /**
      *
+     * @param input
+     * @returns {*}
+     */
+    static strip_danger_tags(input) {
+        if (!input) {
+            return '';
+        }
+        let dangerTags = /<!--[\s\S]*?-->|<\?(?:php)?[\s\S]*?\?>|<\/?script\b[^>]*>/gi;
+        return String(input).replace(dangerTags, '');
+    }
+
+    /**
+     *
      * @param tableRow
      * @param field
      * @param val
@@ -191,24 +228,6 @@ export class SpecialFuncs {
     static rcObj(tableRow, field, val) {
         let obj = tableRow['_rc_' + field] || {};
         return val ? (obj[val] || obj[to_float(val)] || {}) : obj;
-    }
-
-    /**
-     *
-     * @param background
-     * @returns {*}
-     */
-    static textColorOnBg(background) {
-        let bgclr = String(background) && String(background)[0] === '#' && String(background).length === 7 ? String(background) : '#FFFFFF';
-        let r = parseInt(bgclr.substr(1, 2), 16);
-        let g = parseInt(bgclr.substr(3, 2), 16);
-        let b = parseInt(bgclr.substr(5, 2), 16);
-        let dark = (r < 128 ? 1 : 0) + (g < 128 ? 1 : 0) + (b < 128 ? 1 : 0);
-        if (dark >= 2) {
-            return '#ffffff';
-        } else {
-            return '#222222';
-        }
     }
 
     /**
@@ -228,6 +247,32 @@ export class SpecialFuncs {
         objectForAdd._temp_id = uuidv4();
         objectForAdd.row_hash = uuidv4();
         return objectForAdd;
+    }
+
+    /**
+     *
+     * @param {object} metaTable
+     * @param {object} tableRow
+     * @returns {boolean}
+     */
+    static managerOfRow(metaTable, tableRow) {
+        let ugroups = metaTable._current_right ? (metaTable._current_right._manager_of_ugroups || []) : [];
+        if (ugroups && ugroups.length) {
+            let found = false;
+            _.each(metaTable._fields, (header) => {
+                if (header.f_type === 'User' && tableRow[header.field]) {
+                    let single = ugroups.indexOf(tableRow[header.field]) > -1;
+                    let multiple = false;
+                    _.each(ugroups, (ug) => {
+                        multiple = multiple || String(tableRow[header.field]).indexOf('"'+ug+'"') > -1;
+                    });
+                    found = found || single || multiple;
+                }
+            });
+            return found;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -283,21 +328,31 @@ export class SpecialFuncs {
     static showhtml(tableHeader, tableRow, htmlValue, unitConv) {
         let val = '';
         let ddl = this.rcObj(tableRow, tableHeader.field, '_is_ddlid');
-        let sobj = this.rcObj(tableRow, tableHeader.field, htmlValue);
+
         if (Object.keys(ddl).length) {
-            val = sobj.show_val !== 'null' ? sobj.show_val || htmlValue : '';
+            ddl = this.rcObj(tableRow, tableHeader.field, htmlValue);
+            val = ddl.show_val !== 'null' ? ddl.show_val || htmlValue : '';
             val = unitConv ? UnitConversion.doConv(tableHeader, val, false) : val;
         } else {
             val = htmlValue;
         }
-        val = this.format(tableHeader, val);
+
+        //show zeros for input types
+        if (tableRow._is_def_cell) {
+            val = to_standard_val(val);
+        } else {
+            val = to_standard_val(val) || (tableHeader.show_zeros ? '0' : '');
+        }
+
+        //format value
+        val = this.format(tableHeader, val, tableRow.__no_html);
+
         //for DDL is/val on 'currency'
         if (tableHeader.f_type == 'Currency' && val) {
             val = this.currencySign(tableHeader, val, unitConv);
         }
-        //show zeros for input types
-        val = tableHeader.show_zeros ? (String(val) || '0') : (val || '');
-        return this.strip_tags(val);
+
+        return this.strip_tags( String(val) );
     }
 
     /**
@@ -336,15 +391,21 @@ export class SpecialFuncs {
         let variants = {wk: 604800, w: 604800, d: 86400, h: 3600, m: 60, s: 1};
         let result = 0;
         let parts = String(string).replace(/<[^>]*>/gi, ''); //remove tags
+
+        //change fractions: 3/5 => 0.6
+        parts = String(parts).replaceAll(/([\.\d]+)\/([\.\d]+)/gi, (string, first, second) => {
+            return Number(first / second);
+        });
+
         let minus = String(parts).indexOf('-') > -1;
 
-        parts = parts.replace(/[^\dwkdhms]/gi, '') //remove not available symbols
+        parts = parts.replace(/[^\.\dwkdhms]/gi, '') //remove not available symbols
             .replace(/(wk|d|h|m|s|w)/gi, '$1,') //prepare for splitting
             .split(',');
 
         _.each(parts, (el) => {
             let val = to_float(_.trim(el));
-            let key = _.trim(el).replace(/[\d-]/gi, '').toLowerCase();
+            let key = _.trim(el).replace(/[^wkdhms]/gi, '').toLowerCase();
             result += to_float(val) * to_float(variants[key]);
         });
         return minus ? -result : +result;
@@ -356,20 +417,17 @@ export class SpecialFuncs {
      * @returns {*}
      */
     static nl2br(str) {
-        if (str) {
-            return String(str).replace(/([^>])\n/g, '$1<br/>');
-        } else {
-            return '';
-        }
+        return String(str).replace(/([^>])\n/g, '$1<br/>');
     }
 
     /**
      *
      * @param tableHeader
      * @param value
+     * @param no_html
      * @returns {*}
      */
-    static format(tableHeader, value) {
+    static format(tableHeader, value, no_html) {
 
         //remove '0000-00-00'
         if (value === '0000-00-00' || value === '0000-00-00 00:00:00') {
@@ -377,7 +435,7 @@ export class SpecialFuncs {
         }
 
         //remove extra numbers
-        if (value) {
+        if (isValue(value)) {
 
             //DECIMALS
             if (['Decimal', 'Currency', 'Percentage', 'Progress Bar'].indexOf(tableHeader.f_type) > -1) {
@@ -394,13 +452,10 @@ export class SpecialFuncs {
                             value = Number(value).toFixed(decim);
                             break;
                         case 'comma':
-                            value = Number(value).toLocaleString();
+                            value = Number( Number(value).toFixed(decim) ).toLocaleString();
                             break;
-                        case 'percent':
-                            value = Number(value).toFixed(decim) + '%';
-                            break;
-                        case 'exp':
-                            value = Number(value).toPrecision(decim);
+                        case 'scientific':
+                            value = this._get_scient_val(value, decim);
                             break;
                     }
 
@@ -422,7 +477,8 @@ export class SpecialFuncs {
 
             }
             if (tableHeader.f_type === 'Percentage') {
-                value = (String(value).charAt(value.length) !== '%' ? value + '%' : value);
+                let l = String(value).length;
+                value = (String(value).charAt(l) !== '%' ? value + '%' : value);
             }
 
             //DATE
@@ -461,13 +517,12 @@ export class SpecialFuncs {
             }
             //TIME
             if (['Time'].indexOf(tableHeader.f_type) > -1) {
-                value = moment().format('Y-M-D') + ' ' + (isNaN(value) ? value : '');
-                value = this.timeToLocal(value, window.vueRootApp.user.timezone);
+                value = this.timeToLocal(value, window.vueRootApp.user.timezone, 'HH:mm:ss');
             }
 
             //DURATION
             if (tableHeader.f_type === 'Duration') {
-                value = this.second2duration(value, tableHeader);
+                value = this.second2duration(value, tableHeader, no_html);
             }
 
             //STRING
@@ -486,6 +541,28 @@ export class SpecialFuncs {
 
     /**
      *
+     * @param val
+     * @param precis
+     * @returns {string}
+     * @private
+     */
+    static _get_scient_val(val, precis) {
+        if (-1 < val && val < 1) {
+            let len = String(val).replace('-', '').length - 2;
+            let vl = Number( Math.pow(10, len) * val ).toPrecision(precis+1);
+            return vl.replace(/\+/gi, '-');
+        } else {
+            if (Number(val).toPrecision(precis).match(/e/gi)) {
+                return Number(val).toPrecision(precis+1);
+            } else {
+                let add = String(val).indexOf('.');
+                return Number(val).toPrecision(precis+add);
+            }
+        }
+    }
+
+    /**
+     *
      * @param tableHeader
      * @param value
      * @param no_convert
@@ -493,7 +570,7 @@ export class SpecialFuncs {
      */
     static getEditValue(tableHeader, value, no_convert) {
         //activated MultiSelect
-        if (this.isMSEL(tableHeader.input_type)) {
+        if (this.isMSELorArray(tableHeader.input_type)) {
             return this.parseMsel(value);
         }
 
@@ -523,7 +600,7 @@ export class SpecialFuncs {
             value = this.convertToUTC(value, window.vueRootApp.user.timezone, tableHeader.f_type);
         }
         if (['Time'].indexOf(tableHeader.f_type) > -1 && value) {
-            value = this.timeToUTC(value, window.vueRootApp.user.timezone);
+            value = this.timeToUTC(value, window.vueRootApp.user.timezone, 'HH:mm:ss');
         }
 
         //Activated MultiSelect
@@ -542,13 +619,9 @@ export class SpecialFuncs {
      *
      * @param datetime
      * @param roundup
-     * @returns {*}
      */
     static dateTimeasDate(datetime, roundup) {
-        let date = _.first( _.trim(datetime).split(' ') );
-        return roundup
-            ? moment(date).add(1,'day').format( this.dateFormat() )
-            : date;
+        return moment(datetime).add(roundup || 0, 'day').format( this.dateFormat() );
     }
 
     /**
@@ -587,26 +660,30 @@ export class SpecialFuncs {
      *
      * @param time
      * @param timezone
+     * @param format
      * @returns {string}
      */
-    static timeToLocal(time, timezone) {
+    static timeToLocal(time, timezone, format) {
+        format = format || 'HH:mm';
         let date_str = moment().format('YYYY-MM-DD')+' '+time;
         let testDateUtc = moment.utc(date_str);
         let localDate = (timezone ? testDateUtc.tz(timezone) : testDateUtc);
-        return localDate.isValid() ? localDate.format('HH:mm') : '';
+        return localDate.isValid() ? localDate.format(format) : '';
     }
 
     /**
      *
      * @param time
      * @param timezone
+     * @param format
      * @returns {string}
      */
-    static timeToUTC(time, timezone) {
+    static timeToUTC(time, timezone, format) {
+        format = format || 'HH:mm';
         let date_str = moment().format('YYYY-MM-DD')+' '+time;
         let localDate = (timezone ? moment.tz(date_str, timezone) : moment.utc(date_str));
         let testDateUtc = localDate.utc();
-        return testDateUtc.isValid() ? testDateUtc.format('HH:mm') : '';
+        return testDateUtc.isValid() ? testDateUtc.format(format) : '';
     }
 
 
@@ -638,6 +715,15 @@ export class SpecialFuncs {
      */
     static isMSEL(input_type) {
         return ['M-Select','M-Search','M-SS'].indexOf(input_type) > -1;
+    }
+
+    /**
+     *
+     * @param input_type
+     * @returns {boolean}
+     */
+    static isMSELorArray(input_type) {
+        return ['M-Select','M-Search','M-SS','Mirror'].indexOf(input_type) > -1;
     }
 
     /**
@@ -702,19 +788,88 @@ export class SpecialFuncs {
      * @param table_id
      * @param ref_cond_id
      * @param for_list_view
-     * @returns {{table_id: *, ref_cond_id: *, user_id: null, special_params: {view_hash: *, edited_view_hash: *, is_folder_view: *, for_list_view: boolean}}}
+     * @returns {{user_id: (*|null), ref_cond_id: *, table_id: *, special_params: {_user_id: null, view_hash: string, edited_view_hash: (*|string), is_folder_view: (*|string), dcr_hash: (*|string), for_list_view: boolean}}}
      */
     static tableMetaRequest(table_id, ref_cond_id, for_list_view) {
         return {
             table_id: table_id,
             ref_cond_id: ref_cond_id,
             user_id: !window.vueRootApp.user.see_view ? window.vueRootApp.user.id : null,
-            special_params: {
-                view_hash: window.vueRootApp.user.view_hash,
-                edited_view_hash: window.vueRootApp.user.selected_view,
-                is_folder_view: window.vueRootApp.user._is_folder_view,
-                for_list_view: !!for_list_view,
-            },
+            special_params: this.specialParams(for_list_view),
         };
+    }
+
+    /**
+     *
+     * @param for_list_view
+     * @param dcr_linked_id
+     * @returns {{view_hash: (*|string), dcr_linked_id, dcr_hash: string, _user_id: (*|null), is_folder_view: (*|string), for_list_view: boolean}}
+     */
+    static specialParams(for_list_view, dcr_linked_id) {
+        return {
+            _user_id: !window.vueRootApp.user.see_view ? window.vueRootApp.user.id : null,
+            view_hash: window.vueRootApp.user.view_hash || '',
+            is_folder_view: window.vueRootApp.user._is_folder_view || '',
+            dcr_hash: window.vueRootApp.user._dcr_hash || '',
+            dcr_uid: window.vueRootApp.user._dcr_uid || '',
+            for_list_view: !!for_list_view,
+            dcr_linked_id: dcr_linked_id,
+        };
+    }
+
+    /**
+     *
+     * @param tableMeta
+     * @returns {Array}
+     */
+    static forbiddenCustomizables(tableMeta) {
+        let forbid = [];
+        if (tableMeta._current_right) {
+            _.each(tableMeta._current_right.forbidden_col_settings, (db_name) => {
+                forbid.push(db_name);
+            });
+        }
+        return forbid;
+    }
+
+    /**
+     *
+     * @param obj
+     */
+    static clearObject(obj) {
+        _.each(obj, (val,key) => {
+            if (key[0] === '_') {
+                obj[key] = [];
+            } else {
+                obj[key] = '';
+            }
+        });
+    }
+
+    /**
+     *
+     * @param background
+     * @returns {string}
+     */
+    static smartTextColorOnBg(background) {
+        // http://www.w3.org/TR/AERT#color-contrast
+        let bgclr = String(background) && String(background)[0] === '#' && String(background).length === 7 ? String(background) : '#FFFFFF';
+        let r = parseInt(bgclr.substr(1, 2), 16);
+        let g = parseInt(bgclr.substr(3, 2), 16);
+        let b = parseInt(bgclr.substr(5, 2), 16);
+        const brightness = Math.round(((parseInt(r) * 299) +
+            (parseInt(g) * 587) +
+            (parseInt(b) * 114)) / 1000);
+        return (brightness > 125) ? 'black' : 'white';
+    }
+
+    /**
+     *
+     * @param name
+     * @returns {string}
+     */
+    static safeTableName(name)
+    {
+        return String(name || '').replace(/[^\w\d\(\)\-\.,_ ]/gi, '');
     }
 }

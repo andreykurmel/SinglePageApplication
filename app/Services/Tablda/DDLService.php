@@ -4,11 +4,14 @@
 namespace Vanguard\Services\Tablda;
 
 
+use Exception;
+use Illuminate\Support\Collection;
 use Vanguard\Models\DDL;
-use Vanguard\Models\DDLItem;
 use Vanguard\Models\DDLReference;
+use Vanguard\Models\DDLReferenceColor;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
+use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
@@ -33,35 +36,27 @@ class DDLService
     }
 
     /**
-     * Get DDL.
-     *
-     * @param $ddl_id
-     * @return mixed
+     * @param int $ddl_id
+     * @return DDL
      */
-    public function getDDL($ddl_id) {
+    public function getDDL(int $ddl_id): DDL
+    {
         return $this->DDLRepository->getDDL($ddl_id);
     }
 
     /**
      * @param Table $table
-     * @param int $ddl_id
-     * @return mixed
+     * @param string $ddl_name
+     * @param array $item_values
+     * @return DDL
      */
-    public function tableDDL(Table $table, int $ddl_id) {
-        return $table->_ddls()
-            ->where('id', $ddl_id)
-            ->first();
-    }
-
-    /**
-     * @param Table $table
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
-    public function returnDDLS(Table $table)
+    public function createDDLwithItems(Table $table, string $ddl_name, array $item_values): DDL
     {
-        return $table->_ddls()
-            ->with('_items', '_references')
-            ->get();
+        $ddl = $this->DDLRepository->addDDL(['table_id' => $table->id, 'name' => $ddl_name]);
+        foreach ($item_values as $item_value) {
+            $this->DDLRepository->addDDLItem(['ddl_id' => $ddl->id, 'option' => $item_value]);
+        }
+        return $ddl;
     }
 
     /**
@@ -75,19 +70,30 @@ class DDLService
      *  +type: string,
      *  -notes: string,
      * ]
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function addDDL(Table $table, $data)
     {
-        $this->DDLRepository->addDDL( array_merge($data, ['table_id' => $table->id]) );
+        $this->DDLRepository->addDDL(array_merge($data, ['table_id' => $table->id]));
         return $this->returnDDLS($table);
+    }
+
+    /**
+     * @param Table $table
+     * @return Collection
+     */
+    public function returnDDLS(Table $table)
+    {
+        return $table->_ddls()
+            ->with('_items', '_references')
+            ->get();
     }
 
     /**
      * @param Table $table
      * @param $ddl_id
      * @param $data
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function updateDDL(Table $table, $ddl_id, $data)
     {
@@ -98,8 +104,20 @@ class DDLService
 
     /**
      * @param Table $table
+     * @param int $ddl_id
+     * @return mixed
+     */
+    public function tableDDL(Table $table, int $ddl_id)
+    {
+        return $table->_ddls()
+            ->where('id', $ddl_id)
+            ->first();
+    }
+
+    /**
+     * @param Table $table
      * @param $ddl_id
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function deleteDDL(Table $table, $ddl_id)
     {
@@ -118,7 +136,7 @@ class DDLService
     public function fillDDL(Table $table, $table_field_id, $ddl_id)
     {
         $field = $this->fieldRepository->getField($table_field_id);
-        $values = $this->tableDataService->getFieldValues($table, $field, $field->field);
+        $values = $this->tableDataService->distinctiveFieldValues($table, $field);
         return $this->DDLRepository->fillDDL($ddl_id, $values);
     }
 
@@ -140,29 +158,9 @@ class DDLService
 
     /**
      * @param DDL $ddl
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
-    protected function returnDDLitems(DDL $ddl)
-    {
-        return $ddl->_items()->get();
-    }
-
-    /**
-     * @param DDL $ddl
-     * @param $data
-     * @return \Illuminate\Database\Eloquent\Collection
-     */
-    public function addDDLItem(DDL $ddl, $data)
-    {
-        $this->DDLRepository->addDDLItem( array_merge($data, ['ddl_id' => $ddl->id]) );
-        return $this->returnDDLitems($ddl);
-    }
-
-    /**
-     * @param DDL $ddl
      * @param $ddl_item_id
      * @param $data
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function updateDDLItem(DDL $ddl, $ddl_item_id, $data)
     {
@@ -172,8 +170,17 @@ class DDLService
 
     /**
      * @param DDL $ddl
+     * @return Collection
+     */
+    protected function returnDDLitems(DDL $ddl)
+    {
+        return $ddl->_items()->get();
+    }
+
+    /**
+     * @param DDL $ddl
      * @param $ddl_item_id
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function deleteDDLItem(DDL $ddl, $ddl_item_id)
     {
@@ -183,29 +190,31 @@ class DDLService
 
     /**
      * @param DDL $ddl
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @param $data
+     * @return Collection
      */
-    protected function returnDDLref(DDL $ddl)
+    public function addDDLReference(DDL $ddl, $data)
     {
-        return $ddl->_references()->get();
+        $this->DDLRepository->addDDLReference(array_merge($data, ['ddl_id' => $ddl->id]));
+        return $this->returnDDLref($ddl);
     }
 
     /**
      * @param DDL $ddl
-     * @param $data
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
-    public function addDDLReference(DDL $ddl, $data)
+    protected function returnDDLref(DDL $ddl)
     {
-        $this->DDLRepository->addDDLReference( array_merge($data, ['ddl_id' => $ddl->id]) );
-        return $this->returnDDLref($ddl);
+        return $ddl->_references()
+            ->with('_reference_colors')
+            ->get();
     }
 
     /**
      * @param DDL $ddl
      * @param $ddl_reference_id
      * @param $data
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function updateDDLReference(DDL $ddl, $ddl_reference_id, $data)
     {
@@ -216,7 +225,7 @@ class DDLService
     /**
      * @param DDL $ddl
      * @param $ddl_reference_id
-     * @return \Illuminate\Database\Eloquent\Collection
+     * @return Collection
      */
     public function deleteDDLReference(DDL $ddl, $ddl_reference_id)
     {
@@ -234,16 +243,27 @@ class DDLService
      */
     public function newRegularOption(DDL $ddl, $val, array $extra_options)
     {
-        $user = auth()->user();
+        $user = auth()->user() ?: new User();
         $ddl->load('_table');
         $table = $ddl->_table ?? new Table();
 
         if ($user->can('insert', [TableData::class, $table])) {
-            $this->addDDLItem( $ddl, array_merge($extra_options, ['option' => $val]) );
+            $this->addDDLItem($ddl, array_merge($extra_options, ['option' => $val]));
             return ['err' => '', 'val' => $val];
         } else {
             return ['err' => 'error', 'val' => ''];
         }
+    }
+
+    /**
+     * @param DDL $ddl
+     * @param $data
+     * @return Collection
+     */
+    public function addDDLItem(DDL $ddl, $data)
+    {
+        $this->DDLRepository->addDDLItem(array_merge($data, ['ddl_id' => $ddl->id]));
+        return $this->returnDDLitems($ddl);
     }
 
     /**
@@ -257,12 +277,12 @@ class DDLService
      */
     public function newReferencingOption(DDL $ddl, $val, $ddl_ref_id, array $fields)
     {
-        $user = auth()->user();
+        $user = auth()->user() ?: new User();
 
         $ddl_reference = $ddl->_references()
             ->where('id', $ddl_ref_id)
             ->with([
-                '_ref_condition' => function($r) {
+                '_ref_condition' => function ($r) {
                     $r->with('_ref_table');
                 },
                 '_target_field',
@@ -285,5 +305,92 @@ class DDLService
         } else {
             return ['err' => 'error', 'val' => ''];
         }
+    }
+
+    /**
+     * @param int $id
+     * @return DDLReference
+     */
+    public function getDdlRef(int $id): DDLReference
+    {
+        return $this->DDLRepository->getDdlRef($id);
+    }
+
+    /**
+     * @param $ddl_id
+     * @return DDLReferenceColor
+     */
+    public function getDdlRefColor($ddl_id): DDLReferenceColor
+    {
+        return $this->DDLRepository->getDdlRefColor($ddl_id);
+    }
+
+    /**
+     * @param int $ddl_ref_id
+     * @param array $data
+     * @return Collection
+     */
+    public function addDDLReferenceColor(int $ddl_ref_id, array $data): Collection
+    {
+        $this->DDLRepository->addDDLReferenceColor($ddl_ref_id, $data);
+        return $this->DDLRepository->allRefColors($ddl_ref_id);
+    }
+
+    /**
+     * @param int $ref_color_id
+     * @param array $data
+     * @return DDLReferenceColor
+     */
+    public function updateDDLReferenceColor(int $ref_color_id, array $data): DDLReferenceColor
+    {
+        return $this->DDLRepository->updateDDLReferenceColor($ref_color_id, $data);
+    }
+
+    /**
+     * @param int $ddl_ref_id
+     * @param int $ref_color_id
+     * @return Collection
+     * @throws Exception
+     */
+    public function deleteDDLReferenceColor(int $ddl_ref_id, int $ref_color_id): Collection
+    {
+        $this->DDLRepository->deleteDDLReferenceColor($ref_color_id);
+        return $this->DDLRepository->allRefColors($ddl_ref_id);
+    }
+
+    /**
+     * @param DDL $ddl
+     * @param DDLReference $reference
+     * @param string $behavior
+     * @return Collection
+     * @throws Exception
+     */
+    public function createAndLoadRefColors(DDL $ddl, DDLReference $reference, string $behavior = 'create'): Collection
+    {
+        if ($behavior != 'create') {
+            $this->DDLRepository->removeAllRefColors($reference);
+            $colors = collect([]);
+        } else {
+            $colors = $this->DDLRepository->allRefColors($reference->id);
+        }
+
+        if (!$colors->count()) {
+            $fill = $behavior == 'fill' ? 'auto' : '';
+            $this->createRefColors($ddl, $reference, $fill);
+            $colors = $this->DDLRepository->allRefColors($reference->id);
+        }
+        return $colors;
+    }
+
+    /**
+     * @param DDL $ddl
+     * @param DDLReference $reference
+     * @param string $color
+     */
+    protected function createRefColors(DDL $ddl, DDLReference $reference, string $color = ''): void
+    {
+        $values = $this->tableDataService->getRowsFromDdlReference($ddl, $reference, [], '', 100);
+        $values = array_pluck($values, 'show');
+        $this->DDLRepository->massInsertRefColors($reference, $values, $color);
     }
 }

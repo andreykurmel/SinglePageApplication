@@ -16,8 +16,8 @@ use Vanguard\Models\Table\TableField;
 use Vanguard\Models\User\Plan;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserSubscription;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\FolderRepository;
-use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
@@ -28,8 +28,7 @@ class TableDataQuery
 {
     public $filters = [];
     public $row_group_statuses = [];
-    public $groups_hidden_row_ids = [];
-    public $table_permission_id = null;
+    public $hidden_row_groups = [];
 
     /**
      * @var HelperService
@@ -215,6 +214,14 @@ class TableDataQuery
     }
 
     /**
+     *
+     */
+    public function noSysRules()
+    {
+        $this->isAppliedSysRules = true;
+    }
+
+    /**
      * Apply special select rules for System Tables.
      */
     protected function applySystemRules()
@@ -295,14 +302,51 @@ class TableDataQuery
      *
      * @param TableRefCondition $ref_condition
      * @param array $row
-     * @param bool $apply_permis
+     * @param bool|int $apply_permis
      */
     public function applyRefConditionRow(TableRefCondition $ref_condition, array $row = [], $apply_permis = true)
     {
         $this->applyRefConditionToQuery($this->query, $ref_condition, $row ?: null);
         if ($apply_permis) {
-            $this->applyRowRightsForUser(auth()->id());
+            $this->applyRowRightsForUser(is_bool($apply_permis) ? auth()->id() : $apply_permis);
         }
+    }
+
+    /**
+     * TableDataQuery should be created for RefTable!
+     *
+     * @param TableRefCondition $ref_condition
+     * @param array $subquery_data
+     */
+    public function getRowsForRefCondition(TableRefCondition $ref_condition, array $subquery_data = [])
+    {
+        $ref_condition->__reverse = $subquery_data ?: true;
+        $applier = new RefConditionApplier($ref_condition);
+        $applier->applyToQuery($this->query);
+        $this->applyRowRightsForUser(auth()->id());
+    }
+
+    /**
+     * @param TableRefCondition $ref_condition
+     * @param array $watchrow
+     */
+    public function getAffectedRows(TableRefCondition $ref_condition, array $watchrow = [])
+    {
+        $ref_condition->__reverse = true;
+        $applier = new RefConditionApplier($ref_condition);
+        $applier->applyToQuery($this->query, $watchrow);
+    }
+
+    /**
+     * TableDataQuery should be created for RefTable!
+     *
+     * @param TableRefCondition $ref_condition
+     * @param string $type
+     */
+    public function joinRefCondition(TableRefCondition $ref_condition, string $type = 'join')
+    {
+        $applier = new RefConditionApplier($ref_condition);
+        $applier->joinToQuery($this->query, $type);
     }
 
     /**
@@ -323,20 +367,13 @@ class TableDataQuery
      */
     protected function applyRowRightsForUser($user_id, array $special_params = [])
     {
-        //if Owner is editing the 'View' -> apply permission rows
-        if (!empty($special_params['edited_view_hash'])) {
-            $special_params['view_object'] = (new TableViewRepository())->getByHash($special_params['edited_view_hash']);
-        }
+        $permis = TableRights::permissions($this->table);
 
-        if (!empty($special_params['view_object'])) {
-            $this->table_permission_id = ($special_params['view_object'])->access_permission_id;//Only for VIEW module
-        } else {
-            $this->table_permission_id = $special_params['table_permission_id'] ?? null;//Only for DCR module
-        }
-
-        if ($this->table->user_id != $user_id || $this->table_permission_id) {
+        if (!$permis->is_owner) {
             $row_group_edit = $special_params['row_group_edit'] ?? null;
-            $row_groups = $this->getAvailableRowGroups($this->table_permission_id, $row_group_edit);
+            $avail_ids = $row_group_edit ? $permis->edit_row_groups : $permis->view_row_groups;
+            $row_groups = (new TableRowGroupRepository())->getAvailableRowGroups($avail_ids->toArray());
+
             $row_group_edit_apply = $special_params['row_group_edit_apply'] ?? null;
             if ($row_group_edit_apply && !$row_groups->count()) {
                 //if NONE edit RowGroups
@@ -347,25 +384,6 @@ class TableDataQuery
 
             $this->forSystemTableUserCanGetSpecialRows($user_id);
         }
-    }
-
-    /**
-     * Get Available Row Groups.
-     *
-     * @param null $table_permission_id
-     * @param null $row_group_edit
-     * @return mixed
-     */
-    protected function getAvailableRowGroups($table_permission_id = null, $row_group_edit = null)
-    {
-        $row_groups = (new TableRowGroupRepository())->getAvailableRowGroups($this->table->id, $table_permission_id, $row_group_edit);
-        $row_groups->load([
-            '_ref_condition' => function ($q) {
-                $q->with('_items');
-            },
-            '_regulars'
-        ]);
-        return $row_groups;
     }
 
     /**
@@ -386,22 +404,29 @@ class TableDataQuery
                 '_regulars'
             ]);
 
-            $query->where(function ($right_q) use ($row_groups, $and) {
+            $query->where(function (Builder $right_q) use ($row_groups, $and) {
 
                 foreach ($row_groups as $r_group) {
                     $method = $and ? 'where' : 'orWhere';
-                    $right_q->{$method}(function ($cond_query) use ($r_group) {
+                    $right_q->{$method}(function (Builder $cond_query) use ($r_group) {
+                        $applied = false;
 
                         //Referencing Conditions
                         if ($r_group->_ref_condition && $r_group->_ref_condition->ref_table_id) {
-                            $this->applyRefConditionToQuery($cond_query, $r_group->_ref_condition);
+                            $applied = true;
+                            $this->applyRefConditionToQuery($cond_query, $r_group->_ref_condition, null);
                         }
                         //Regular Items
                         if ($r_group->_regulars) {
                             $allowed_vals = $r_group->_regulars->pluck('field_value')->toArray();
                             if ($allowed_vals) {
+                                $applied = true;
                                 $cond_query->orWhereIn($this->getSqlFld('id'), $allowed_vals);
                             }
+                        }
+
+                        if (!$applied) {
+                            $cond_query->whereRaw('true');
                         }
 
                     });
@@ -476,8 +501,6 @@ class TableDataQuery
 
         $view_data['applied_filters'] = $data['applied_filters'] ?? [];
 
-        $view_data['temp_filters'] = $data['temp_filters'] ?? [];
-
         return $view_data;
     }
 
@@ -501,7 +524,7 @@ class TableDataQuery
         ]);
 
         //If user isn`t 'admin' then they can see only part of table rows.
-        if (empty($data['force_execute'])) {
+        if (empty($data['force_execute']) && empty($special_params['force_execute'])) {
             $this->applyRowRightsForUser($user_id, $special_params);
         }
 
@@ -509,12 +532,13 @@ class TableDataQuery
         $this->applySearch($data);
 
         //Get rows ids hidden by RowGroups
-        $this->groups_hidden_row_ids = $this->ifToggledRowGroup($data['hidden_row_ids'] ?? [], $data);
+        $this->hidden_row_groups = $this->ifToggledRowGroup($data['hidden_row_groups'] ?? [], $data);
 
 
         //GET FILTERS VALUES BEFORE OTHER 'WHERES'
         if (!empty($special_params['for_list_view'])) {
             $this->filters = (new TableDataFiltersModule($this))->getFilters($data);
+            $data['applied_filters'] = $this->filters;
         }
 
         //GET ROW GROUPS STATUSES BEFORE OTHER 'WHERES'
@@ -523,9 +547,13 @@ class TableDataQuery
         }
 
 
-        //Initial view for Table is 'Blank'
-        if (!empty($data['first_init_view']) && $data['first_init_view'] == -2) {
-            $this->query->whereRaw('false');
+        //Initial view for Table is 'Blank' (if present filters and none applied)
+        if (empty($data['force_execute']) && empty($special_params['force_execute'])) {
+            $f_present = collect($this->filters)->where('applied_index', '=', 0)->count();
+            $no_applied = !collect($this->filters)->where('applied_index', '>', 0)->count();
+            if (($data['first_init_view'] ?? 0) == -2 && $f_present && $no_applied) {
+                $this->query->whereRaw('false');
+            }
         }
 
         //Get only one (or selected) row(s)
@@ -537,9 +565,6 @@ class TableDataQuery
             }
         }
 
-        //Apply special 'Wheres' from other modules.
-        $this->applyNotListViewWheres($data, $user_id, $special_params);
-
         //Apply special select rules for System Tables.
         $this->applySystemRules();
 
@@ -547,7 +572,7 @@ class TableDataQuery
         $this->applyFilters($this->query, $data);
 
         //Apply rows hidden by RowGroups
-        $this->applyHiddenRowIds($this->query, $this->groups_hidden_row_ids);
+        $this->applyHiddenRowGroups($this->query, $this->hidden_row_groups);
 
         if (!empty($data['only_favorites'])) {
             $this->getOnlyFavoriteRows($user_id);
@@ -596,25 +621,7 @@ class TableDataQuery
             });
         }
 
-        //get rows which are found by 'radius search'
-        if (!empty($data['radius_search'])) {
-            $distance_str = '6371*acos(';
-            $distance_str .= ' ( ';
-            $distance_str .= 'cos(' . $data['radius_search']['center_lat'] . '*PI()/180)';//Lat_A
-            $distance_str .= '*';
-            $distance_str .= 'cos(' . $data['radius_search']['field_lat'] . '*PI()/180)';//Lat_B
-            $distance_str .= '*';
-            $distance_str .= 'cos(' . $data['radius_search']['field_long'] . '*PI()/180 - ' . $data['radius_search']['center_long'] . '*PI()/180)';//Long_B - Long_A
-            $distance_str .= ' ) ';
-            $distance_str .= '+';
-            $distance_str .= ' ( ';
-            $distance_str .= 'sin(' . $data['radius_search']['center_lat'] . '*PI()/180)';//Lat_A
-            $distance_str .= '*';
-            $distance_str .= 'sin(' . $data['radius_search']['field_lat'] . '*PI()/180)';//Lat_B
-            $distance_str .= ' ) ';
-            $distance_str .= ')';
-            $this->query->whereRaw(DB::raw($distance_str . ' < ' . $data['radius_search']['km']));
-        }
+        $this->radiusSearch($data);
 
         //Apply TableView filtering
         if (!empty($data['search_view'])) {
@@ -630,6 +637,40 @@ class TableDataQuery
                     }
                 }
             });
+        }
+    }
+
+    /**
+     * @param array $data
+     */
+    public function radiusSearch(array $data)
+    {
+        //get rows which are found by 'radius search'
+        if (($data['radius_search']['km']??0) && ($data['radius_search']['center_lat']??0) && ($data['radius_search']['center_long']??0)) {
+
+            $lat_header = $this->table->_fields->where('is_lat_field', '=', 1)->first();
+            $long_header = $this->table->_fields->where('is_long_field', '=', 1)->first();
+
+            if (!$lat_header || !$long_header) {
+                return;
+            }
+
+            $distance_str = '6371*acos(';
+            $distance_str .= ' ( ';
+            $distance_str .= 'cos(' . $data['radius_search']['center_lat'] . '*PI()/180)';//Lat_A
+            $distance_str .= '*';
+            $distance_str .= 'cos(' . $lat_header->field . '*PI()/180)';//Lat_B
+            $distance_str .= '*';
+            $distance_str .= 'cos(' . $long_header->field . '*PI()/180 - ' . $data['radius_search']['center_long'] . '*PI()/180)';//Long_B - Long_A
+            $distance_str .= ' ) ';
+            $distance_str .= '+';
+            $distance_str .= ' ( ';
+            $distance_str .= 'sin(' . $data['radius_search']['center_lat'] . '*PI()/180)';//Lat_A
+            $distance_str .= '*';
+            $distance_str .= 'sin(' . $lat_header->field . '*PI()/180)';//Lat_B
+            $distance_str .= ' ) ';
+            $distance_str .= ')';
+            $this->query->whereRaw(DB::raw($distance_str . ' < ' . $data['radius_search']['km']));
         }
     }
 
@@ -665,7 +706,7 @@ class TableDataQuery
         }
 
         if ($header) {
-            $q->orWhere(function(Builder $in) use ($header, $db_field, $operator, $word) {
+            $q->orWhere(function($in) use ($header, $db_field, $operator, $word) {
                 (new FieldTypeApplier($header->f_type, $db_field))->where($in, $operator, $word);
             });
         }
@@ -814,24 +855,24 @@ class TableDataQuery
     }
 
     /**
-     * If toggled RowGroup -> add or remove row_ids to hidden_row_ids.
+     * If toggled RowGroup -> add or remove row_ids to hidden_row_groups.
      *
-     * @param array $hidden_row_ids
+     * @param array $hidden_row_groups
      * @param array $data
      * @return array
      */
-    protected function ifToggledRowGroup(array $hidden_row_ids, array $data)
+    protected function ifToggledRowGroup(array $hidden_row_groups, array $data)
     {
         $this->table->loadMissing('_row_groups');
 
         if (!empty($data['row_group_toggled'])) {
             if ($data['row_group_toggled']['id'] == 'all') {
-                $hidden_row_ids = $this->allRowGroupsToggle($data);
+                $hidden_row_groups = $this->allRowGroupsToggle($data);
             } else {
-                $hidden_row_ids = $this->singleRowGroupToggle($hidden_row_ids, $data);
+                $hidden_row_groups = $this->singleRowGroupToggle($hidden_row_groups, $data);
             }
         }
-        return $hidden_row_ids;
+        return $hidden_row_groups;
     }
 
     /**
@@ -844,51 +885,35 @@ class TableDataQuery
     {
         return !$data['row_group_toggled']['should_enable']
             ?
-            $this->getRowGroupsIds(new EloquentCollection())//get IDs of all rows
+            $this->table->_row_groups->pluck('id')->toArray()
             :
             [];
     }
 
     /**
-     * getRowGroupsIds.
-     *
-     * @param EloquentCollection $row_groups
-     * @return array
-     */
-    protected function getRowGroupsIds(EloquentCollection $row_groups)
-    {
-        $sql = $this->getTableDataSql($this->table);
-        $this->applyRowGroupsToQuery($sql, $row_groups);
-
-        return $sql->select($this->getSqlFld('id'))
-            ->get()
-            ->pluck('id')
-            ->toArray();
-    }
-
-    /**
      * Single row group toggle
      *
-     * @param array $hidden_row_ids
+     * @param array $hidden_row_groups
      * @param array $data
      * @return array
      */
-    protected function singleRowGroupToggle(array $hidden_row_ids, array $data)
+    protected function singleRowGroupToggle(array $hidden_row_groups, array $data)
     {
         $row_group = $this->table
             ->_row_groups
-            ->where('id', $data['row_group_toggled']['id']);
+            ->where('id', $data['row_group_toggled']['id'])
+            ->first();
 
-        $row_group_ids = $this->getRowGroupsIds($row_group);
-
-        if ($data['row_group_toggled']['should_enable']) {
-            //remove rows from hidden
-            $hidden_row_ids = array_diff($hidden_row_ids, $row_group_ids);
-        } else {
-            //add rows to hidden
-            $hidden_row_ids = array_merge($hidden_row_ids, $row_group_ids);
+        if ($row_group) {
+            if ($data['row_group_toggled']['should_enable']) {
+                //remove rows from hidden
+                $hidden_row_groups = array_diff($hidden_row_groups, [$row_group->id]);
+            } else {
+                //add rows to hidden
+                $hidden_row_groups = array_merge($hidden_row_groups, [$row_group->id]);
+            }
         }
-        return array_unique($hidden_row_ids);
+        return array_unique($hidden_row_groups);
     }
 
     /**
@@ -903,7 +928,7 @@ class TableDataQuery
         $this->table->_row_groups->loadMissing('_ref_condition', '_regulars');
 
         $hidden_query = clone $this->query;
-        $this->applyHiddenRowIds($hidden_query, $this->groups_hidden_row_ids);
+        $this->applyHiddenRowGroups($hidden_query, $this->hidden_row_groups);
 
         $filter_query = clone $this->query;
         $this->applyFilters($filter_query, $data);
@@ -911,27 +936,31 @@ class TableDataQuery
         $statuses = [];
         foreach ($this->table->_row_groups as $row_group) {
             $show_status = 2;
+            $total_count = 1;
             $filter_disabled = false;
 
-            $total_ids = $this->getStatusIds($this->query, $row_group);
+            if (!empty($data['applied_filters']) || count($this->hidden_row_groups)) {
 
-            if ($total_ids) {
-                if (!empty($data['applied_filters'])) {
-                    $filter_ids = $this->getStatusIds($filter_query, $row_group);
-                    $filter_disabled = $filter_ids == 0;
-                    $show_status = $filter_ids == 0 ? 0 : ($total_ids > $filter_ids ? 1 : 2);
-                }
+                $total_count = $this->getRowsCountInGroup($this->query, $row_group);
 
-                if (!$filter_disabled && count($this->groups_hidden_row_ids)) {
-                    $showed_ids = $this->getStatusIds($hidden_query, $row_group);
-                    $show_status = $showed_ids == 0 ? 0 : ($total_ids > $showed_ids ? 1 : 2);
+                if ($total_count) {
+                    if (!empty($data['applied_filters'])) {
+                        $filter_count = $this->getRowsCountInGroup($filter_query, $row_group);
+                        $filter_disabled = $filter_count == 0;
+                        $show_status = $filter_count == 0 ? 0 : ($total_count > $filter_count ? 1 : 2);
+                    }
+
+                    if (!$filter_disabled && count($this->hidden_row_groups)) {
+                        $showed_count = $this->getRowsCountInGroup($hidden_query, $row_group);
+                        $show_status = $showed_count == 0 ? 0 : ($total_count > $showed_count ? 1 : 2);
+                    }
                 }
             }
 
             $statuses[] = [
                 'id' => $row_group->id,
                 'show_status' => $show_status,
-                'search_hidden' => !$total_ids,
+                'group_hidden' => !$total_count,
                 'filter_disabled' => $filter_disabled,
             ];
         }
@@ -942,12 +971,19 @@ class TableDataQuery
      * Apply HiddenRowGroups.
      *
      * @param Builder $query
-     * @param array $hidden_row_ids
+     * @param int[] $hidden_row_groups
      */
-    public function applyHiddenRowIds(Builder $query, array $hidden_row_ids)
+    public function applyHiddenRowGroups(Builder $query, array $hidden_row_groups)
     {
-        if (count($hidden_row_ids)) {
-            $query->whereNotIn($this->getSqlFld('id'), $hidden_row_ids);
+        if (count($hidden_row_groups)) {
+            $row_groups = $this->table
+                ->_row_groups()
+                ->whereIn('id', $hidden_row_groups)
+                ->get();
+
+            $query->where(function (Builder $inner) use ($query, $row_groups) {
+                $this->applyRowGroupsToQuery($inner, $row_groups);
+            }, null, null, 'and not');
         }
     }
 
@@ -967,9 +1003,7 @@ class TableDataQuery
      */
     protected function applyFilters(Builder $query, array $data)
     {
-        $applied_filters = !empty($data['applied_filters'])
-            ? (new TableDataFiltersModule($this))->prepareApplied($data['applied_filters'])
-            : [];
+        $applied_filters = (new TableDataFiltersModule($this))->prepareApplied($data['applied_filters'] ?? []);
 
         foreach ($applied_filters as $a_filter) {
 
@@ -1010,76 +1044,11 @@ class TableDataQuery
      * @param TableRowGroup $row_group
      * @return int
      */
-    protected function getStatusIds(Builder $query, TableRowGroup $row_group)
+    protected function getRowsCountInGroup(Builder $query, TableRowGroup $row_group)
     {
         $row_group_query = clone $query;
         $this->applyRowGroupsToQuery($row_group_query, new EloquentCollection([$row_group]));
         return $row_group_query->count();
-    }
-
-    /**
-     * Apply special 'Wheres' from other modules.
-     *
-     * @param array $data
-     * @param $user_id
-     * @param array $special_params
-     */
-    protected function applyNotListViewWheres(array $data, $user_id, array $special_params = [])
-    {
-        //get rows which are situated in map bounds (SQL must have select as `lat` and `lng`)!!!
-        // ONLY FOR '/ajax/table-data/get-map-markers' path
-        if (!empty($data['map_bounds']) && !empty($data['map_bounds']['left_bottom']) && !empty($data['map_bounds']['right_top'])) {
-            $data['map_bounds'] = $this->fixBounds($data['map_bounds']);
-            $lat_header = $this->table->_fields->where('is_lat_field', 1)->first();
-            $long_header = $this->table->_fields->where('is_long_field', 1)->first();
-            if ($lat_header && $long_header) {
-                $this->query->where(function ($q) use ($data, $lat_header, $long_header) {
-                    $q->where($lat_header->field, '>', $data['map_bounds']['left_bottom']['lat']);
-                    $q->where($lat_header->field, '<', $data['map_bounds']['right_top']['lat']);
-                    //AND
-                    if ($data['map_bounds']['left_bottom']['lng'] < $data['map_bounds']['right_top']['lng']) {
-                        $q->where($long_header->field, '>', $data['map_bounds']['left_bottom']['lng']);
-                        $q->where($long_header->field, '<', $data['map_bounds']['right_top']['lng']);
-                    } else {
-                        $q->where(function ($sub) use ($long_header, $data) {
-                            $sub->where($long_header->field, '>', $data['map_bounds']['left_bottom']['lng']);
-                            $sub->orWhere($long_header->field, '<', $data['map_bounds']['right_top']['lng']);
-                        });
-                    }
-                });
-            }
-        }
-
-        // ONLY FOR 'DCR module'
-        if (!empty($special_params['table_permission_id'])) {
-            $permission = (new TablePermissionRepository())->getPermission($special_params['table_permission_id']);
-            //get rows for selected table_data_request
-            $this->query->where('request_id', $special_params['table_permission_id']);
-
-            //select only those rows, which have createdBy == auth
-            $this->query->where('created_by', $user_id);
-        }
-    }
-
-    /**
-     * @param array $map_bounds
-     * @return array
-     */
-    protected function fixBounds(array $map_bounds)
-    {
-        if (is_null($map_bounds['left_bottom']['lat'])) {
-            $map_bounds['left_bottom']['lat'] = PHP_INT_MIN;
-        }
-        if (is_null($map_bounds['left_bottom']['lng'])) {
-            $map_bounds['left_bottom']['lng'] = PHP_INT_MIN;
-        }
-        if (is_null($map_bounds['right_top']['lat'])) {
-            $map_bounds['right_top']['lat'] = PHP_INT_MAX;
-        }
-        if (is_null($map_bounds['right_top']['lng'])) {
-            $map_bounds['right_top']['lng'] = PHP_INT_MAX;
-        }
-        return $map_bounds;
     }
 
     /**
@@ -1152,6 +1121,21 @@ class TableDataQuery
 
         if ($row_group) {
             $this->applyRowGroupsToQuery($this->query, new EloquentCollection([$row_group]));
+        }
+    }
+
+    /**
+     * @param array $row_group_ids
+     */
+    public function applyRowGroups(array $row_group_ids)
+    {
+        $row_groups = $this->table
+            ->_row_groups()
+            ->whereIn('id', $row_group_ids)
+            ->get();
+
+        if ($row_groups->count()) {
+            $this->applyRowGroupsToQuery($this->query, $row_groups);
         }
     }
 }

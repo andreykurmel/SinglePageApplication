@@ -29,8 +29,11 @@ class CreateTableFieldsTable extends Migration
             $table->string('f_size', 20)->default(255);
             $table->string('f_default')->nullable();
             $table->tinyInteger('f_required')->default(0);
+            $table->unsignedInteger('fetch_source_id')->nullable();
             $table->string('link_type', 20)->nullable();
-            $table->unsignedInteger('table_ref_condition_id')->nullable();
+            $table->unsignedInteger('mirror_rc_id')->nullable();
+            $table->unsignedInteger('mirror_field_id')->nullable();
+            $table->string('mirror_part', 16)->default('show');
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();
@@ -38,10 +41,12 @@ class CreateTableFieldsTable extends Migration
             $table->unsignedInteger('modified_by')->nullable();
             $table->string('modified_name')->nullable();
             $table->dateTime('modified_on');
+            $table->string('row_hash', 32)->nullable();
 
             $table->foreign('table_id')->references('id')->on('tables')->onDelete('cascade');
             $table->foreign('unit_ddl_id')->references('id')->on('ddl')->onDelete('set null');
             $table->foreign('ddl_id')->references('id')->on('ddl')->onDelete('set null');
+            $table->foreign('fetch_source_id')->references('id')->on('table_fields')->onDelete('set null');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->foreign('modified_by')->references('id')->on('users')->onDelete('set null');
 

@@ -99,7 +99,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .group-wrap {
         position: absolute;
         left: 0;

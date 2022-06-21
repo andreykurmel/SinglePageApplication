@@ -4,8 +4,8 @@
             <!--LEFT SIDE-->
             <div class="col-xs-12 full-height">
 
-                <div class="top-text top-text--height">
-                    <span>Select a Columns for Calendar</span>
+                <div class="top-text top-text--height" :style="textSysStyle">
+                    <span>Basic Settings</span>
                 </div>
                 <div class="permissions-panel no-padding" style="height: calc(70% - 35px);">
                     <custom-table
@@ -15,7 +15,7 @@
                             :settings-meta="$root.settingsMeta"
                             :all-rows="tableMeta._fields"
                             :rows-count="tableMeta._fields.length"
-                            :cell-height="$root.cellHeight"
+                            :cell-height="1"
                             :user="$root.user"
                             :is-full-width="true"
                             :behavior="'settings_display'"
@@ -31,20 +31,20 @@
                             :table-row="editDisplayPopUpRow"
                             :ext-avail-tabs="['calendar_tab']"
                             :user="$root.user"
-                            :cell-height="$root.cellHeight"
+                            :cell-height="1"
                             @popup-update="updateRow"
                             @popup-close="closePopUp"
                             @another-row="anotherRowPopup"
                     ></for-settings-pop-up>
                 </div>
-                <div class="top-text top-text--height">
-                    <span>Additional</span>
+                <div class="top-text top-text--height" :style="textSysStyle">
+                    <span>Additional Settings</span>
                 </div>
                 <div class="permissions-panel no-padding" style="height: calc(30% - 30px);">
-                    <div class="additionals_sett">
+                    <div class="additionals_sett" :style="textSysStyle">
                         <div class="form-group flex flex--center-v">
                             <label>Locale:&nbsp;</label>
-                            <select class="form-control" v-model="tableMeta.calendar_locale" @change="emitSave()" style="width: 100px;">
+                            <select class="form-control" v-model="tableMeta.calendar_locale" @change="emitSave()" style="width: 100px;" :style="textSysStyle">
                                 <option :value="null">Default</option>
                                 <option v-for="cnt in $root.settingsMeta.countries_all" :value="cnt.iso_3166_2">{{ cnt.name }}</option>
                             </select>
@@ -55,6 +55,7 @@
                                     :cur_tz="tableMeta.calendar_timezone || $root.user.timezone"
                                     :name="'Timezone'"
                                     style="width: 200px;"
+                                    :style="textSysStyle"
                                     @changed-tz="updateTZ"
                             ></moment-timezones>
                         </div>
@@ -71,6 +72,8 @@
     import ForSettingsPopUp from "../../../../CustomPopup/ForSettingsPopUp";
     import MomentTimezones from "../../../../MomentTimezones";
 
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     export default {
         name: "CalendarSettings",
         components: {
@@ -78,6 +81,9 @@
             ForSettingsPopUp,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 editDisplayPopUpRow: null,

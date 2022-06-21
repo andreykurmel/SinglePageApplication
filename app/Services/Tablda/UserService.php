@@ -4,6 +4,7 @@ namespace Vanguard\Services\Tablda;
 
 
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use PayPal\Api\Amount;
 use PayPal\Api\CreditCard;
 use PayPal\Api\CreditCardToken;
@@ -20,6 +21,7 @@ use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
 use Vanguard\Jobs\SendInvitations;
+use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
@@ -52,6 +54,15 @@ class UserService
     }
 
     /**
+     * @param float $amount
+     * @return mixed
+     */
+    public function setAdminBalance(float $amount)
+    {
+        return $this->userRepository->setAdminBalance($amount);
+    }
+
+    /**
      * Check and set default Theme.
      *
      * @param User $user
@@ -75,23 +86,46 @@ class UserService
      * @param string $email
      * @param string $hash
      */
-    public function awardReferral(string $email, string $hash)
+    public function inviteAccepted(string $email, string $hash)
     {
-        if ($user = User::where('personal_hash', $hash)->first()) {
+        if ($user = User::where('personal_hash', '=', $hash)->first()) {
 
-            $invit = $user->_invitations()->where('email', $email)->first();
-            if ($invit) {
-                $invit->update([
-                    'status' => 2,
-                    'date_accept' => Carbon::now()
-                ]);
+            $invit = $this->getInvitationOrCreate($user, $email);
+
+            if (!$invit) {
+                return;
             }
 
-            $reward = $invit ? $invit->rewarded : 10;
+            $invit->date_accept = Carbon::now();
+            $invit->save();
+        }
+    }
 
-            $user->invitations_reward += $reward;
-            $user->avail_credit += $reward;
+    /**
+     * If registrant is referred by user -> award referal in $10
+     *
+     * @param string $email
+     * @param string $hash
+     */
+    public function awardReferral(string $email, string $hash)
+    {
+        if ($user = User::where('personal_hash', '=', $hash)->first()) {
+
+            $invit = $this->getInvitationOrCreate($user, $email);
+
+            if (!$invit || $invit->status == 2) {
+                return;
+            }
+
+            $invit->status = 2;
+            $invit->date_confirm = Carbon::now();
+            $invit->date_accept = $invit->date_accept ?: Carbon::now();
+            $invit->save();
+
+            $user->invitations_reward += $invit->rewarded;
             $user->save();
+
+            $this->rewardFromAdminCredit($user, $invit->rewarded);
         }
     }
 
@@ -271,9 +305,12 @@ class UserService
         $res = [];
         foreach ($groups as $group) {
             $usrs = [];
+            $mngr = $group->_individuals_all->where('_link.is_edit_added', '=', 1)->first();
             foreach ($group->_individuals_all as $user) {
-                //only owner can view all users in UserGroup
-                if ($tb->user_id == $cur_user_id || $user->id == $cur_user_id) {
+                $is_owner = $tb->user_id == $cur_user_id;
+                $is_self = $user->id == $cur_user_id;
+                $is_manager = $mngr && $mngr->id == $cur_user_id;
+                if ($is_owner || $is_self || $is_manager) {
                     $usrs[] = [
                         'id' => $user->id,
                         'name' => $user->first_name ? $user->first_name . ' ' . $user->last_name : $user->username,
@@ -303,7 +340,10 @@ class UserService
      */
     private function getUserGroupsForSearching(string $q, Table $tb)
     {
+        $special = $tb->db_name == 'correspondence_stim_3d';
+
         $cur_user_id = auth()->id();
+        $owner_id = $special ? $cur_user_id : $tb->user_id;
 
         $groups = UserGroup::where(function ($ug) use ($q) {
                 $ug->where('name', 'like', '%' . $q . '%');
@@ -314,11 +354,11 @@ class UserService
                     $usr->orWhere('last_name', 'LIKE', '%' . $q . '%');
                 });
             })
-            ->where('user_id', $tb->user_id)
+            ->where('user_id', $owner_id)
             ->with('_individuals_all')
             ->limit(5);
 
-        if ($tb->user_id != $cur_user_id) {
+        if ($owner_id != $cur_user_id) {
             $groups->whereHas('_table_permissions', function ($tp) use ($tb) {
                 $tp->where('table_permissions.table_id', $tb->id);
                 $tp->where('user_groups_2_table_permissions.is_active', 1);
@@ -385,14 +425,18 @@ class UserService
     public function calcSubscription(UserSubscription $userSubscription, $renew, $all_cost = null)
     {
         $key = $renew == 'Yearly' ? 'per_year' : 'per_month';
+        $adn_included = in_array($userSubscription->plan_code, ['advanced','enterprise']);
 
         $calc_cost = $userSubscription->_plan->{$key};
-        $all_adn = $userSubscription->_addons->where('is_special', '=', '1')->first();
-        if ($all_adn) {
-            $calc_cost += ($userSubscription->plan_code !== 'basic' ? $all_adn->{$key} : 0);
-        } else {
-            foreach ($userSubscription->_addons as $adn) {
-                $calc_cost += ($userSubscription->plan_code !== 'basic' ? $adn->{$key} : 0);
+
+        if (!$adn_included) {
+            $all_adn = $userSubscription->_addons->where('is_special', '=', '1')->first();
+            if ($all_adn) {
+                $calc_cost += ($userSubscription->plan_code !== 'basic' ? $all_adn->{$key} : 0);
+            } else {
+                foreach ($userSubscription->_addons as $adn) {
+                    $calc_cost += ($userSubscription->plan_code !== 'basic' ? $adn->{$key} : 0);
+                }
             }
         }
 
@@ -437,70 +481,19 @@ class UserService
     }
 
     /**
-     * User linked Stripe Card.
-     *
-     * @param User $user
-     * @param $token
-     * @return mixed
-     */
-    public function addStripeCard(User $user, $token)
-    {
-        //store card
-        try {
-            \Stripe\Stripe::setApiKey(config('app.stripe_private'));
-
-            if (!$user->stripe_user_id) {
-                $stripe_user = \Stripe\Customer::create();
-                $user->stripe_user_id = $stripe_user->id;
-                $user->save();
-            }
-
-            $customer = \Stripe\Customer::retrieve($user->stripe_user_id);
-            $customer->sources->create(["source" => $token['id']]);
-            //\Stripe\Customer::update($user->stripe_user_id, ['source' => $token['id']]);
-            $card = UserCard::create([
-                'user_id' => $user->id,
-                'stripe_card_id' => $token['card']['id'],
-                'stripe_card_last' => $token['card']['last4'],
-                'stripe_exp_month' => $token['card']['exp_month'],
-                'stripe_exp_year' => $token['card']['exp_year'],
-                'stripe_card_name' => $token['card']['name'],
-                'stripe_card_zip' => $token['card']['address_zip'],
-                'stripe_card_brand' => $token['card']['brand']
-            ]);
-
-            //first card active by default
-            if (!$user->selected_card) {
-                $user->selected_card = $card->id;
-                $user->save();
-            }
-
-            return $user->_cards()->get();
-        } catch (\Exception $e) {
-            return ['error' => $e->getMessage()];
-        }
-    }
-
-    /**
      * Transfer Credits from User to other Users in selected UserGroups.
      *
      * @param User $user
      * @param array $groups
+     * @param array $users_ids
      * @return array
      */
-    public function transferCredits(User $user, array $groups)
+    public function transferCredits(User $user, array $groups, array $users_ids): array
     {
-        $db_groups = UserGroup::whereIn('id', array_pluck($groups, 'id'))
-            ->with('_individuals_all')
-            ->withCount('_individuals_all')
-            ->get();
+        $db_groups = $this->groupsForTransferring($groups, $users_ids);
 
         $total = 0;
         foreach ($db_groups as $gr) {
-            $elem = array_first($groups, function ($item) use ($gr) {
-                return $item['id'] == $gr->id;
-            });
-            $gr->_val = $elem ? floatval($elem['val']) : 0;
             $total += $gr->_val * $gr->_individuals_all_count;
         }
 
@@ -511,17 +504,74 @@ class UserService
             foreach ($db_groups as $gr) {
                 foreach ($gr->_individuals_all as $individ) {
                     $individ->avail_credit += $gr->_val;
-                    $individ->save();
+                    $this->userRepository->update($individ->id, ['avail_credit' => $individ->avail_credit]);
                 }
             }
 
-            $username = ($user->first_name ? ($user->first_name . ' ' . $user->last_name) : $user->username);
-            $this->planService->addPaymentHistory($user->id, $total, '', 'Other User', $username, $db_groups);
+            $this->planService->addPaymentHistory($user->id, $total, '', 'Other User', $user->full_name(), $db_groups);
 
             return ['avail_credit' => $user->avail_credit];
         } else {
             return ['error' => 'You do not have sufficient credit.'];
         }
+    }
+
+    /**
+     * @param array $groups
+     * @param array $users_ids
+     * @return Collection
+     */
+    public function groupsForTransferring(array $groups, array $users_ids): Collection
+    {
+        $groups = collect($groups);
+        $users_ids = collect($users_ids);
+
+        $db_groups = UserGroup::whereIn('id', $groups->pluck('id'))
+            ->with('_individuals_all')
+            ->withCount('_individuals_all')
+            ->get()
+            ->each(function ($gr) use ($groups) {
+                $elem = $groups->where('id', '=', $gr->id)->first();
+                $gr->_val = $elem ? floatval($elem['val']) : 0;
+            });
+
+        $recipients = User::whereIn('email', $users_ids->pluck('eml'))->get();
+        foreach ($recipients as $usr) {
+            $elem = $users_ids->where('eml', '=', $usr->email)->first();
+            $usr->_val = $elem ? floatval($elem['val']) : 0;
+
+            $gr = new UserGroup(['name' => $usr->full_name()]);
+            $gr->_val = $usr->_val;
+            $gr->_individuals_all = collect([$usr]);
+            $gr->_individuals_all_count = 1;
+            $db_groups->push($gr);
+        }
+
+        return $db_groups;
+    }
+
+    /**
+     * @param User $user
+     * @param float $amount
+     */
+    protected function rewardFromAdminCredit(User $user, float $amount)
+    {
+        $admin = User::where('role_id', '=', 1)->first();
+        $admin->avail_credit -= $amount;
+        $admin->save();
+
+        $user->avail_credit += $amount;
+        $user->save();
+
+        $username = ($admin->first_name ? ($admin->first_name . ' ' . $admin->last_name) : $admin->username);
+        $u_group = [ (object)[
+            'name' => 'Invitation',
+            '_val' => $amount,
+            '_individuals_all' => collect([$user]),
+            '_individuals_all_count' => 1,
+        ] ];
+
+        $this->planService->addPaymentHistory($admin->id, $amount, '', 'Invitation Reward', $username, $u_group);
     }
 
     /**
@@ -675,13 +725,29 @@ class UserService
     }
 
     /**
+     * @param User $user
+     * @param string $email
+     * @return mixed
+     */
+    public function getInvitationOrCreate(User $user, string $email)
+    {
+        $invit = $user->_invitations()->where('email', '=', $email)->first();
+        if (!$invit) {
+            $this->addInvitations($user, [$email], true);
+            $invit = $user->_invitations()->where('email', '=', $email)->first();
+        }
+        return $invit;
+    }
+
+    /**
      * Parse and add Invitations to User.
      *
      * @param User $user
      * @param array $emails
+     * @param bool $skip_err
      * @return array
      */
-    public function addInvitations(User $user, array $emails)
+    public function addInvitations(User $user, array $emails, bool $skip_err = false)
     {
         $arr = [];
         $errors = [];
@@ -692,18 +758,21 @@ class UserService
                 $errors[] = $eml . ' - Incorrect Email';
                 continue;
             }
-            if ($user->_invitations()->where('email', $eml)->count()) {
-                $errors[] = $eml . ' - Already invited';
+            if ($user->_invitations()->where('email', '=', $eml)->count()) {
+                $errors[] = $eml . ' - <span style="color:#00F;">Invite resent</span>';
                 continue;
             }
-            if (User::where('email', $eml)->count()) {
-                $errors[] = $eml . ' - Already registered';
+            if (!$skip_err && User::where('email', '=', $eml)->count()) {
+                $errors[] = $eml . ' - <span style="color:#F00;">Already registered</span>';
                 continue;
             }
 
+            $amo = AppSetting::where('key', '=', 'invite_reward_amount')->first();
+
             $arr[] = [
                 'user_id' => $user->id,
-                'email' => $eml
+                'email' => $eml,
+                'rewarded' => $amo ? $amo->val : 10,
             ];
         }
 

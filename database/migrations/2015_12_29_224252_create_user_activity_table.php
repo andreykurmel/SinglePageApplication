@@ -14,8 +14,17 @@ class CreateUserActivityTable extends Migration
     {
         Schema::create('user_activity', function (Blueprint $table) {
             $table->increments('id');
-            $table->text('description');
             $table->unsignedInteger('user_id');
+            $table->string('description', 128);
+            $table->unsignedInteger('description_time')->nullable();
+            $table->string('ending', 128)->nullable();
+            $table->unsignedInteger('ending_time')->nullable();
+            $table->unsignedInteger('difference_time')->nullable();
+            $table->float('lat')->nullable();
+            $table->float('lng')->nullable();
+            $table->unsignedInteger('year')->nullable();
+            $table->unsignedInteger('month')->nullable();
+            $table->unsignedInteger('week')->nullable();
             $table->string('ip_address', 45);
             $table->text('user_agent');
             $table->timestamp('created_at');

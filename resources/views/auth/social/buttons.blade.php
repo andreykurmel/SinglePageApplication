@@ -20,9 +20,7 @@
 
         @if (in_array('google', $socialProviders))
             <div class="col-{{ $colSize }} d-flex align-items-center justify-content-center">
-                <a href="{{ url('auth/google/login') }}" class="btn-google">
-                    <i class="fab fa-google-plus-square fa-2x"></i>
-                </a>
+                <a href="{{ url('auth/google/login') }}" class="auth-google"></a>
             </div>
         @endif
     </div>

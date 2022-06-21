@@ -12,7 +12,7 @@
                     <label class="switch_t" v-if="tableHeader.field === 'show_sum'">
                         <input type="checkbox"
                                v-model="editValue"
-                               :disabled="!inArray(fld_link_type, ['Record', 'RorT'])"
+                               :disabled="!inArray(fld_link_type, ['Record'])"
                                @change="updateValue()">
                         <span class="toggler round"></span>
                     </label>
@@ -23,14 +23,17 @@
                     </label>
 
                     <a v-else-if="tableHeader.field === 'table_ref_condition_id'"
+                       title="Open ref condition in popup."
                        @click.stop="showAddRefCond(tableRow.table_ref_condition_id)"
                     >{{ showField() }}</a>
 
                     <a v-else-if="['payment_paypal_keys_id','payment_stripe_keys_id'].indexOf(tableHeader.field) > -1"
+                       title="Open user settings in popup."
                        @click.stop="showUserSettings(tableRow[tableHeader.field])"
                     >{{ showField() }}</a>
 
                     <a v-else-if="tableHeader.field === 'popup_display' && tableRow.popup_display === 'Boards'"
+                       title="Open general settings in popup."
                        @click.stop="showBoardSett()"
                     >{{ showField() }}</a>
 
@@ -59,19 +62,19 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="inArray(tableHeader.field, ['listing_field_id','link_preview_fields']) && tableRow.table_ref_condition_id"
+                    v-else-if="inArray(tableHeader.field, ['listing_field_id','link_preview_fields','email_addon_fields']) && tableRow.table_ref_condition_id"
                     :options="listingsFields()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="tableHeader.field === 'listing_field_id'"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :fld_input_type="tableHeader.input_type"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -84,7 +87,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -93,17 +96,44 @@
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'link_type'"
                     :options="[
-                        {val: 'Record', show: 'Record'},
-                        {val: 'Table', show: 'Table'},
-                        {val: 'RorT', show: 'RorT'},
-                        {val: 'Web', show: 'Web'},
-                        {val: 'App', show: 'App'},
+                        {val: 'Record', show: 'Record', disabled:!$root.checkAvailable($root.user, 'link_type_record')},
+                        {val: 'Web', show: 'Web', disabled:!$root.checkAvailable($root.user, 'link_type_web')},
+                        {val: 'App', show: 'App', disabled:!$root.checkAvailable($root.user, 'link_type_app')},
                         {val: 'GMap', show: 'GMap'},
                         {val: 'GEarth', show: 'GEarth'},
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'link_display'"
+                    :options="[
+                        {val: 'Popup', show: 'Pop-up'},
+                        {val: 'Table', show: 'New Tab Table'},
+                        {val: 'RorT', show: 'Choose at Opening'},
+                    ]"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'link_pos'"
+                    :options="[
+                        {val: 'before', show: 'Before'},
+                        {val: 'after', show: 'After'},
+                    ]"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -125,7 +155,7 @@
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
                     :allowed_tags="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -140,20 +170,20 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'table_ref_condition_id' && inArray(fld_link_type, ['Record', 'Table', 'RorT', 'App'])"
+                    v-else-if="tableHeader.field === 'table_ref_condition_id' && inArray(fld_link_type, ['Record', 'App'])"
                     :options="globalRefConds()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
                     :embed_func_txt="isVertTable ? 'Add New' : ''"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -166,7 +196,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -176,13 +206,13 @@
                     v-else-if="inArray(tableHeader.field, [
                         'address_field_id','link_field_lat','link_field_lng','link_field_address','payment_amount_fld_id',
                         'payment_history_payee_fld_id','payment_history_amount_fld_id','payment_history_date_fld_id',
-                        'payment_method_fld_id',
+                        'payment_method_fld_id','payment_description_fld_id','payment_customer_fld_id',
                     ])"
                     :options="nameFields()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -194,7 +224,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -219,16 +249,14 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-
-    export default {
+export default {
         components: {
             TabldaSelectSimple,
         },
@@ -237,12 +265,6 @@
             Select2DDLMixin,
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
                 editValue: null,
@@ -264,11 +286,21 @@
             tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
+            cellValue: String|Number,
             cellHeight: Number,
             maxCellRows: Number,
             user: Object,
             isVertTable: Boolean,
+            isAddRow: Boolean,
             no_width: Boolean,
+        },
+        watch: {
+            cellValue: {
+                handler(val) {
+                    this.editValue = this.convEditValue(val);
+                },
+                immediate: true,
+            },
         },
         computed: {
             fld_link_type() {
@@ -292,7 +324,7 @@
                 return this.globalMeta._is_owner
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields)
                     && !(this.tableHeader.field === 'icon' && this.inArray(this.fld_link_type, ['GMap', 'GEarth']))
-                    && !(this.tableHeader.field === 'popup_display' && !this.inArray(this.fld_link_type, ['Record', 'RorT']));
+                    && !(this.tableHeader.field === 'popup_display' && !this.inArray(this.fld_link_type, ['Record']));
             },
             checkBoxOn() {
                 return Number(this.editValue);
@@ -385,6 +417,7 @@
                     if (this.tableHeader.field === 'table_ref_condition_id') {
                         this.tableRow.listing_field_id = null;
                         this.tableRow.link_preview_fields = '';
+                        this.tableRow.email_addon_fields = '';
                     }
                     if (this.tableHeader.field === 'link_field_lat' || this.tableHeader.field === 'link_field_lng') {
                         this.tableRow.link_field_address = null;
@@ -402,8 +435,9 @@
                     }
                     if (this.tableHeader.field === 'link_type') {
                         let val = this.tableRow[this.tableHeader.field];
-                        this.tableRow.popup_display = this.inArray( val, ['Record','RorT'] ) ? 'Listing' : null;
-                        this.tableRow.show_sum = !!this.inArray( val, ['Record','RorT'] );
+                        this.tableRow.link_display = this.inArray( val, ['Record'] ) ? 'Popup' : null;
+                        this.tableRow.popup_display = this.inArray( val, ['Record'] ) ? 'Listing' : null;
+                        this.tableRow.show_sum = !!this.inArray( val, ['Record'] );
                     }
                     if (this.tableHeader.field === 'add_record_limit') {
                         this.tableRow.already_added_records = 0;
@@ -441,6 +475,21 @@
                     }
                 }
                 else
+                if (this.tableHeader.field === 'link_display' && this.tableRow.link_display) {
+                    switch (this.tableRow.link_display) {
+                        case 'Popup': res = 'Pop-up'; break;
+                        case 'Table': res = 'New Tab Table'; break;
+                        case 'RorT': res = 'Choose at Opening'; break;
+                    }
+                }
+                else
+                if (this.tableHeader.field === 'link_pos' && this.tableRow.link_pos) {
+                    switch (this.tableRow.link_pos) {
+                        case 'before': res = 'Before'; break;
+                        case 'after': res = 'After'; break;
+                    }
+                }
+                else
                 if (this.tableHeader.field === 'table_field_link_id' && this.tableRow.table_field_link_id) {
                     _.each(this.globalMeta._fields, (fld) => {
                         _.each(fld._links, (link,idx) => {
@@ -455,7 +504,7 @@
                     this.inArray(this.tableHeader.field, [
                         'address_field_id','link_field_lat','link_field_lng','link_field_address','payment_amount_fld_id',
                         'payment_history_payee_fld_id','payment_history_amount_fld_id','payment_history_date_fld_id',
-                        'payment_method_fld_id',
+                        'payment_method_fld_id','payment_description_fld_id','payment_customer_fld_id',
                     ])
                     &&
                     this.editValue
@@ -469,9 +518,9 @@
                     res = idx > -1 ? this.$root.settingsMeta.table_public_apps_data[idx].name : '';
                 }
                 else {
-                    res = this.editValue;
+                    res = to_standard_val(this.editValue);
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_tags( String(res) );
             },
             showAddRefCond(refId) {
                 this.$emit('show-add-ref-cond', refId)
@@ -530,12 +579,12 @@
             },
         },
         mounted() {
-            this.editValue = this.convEditValue(this.tableRow[this.tableHeader.field]);
+            this.editValue = this.convEditValue(this.cellValue);
         },
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 
     .right-cog {

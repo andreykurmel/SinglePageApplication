@@ -1,5 +1,5 @@
 <template>
-    <table :style="tbStyle">
+    <table :style="tbStyle" v-if="tableMeta && tableHeader && tableRow">
         <tr>
             <td :is="td_component"
                 :global-meta="tableMeta"
@@ -9,8 +9,8 @@
                 :table-header="tableHeader"
                 :cell-value="tdValue"
                 :user="$root.user"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
+                :cell-height="1"
+                :max-cell-rows="0"
                 :row-index="-1"
                 :table_id="tableMeta.id"
                 :behavior="'list_view'"
@@ -22,6 +22,7 @@
                 :extra-style="tbStyle"
                 :class="tableHeader.f_type !== 'Boolean' ? 'edit-cell' : ''"
                 @updated-cell="updatedCell"
+                @show-src-record="showSrcRecord"
             ></td>
         </tr>
     </table>
@@ -59,19 +60,15 @@
         watch: {
             tdValue: {
                 handler(val) {
-                    if (val) {
-                        if (this.extRow) {
-                            this.info_row = _.cloneDeep(this.extRow);
-                        } else {
-                            axios.post('/ajax/table-data/info-row', {
-                                table_id: this.tableMeta.id,
-                                table_row: this.tableRow,
-                            }).then(({data}) => {
-                                this.info_row = data.row || {};
-                            });
-                        }
+                    if (this.extRow) {
+                        this.info_row = _.cloneDeep(this.extRow);
                     } else {
-                        this.info_row = {};
+                        axios.post('/ajax/table-data/info-row', {
+                            table_id: this.tableMeta.id,
+                            table_row: this.tableRow,
+                        }).then(({data}) => {
+                            this.info_row = data.row || {};
+                        });
                     }
                 },
                 immediate: true,
@@ -82,9 +79,8 @@
                 return this.$root.tdCellComponent(this.tableMeta.is_system);
             },
             tableRow() {
-                let obj = {};
-                obj[this.tableHeader.field] = this.tdValue;
-                return _.merge(this.info_row, obj);
+                this.info_row[this.tableHeader.field] = this.tdValue;
+                return this.info_row;
             },
             tbStyle() {
                 return this.fixedWidth
@@ -96,9 +92,12 @@
             },
         },
         methods: {
-            updatedCell(tableRow) {
+            updatedCell(tableRow, header, ddl_option) {
                 this.user_field = null;
-                this.$emit('updated-td-val', tableRow[this.tableHeader.field]);
+                this.$emit('updated-td-val', tableRow[this.tableHeader.field], header, ddl_option);
+            },
+            showSrcRecord(lnk, header, tableRow) {
+                this.$emit('show-src-record', lnk, header, tableRow);
             },
         },
         created() {

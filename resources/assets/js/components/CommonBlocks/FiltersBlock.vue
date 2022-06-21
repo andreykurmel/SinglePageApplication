@@ -1,10 +1,10 @@
 <template>
-    <div class="full-height flex flex--col filters--block">
+    <div class="full-height flex flex--col filters--block" @contextmenu.prevent.self="contextFilterOnEmpty()">
         <div v-for="filter in input_filters"
-             v-if="canChangeFilter(filter)"
+             v-if="canChangeFilter(filter) && availableInView(filter)"
              :class="(filter.field === currentField ? 'flex__elem-remain flex flex--col' : '')"
         >
-            <a @click.prevent="showFilter(filter.field)" class="btn-filter">
+            <a @click.prevent="showFilter(filter.field)" class="btn-filter" :style="textSysStyle">
                 <div class="flex flex--center-v flex--space">
                     <span>{{filterName(filter)}}</span>
                     <div style="white-space: nowrap">
@@ -16,7 +16,7 @@
                     </div>
                 </div>
             </a>
-            <div v-show="filter.field === currentField" class="filter-content">
+            <div v-show="filter.field === currentField" class="filter-content" :style="textSysStyle">
                 <ul v-if="typeof filter.values !== 'object'">
                     <li><label>{{ filter.values }}</label></li>
                 </ul>
@@ -65,11 +65,35 @@
                 </div>
             </div>
         </div>
+
+        <!--Context Filter On Empty Place-->
+        <ul v-show="context_filter.active"
+            v-if="tableMeta && tableMeta._fields"
+            class="my_context_filter"
+            :style="{left: context_filter.x+'px', top: context_filter.y+'px'}"
+            @mouseleave="context_filter.active = false"
+        >
+            <li v-for="fld in tableMeta._fields" v-if="isShowField(fld)">
+                <a href="#" class="flex flex--center-v flex--space">
+                    <span>{{ $root.uniqName( fld.name ) }}</span>
+                    <span class="vakata-contextmenu-sep">&nbsp;</span>
+                    <label class="switch_t">
+                        <input type="checkbox" v-model="fld.filter" :disabled="forbiddenFilter" @change="activateFilter(fld)">
+                        <span class="toggler round" :class="[forbiddenFilter ? 'disabled' : '']"></span>
+                    </label>
+                </a>
+            </li>
+        </ul>
     </div>
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../classes/SpecialFuncs';
+
     import {eventBus} from '../../app';
+
+    import IsShowFieldMixin from './../_Mixins/IsShowFieldMixin.vue';
+    import CellStyleMixin from "../_Mixins/CellStyleMixin";
 
     import SliderFilterElem from "../MainApp/LeftMenu/SliderFilterElem";
 
@@ -78,9 +102,14 @@
         components: {
             SliderFilterElem,
         },
+        mixins: [
+            IsShowFieldMixin,
+            CellStyleMixin,
+        ],
         data() {
             return {
                 currentField: null,
+                context_filter: { active: false, x:10, y:10, },
             }
         },
         props: {
@@ -89,10 +118,18 @@
             availableColumns: Array,
         },
         computed: {
+            forbiddenFilter() {
+                let array = SpecialFuncs.forbiddenCustomizables(this.tableMeta);
+                return array.indexOf('filter') > -1;
+            },
         },
         methods:{
             get_values(filter) {
                 return _.groupBy(filter.values, 'show');
+            },
+            availableInView(filter) {
+                let fld = _.find(this.tableMeta._fields, {field: filter.field});
+                return fld && !fld._permis_hidden;
             },
             canChangeFilter(filter) {
                 //can view filter if ( Owner OR has view permissions ) AND can see this Column
@@ -176,6 +213,21 @@
 
                 this.$emit('changed-filter');
             },
+
+            //context filter
+            contextFilterOnEmpty() {
+                this.context_filter.active = true;
+                this.context_filter.x = window.event.clientX - 10;
+                this.context_filter.y = window.event.clientY - 160;
+            },
+            activateFilter(fld) {
+                if (this.forbiddenFilter) {
+                    return;
+                }
+                fld._changed_field = 'filter';
+                this.$root.updateSettingsColumn(this.tableMeta, fld);
+                this.$emit('filter-status-toggle', fld);
+            },
         },
         created() {
         },
@@ -186,7 +238,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .filters--block {
         font-size: 13px;
         color: #6d6d6d;
@@ -238,7 +290,7 @@
             }
         }
 
-        .filter-content{
+        .filter-content {
             overflow: auto;
             ul {
                 padding-left: 5px;
@@ -247,6 +299,45 @@
 
                 li {
                     list-style-type: none;
+                }
+            }
+        }
+
+        .my_context_filter {
+            max-height: 200px;
+            overflow: auto;
+            display: block;
+            margin: 0;
+            padding: 2px;
+            position: absolute;
+            background: #f5f5f5;
+            border: 1px solid #979797;
+            box-shadow: 2px 2px 2px #999;
+            z-index: 1000;
+
+            li {
+                list-style: none;
+
+                a {
+                    position: relative;
+                    padding: 0 3px;
+                    text-decoration: none;
+                    width: auto;
+                    color: #000;
+                    white-space: nowrap;
+                    line-height: 2.4em;
+                    text-shadow: 1px 1px 0 #fff;
+                    border-radius: 1px;
+
+                    &:hover {
+                        background-color: #e8eff7;
+                        box-shadow: 0 0 2px #0a6aa1;
+                    }
+
+                    .switch_t {
+                        margin: 0;
+                    }
+
                 }
             }
         }

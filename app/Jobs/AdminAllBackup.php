@@ -32,7 +32,7 @@ class AdminAllBackup implements ShouldQueue
         // /usr/bin/mysqldump -u root  --databases app_correspondence app_data app_sys  > /var/www/full-backup-$(date +\%F).sql
         //backup all DB
         exec('export MYSQL_PWD='.env('DB_PASSWORD').' ; '
-            .'/usr/bin/mysqldump -u root '
+            .'/usr/bin/mysqldump -h '.env('DB_HOST').' -u root '
             .' --databases '.env('DB_DATABASE_CORRESPONDENCE', 'app_correspondence')
             .' '.env('DB_DATABASE_DATA', 'app_data')
             .' '.env('DB_DATABASE', 'app_sys')

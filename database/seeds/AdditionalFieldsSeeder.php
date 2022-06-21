@@ -8,28 +8,21 @@ use Vanguard\User;
 class AdditionalFieldsSeeder extends Seeder
 {
     private $permissionsService;
+    private $permissionsRepository;
     private $DDLRepository;
     private $service;
     private $viewRepository;
 
     /**
      * AdditionalFieldsSeeder constructor.
-     *
-     * @param \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService
-     * @param \Vanguard\Repositories\Tablda\DDLRepository $DDLRepository
-     * @param \Vanguard\Services\Tablda\HelperService $service
      */
-    public function __construct(
-        \Vanguard\Services\Tablda\Permissions\TablePermissionService $permissionsService,
-        \Vanguard\Repositories\Tablda\DDLRepository $DDLRepository,
-        \Vanguard\Services\Tablda\HelperService $service,
-        \Vanguard\Repositories\Tablda\TableViewRepository $tableViewRepository
-    )
+    public function __construct()
     {
-        $this->permissionsService = $permissionsService;
-        $this->DDLRepository = $DDLRepository;
-        $this->service = $service;
-        $this->viewRepository = $tableViewRepository;
+        $this->permissionsService = new \Vanguard\Services\Tablda\Permissions\TablePermissionService();
+        $this->permissionsRepository = new \Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository();
+        $this->DDLRepository = new \Vanguard\Repositories\Tablda\DDLRepository();
+        $this->service = new \Vanguard\Services\Tablda\HelperService();
+        $this->viewRepository = new \Vanguard\Repositories\Tablda\TableViewRepository();
     }
 
     /**
@@ -96,7 +89,7 @@ class AdditionalFieldsSeeder extends Seeder
                 'option' => 'Monthly',
             ]);
 
-            $renew_field->input_type = 'Selection';
+            $renew_field->input_type = 'S-Select';
             $renew_field->ddl_id = $ddl->id;
             $renew_field->save();
         }
@@ -104,6 +97,8 @@ class AdditionalFieldsSeeder extends Seeder
         //add right to Visitor
         $this->permissionsService->addSystemRights($table_sub->id, 0, ['user_id']);
         $this->viewRepository->addSys($table_sub);
+        $permis = $this->permissionsRepository->getSysPermission($table_sub->id, 1);
+        $permis->update(['can_edit_tb' => 1]);
     }
 
     private function create($field, $name, $table_id, $user, $type = 'String') {

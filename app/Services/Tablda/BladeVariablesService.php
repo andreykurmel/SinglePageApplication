@@ -4,10 +4,8 @@
 namespace Vanguard\Services\Tablda;
 
 
-use Illuminate\Support\Facades\Session;
 use Proengsoft\JsValidation\JsValidatorFactory;
 use Ramsey\Uuid\Uuid;
-use Vanguard\Classes\DiscourseSso;
 use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
@@ -16,7 +14,6 @@ use Vanguard\Models\Table\TableView;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
-use Vanguard\Singletones\AuthUserSingleton;
 use Vanguard\User;
 
 class BladeVariablesService
@@ -48,18 +45,20 @@ class BladeVariablesService
      */
     public function setTableObj(Table $table, User $named_user = null)
     {
-        $this->table = $table;
-        if ($table->api_key_mode == 'table') {
-            $this->table_google_api = $table->google_api_key;
-        }
-        if ($table->api_key_mode == 'account') {
-            $userapi = (new UserConnRepository())->getUserApi($table->account_api_key_id);
-            $this->table_google_api = $userapi ? TabldaEncrypter::decrypt($userapi->key) : '';
-        }
+        //$this->table = $table;
+        $this->table_google_api = HelperService::getTableGoogleApi($table);
         $this->named_user = $named_user;
         return $this;
     }
 
+    /**
+     * @param User $user
+     */
+    public function setUserTheme(User $user): void
+    {
+        $sel_th = AppTheme::where('id', '=', $user->app_theme_id)->first();
+        $user->_selected_theme = $sel_th ?: AppTheme::where('obj_type', '=', 'system')->first();
+    }
 
     /**
      * Get variables for blade.
@@ -69,7 +68,8 @@ class BladeVariablesService
      * @param int $lightweight
      * @return array
      */
-    public function getVariables(TableView $view = null, int $force_guest = 0, int $lightweight = 0) {
+    public function getVariables(TableView $view = null, int $force_guest = 0, int $lightweight = 0)
+    {
         $user = auth()->check() ? auth()->user() : new User();
         $named_user = $this->named_user ?: $user;
 
@@ -92,7 +92,7 @@ class BladeVariablesService
                 ->where(function ($v) use ($user) {
                     $v->orWhere('user_id', $user->id);//or is owner
                     $v->orWhereHas('_table_permissions', function ($tp) {
-                        $tp->applyIsActiveForUserOrPermission(null, true);//or is collaborator
+                        $tp->isActiveForUserOrVisitor();//or is collaborator
                     });
                 })
                 ->first();
@@ -105,6 +105,7 @@ class BladeVariablesService
         $user->_app_script = mix('assets/js/tablda/app.js')->toHtml();
         $user->_random_hash = Uuid::uuid4();
         $user->_uc_sys_visiting_url = (new TableViewRepository())->getVisitingUrl(55);
+        $user->_usr_email_domain = HelperService::usrEmailDomain();
 
         $result_url = $this->service->getUsersUrl($user, $this->service->cur_subdomain);
 
@@ -133,6 +134,7 @@ class BladeVariablesService
             'clear_url' => config('app.url'),
             'app_domain' => config('app.domain'),
             'stripe_key' => config('app.stripe_public'),
+            'discourse_start_login' => config('app.discourse_url_login'),
             'paypal_client' => env('PAYPAL_CLIENT_ID'),
             'embed' => $force_guest,
             'tablePermission' => $view ? $view->hash : '',
@@ -176,6 +178,8 @@ class BladeVariablesService
                 '_subscribed_apps',
                 '_google_api_keys',
                 '_sendgrid_api_keys',
+                '_airtable_api_keys',
+                '_extracttable_api_keys',
                 '_stripe_payment_keys',
                 '_paypal_payment_keys',
                 '_google_email_accs',
@@ -186,8 +190,7 @@ class BladeVariablesService
                 ->get()
                 ->merge( $user->_themes()->get() );
 
-            $sel_th = AppTheme::where('id', $user->app_theme_id)->first();
-            $user->_selected_theme = $sel_th ?: AppTheme::where('obj_type', 'system')->first();
+            $this->setUserTheme($user);
 
             //User's SubIcon is related to subdomain
             $user->sub_icon = $this->service->subiconOnSubDomain() ?: $user->sub_icon;
@@ -201,6 +204,8 @@ class BladeVariablesService
             $user->_subscribed_apps = [];
             $user->_google_api_keys = collect([]);
             $user->_sendgrid_api_keys = collect([]);
+            $user->_airtable_api_keys = collect([]);
+            $user->_extracttable_api_keys = collect([]);
             $user->_stripe_payment_keys = collect([]);
             $user->_paypal_payment_keys = collect([]);
             $user->_google_email_accs = collect([]);
@@ -219,6 +224,12 @@ class BladeVariablesService
             $api->key = TabldaEncrypter::decrypt($api->key ?? '');
         }
         foreach ($user->_sendgrid_api_keys as $api) {
+            $api->key = TabldaEncrypter::decrypt($api->key ?? '');
+        }
+        foreach ($user->_extracttable_api_keys as $api) {
+            $api->key = TabldaEncrypter::decrypt($api->key ?? '');
+        }
+        foreach ($user->_airtable_api_keys as $api) {
             $api->key = TabldaEncrypter::decrypt($api->key ?? '');
         }
         foreach ($user->_google_email_accs as $api) {

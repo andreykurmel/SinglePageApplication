@@ -11,8 +11,13 @@
 
                     <span v-if="hidden_by_format"></span>
 
+                    <span v-else-if="tableMeta.db_name === 'email_settings'">{{ showEmailSett() }}</span>
+
                     <div v-else-if="tableMeta.db_name === 'sum_usages' && tableHeader.field === 'table_id'" class="inner-content">
-                        <a target="_blank" :href="showTable('link')" @click.stop="">{{ showTable() }}</a>
+                        <a target="_blank"
+                           title="Open the “Visiting” view in a new tab."
+                           :href="showTable('link')"
+                           @click.stop="">{{ showTable() }}</a>
                     </div>
 
                     <cell-table-sys-content
@@ -52,7 +57,9 @@
                             :table-header="tableHeader"
                             :edit-value="editValue"
                             :user="user"
+                            :behavior="behavior"
                             @unselect-val="updateCheckedDDL"
+                            @show-src-record="showSrcRecord"
                     ></cell-table-sys-content>
 
                 </div>
@@ -105,7 +112,7 @@
                     :options="allPlans()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -117,12 +124,12 @@
                             && tableHeader.ddl_style === 'ddl'"
                     :ddl_id="tableHeader.ddl_id"
                     :table-row="tableRow"
+                    :table_id="tableMeta.id"
                     :hdr_field="tableHeader.field"
                     :fld_input_type="input_type"
                     :has_embed_func="tableHeader.ddl_add_option == 1 && !no_ddl_colls"
                     :style="getEditStyle"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
-                    :abstract_values="ddl_abstract_values"
+                    :fixed_pos="true"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
                     @embed-func="showAddDDLOption"
@@ -156,22 +163,22 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
-    import {SelectedCells} from './../../classes/SelectedCells';
+import {SpecialFuncs} from '../../classes/SpecialFuncs';
+import {SelectedCells} from '../../classes/SelectedCells';
 
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import CanEditMixin from '../_Mixins/CanViewEditMixin';
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin';
-    import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CanEditMixin from '../_Mixins/CanViewEditMixin';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin';
+import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
-    import CellTableSysContent from "./InCell/CellTableSysContent";
-    import FormulaHelper from "./InCell/FormulaHelper";
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
+import CellTableSysContent from "./InCell/CellTableSysContent";
+import FormulaHelper from "./InCell/FormulaHelper";
 
-    export default {
+export default {
         name: "CustomCellSystemTableData",
         mixins: [
             CanEditMixin,
@@ -184,12 +191,6 @@
             CellTableSysContent,
             TabldaSelectDdl,
             TabldaSelectSimple,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -234,7 +235,6 @@
             isVertTable: Boolean,
             hasFloatColumns: Boolean,
             no_align: Boolean,
-            ddl_abstract_values: Boolean,
             isSelected: Boolean,
         },
         watch: {
@@ -255,7 +255,7 @@
             },
             spec_fld() {
                 return this.tableMeta.db_name === 'plans_view'
-                    && this.inArray(this.tableHeader.field, ['plan_basic','plan_advanced','plan_enterprise'])
+                    && this.inArray(this.tableHeader.field, ['plan_basic','plan_standard','plan_advanced','plan_enterprise'])
                     && this.inArray(this.tableRow.code, ['q_tables','row_table']);
             },
             input_type() {
@@ -276,6 +276,13 @@
                 return Number(this.tableRow[this.tableHeader.field]);
             },
             canEdit() {
+                if (this.tableMeta.db_name === 'uploading_file_formats') {
+                    return true;
+                }
+                if (this.tableMeta.db_name === 'email_settings') {
+                    return !this.inArray(this.tableHeader.field, ['sender_email']);
+                }
+
                 let res = this.with_edit
                     && ( //edit permissions forced
                         this.force_edit
@@ -291,12 +298,13 @@
                     && (
                         !this.tableMeta.is_system // PERMISSIONS FOR EACH SYSTEM TABLE --->>>
                         || !this.tableMeta.db_name
+                        || (this.tableMeta.db_name === 'table_alerts')
                         || (this.tableMeta.db_name === 'fees')
                         || (this.tableMeta.db_name === 'unit_conversion' && !this.uc_disabled)
                         || (this.tableMeta.db_name === 'units')
                         || (this.tableMeta.db_name === 'user_clouds' && !this.inArray(this.tableHeader.field, ['user_id']))
                         || (this.tableMeta.db_name === 'user_connections' && !this.inArray(this.tableHeader.field, ['user_id']))
-                        || (this.tableMeta.db_name === 'plans_view' && this.inArray(this.tableHeader.field, ['category1','category2','category3','feature','plan_basic','plan_advanced','plan_enterprise','desc']))
+                        || (this.tableMeta.db_name === 'plans_view' && this.inArray(this.tableHeader.field, ['category1','category2','category3','who_can_view','sub_feat','feature','plan_basic','plan_standard','plan_advanced','plan_enterprise','desc']))
                         || (this.tableMeta.db_name === 'plan_features' && !this.inArray(this.tableHeader.field, ['object_id']))
                         || (this.tableMeta.db_name === 'payments' && this.inArray(this.tableHeader.field, ['notes']))
                         || (this.tableMeta.db_name === 'user_subscriptions' && this.inArray(this.tableHeader.field, ['avail_credit','notes']))
@@ -331,7 +339,7 @@
                 ) {
                     this.selectedCell.single_select(this.tableHeader, this.rowIndex);
                 } else {
-                    if (!this.spec_fld && this.inArray(this.tableHeader.f_type, ['Color','Boolean','Star Rating','Progress Bar'])) {
+                    if (!this.spec_fld && this.inArray(this.tableHeader.f_type, ['Color','Boolean','Rating','Progress Bar'])) {
                         return;
                     }
                     //edit cell
@@ -420,6 +428,25 @@
                 return _.map(this.$root.settingsMeta.all_plans, (plan) => {
                     return { val: plan.code, show: plan.name, }
                 });
+            },
+            //show link popup
+            showSrcRecord(link, header, tableRow) {
+                this.$emit('show-src-record', link, header, tableRow);
+            },
+
+            //Special Tables
+            showEmailSett() {
+                let res = this.tableRow[this.tableHeader.field];
+
+                if (this.tableHeader.field === 'sender_name') {
+                    res = res || this.$root.settingsMeta.backend_env['from_name'];
+                }
+                else
+                if (this.tableHeader.field === 'sender_email') {
+                    res = res || this.$root.settingsMeta.backend_env['from_address'];
+                }
+
+                return res;
             },
 
             //KEYBOARD

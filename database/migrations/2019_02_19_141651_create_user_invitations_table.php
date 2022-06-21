@@ -17,8 +17,9 @@ class CreateUserInvitationsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('user_id');
             $table->string('email');
-            $table->date('date_send')->nullable();
-            $table->date('date_accept')->nullable();
+            $table->dateTime('date_send')->nullable();
+            $table->dateTime('date_accept')->nullable();
+            $table->dateTime('date_confirm')->nullable();
             $table->tinyInteger('status')->default(0);//1-sent; 2-invited;
             $table->tinyInteger('rewarded')->default(10);
 

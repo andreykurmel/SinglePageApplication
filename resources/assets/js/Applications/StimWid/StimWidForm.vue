@@ -11,7 +11,7 @@
             <div class="main_el" :style="{width: vuex_main+'%'}">
                 <div class="full-height" style="padding: 10px;">
                     <template v-for="(stims,tab) in vuex_settings.tabs" v-if="tab">
-                        <template v-for="(group,select) in stims" v-if="group.master_table">
+                        <template v-for="(group,select) in stims" v-if="group.master_table && vuex_found_models[group.master_table]">
 
                             <accordion-tab v-if="group.tab_style === 'accordion'"
                                            v-show="vuex_cur_tab === tab && vuex_cur_select === select"
@@ -49,6 +49,9 @@
         <!--Popup for showing very long datas-->
         <table-data-string-popup :max-cell-rows="$root.maxCellRows"></table-data-string-popup>
 
+        <!--Address Edit component-->
+        <google-address-autocomplete></google-address-autocomplete>
+
     </div>
 </template>
 
@@ -67,6 +70,7 @@
     import UniversalTab from "./MainData/UniversalTab";
     import AccordionTab from "./MainData/AccordionTab";
     import TableDataStringPopup from './../../components/CustomPopup/TableDataStringPopup';
+    import GoogleAddressAutocomplete from "../../components/CommonBlocks/GoogleAddressAutocomplete";
 
     export default {
         name: 'StimWidForm',
@@ -74,6 +78,7 @@
         mixins: [
         ],
         components: {
+            GoogleAddressAutocomplete,
             AccordionTab,
             UniversalTab,
             Three3dWid,
@@ -223,7 +228,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .full-frame {
         border: 1px solid #BBB;
     }

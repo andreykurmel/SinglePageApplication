@@ -24,7 +24,6 @@ class GetLinkRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
             'link_id' => 'required|integer|exists:folders_2_tables,id'
         ];
     }

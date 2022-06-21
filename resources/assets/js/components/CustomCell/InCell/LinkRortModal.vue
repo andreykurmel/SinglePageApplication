@@ -1,14 +1,10 @@
 <template>
     <div class="rort-modal" ref="rort_link" v-show="rortShow" :style="{left: rortModal.left+'px', top: rortModal.top+'px'}">
         <div>
-            <a @click.stop="showSrcRecord()" :title="link ? link.tooltip : ''">
-                Record
-            </a>
+            <a @click.stop="showSrcRecord()" :title="link ? link.tooltip : ''">Record</a>
         </div>
         <div>
-            <a target="_blank" :title="link ? link.tooltip : ''" :href="tb_link">
-                Table
-            </a>
+            <a target="_blank" :title="link ? link.tooltip : ''" :href="tb_link" @click="hideMenu()">Table</a>
         </div>
     </div>
 </template>
@@ -33,6 +29,7 @@
         methods: {
             showSrcRecord() {
                 eventBus.$emit('clicked-rort-src', this.uuid);
+                this.hideMenu();
             },
             showRortModal() {
                 this.rortShow = true;
@@ -42,7 +39,10 @@
                 }
             },
             hideMenu(e) {
-                this.rortShow = false;
+                let container = $(this.$refs.rort_link);
+                if (!e || container.has(e.target).length === 0){
+                    this.rortShow = false;
+                }
             },
             clickedRortSrcHandler(uuid, link, tb_link) {
                 this.uuid = uuid;

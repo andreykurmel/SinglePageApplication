@@ -4,33 +4,54 @@
 namespace Vanguard\Services\Tablda;
 
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Classes\TabldaEncrypter;
+use Vanguard\Models\AppSetting;
 use Vanguard\Models\DataSetPermissions\TableColumnGroup;
 use Vanguard\Models\DataSetPermissions\TablePermission;
+use Vanguard\Models\Dcr\TableDataRequest;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\User\UserConnection;
 use Vanguard\Modules\CloudBackup\GoogleApiModule;
+use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
+use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
 use Vanguard\User;
 
 class HelperService
 {
     protected static $admin_ids = [];
+    protected static $sys_tb_ids = [];
+
+    public $select_input = ['S-Select', 'S-Search', 'S-SS', 'M-Select', 'M-Search', 'M-SS'];
 
     public $system_fields = [
         'id',
         'row_hash',
+        'static_hash',
         'row_order',
         'refer_tb_id',
         'request_id',
+        'created_on',
+        'created_by',
+        'modified_on',
+        'modified_by'
+    ];
+    public $cannot_fill_fields = [
+        'id',
+        'row_hash',
+        'static_hash',
+        'row_order',
         'created_on',
         'created_by',
         'modified_on',
@@ -44,6 +65,7 @@ class HelperService
     ];
 
     public $system_tables_for_all = [
+        'user_activity',
         'user_subscriptions',
         'sum_usages',
         'payments',
@@ -60,6 +82,7 @@ class HelperService
         'correspondence_stim_3d',
     ];
     public $myaccount_tables = [
+        'user_activity',
         'user_subscriptions',
         'sum_usages',
         'payments',
@@ -69,7 +92,11 @@ class HelperService
         'fees',
         'plans_view'
     ];
-    public $support_tables = [
+    public $admin_support = [ //'Support' tables just for Admin
+        'email_settings',
+        'uploading_file_formats',
+    ];
+    public $support_tables = [ //system tables which user can edit
         'unit_conversion',
         'user_connections',
         'user_clouds',
@@ -83,6 +110,8 @@ class HelperService
     ];
     public $stim_views = [
         'stim_app_views',
+        'stim_app_view_feedbacks',
+        'stim_app_view_feedback_results',
     ];
 
     public $sys_row_hash = [
@@ -95,7 +124,7 @@ class HelperService
     public $no_redirect_subdomains = ['public','blog'];
     public $public_subdomain = 'public';
     public $cur_subdomain = '';
-    public $use_visitor_scope = true;
+    public $use_visitor_scope = false;
 
     /**
      * HelperService constructor.
@@ -109,21 +138,9 @@ class HelperService
                 $this->cur_subdomain = $subdomain[1];
                 $this->cur_subdomain = strtolower($this->cur_subdomain);
 
-                //$this->use_visitor_scope = $this->cur_subdomain == 'public' || !auth()->id();
+                $this->use_visitor_scope = $this->cur_subdomain == 'public' || !auth()->id();
             }
         }
-    }
-
-    /**
-     * @param $request
-     * @return string
-     */
-    public static function webHashFromReq($request)
-    {
-        $reqparams = is_array($request) ? $request : $request->all();
-        return ($reqparams['special_params']['view_hash'] ?? '')
-            ?: ($reqparams['special_params']['is_folder_view'] ?? '')
-                ?: ($reqparams['special_params']['dcr_hash'] ?? '');
     }
 
     /**
@@ -164,31 +181,31 @@ class HelperService
     }
 
     /**
-     * @param TablePermission $permis
+     * @param TableDataRequest $dcr
      * @param array $row
      * @param Table|null $table
      * @return string
      */
-    public static function dcrStatus(TablePermission $permis, array $row, Table $table = null)
+    public static function dcrStatus(TableDataRequest $dcr, array $row, Table $table = null)
     {
         $fld = null;
-        if ($permis->dcr_record_status_id && $permis->dcr_record_allow_unfinished) {
+        if ($dcr->dcr_record_status_id && $dcr->dcr_record_allow_unfinished) {
             $fld = $table
-                ? $table->_fields->where('id', '=', $permis->dcr_record_status_id)->first()
-                : (new TableFieldRepository())->getField($permis->dcr_record_status_id);
+                ? $table->_fields->where('id', '=', $dcr->dcr_record_status_id)->first()
+                : (new TableFieldRepository())->getField($dcr->dcr_record_status_id);
         }
         return $fld ? ($row[$fld->field] ?? 'Submitted') : 'Submitted';
     }
 
     /**
-     * @param TablePermission $permis
+     * @param TableDataRequest $dcr
      * @param array $row
      * @param Table|null $table
      * @return string
      */
-    public static function dcrPref(TablePermission $permis, array $row, Table $table = null)
+    public static function dcrPref(TableDataRequest $dcr, array $row, Table $table = null)
     {
-        switch (self::dcrStatus($permis, $row, $table)) {
+        switch (self::dcrStatus($dcr, $row, $table)) {
             case 'Saved': return 'dcr_save_';
             case 'Updated': return 'dcr_upd_';
             case 'Submitted':
@@ -331,7 +348,10 @@ class HelperService
                     break;
                 default: $link = $folder->is_opened ? 'fa fa-folder-open' : 'fa fa-folder';
             }
-        } else {
+        } elseif ($folder->is_folder_link) {
+            $link = $folder->is_opened ? 'fas fa-folder-minus' : 'fas fa-folder-plus';
+        }
+        else {
             $link = $folder->is_opened ? 'fa fa-folder-open' : 'fa fa-folder';
         }
         return $link;
@@ -340,12 +360,15 @@ class HelperService
     /**
      * Get AppUrl with user's subdomain.
      *
-     * @param $user
-     * @param $cur_subdomain
-     * @return mixed|string
+     * @param null $user
+     * @param string $cur_subdomain
+     * @return string
      */
-    public function getUsersUrl($user, $cur_subdomain) {
-        $user_subdomain = $user && $user->subdomain ? $user->subdomain : '';
+    public function getUsersUrl($user = null, $cur_subdomain = '') {
+        $user_subdomain = '';
+        if ($user && $ava = $user->_available_features()->first()) {
+            $user_subdomain = $ava->apps_are_avail ? ($user->subdomain ?: '') : '';
+        }
         $result_subdomain = $cur_subdomain == 'public' ? $this->public_subdomain : $user_subdomain;
 
         //ignore redirect for 'data request' urls
@@ -381,7 +404,7 @@ class HelperService
             if (preg_match('/[_]/i', $key[0])) {
                 unset($data[$key]);
             }
-            elseif (!$low && in_array($key, $this->system_fields)) {
+            elseif (!$low && in_array($key, $this->cannot_fill_fields)) {
                 unset($data[$key]);
             }
             elseif (!$low && $key == 'user_id' && empty($data[$key])) {
@@ -449,7 +472,7 @@ class HelperService
      * @return array
      */
     public function getModified(Table $table = null){
-        if ($table && $table->is_system == 2) {
+        if ($table && ($table->is_system == 2 || in_array($table->db_name, $this->admin_support))) {
             return [];
         } else {
             return [
@@ -464,7 +487,7 @@ class HelperService
      * @return array
      */
     public function getCreated(Table $table = null){
-        if ($table && $table->is_system == 2) {
+        if ($table && ($table->is_system == 2 || in_array($table->db_name, $this->admin_support))) {
             return [];
         } else {
             return [
@@ -624,22 +647,19 @@ class HelperService
     }
 
     /**
-     * Parse Google Sheet.
+     * Parse Google Sheets.
      *
-     * @param string $g_sheet_link
-     * @param string $g_sheet_name
+     * @param string $g_sheets_id
+     * @param string $g_sheets_page
+     * @param string|null $token_json
      * @return array
      */
-    public function parseGoogleSheet(string $g_sheet_link, string $g_sheet_name, string $token_json = null)
+    public function parseGoogleSheet(string $g_sheets_id, string $g_sheets_page, string $token_json = null)
     {
         $client = (new GoogleApiModule())->clientWithCredentialsOrPublic($token_json);
         $service = new \Google_Service_Sheets($client);
 
-        $arr = [];
-        preg_match('#/d/([^/]+)/#i', $g_sheet_link, $arr);
-        $spreadsheetId = $arr[1] ?? null;
-
-        $response = $service->spreadsheets_values->get($spreadsheetId, $g_sheet_name);
+        $response = $service->spreadsheets_values->get($g_sheets_id, $g_sheets_page);
         return $response->getValues();
     }
 
@@ -714,9 +734,38 @@ class HelperService
      */
     public function getFieldsArrayForNotification(Table $table, TableColumnGroup $col_group = null) {
         $tbcolgroup = $col_group && $col_group->table_id == $table->id ? $col_group : $table->_visitor_column_group;
-        $fldtb = (new TableField())->getTable();
+        return $this->orderedFieldsArray($tbcolgroup->_fields()->getQuery());
+    }
 
-        return $tbcolgroup->_fields()
+    /**
+     * @param Table $table
+     * @param array $field_ids
+     * @return array
+     */
+    public function getFieldsArrayForEmailAddon(Table $table, array $field_ids = []): array
+    {
+        $fldtb = (new TableField())->getTable();
+        $avail_fields = $field_ids ?: $table->_visitor_column_group
+            ->_fields()
+            ->select($fldtb.'.id')
+            ->get()
+            ->pluck('id');
+
+        $sql = TableField::query()
+            ->where('table_id', '=', $table->id)
+            ->whereIn('id', $avail_fields);
+
+        return $this->orderedFieldsArray($sql);
+    }
+
+    /**
+     * @param Builder $builder
+     * @return array
+     */
+    protected function orderedFieldsArray(Builder $builder): array
+    {
+        $fldtb = (new TableField())->getTable();
+        return $builder
             ->whereNotIn('field', $this->system_fields)
             ->whereNotIn('f_type', ['Attachment'])
             ->orderBy($fldtb.'.order')
@@ -779,6 +828,7 @@ class HelperService
     {
         switch ($type) {
             //Strings
+            case 'Auto String':
             case 'Attachment':
             case 'Formula':
             case 'Address':
@@ -807,7 +857,7 @@ class HelperService
 
             //Specials
             case 'Auto Number':
-            case 'Star Rating':
+            case 'Rating':
             case 'Progress Bar':
             case 'Boolean':
                 return 0;
@@ -839,20 +889,48 @@ class HelperService
     }
 
     /**
-     * Parse recipients from row
-     * @param string $recipients
+     * @param array $present
+     * @param $additional
+     * @param bool $convert
      * @return array
      */
-    public function parseRecipients(string $recipients = null) {
+    public function addRecipientsEmails(array $present, $additional, $convert = false)
+    {
+        return array_unique( array_merge(
+            $present,
+            $this->parseRecipients($additional, $convert)
+        ) );
+    }
+
+    /**
+     * Parse recipients from row
+     * @param string $recipients
+     * @param bool $convert_groups
+     * @return array
+     */
+    public function parseRecipients(string $recipients, $convert_groups = false)
+    {
+        $ugRepo = new UserGroupRepository();
         $recipients = preg_replace('/[\s,]+/i', ';', $recipients);
         $recipients = preg_replace('/;+/i', ';', $recipients);
         $recipients = explode(';', $recipients);
         $emails = [];
         foreach ($recipients as $elem) {
-            //if is correct email
-            if ($elem && filter_var($elem, FILTER_VALIDATE_EMAIL)) {
-                $emails[] = $elem;
+            $res = [];
+            preg_match('/\(Group\[(\d+)\]\)/i', $elem, $res);
+            //if is UserGroup
+            if (!empty($res[1])) {
+                if ($convert_groups) {
+                    $emails = array_merge($emails, $ugRepo->getGroupUsrFields($res[1]));
+                } else {
+                    $emails[] = $elem;
+                }
             }
+            else
+                //if is correct email
+                if ($elem && filter_var($elem, FILTER_VALIDATE_EMAIL)) {
+                    $emails[] = $elem;
+                }
         }
         return $emails;
     }
@@ -875,6 +953,87 @@ class HelperService
     }
 
     /**
+     * @param Table $table
+     * @param array $datas
+     * @return array
+     */
+    public function setAutoStringArray(Table $table, array $datas)
+    {
+        foreach ($table->_fields as $fld) {
+            if ($fld->f_type == 'Auto String' && empty($datas[$fld->field])) {
+                $datas[$fld->field] = $this->oneAutoString($table, $fld->field, $fld->f_format ?: '');
+            }
+        }
+        return $datas;
+    }
+
+    /**
+     * @param Table $table
+     * @param string $fld_format
+     * @return string
+     */
+    public function oneAutoString(Table $table, string $field, string $fld_format, int $lvl = 1)
+    {
+        $format = explode('-', $fld_format);
+        if (!$table->num_rows) {
+            $table->num_rows = (new TableDataQuery($table))->getQuery()->count();
+            (new TableRepository())->onlyUpdateTable($table, ['num_rows' => $table->num_rows]);
+        }
+        $siz = intval($format[1] ?? '') ?: strlen( $table->num_rows ) + 2;
+
+        switch ($format[0] ?? 'mixed') {
+            case 'num': $tp = '100'; break;
+            case 'upper': $tp = '001'; break;
+            case 'lower': $tp = '010'; break;
+            case 'num_upper': $tp = '101'; break;
+            case 'num_lower': $tp = '110'; break;
+            case 'mixed':
+            default: $tp = '111';
+        }
+
+        $random = $this->rand_string($siz, $tp);
+
+        if ($lvl < 3) {
+            $not_unique = (new TableDataQuery($table))->getQuery()->where($field, '=', $random)->count();
+            if ($not_unique) {
+                return $this->oneAutoString($table, $field, $fld_format, ++$lvl);
+            }
+        }
+        return $random;
+    }
+
+    /**
+     * @param int $len
+     * @param string $type - numbers/lowercase/uppercase
+     * @param array $avails
+     * @return string
+     */
+    public function rand_string(int $len, string $type = '111', array $avails = [])
+    {
+        if ($avails) {
+            $source = $avails;
+        } else {
+            $source = '';
+            if ($type[0] == '1') {
+                $source .= '0123456789';
+            }
+            if ($type[1] == '1') {
+                $source .= 'qwertyuiopasdfghjklzxcvbnm';
+            }
+            if ($type[2] == '1') {
+                $source .= 'QWERTYUIOPASDFGHJKLZXCVBNM';
+            }
+        }
+
+        $max = strlen($source)-1;
+        $str = [];
+        for ($i = 0; $i < $len; $i++) {
+            $str[] = $source[rand(0, $max)];
+        }
+        return implode('', $str);
+    }
+
+    /**
      * @return array
      */
     public static function adminIds()
@@ -886,6 +1045,20 @@ class HelperService
                 ->toArray();
         }
         return self::$admin_ids;
+    }
+
+    /**
+     * @return array
+     */
+    public static function sysTbIds()
+    {
+        if (!self::$sys_tb_ids) {
+            self::$sys_tb_ids = Table::where('is_system', '!=', 0)
+                ->get()
+                ->pluck('id')
+                ->toArray();
+        }
+        return self::$sys_tb_ids;
     }
 
     /**
@@ -944,5 +1117,81 @@ class HelperService
             case 'undefined': return null;
             default: return $val;
         }
+    }
+
+    /**
+     * @param Table $table
+     * @return mixed|string
+     */
+    public static function getTableGoogleApi(Table $table)
+    {
+        $table_google_api = '';
+        if ($table->api_key_mode == 'table') {
+            $table_google_api = $table->google_api_key;
+        }
+        if ($table->api_key_mode == 'account' && $table->account_api_key_id) {
+            $userapi = (new UserConnRepository())->getUserApi($table->account_api_key_id, true);
+            $table_google_api = $userapi ? TabldaEncrypter::decrypt($userapi->key) : '';
+        }
+        return $table_google_api;
+    }
+
+    /**
+     * @return string
+     */
+    public static function getClientIp()
+    {
+        $ipaddress = '';
+        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            $ipaddress = $_SERVER['HTTP_CLIENT_IP'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            $ipaddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED'])) {
+            $ipaddress = $_SERVER['HTTP_X_FORWARDED'];
+        } else if (isset($_SERVER['HTTP_FORWARDED_FOR'])) {
+            $ipaddress = $_SERVER['HTTP_FORWARDED_FOR'];
+        } else if (isset($_SERVER['HTTP_FORWARDED'])) {
+            $ipaddress = $_SERVER['HTTP_FORWARDED'];
+        } else if (isset($_SERVER['REMOTE_ADDR'])) {
+            $ipaddress = $_SERVER['REMOTE_ADDR'];
+        } else {
+            $ipaddress = 'UNKNOWN';
+        }
+
+        return $ipaddress;
+    }
+
+    /**
+     * @param string $ip
+     * @return mixed
+     */
+    public static function getClientLocation(string $ip = '')
+    {
+        $PublicIP = $ip ?: self::getClientIp();
+        $json = file_get_contents("http://ipinfo.io/$PublicIP/geo");
+        return json_decode($json, true);
+    }
+
+    /**
+     * @return string
+     */
+    public static function usrEmailDomain()
+    {
+        $excld = AppSetting::where('key', '=', 'app_usr_public_domains')->first();
+        $excld = preg_split('/,|;|\s|\r\n|\r|\n/', $excld ? $excld->val : '');
+
+        $email_domain = auth()->user() ? auth()->user()->email : '';
+        $email_domain = array_last( explode('@', $email_domain) );
+        return in_array($email_domain, $excld) ? '' : $email_domain;
+    }
+
+    /**
+     * @param int $dcr_id
+     * @param int|null $row_id
+     * @return string
+     */
+    public static function dcr_id_linked_row(int $dcr_id, int $row_id = null): string
+    {
+        return $dcr_id . '_' . $row_id;
     }
 }

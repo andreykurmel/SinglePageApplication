@@ -18,13 +18,21 @@
             <td style="{{ $styles['table--td'] }}">${{ $user->_subscription->_plan->{$cost_col} }}</td>
         </tr>
         <tr>
-            <td style="{{ $styles['table--th'] }}">Add-on</td>
+            <td style="{{ $styles['table--th'] }}">Add-on Modulues:</td>
             <td style="{{ $styles['table--td'] }}"></td>
         </tr>
         @foreach($user->_subscription->_addons as $addon)
         <tr>
             <td style="{{ $styles['table--th'] }};text-align: right">{{ $addon->name }}</td>
-            <td style="{{ $styles['table--td'] }}">${{ $addon->{$cost_col} }}</td>
+            <td style="{{ $styles['table--td'] }}">
+                @if($adn_included)
+                <span>$0</span>
+                @elseif($all_adn)
+                <span>${{ ($addon->is_special ? $addon->{$cost_col} : 0) }}</span>
+                @else
+                <span>${{ ($addon->is_special ? 0 : $addon->{$cost_col}) }}</span>
+                @endif
+            </td>
         </tr>
         @endforeach
         <tr>
@@ -44,7 +52,7 @@
             <td style="{{ $styles['table--td'] }}">{{ $transaction_id }}</td>
         </tr>
         <tr>
-            <td style="{{ $styles['table--th'] }}">For Service</td>
+            <td style="{{ $styles['table--th'] }}">For Service Valid Through</td>
             <td style="{{ $styles['table--td'] }}">{{ $service_date }}</td>
         </tr>
     </table>

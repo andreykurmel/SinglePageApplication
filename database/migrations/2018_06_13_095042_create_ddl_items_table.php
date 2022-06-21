@@ -17,6 +17,7 @@ class CreateDdlItemsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('ddl_id');
             $table->string('option');
+            $table->string('opt_color', 16)->nullable();
             $table->string('notes')->nullable();
 
             $table->unsignedInteger('created_by')->nullable();

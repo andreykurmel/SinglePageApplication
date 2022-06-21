@@ -11,7 +11,13 @@
                     </div>
                 </div>
 
-                <div class="popup-content popup-main">{{ content_html }}</div>
+                <div class="popup-content popup-main">
+                    <div>{{ content_html }}</div>
+                    <div>
+                        <button v-if="cancel_btn" class="btn btn-info btn-sm pull-right" @click="$emit('cancel-click')">{{ cancel_btn }}</button>
+                        <button v-if="add_btn" class="btn btn-success btn-sm pull-right" @click="$emit('add-click')">{{ add_btn }}</button>
+                    </div>
+                </div>
 
             </div>
         </div>
@@ -40,6 +46,8 @@
             title_html: String,
             content_html: String,
             extra_style: Object,
+            add_btn: String,
+            cancel_btn: String,
         },
         computed: {
             extraStl() {
@@ -78,6 +86,10 @@
                 font-size: 2rem;
                 line-height: 2rem;
                 font-weight: bold;
+
+                button {
+                    margin: 15px 0 0 5px;
+                }
             }
         }
     }

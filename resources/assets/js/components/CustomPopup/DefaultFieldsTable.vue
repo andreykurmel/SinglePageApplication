@@ -34,6 +34,7 @@
             };
         },
         props:{
+            tableDcrId: Number,
             tablePermissionId: Number,
             UserGroupId: Number,
             tableMeta: Object,
@@ -55,7 +56,9 @@
             changeDefFields(row, hdr) {
                 this.$root.sm_msg_type = 1;
                 this.defaultFieldsObj[hdr.field] = row[hdr.field];
-                axios.put('/ajax/table-permission/default-field', {
+                let path = this.tableDcrId ? 'table-data-request' : 'table-permission';
+                axios.put('/ajax/'+path+'/default-field', {
+                    table_data_request_id: this.tableDcrId,
                     table_permission_id: this.tablePermissionId,
                     user_group_id: this.UserGroupId,
                     table_field_id: hdr.id,

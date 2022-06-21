@@ -3,13 +3,15 @@
         <div class="menu-header">
             <info-sign-link :app_sett_key="'help_link_menutree'" :hgt="24" class="flo-left"></info-sign-link>
             <button v-if="!$root.sideIsNa('side_left_filter')"
-                    class="btn btn-default"
+                    class="btn btn-default btn-he"
                     :class="{active : isFilters}"
+                    :style="textSysStyle"
                     @click="isFilters = true"
             >FILTER</button>
             <button v-if="!$root.sideIsNa('side_left_menu')"
-                    class="btn btn-default"
+                    class="btn btn-default btn-he"
                     :class="{active : !isFilters}"
+                    :style="textSysStyle"
                     @click="isFilters = false"
             >MENU</button>
         </div>
@@ -24,7 +26,7 @@
                 <div v-if="!embed || $root.user._is_folder_view" v-show="!isFilters" class="full-height position-relative">
                     <ul class="nav nav-tabs">
                         <li v-for="tab in tabs" :class="{active : currentTabId === tab.id}">
-                            <a @click.prevent="changeLeftTab(tab.id)">{{tab.name}}</a>
+                            <a @click.prevent="changeLeftTab(tab.id)" :style="textSysStyle">{{tab.name}}</a>
                         </li>
                     </ul>
                     <template v-for="tab in tabs">
@@ -45,13 +47,17 @@
             </template>
         </div>
 
-        <header-resizer :table-header="left_menu_sizes" @header-resizing-ends="saveSizes"></header-resizer>
+        <header-resizer :table-header="left_menu_sizes" @resize-finished="saveSizes"></header-resizer>
 
     </div>
 </template>
 
 <script>
-    import {eventBus} from './../../../app';
+    import {eventBus} from '../../../app';
+
+    import {SpecialFuncs} from '../../../classes/SpecialFuncs';
+
+    import CellStyleMixin from "../../_Mixins/CellStyleMixin";
 
     import LeftMenuTreeItem from './LeftMenuTreeItem';
     import SliderFilterElem from "./SliderFilterElem";
@@ -68,6 +74,9 @@
             SliderFilterElem,
             LeftMenuTreeItem
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data() {
             return {
                 selectedLink: null,
@@ -78,8 +87,8 @@
                 tabs: [],
                 tree: null,
                 should_build_tree_tabs: false,
-                left_menu_sizes: {
-                    width: localStorage.getItem('left_menu_width') || 250,
+                left_menu_sizes:{
+                    width: Number(readLocalStorage('local_left_menu_width')) || 250,
                     max_width: 400,
                     min_width: 260,
                 },
@@ -99,12 +108,32 @@
                     flexGrow: 0,
                     flexBasis: this.left_menu_sizes.width+'px',
                     width: this.left_menu_sizes.width+'px',
+                    minWidth: this.minWi+'px',
+                    ...this.textSysStyle,
                 };
+            },
+            minWi() {
+                let fsize = (this.themeSysSize || 14) / 2;
+                return _.sumBy(this.tabs, (tab) => {
+                    return (tab.name.length * fsize) + 8;
+                }) + 20;
+            },
+        },
+        watch: {
+            "$root.tableMeta.id": {
+                handler(val) {
+                    if (this.$root.tableMeta && this.$root.tableMeta._cur_settings) {
+                        this.left_menu_sizes.width = Number(this.$root.tableMeta._cur_settings.left_menu_width)
+                            || Number(readLocalStorage('local_left_menu_width'))
+                            || 250;
+                    }
+                },
+                immediate: true,
             },
         },
         methods:{
             saveSizes() {
-                localStorage.setItem('left_menu_width', this.left_menu_sizes.width);
+                this.$root.changeLeftMenuWi(this.left_menu_sizes.width, this.$root.tableMeta);
             },
             changeLeftTab(tab) {
                 this.currentTabId = tab;
@@ -122,12 +151,20 @@
             updateSelectedLink(selectedLink) {
                 this.selectedLink = selectedLink;
             },
-            reloadMenuTree() {
-                axios.get('/ajax/menu-tree').then(({ data }) => {
-                    this.setNewTree(data);
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {});
+            reloadMenuTree(force) {
+                let menu = SpecialFuncs.tryJson( readLocalStorage('menu_tree') );
+                let hash = readLocalStorage('menu_tree_hash');
+                if (!force && menu && hash === this.$root.user.memutree_hash) {
+                    this.setNewTree(menu);
+                } else {
+                    axios.get('/ajax/menu-tree').then(({ data }) => {
+                        setLocalStorage('menu_tree', JSON.stringify(data));
+                        setLocalStorage('menu_tree_hash', this.$root.user.memutree_hash || '');
+                        this.setNewTree(data);
+                    }).catch(errors => {
+                        Swal('', getErrors(errors));
+                    }).finally(() => {});
+                }
             },
             setNewTree(data) {
                 this.should_build_tree_tabs = false;
@@ -143,19 +180,19 @@
         },
         created() {
             if (this.$root.user._is_folder_view) {
-                this.tabs.push( {id: 'folder_view', name: 'Folder', init_scrl: 0} );
+                this.tabs.push( {id: 'folder_view', name: 'Folder'} );
                 this.currentTabId = 'folder_view';
                 this.setNewTree(this.view_tree);
             } else {
                 this.tabs = [
-                    {id: 'public', name: 'Public', init_scrl: 0},
-                    {id: 'private', name: 'Private', init_scrl: 0},
-                    {id: 'favorite', name: 'Favorite', init_scrl: 0}
+                    {id: 'public', name: 'Public'},
+                    {id: 'private', name: 'Private'},
+                    {id: 'favorite', name: 'Favorite'}
                 ];
                 if (this.$root.user.id) {
-                    this.tabs.push( {id: 'account', name: 'Account', init_scrl: 0} );
+                    this.tabs.push( {id: 'account', name: 'Account'} );
                 }
-                this.reloadMenuTree();
+                this.reloadMenuTree(true);
             }
         },
         mounted() {
@@ -167,17 +204,15 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     #left-menu {
         .flo-left {
             float: left;
             margin-left: 10px;
         }
 
-        .nav-tabs {
-            li {
-                width: 58px;
-            }
+        .btn-he {
+            height: 36px;
         }
     }
 </style>

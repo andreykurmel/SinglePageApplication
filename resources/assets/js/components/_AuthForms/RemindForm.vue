@@ -6,9 +6,8 @@
             <form role="form" :action="settings.root_url+'/password/remind'" method="POST" id="remind-password-form" autocomplete="off">
                 <input type="hidden" :value="settings.csrf_token" name="_token">
 
-                <div class="form-group password-field input-icon">
+                <div class="form-group password-field">
                     <label class="sr-only">Email</label>
-                    <i class="fa fa-at"></i>
                     <input type="email" name="email" class="form-control" placeholder="Your E-Mail">
                 </div>
 
@@ -55,7 +54,7 @@
     }
 </script>
 
-<style scoped="" lang="scss">
+<style scoped lang="scss">
     @import "ModalForm";
 
     .modal-sm {

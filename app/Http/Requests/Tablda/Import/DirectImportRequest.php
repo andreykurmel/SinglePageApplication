@@ -31,9 +31,9 @@ class DirectImportRequest extends FormRequest
             'mysql_settings' => 'nullable|array',
             'paste_settings' => 'nullable|array',
             'paste_file' => 'nullable|string',
-            'g_sheet_settings' => 'nullable|array',
-            'g_sheet_link' => 'nullable|string',
-            'g_sheet_name' => 'nullable|string',
+            'g_sheets_settings' => 'nullable|array',
+            'g_sheets_link' => 'nullable|string',
+            'g_sheets_name' => 'nullable|string',
             'referenced_table' => 'nullable|array',
         ];
     }

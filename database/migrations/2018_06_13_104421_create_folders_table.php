@@ -22,6 +22,14 @@ class CreateFoldersTable extends Migration
             $table->tinyInteger('is_opened')->default(1);
             $table->tinyInteger('is_system')->default(0);
 
+            $table->string('import_source', 64)->nullable();
+            $table->string('importfolder_airtable_save', 255)->nullable();
+            $table->string('importfolder_google_save', 255)->nullable();
+            $table->string('importfolder_dropbox_save', 255)->nullable();
+            $table->string('importfolder_onedrive_save', 255)->nullable();
+            $table->string('importfolder_ocr_save', 255)->nullable();
+            $table->string('importfolder_local_save', 255)->nullable();
+
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();
             $table->dateTime('created_on');

@@ -7,6 +7,7 @@ use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvid
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\DataSetPermissions\CondFormat;
 use Vanguard\Models\StaticPage;
+use Vanguard\Models\Table\TableAlert;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Table\TableData;
@@ -15,6 +16,7 @@ use Vanguard\Policies\AppThemePolicy;
 use Vanguard\Policies\CondFormatPolicy;
 use Vanguard\Policies\FolderPolicy;
 use Vanguard\Policies\StaticPagePolicy;
+use Vanguard\Policies\TableAlertPolicy;
 use Vanguard\Policies\TableDataPolicy;
 use Vanguard\Policies\TableViewPolicy;
 use Vanguard\Policies\UserGroupPolicy;
@@ -30,6 +32,7 @@ class AuthServiceProvider extends ServiceProvider
     protected $policies = [
         TableData::class => TableDataPolicy::class,
         TableView::class => TableViewPolicy::class,
+        TableAlert::class => TableAlertPolicy::class,
         Folder::class => FolderPolicy::class,
         UserGroup::class => UserGroupPolicy::class,
         CondFormat::class => CondFormatPolicy::class,

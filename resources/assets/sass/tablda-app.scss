@@ -15,10 +15,10 @@
 @import "~@fortawesome/fontawesome-free/css/all.min.css";
 
 // Bootstrap Date-time-picker
-@import "~eonasdan-bootstrap-datetimepicker/build/css/bootstrap-datetimepicker.min.css";
+@import "./../css/libs/bootstrap-datetimepicker.css";
 
 // Select2
-@import "~select2/dist/css/select2.min.css";
+@import "libs/select2.css";
 
 //jstree css
 @import "~jstree/dist/themes/default/style.min.css";
@@ -39,15 +39,13 @@
 @import "components/tablda/tables";
 @import "components/navbar";
 
-//scroll view styles
-@import "./../css/libs/viewScroller.min.css";
-
 //jquery-ui
 @import "~jquery-ui/themes/base/all.css";
 
 body, html {
   height: 100%;
   width: 100%;
+  overflow: hidden;
 
   .body-table {
     display: table;
@@ -72,6 +70,25 @@ body, html {
       }
     }
   }
+
+}
+
+
+.autn-btn {
+  width: 160px;
+  padding: 5px 12px 5px 38px;
+  margin: 0 !important;
+}
+.auth-google {
+  background-image: url(/assets/img/btn_google.png);
+  background-size: cover;
+  padding: 0;
+  height: 37px;
+  display: block;
+
+  &:hover {
+    background-image: url(/assets/img/btn_google_focus.png);
+  }
 }
 
 .full-height {
@@ -87,6 +104,14 @@ body, html {
   height: 100%;
   overflow: auto;
   position: relative;
+}
+
+.w-150 {
+  width: 150px;
+}
+
+.d-inline-block {
+  display: inline-block !important;
 }
 
 
@@ -108,19 +133,21 @@ body, html {
 
 
 
+.flex__elem-remain {
+  flex-grow: 1;
+  flex-shrink: 1;
+  flex-basis: 0;
+  overflow: auto;
+
+  .flex__elem__inner {
+    height: 100%;
+  }
+}
 .flex {
   display: flex;
-
-  .flex__elem-remain {
-    flex-grow: 1;
-    flex-shrink: 1;
-    flex-basis: 0;
-    overflow: auto;
-
-    .flex__elem__inner {
-      height: 100%;
-    }
-  }
+}
+.flex-i {
+  display: flex !important;
 }
 .flex--col {
   flex-flow: column;
@@ -436,7 +463,7 @@ body, html {
 
 
 .static-page {
-  padding: 0 12% 20px 12%;
+  padding: 0 12% 0 12%;
   background-color: #FFF;
   color: #000;
 }
@@ -530,7 +557,6 @@ body, html {
   }
 
   .iw-wrapper {
-    max-width: 320px;
     max-height: inherit;
     overflow: hidden;
 
@@ -555,6 +581,13 @@ body, html {
   align-items: center;
   height: 100%;
   position: absolute;
+}
+@media all and (max-width: 767px) {
+  .navbar-header {
+    margin: 0;
+    justify-content: center;
+    width: 100%;
+  }
 }
 
 .StripeElement {
@@ -613,7 +646,7 @@ body, html {
   }
 }
 
-.fa-folder-open, .fa-share-alt-square, .fa-th, .fa-sync-alt {
+.fa-folder-open, .fa-folder-minus, .fa-share-alt-square, .fa-th, .fa-sync-alt {
   color: #EC0;
 }
 
@@ -626,7 +659,7 @@ body, html {
 }
 @media all and (max-width: 767px) {
   .mob {
-    display: block !important;
+    display: flex !important;
   }
   .not-mob {
     display: none !important;
@@ -696,6 +729,21 @@ body, html {
 }
 .txt--center {
   text-align: center;
+}
+
+
+.red {
+  color: #F00;
+  font-weight: bold;
+}
+.green {
+  color: #0B0;
+  font-weight: bold;
+}
+
+
+.border-gray {
+  border: 1px solid #CCC !important;
 }
 
 

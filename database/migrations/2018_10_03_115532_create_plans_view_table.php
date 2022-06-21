@@ -15,15 +15,18 @@ class CreatePlansViewTable extends Migration
     {
         Schema::create('plans_view', function (Blueprint $table) {
             $table->increments('id');
+            $table->string('who_can_view', 32)->nullable();
             $table->string('code', 25);
-            $table->string('category1')->nullable();
-            $table->string('category2')->nullable();
-            $table->string('category3')->nullable();
-            $table->string('feature');
+            $table->string('category1', 128)->nullable();
+            $table->string('category2', 128)->nullable();
+            $table->string('category3', 128)->nullable();
+            $table->string('sub_feat', 128)->nullable();
+            $table->string('feature', 128);
             $table->string('plan_basic', 25)->nullable();
+            $table->string('plan_standard', 25)->nullable();
             $table->string('plan_advanced', 25)->nullable();
             $table->string('plan_enterprise', 25)->nullable();
-            $table->string('desc')->nullable();
+            $table->string('desc', 255)->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

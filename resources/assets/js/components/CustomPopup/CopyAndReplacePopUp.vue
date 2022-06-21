@@ -69,7 +69,9 @@
                                                     :table-meta="tableMeta"
                                                     :table-header="hdr.object"
                                                     :td-value="hdr.repl_val"
+                                                    :with_edit="true"
                                                     :style="{width: '100%'}"
+                                                    :ext-row="firstSelected"
                                                     @updated-td-val="(val) => {hdr.repl_val = val}"
                                             ></single-td-field>
                                         </td>
@@ -78,7 +80,9 @@
                                                     :table-meta="tableMeta"
                                                     :table-header="hdr.object"
                                                     :td-value="hdr.new_val"
+                                                    :with_edit="true"
                                                     :style="{width: '100%'}"
+                                                    :ext-row="firstSelected"
                                                     @updated-td-val="(val) => {hdr.new_val = val}"
                                             ></single-td-field>
                                         </td>
@@ -133,7 +137,9 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
+
+    import {Endpoints} from "../../classes/Endpoints";
 
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
@@ -178,6 +184,9 @@
                 let left = (this.tb_headers.copy.width / sum_wi) * (this.getPopupWidth - 50);
                 return (left / 2) - 7;
             },
+            firstSelected() {
+                return _.find(this.allRows, {_checked_row: true}) || {};
+            },
         },
         props:{
             tableMeta: Object,
@@ -198,17 +207,9 @@
                 });
             },
             popupCopy() {
-                let rows_ids = [];
-                let all_rows_checked = true;
-                _.each(this.allRows, (row) => {
-                    if (row._checked_row) {
-                        rows_ids.push(row.id);
-                    } else {
-                        all_rows_checked = false;
-                    }
-                });
+                let check_obj = this.$root.checkedRowObject(this.allRows);
                 //avail if allrows are more than 1 page.
-                all_rows_checked = this.allRows.length >= this.tableMeta.rows_per_page ? all_rows_checked : false;
+                check_obj.all_checked = this.allRows.length >= this.tableMeta.rows_per_page ? check_obj.all_checked : false;
 
                 $.LoadingOverlay('show');
 
@@ -229,26 +230,27 @@
 
                 let only_cols = _.filter(this.fieldsForCopy, (el) => { return !!el.checked; });
                 only_cols = _.map(only_cols, 'field');
+                if (only_cols.length === this.fieldsForCopy.length) {
+                    only_cols = [];
+                } else {
+                    only_cols = only_cols.concat(this.forceColumns);
+                }
 
-                if (rows_ids || all_rows_checked) {
-                    axios.post('/ajax/table-data/mass-copy', {
-                        table_id: this.tableMeta.id,
-                        rows_ids: (all_rows_checked ? null : rows_ids),
-                        request_params: (all_rows_checked ? request_params : null),
-                        replaces: replaces,
-                        only_columns: only_cols.concat(this.forceColumns),
-                    }).then(({data}) => {
-                        this.$emit('after-copy', data, all_rows_checked);
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => $.LoadingOverlay('hide'));
+                if (check_obj.rows_ids || check_obj.all_checked) {
+                    Endpoints.massCopyRows(
+                        this.tableMeta.id,
+                        (check_obj.all_checked ? null : check_obj.rows_ids),
+                        (check_obj.all_checked ? request_params : null),
+                        replaces,
+                        only_cols
+                    );
                 } else {
                     Swal('No record selected!');
                 }
             },
             copyToClipboard(with_headers) {
                 this.$root.copyToClipboard(with_headers ? this.$refs.copy_table : this.$refs.copy_body);
-                Swal('Copied');
+                Swal('Copied to Clipboard!');
             },
         },
         mounted() {

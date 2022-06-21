@@ -18,6 +18,7 @@ class CreateFolders2TablesTable extends Migration
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('user_id');
             $table->unsignedInteger('folder_id')->nullable();
+            $table->unsignedInteger('is_folder_link')->nullable();
             $table->string('type', 50)->default('table');
             $table->string('structure', 50)->default('private');
 

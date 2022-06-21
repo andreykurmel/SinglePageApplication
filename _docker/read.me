@@ -1,0 +1,17 @@
+Build:
+    > sudo docker-compose build
+Start:
+    > sudo docker-compose up -d
+End:
+    > sudo docker-compose down
+
+
+
+phpmyadmin: localhost:8080 - host:{$docker-db-name}, user:{$mysql_user}, pass:{$mysql_pass}
+    example: > host:tablda_mysql, user:root, pass:rootpass
+
+
+
+terminal in container:
+    > sudo docker-compose exec {$php_name} /bin/bash
+    example: > sudo docker-compose exec tablda_php /bin/bash

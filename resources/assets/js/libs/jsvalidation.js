@@ -4036,7 +4036,7 @@ $.extend(true, laravelValidation, {
          */
         Image: function(value, element) {
             return laravelValidation.methods.Mimes.call(this, value, element, [
-                'jpg', 'png', 'gif', 'bmp', 'svg', 'jpeg'
+                'jpg', 'png', 'gif', 'bmp', 'svg', 'jpeg', 'webp','jfif','tiff','bmp'
             ]);
         },
 

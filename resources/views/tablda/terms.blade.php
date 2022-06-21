@@ -4,150 +4,188 @@
 
 @section('content')
  <div class="full-frame static-page">
-  <h1 style="align-items: center;">TERMS OF SERVICE </h1>
-  <p>Dear Customers and Subscribers, </p>
-  <p>Welcome to Tablda! This <b>Terms of Service</b>, <b><a href="https://admin.tablda.com/privacy" target="_blank">Privacy Policy</a></b> and <b><a href="https://admin.tablda.com/disclaimer" target="_blank">Legal Disclaimer</a></b> are legally binding documents and togetehr govern your access to and use of the TablDA services and the TablDA website, including any browser extensions, mobile applications and other downloadable apps we provide (collectively, TablDA), so please read and review it carefully. </p>
-  <p>Tablda is a unique, subscription-based service and website offering a cloud-based space for creating, managing, collecting and sharing tabulated data and a platform sup-porting table-centered work collaboration. This <b>Terms of Service and of Use</b> govern our business relationship as well as how <b>Subscribers</b> and <b>Customers</b> use and access our website and services. </p>
-  <p><b>Subscribers</b> (i.e. "Subscriber", "You", or "Your") and <b>Customers</b> (i.e. "Customers", "User", "You" or "Your") who do not agree with these terms or are under the age of 18 are restricted from using our website.  Changes to our Terms or Policies will be uploaded to our website along with their effective date. Any users' continued use of our website is their agreement to these changes. </p>
-  <h2 style="align-items: center;">I. USER ACCESS </h2>
-  <p><b>Subscribers</b> and users can use and access the Tablda website any time. Access and usage must be for any legal or legitimate purpose only. <b>Subscribers</b> and <b>Customers</b> who access our website acknowledge and agree to be subject to our rules; regulations; agreements; and guidelines. </p>
-  <p>Our Terms of Service and Use, as well as Policies and guidelines apply to ALL users of our services, software, and app, including but not limited to: individuals; employees; and agents; who may access and use our software on behalf of their employer or company. </p>
-  <h2 style="align-items: center;">II. ACCOUNTS </h2>
-  <ol type="a">
-  <li><b>FREE accounts</b>. Anyone over the age of eighteen (18) can register and cre-ate a account with FREE Basic subscription plan via our website providing: (1) it is legally permitted within their home country and jurisdiction; and (2) it is not for an improper or illegal purpose.  FREE Basic subscription plan has only basic features and functionalities. A FREE Basic subscription plan must pay prescribed subscription fees to become Advanced or Enterprise subscription plan for obtaining more features and functionality. </li>
-  <li><b>Information Collection</b>. When a user creates an account, he or she will be asked to provide: login information (username); password; name; email address; neces-sary financial information will be required for upgrading to Advanced or Enterprise sub-scription plan.  This information is collected and used by Tablda, LLC for legitimate busi-ness purposes such as: answering support tickets; preventing unauthorized access; provid-ing functionality and services to our <b>Customers</b> and <b>Users</b>.</li>
-  <li><b>Security</b>. Subscribers and users warrant and agree to keep their registration and login information secure and private at all times in order to prevent unauthorized ac-cess.  If a Subscriber or user loses or forgets their username or password, they can use the links provided on the website to retrieve their credentials and/or create an account; email our Technical Support Department at: support@tablda.com for assistance. </li>
-  <li><b>Usage</b>. Only one account is permitted per Subscriber or User.  One user is not allowed to access the services using other’s account. </li>
-  <li><b>Cancellation</b>. A Subscriber or account holder can cancel subscriptions or terminate their accounts at any time by logging in, cancelling their subscriptions and delet-ing their accounts. Upgrading subscription from free plan to paid plan becomes effective immediately upon payment confirmation. Downgrading subscription from paid plan to free plan would not become effective until next billing cycle. For downgrading subscription, a user or Subscriber must confirm their subscription downgrading prior to the start of next billing cycle to avoid incurring any additional charges or fees for services.</li>
-  </ol>
-   <h2 style="align-items: center;">III. PAYMENT </h2>
-  <ol type="a">
-  <li><b>Packages</b>. Tablda offers three different subscription plans: (1) BASIC (FREE); (2) ADVACNED; and (3) ENTERPRISE.  The difference in the plans depends upon the services and desired features and functionality. Please see the subscription page after login for more information. Tablda is a subscription-based service which can be renewed monthly or annually. </li>
-  <li><b>Payment</b>. Tablda uses private, third-party, payment processors such as Pay Pal and Stripe to manage and process all periodical subscription payments.  Payments for paid subscriptions are processed on the time confirming the subscriptions. </p>
-  <p>Provided financial account associated with subscription is charged monthly or annual-ly and automatically renewed if auto-renew option is checked. By subscribing to a paid subscription plan, you are authorizing Tablda to charge your account; debit; or credit card; for the monthly or yearly subscription. The subscription will renew month-to-month for the plan chosen until the subscription is changed, either downgraded or by the User or <b>Customer</b>.  ALL Users understand and agree that they are liable for all outstanding charges or fees on account when they cancel their subscription. </p>
-  </li>
-  <li><b>Cancellation</b>. Customers and Subscribers who desire to cancel their sub-scription must do so prior to the first day of the (following) billing cycle in order to avoid additional charges. </li>
-  <li><b>Payment Information</b>. Tablda, LLC never collects or uses a <b>Subscriber's financial information. In the event of a dispute, Subscribers</b> should contact the insti-tution of their financial account provided for making payment. </li>
-  <li><b>Processing Fees/VAT</b>. The User or Subscribers acknowledges and agrees that they are responsible for any and all processing fees; charges; or additional taxes (in-cluding but not limited to VAT) that are applicable to their monthly or yearly subscription renewal. </li>
-  </ol>
-  IV. INTELLECTUAL PROPERTY </h2>
-  <p><b>Subscribers</b> and <b>Customers</b> retain all rights in their intellectual property, including but not limited to files; pictures; illustrations; documents; and any oth-er file or material uploaded or downloaded through our website. ALL users of our website; software; and platform; warrant that all content and materials shared, uploaded, or down-loaded, does not violate any copyright laws or third-party copyrights. Users also warrant that the material and files uploaded and downloaded does not contain any prohibited; ille-gal; or offensive content. </p>
-  <h2 style="align-items: center;">V. REFUNDS </h2>
-  <p>Tablda does not have a refund policy at this time.  <b>Subscribers</b> who want to terminate or cancel their subscription must do so through their profile via the account menu prior to the first day of the next billing cycle in order to avoid any additional charges. </p>
-  <h2 style="align-items: center;">VI. RESTRICTIONS </h2>
-  <ol type="a">
-  <li><b>Purchases</b>. <b>Subscribers</b> and users must not make any unauthor-ized purchases without a cardholder's consent. We reserve the right to limit, restrict, or terminate a Customer's account for unethical, objectionable, or prohibited behavior. </li>
-  <li><b>Interference and Harassment</b>. <b>Customers</b> and <b>Subscribers</b> must not access our website in any way that impedes or interferes with its function or for any unlawful activity. Harassment; bullying; bigotry; profanity; stalking; discrimination; and spamming; is strictly prohibited. </li>
-  <li><b>Data-Mining</b>. Data-mining; hacking; malware; viruses; spamming; or the use of robots or other programming to access or manipulate our website; code; or to cause interference with our website; server; or </b>Customers</b>; is strictly prohibited.  Tablda is committed to protecting our information; technology; intellectual property; and that of our </b>Customers</b>. We warrant to take legal action against individual or entity that that trespasses upon or breaches our website, intellectual property, or that of our </b>Customers</b>. </li>
-  </ol>
-  <h2 style="align-items: center;">VII. CONTENT </h2>
-  <p>Tablda offers a unique platform, database, and functionality to our <b>Customers</b> and <b>Subscribers</b>. Any and all information or content (i.e. "Content") including but not limited to: code; programming; pictures; illustrations; video; recordings; text; graphics; and communications; is our intellectual property (i.e. "intellectual property") wholly owned by Tablda, our owners and directors. </p>
-  <p>Tablda, LLC's Intellectual Property is protected by state, federal, and international Copyright, Trademark, and Intellectual Property Laws.  User's and visitors agree not to in-fringe upon or interfere with these rights. </p>
-  <h2 style="align-items: center;">VIII. SUBMISSIONS </h2>
-  <p><b>Subscribers</b> and users can: upload; download; and share files and data (i.e. <b>Submission</b>) through Tablda. In order to comply with State, Federal, and Internation-al Intellectual Property Laws, the Subscriber or user warrants that files, data and submissions: </p>
-  <ul>
-  ·	<li>Are the original to the user or Subscriber; </li>
-  ·	<li>Do not infringe upon third-party copyrights; </li>
-  ·	<li>Are not involved in pending or threatening litigation; </li>
-  ·	<li>Do not contain content Tablda, LLC deems offensive; pornographic; or otherwise il-legal or prohibited; </li>
-  ·	<li>Do not contain: viruses; malware; spyware; data mining code, or bots; </li>
-  ·	<li>Do not contain any software, code, or files that might be harmful to our website, plat-form, or servers. </li>
-  </ul>
-  <h2 style="align-items: center;">IX. LICENSE </h2>
-  <ol type="a">
-  <li><b>MY PLATFORM License</b>. Tablda grants all users and Subscribers a limited, royalty-free license to: use; display; or otherwise access our website and its' content. Users and <b>Customers</b> may not use or access our website for any illegal or improper purpose or intent.
-  <p><b>Customers</b> and <b>Subscribers</b> warrant not to infringe upon Tablda, LLC's intellectual property rights and copyrights. </p>
-  </li>
-  <li><b>Subscriber License</b>. Subscribers and users also grant Tablda and Tablda, LLC, an unlimited; royalty-free; world-wide license, to: use; display; show; share; any tes-timonial; picture; or image; in order to promote and advertise Tablda's website and ser-vices.  Tablda promises never to infringe upon or share any private or confidential infor-mation at any time without the <b>Customer's or users</b> written consent. </li>
-  </ol>
-  <h2 style="align-items: center;">X. CONFIDENTIALITY </h2>
-  <p>It is the duty of the Subscribers, Users, and Customers that are uploading, download-ing, and sharing data and files to keep all material confidential and private, including but not limited to proprietary data and trade secrets. At no time does Tablda sell; share; mine; or collect; any private or confidential information. </p>
-  <p>We make all efforts to protect our database or platform, but no website or software is bullet proof, therefore ALL Users, Customers, and Subscribers warrant to hold Tablda harmless, from any breach; hack; or disclosure of private or confidential information; which is due to a force majeure or unforeseen event. </p>
-  <h2 style="align-items: center;">XI. MODIFICATIONS AND RISK </h2>
-  <ol type="a">
 
-  <li><b>Website Changes</b>. Tablda, LLC reserves the right to: change; modify; or remove content contained within our website and platform for any reason at our sole dis-cretion with or without notice.  We do not guarantee our website or platform will be avail-able at all times.
-  <p>The <b>Customer</b> and <b>Subscriber</b> understand and acknowledge that inter-ruptions; delays; errors; and maintenance; may occur from time-to-time. </p>
-  <p><b>Customers</b> and <b>Subscribers</b> acknowledge and agree that Tablda, LLC has no liability whatsoever for any loss, damage, or inconvenience caused by the ina-bility to access or use our website or platform during any downtime or discontinuance of services.  Nothing in these <b>Terms</b> will be construed to obligate us to maintain and support the website or to supply any corrections, updates, or releases in connection therewith. </p>
-  </li>
-  <li><b>Limited Liability and Risk</b>. <b>Subscribers</b> and <b>Users</b> acknowledge and agree that when they access or use the Tablda or its' content, they are doing so at their own risk. Our website is provided "as is" without any warranty or guaran-tee. <b>Subscribers</b> and <b>Users</b> agree to accept personal liability and respon-sibility for any damage or loss experienced when they use or access our website. </li>
-  </ol>
 
-  <h2 style="align-items: center;">XII. DMCA POLICY </h2>
-  <p>If you believe a Subscriber or user has committed a copyright violation, please immediately notify Customer Support or our Copyright Agent at: legal@tablda.com. </p>
+<h1 style="align-items: center;">TERMS OF SERVICE</h1>
+<p>Last Modified: April 14, 2022. </p>
+<p><b>Effective Date:</b> April 14, 2022. </p>
+<p>Dear Customers and Subscribers, </p>
+<p>Welcome to TablDA! TablDA is a unique, subscription-based service and application providing a cloud-based space for creating, managing, collecting, and sharing tabulated data and a platform for developing custom tools and applications supporting table-centered work collaboration. </p>
+<p>These <b>Terms of Service</b> (“Terms”) with legal disclaimers and <b><a href="https://tablda.com/privacy" target="_blank">Privacy Policy</a></b>(“Policy”) of TablDA, LCC, dba TablDA ("we," "our," or "us"), are legally binding documents and together govern your access to and use of the TablDA services and applications, including the website tablda.com and its subdomains, any browser extensions, hosted services, mobile applications, other downloadable apps, application programming interfaces ("APIs"), and tools and documentation (collectively, “TablDA”). Please read these terms carefully to ensure that you understand each provision. </p>
+<p>The terms "<b>User</b>", "<b>Users</b>", "You", and "Your" are used in these Terms to refer to <b>Subscriber(s)</b> and/or <b>Customer(s)</b>, including both individual users and companies or other entities that users are on behalf of. <b>Users</b> who do not agree with these terms or are under the age of 18 are restricted from using TablDA. Changes to our Terms or Policies will be uploaded to our website along with their effective date. Continued use of TablDA by <b>Users</b> is their agreement to these changes. </p>
+<p>To remove any doubt, in the event of any conflict or discrepancy between these Terms and any other provisions and/or terms and/or otherwise between us and you, the provisions and the terms of these Terms will prevail. Please feel free to contact us with any questions regarding the content of this agreement. </p>
+<p>You agree that by accessing TablDA, you have read and understood, and agree to be bound by the terms and conditions incorporated.  <b>IF YOU DO NOT AGREE WITH ALL OF THESE TERMS, THEN YOU ARE EXPRESSLY PROHIBITED FROM USING TABLDA AND YOU MUST DISCONTINUE USE IMMEDIATELY</b>. </p>
+<h2 style="align-items: center;"> I. USER ACCESS AND RESTRICTIONS </h2>
+<p><b>Subscribers</b> and <b>Customers</b> can use and access TablDA any time provided that: </p>
+<ul>
+<li>Access and usage must be for legal or legitimate purpose only. <b>Users</b> who access TablDA acknowledge and agree to be subject to our rules; regulations; agreements; and guidelines. </li>
+<li>All registration information submitted is accurate, current, and complete. </li>
+<li><b>Users</b> may not reverse engineering, decompile or disassemble the services or applications or attempt to or assist anyone else to do so. </li>
+<li><b>Users</b>’ accounts must be registered by a human. Accounts registered by “bots” or other automated methods are not permitted. </li>
+<li><b>Users</b> may not interfere with or disrupt the access of any user, host or network, including, but not limited to sending a virus, overloading, flooding, spamming, mail bombing TablDA or probe, scan, or test the vulnerability of any system or network or breach or circumvent any security or authentication measure. </li>
+<li><b>Users</b> may not copy, rent, lease, sell, loan, transfer, assign, sublicense, resell, distribute, modify, alter, or create derivative works of any part of TablDA or any of our Intellectual Property (defined below). </li>
+<li><b>Users</b> must not make any unauthorized purchases without a cardholder's consent. We reserve the right to limit, restrict, or terminate a <b>User</b>’s account for unethical, objectionable, or prohibited behavior. </li>
+<li><b>Users</b> must not access TablDA in any way that impedes or interferes with its function or for any unlawful activity. Harassment; bullying; bigotry; profanity; stalking; discrimination; and spamming; are strictly prohibited. </li>
+</ul>
+<p>Our Terms of Service, as well as our Policies apply to ALL <b>Users</b> of TablDA, including but not limited to individuals; employees; and agents; who may access and use TablDA on behalf of their employer or company. We warrant to take legal action against individual or entity that trespasses upon or breaches our services and applications, intellectual property, or that of our users. </p>
+<p>Note that if TablDA has previously prohibited a user from accessing TablDA, that <b>User</b> is not permitted to access or use TablDA. </p>
+<h2 style="align-items: center;"> II. ACCOUNTS </h2>
+<ol type="a">
+<li><b>Creating an Account</b>.  To use and enjoy the services we provide, we require you to register an account with us. Your Account is for your individual personal use only, and you may not authorize others to use your Account for any purpose. In creating your Account, you certify that all information you provide is complete and accurate. You agree to update your information when required or requested, and you further agree not to use another person’s account without permission. You are responsible for maintaining the confidentiality of, and restricting access to your Account and password, and you agree to accept sole responsibility for all activities that occur under your Account or password. You agree to contact our customer service department immediately of any breach of security or unauthorized use of your Account or any violation of these Terms by others of which you are aware. You agree that we shall have no liability for any losses, damages, liabilities or expenses you may incur due to any unauthorized use of your Account, and you agree to indemnify us and hold us harmless for any such unauthorized use. We reserve the right to create accounts for quality control and administrative purposes. Such accounts may be publicly viewable.</li>
+<li><b>FREE subscription plan</b>. Anyone over the age of eighteen (18) can register and create an account with FREE Basic subscription plan via our applications providing: (1) it is legally permitted within their home country and jurisdiction; and (2) it is not for an improper or illegal purpose. FREE Basic subscription plan has only basic features and functionalities. A FREE Basic subscription plan must pay prescribed subscription fees to become a Standard, Advanced or Enterprise subscription plan for obtaining more features and functionalities.</li>
+<li><b>Information Collection</b>. When a user creates an account, he or she will be asked to provide login information (username); password; first and last names; a valid email address. Necessary financial information will be required for upgrading to Standard, Advanced or Enterprise subscription plan. This information is collected and used by TablDA for legitimate business purposes such as: answering support tickets; preventing unauthorized access; providing functionality and services to our <b>Users</b>.</li>
+<li><b>Security</b>. <b>Users</b> warrant and agree to keep their registration and login information secure and private at all times to prevent unauthorized access. If a user loses or forgets his/her username or password, he/she can use the link provided by TablDA to retrieve his/her credentials and/or create an account. <b>Users</b> may email our Technical Support at: support@tablda.com for assistance.</li>
+<li><b>Usage</b>. Only one account is permitted per user. One user is not allowed to access the services using other’s account. A user is responsible for notifying TablDA at legal@TablDA.com if he or she becomes aware of any unauthorized use of or access to their accounts. TablDA may require a user to provide information that may be used to confirm their identity and help ensure the security of the account.</li>
+<li><b>Cancellation</b>. A user can cancel subscriptions or terminate their accounts at any time by logging in, canceling their subscriptions and deleting their accounts. Upgrading a subscription from a free plan to paid plan becomes effective immediately upon payment confirmation. Downgrading a subscription from a paid plan to a free plan would not become effective until the next billing cycle. For downgrading subscription, a user must confirm their subscription downgrading before the start of the next billing cycle to avoid incurring any additional charges or fees for services.</li>
+</ol>
+<p><b>User’s Responsibilities. </b> By using the Website, the <b>User</b> undertakes in particular to: </p>
+<ul>
+<li>not provide any unlawful content, including unlawful content that may adversely affect the security of TablDA or harm other users; </li>
+<li>not violate any law, contract, intellectual property or other third party right or commit a tort, and that you are solely responsible for your conduct, while accessing or using TablDA; </li>
+<li>abide by these Terms and will not: Engage in any harassing, threatening, intimidating, predatory or stalking conduct; </li>
+<li>not use or attempt to use another user’s account without authorization from such user and TablDA;</li>
+<li>not use TablDA in any manner that could interfere with, disrupt, negatively affect or inhibit other users from fully enjoying TablDA or that could damage, disable, overburden or impair the functioning of TablDA in any manner;</li>
+<li>not do anything that might discover source code or bypass or circumvent measures employed to prevent or limit access to any content, area or code of TablDA; </li>
+<li>not access any feature or area of TablDA that you are not authorized to access;</li>
+<li>not use any robot, spider, crawler, scraper, script, browser extension, offline reader or other automated means or interface not authorized by us to access TablDA, extract data or otherwise interfere with or modify the rendering of the pages or functionality of TablDA;</li>
+<li>not to solicit information from users for illegal activities, to cause harm to people or property, or to scam others. </li>
+</ul>
+<h2 style="align-items: center;"> III. PAYMENT </h2>
+<ol type="a">
+<li><b>Packages</b>. TablDA offers four different subscription plans: (1) BASIC (FREE); (2) STANDARD; (3) ADVANCED; and (4) ENTERPRISE. The difference in the plans depends upon the services and desired features and functionality. Please see the subscription page for more information. </p>
+<p>The subscription plans are automatically renewed monthly or annually to ensure that <b>Users</b> do not experience any interruptions or loss of services. </p>
+<li><b>Payment</b>. TablDA uses private, third-party, payment processors such as Pay Pal and/or Stripe to manage and process all one-time and/or periodical subscription payments. Payments are stated in US dollars and are processed at the time confirming the start or renewal of the subscriptions.
+<p>Provided financial account associated with a subscription is charged monthly or annually and automatically renewed if the auto-renew option is checked for the subscription. By subscribing to a paid subscription plan, you are authorizing TablDA to charge your account; debit; or credit card; for the monthly or yearly subscription. The subscription will renew month-to-month for the plan chosen until the subscription is changed, either downgraded or canceled by the <b>User</b>. ALL <b>Users</b> understand and agree that they are liable for all outstanding charges or fees on their accounts when they cancel their subscription. </p>
+<p>TablDA reserves the right to change the subscription payment at any time, upon providing notice to <b>Users</b> if the change affects the existing subscriptions upon renewal. If there are outstanding subscription payments by <b>Users</b>, we may, at our sole discretion retry to collect at a later date and/or suspend or cancel the subscription and/or account, without notice. </p></li>
+<li><b>Cancellation</b>. <b>Users</b> who desire to cancel their subscription must do so prior to the first day of the (following) billing cycle in order to avoid additional charges.</li>
+<li><b>Payment Information</b>. TablDA never collects or uses a user's financial information. In the event of a dispute, </b> <b>Users</b> should contact the institution of their financial account provided for making payment.</li>
+<li><b>Processing Fees/VAT</b>. The <b>User</b> acknowledges and agrees that they are responsible for any and all processing fees; charges; or additional taxes (including but not limited to VAT) that are applicable to their monthly or yearly subscription renewal.</li>
+</ol>
+<h2 style="align-items: center;"> IV. INTELLECTUAL PROPERTY </h2>
+<p>Except for materials such as logos, trademarks, and service marks owned by our business partners or licensors, the service and all materials therein or transferred thereby, including, without limitation, software, images, text, graphics, illustrations, logos, patents, trademarks, service marks, copyrights, files, documents, photographs, audio, videos, and music, and all related intellectual property rights, are the exclusive property of TablDA. </p>
+<p>Except as explicitly provided herein, nothing in these Terms grants to <b>Users</b> a license in or under any such intellectual property rights, and <b>Users</b> agree not to sell, license, rent, modify, distribute, copy, reproduce, transmit, publicly display, publicly perform, publish, adapt, edit or create derivative works from any of TablDA’s content. Use of our content for any purpose not expressly permitted by these Terms is strictly prohibited. <b>Users</b> may choose to, or we may invite you to, submit comments or ideas about the service, including, without limitation, questions about how to improve the Service or our products (“Ideas”). By submitting any Idea, <b>Users</b> agree that such disclosure is gratuitous, unsolicited and without restriction and will not place us under any fiduciary or other obligation, and that we are free to use the Idea without any additional compensation to <b>Users</b>, and/or to disclose the Idea on a non-confidential basis or otherwise to anyone. By acceptance of <b>Users</b>’ submission, we do not waive any rights to use similar or related Ideas previously known to us, or developed by TablDA’s employees, or obtained from sources other than the <b>Users</b>. </p>
+<h2 style="align-items: center;"> V. API USE </h2>
+<p>TablDA grants its <b>Users</b> a limited, non-exclusive, revocable, non-transferable license to access and use an application programming interface (“API”), which is considered part of the application. <b>Users</b> may only access APIs for business purposes to create interoperability and integration between the service and other products, services, or systems <b>Users</b> use internally. </p>
+<p>When using the API, <b>Users</b> should follow TablDA’s relevant developer guidelines. TablDA reserve the right at any time to modify or discontinue, temporarily or permanently, access to the API (or any part of it) with or without notice. The API is subject to changes and modifications, and <b>Users</b> are solely responsible to ensure that their use of the API is compatible with the current version. </p>
+<h2 style="align-items: center;"> VI. REFUNDS </h2>
+<p>TablDA does not have a refund policy at this time. <b>Users</b> who want to terminate or cancel their subscription must do so through their profile via the account menu before the first day of the next billing cycle to avoid any additional charges. </p>
+<p>If a <b>User</b> wishes to cancel their plan before the next renewal period, the <b>User</b> will retain access to paid features until the end of their subscription period. When the subscription expires, the paid features will not be accessible, and the <b>User</b> will be downgraded to the free BASIC subscription plan and all paid features and functionalities will be locked. </p>
+<h2 style="align-items: center;"> VII. CONTENT </h2>
+<p>TablDA offers a unique platform, database, and functionality to our <b>Users</b>. Any and all information or content (i.e., "Content") including but not limited to code; programming; pictures; illustrations; video; recordings; text; graphics; and communications; is our intellectual property (i.e., "intellectual property") wholly owned by TablDA, our owners and directors. </p>
+<p>TablDA's Intellectual Property is protected by state, federal, and international Copyright, Trademark, and Intellectual Property Laws. <b>Users</b> and visitors agree not to infringe upon or interfere with these rights. </p>
+<h2 style="align-items: center;"> VIII. SUBMISSIONS </h2>
+<p><b>Users</b> can: upload; download; and share files and data (i.e., submission) through TablDA. To comply with State, Federal, and International Intellectual Property Laws, a user shall warrant that files, data, and submissions: </p>
+<ul>
+<li>Are the original to the <b>User</b>;</li>
+<li>Do not infringe upon third-party copyrights; </li>
+<li>Are not involved in any pending or threatening litigation; </li>
+<li>Do not contain content TablDA, LLC deems offensive; pornographic; or otherwise illegal or prohibited; </li>
+<li>Do not contain viruses; malware; spyware; data mining code, or bots; </li>
+<li>Do not contain any software, code, or files that might be harmful to our applications, platform, or servers. </li>
+</ul>
 
-  <ol type="a">
-  <li><b>Claims</b>. All claims must be in writing and sent to Tablda, LLC via email or the U.S. Postal Service. The written claim notice <b>must</b> contain the claimants': name; ad-dress; email address; contact information; and proof of (intellectual property) ownership. The claim notice must also:
+<p>In addition to the other rights afforded to TablDA under these Terms, we reserve the right to take remedial action if any content materially violates any of these Terms, which may include the removal or disablement of access to such content, without any liability to any user. </p>
+<h2 style="align-items: center;"> IX. LICENSE </h2>
+<ol type="a">
+<li><b>Platform License. </b> TablDA grants all <b>Users</b> a limited, non-exclusive, non-sublicensable, non-transferable, revocable, royalty-free license to use; display; or otherwise access TablDA and its' content. <b>Users</b> may not use or access TablDA for any illegal or improper purpose or intent.
+<p><b>Users</b> warrant not to infringe upon TablDA, LLC's intellectual property rights and copyrights. </p></li>
+<li><b>Subscriber License. </b> <b>Users</b> also grant TablDA and TablDA, LLC, an unlimited; royalty-free; world-wide license, to use; display; show; share; any testimonial; picture; or image to promote and advertise TablDA services and applications. TablDA promises never to infringe upon or share any private or confidential information at any time without the <b>User</b>’s written consent. </li>
+</ol>
+<h2 style="align-items: center;"> X. MOBILE APPLICATION </h2>
+<p>TablDA may make or already have a mobile application for the services available to <b>Users</b>. Subject to these Terms, we grant to <b>Users</b> a limited, personal, revocable, non-exclusive, non-transferable, and non-sublicensable license to install and use the mobile application. <b>Users</b> have no other rights in or to the mobile application. The mobile application is licensed, not sold. These Terms apply to any updated, upgraded, or new versions of the mobile application. Use of the mobile application constitutes use of the services. </p>
+<p>TablDA may require <b>Users</b> to agree to additional terms and conditions governing the use of the mobile application, and <b>Users</b> agree that they will not be permitted to use the mobile application unless they agree to such terms and conditions. <b>Users</b> agree that from time to time and without notice, we may amend, modify, update, or upgrade the mobile application or create new versions of the mobile application. <b>Users</b> agree that we may automatically update the version of the mobile application that is being used on a mobile device. <b>Users</b> consent, on behalf of themselves, to such updating on mobile devices. Updates may cause <b>Users</b> to lose data, and we will not be liable for such loss. <b>Users</b> agree that we have no obligation to provide support, maintenance, or updates for or to the mobile application. To the extent the mobile application contains any third-party software, <b>Users</b>’ rights and obligations with respect to such software will be subject to and governed by the third party’s terms and conditions. We do not make a representation or warranty that the mobile application will operate on any device or operating system. </p>
+<h2 style="align-items: center;"> XI. APP STORE TERMS </h2>
+<p><b>Users</b> acknowledge and agree that the availability of the application is dependent on the third-party applications from which they download the Application (e.g., the Google Play Store from Google or the App Store from Apple (each an “App Store”)). <b>Users</b> acknowledge that these Terms are between <b>Users</b> and TablDA and not with an App Store. TablDA is solely responsible for the mobile application and the content thereof as well as any maintenance and support services. Each App Store may have its own terms and conditions to which <b>Users</b> must agree before downloading applications, including the mobile application, from it. <b>Users</b> agree to comply with such App Store terms and conditions, and <b>Users</b>’ license to use the mobile application is conditioned upon <b>Users</b> compliance with such App Store terms and conditions. To the extent that such other terms and conditions from such App Store are less restrictive than or otherwise conflict with the terms and conditions of these Terms, the more restrictive or conflicting terms and conditions in these Terms apply. </p>
+<h2 style="align-items: center;"> XII. CONFIDENTIALITY </h2>
+<p>It is the duty of the <b>Users</b> that are uploading, downloading, and sharing data and files to keep all material confidential and private, including but not limited to proprietary data and trade secrets. At no time does TablDA sell; share; mine; or collect; any private or confidential information. </p>
+<p>We make all efforts to protect our database and platform, but no application or software is bullet proof, therefore ALL <b>Users</b> warrant to hold TablDA harmless, from any breach; hack; or disclosure of private or confidential information; which is due to a force majeure or unforeseen event. </p>
+<h2 style="align-items: center;"> XIII. MODIFICATIONS AND RISK </h2>
+<ol type="a">
+<li><b>Application Changes. </b> TablDA reserves the right to change; modify; or remove content contained within our services and applications for any reason at our sole discretion with or without notice. The updated Terms will take effect upon their posting and will apply on an ongoing basis. 
+<p>TablDA does not guarantee our services and applications will be available at all times. The <b>Users</b> also understand and acknowledge that interruptions; delays; errors; and maintenance; may occur from time-to-time. </p>
+<p><b>Users</b> acknowledge and agree that TablDA has no liability whatsoever for any loss, damage, or inconvenience caused by the inability to access or use TablDA during any downtime or discontinuance of services. Nothing in these Terms will be construed to obligate us to maintain and support TablDA or to supply any corrections, updates, or releases in connection therewith. </p></li>
+<li><p><b>Limited Liability and Risk. </b> <b>Users</b> acknowledge and agree that when they access or use TablDA and/or its content, they are doing so at their own risk. TablDA is provided "as is" without any warranty or guarantee. <b>Users</b> agree to accept personal liability and responsibility for any damage or loss experienced when they use or access TablDA. </li>
+</ol>
+<h2 style="align-items: center;"> XIV. DMCA POLICY </h2>
+<p>If you believe a <b>User</b> has committed a copyright violation, please immediately notify our legal department at: legal@TablDA.com. </p>
+<ol type="a">
+<li><b>Claims. </b> All claims must be in writing and sent to TablDA via email or the U.S. Postal Service. The written claim notice must</b> contain the claimants': name; address; email address; contact information; and proof of (intellectual property) ownership. The claim notice must also:
+<ul>
+<li>Identify the property or content that has allegedly been infringed; </li>
+<li>Identify the location of the property or content believed to have been allegedly infringed; </li>
+<li>State the name or identity as well as contact information of the person or person(s) the claimant believes committed the alleged infringement; </li>
+<li>Provide a signed statement under penalty of perjury, stating the claimant did not give permission to the alleged violator to use the copyrighted material; </li>
+<li>If the claimant is not the owner of the original content, then he/she will also need to supply TablDA with a signed statement stating they are authorized to represent the original owner of the content or property and provide the original owner's contact information. </li></ul></li>
+<li><b>Investigation. </b> TablDA will conduct an investigation when our Copyright Agent receives the claim notice. We will immediately: (i) Freeze the alleged violator's account; (ii) Conduct an investigation; (iii) Verify the claim; (iv) Notify the violator of the claim; and (v) Send the claimant a prompt response about our investigation. </li>
+<li><b>Warnings and False Claims. </b> First-time offenders will receive a written warning and their content will be deleted. Upon receiving a second complaint, the offender's account will be terminated. If our Copyright Agent discovers the Claimant filed a false claim, we will immediately release any disputed material back to the original owner and unfreeze their account. 
+<p>The Claimant also agrees to be personally and financially responsible for all costs or fees incurred as a result of filing a false claim; as well as the cost of the investigation, including but not limited to attorney's fees, legal fees, and expenses. </p> </li>
+</ol>
+<h2 style="align-items: center;"> XIV. PRIVACY </h2>
+<p>For information about how TablDA collects, uses, and shares the data we collect from and about users, please see our Privacy Policy which is incorporated by reference into these Terms. </p>
+<h2 style="align-items: center;"> XVI. CUSTOMER SERVICE </h2>
+<p><b>Users</b> can contact TablDA Customer Service Department for assistance or technical support by emailing: support@TablDA.com. Note that local times will be applicable for business hours, which are Eastern Time, U.S.A., Monday through Friday. All Customer Service requests will receive prompt responses based upon local time. </p>
+<h2 style="align-items: center;"> XVII. BILLING ERRORS </h2>
+<p>If <b>Users</b> discover a billing error on their account, they should contact the payment processor, (i.e., PayPal, Credit Card Issuer) or their financial institution. </p>
+<h2 style="align-items: center;"> XVIII. THIRD PARTY LINKS AND SERVICES </h2>
+<p>TablDA may provide (1) information and content provided by third parties; (2) links to third party websites or resources, such as sellers of goods, software and services; and (3) third-party products and services for sale directly to <b>Users</b>. TablDA is not responsible for the availability of such external sites or resources and does not endorse and is not responsible or liable for (i) any content, advertising, products, or other materials on or available from such sites or resources, (ii) any errors or omissions in these websites or resources, or (iii) any information handling practices or other business practices of the operators of such sites or resources. <b>Users</b> further acknowledge and agree that TablDA shall not be responsible or liable, directly, or indirectly, for any damage or loss caused or alleged to be caused by or in connection with use of or reliance on any linked sites or resources. <b>Users</b>’ interactions with such third parties will be governed by the third parties’ own terms of service and privacy policies, and any other similar terms. </p>
+<h2 style="align-items: center;"> XIX. DISCLAIMER OF WARRANTIES </h2>
+<p>Except for those warranties expressly provided in these Terms or required by statute, TablDA is provided on an “as is” and “as available” basis. By accessing or using TablDA, <b>Users</b> acknowledge and agree that their uses of TablDA is entirely at their own risk. </p>
+<p>TablDA makes no representations or warranties, and disclaims all representations, warranties, and conditions, whether expressed or implied, including, without limitation that: </p>
+<ul>
+<li>Any content on our service is accurate, reliable or correct; that our service will meet your requirements; </li>
+<li>TablDA’s service will be available at any particular time or location, uninterrupted or secure; </li>
+<li>Any defects or errors will be corrected; or </li>
+<li>TablDA’s service is free of viruses or other harmful components. </li>
+</ul>
+<p>You will be solely responsible for any damage to their computer system or mobile device or loss of data that results from your use of TablDA or any download of content using TablDA. </p>
+<p>Federal law, some states or provinces and other jurisdictions do not allow the exclusion and limitations of certain implied warranties, so the above exclusions may not apply to some <b>Users</b>. These Terms give <b>Users</b> specific legal rights, and <b>Users</b> may also have other rights which vary by jurisdiction. The disclaimers and exclusions under these Terms will not apply to the extent prohibited by applicable law. </p>
+<h2 style="align-items: center;"> XX. LIMITED LIABILITY </h2>
+<p>To the maximum extent permitted by applicable law, in no event shall TablDA, its affiliates, agents, directors, employees, suppliers or licensors be liable for any indirect, punitive, incidental, special, consequential or exemplary damages, including without limitation damages for loss of profits, goodwill, use, data or other intangible losses, arising out of or relating to the use of, or inability to use, this service. </p>
+<p>Under no circumstances will TablDA be responsible for any damage, loss or injury resulting from hacking, tampering or other unauthorized access or use of TablDA or the information contained therein. </p>
+<p>To the maximum extent permitted by applicable law, TablDA assumes no liability or responsibility for any (i) errors, mistakes, or inaccuracies of content and/or result; (ii) personal injury or property damage, of any nature whatsoever, resulting from your access to or use of our service; (iii) any unauthorized access to or use of our secure servers and/or any and all personal information stored therein; (iv) any interruption or cessation of transmission to or from the our server; (v) any bugs, viruses, trojan horses, or the like that may be transmitted to or through our service by any third party; (vi) any errors or omissions in any content or for any loss or damage incurred as a result of the use of any content posted, results generated, emailed, transmitted, or otherwise made available through TablDA; and/or (vii) the defamatory, offensive, or illegal conduct of any third party. </p>
+<p>In no event shall TablDA, its affiliates, agents, directors, employees, suppliers, or licensors be liable to you for any claims, proceedings, liabilities, obligations, damages, losses or costs in
+an amount exceeding $100.00. This limitation of liability section applies whether or not the alleged liability is based on contract, tort, negligence, strict liability, or any other basis, even if TablDA has been advised of the possibility of such damage. The foregoing limitation of liability shall apply to the fullest extent permitted by law in the applicable jurisdiction. </p>
+<p>Some states do not allow the exclusion or limitation of incidental or consequential damages, so the above limitations or exclusions may not apply to some <b>Users</b>. These Terms give you specific legal rights. Some <b>Users</b> may also have other rights which vary from state to state. The disclaimers, exclusions, and limitations of liability under these Terms will not apply to the extent prohibited by applicable law. </p>
+<p>TablDA is controlled and operated from facilities in the United States. TablDA makes no
+representations that TablDA is appropriate or available for use in other locations. Those who access or use TablDA from other jurisdictions do so at their own volition and are entirely responsible for compliance with all applicable United States and local laws and regulations, including but not limited to export and import regulations. <b>Users</b> may not access and use TablDA if they are a resident of a country embargoed by the United States, or are a foreign person or entity blocked or denied by the United States government. Unless otherwise explicitly stated, all materials found at TablDA are solely directed to individuals, companies, or other entities located in the United States. </p>
+<h2 style="align-items: center;"> XXI. INDEMNIFICATION </h2>
+<p><b>Users</b> agree to indemnify and hold harmless TablDA, its owners; directors; employees; and agents; from all third-party claims or losses; costs; actions; damages; expenses; or liabilities; that might arise from using or accessing TablDA. This section also applies to any unforeseen third-party claims. </p>
+<h2 style="align-items: center;"> XXII. NOTICES </h2>
+<p>We may deliver notice to <b>Users</b> by email, posting a notice on the website or any other method we choose, and such notice will be effective on dispatch. If <b>Users</b> give notice to us, it will be effective when received and must be sent to the email address at legal@TablDA.com. </p>
+<h2 style="align-items: center;"> XXIII. FORCE MAJEURE </h2>
+<p>Force Majeure means any event beyond our control. Neither TablDA or <b>Users</b> shall be responsible for failure to perform in the event of: (i) an Act of God (such a flood; fire; or natural disaster); (ii) vandalism or accident; (iii) strike; labor unrest; (iv) act of civil or military authority; (v) any other event over which we have no control. </p>
+<p>When TablDA becomes aware of a force majeure event, we will immediately post it on our website, online communities, or social media accounts. Changes to or resumption of service will be posted as soon as possible. </p>
+<h2 style="align-items: center;"> XXIV. DISPUTES </h2>
+<ol type="a">
+<li><b>Mediation. </b> In the event of a disagreement regarding our Terms or Policies or their interpretation, it is agreed that TablDA and the <b>User</b> will attempt to resolve the dispute professionally.
+<p>If the parties are unable to resolve the dispute personally, then they both agree to use the services of a Private Mediator in <b>Raleigh, North Carolina. </b> The parties agree to share the cost and choice of a Mediator. </p></li>
+<li><b>Notice of Intent. </b> The disputing party shall send the non-disputing party a thirty (30) day written "Notice of Intent" before filing a Mediation claim. Service shall be completed as described within these Terms. </li>
+<li><b>Procedure. </b> The Mediation Hearing shall be conducted via Mediation and Arbitration Rules as adopted by the American Bar Association. </li>
+<li><b>Award. </b> The prevailing party shall be entitled to reimbursement of any costs and fees, including but not limited to attorney’s fees. This Mediation provision shall survive cancellation or termination of this Agreement. </li>
+</ol>
+<h2 style="align-items: center;"> XXV. ELECTRONIC COMMUNICATIONS </h2>
+<p>TablDA, their staff and employees may communicate electronically with <b>Users</b> to provide services; answer questions; or offer special sales or promotions. <b>Users</b> agree to accept electronic communications, emails, and transmissions from TablDA as well as business partners; and can opt-out or unsubscribe from emails by clicking the "unsubscribe" link in any communications and follow the instructions provided. </p>
+<h2 style="align-items: center;"> XXVI. TERM AND TERMINATION </h2>
+<p>These Terms shall remain in full force and effect during the <b>User</b>’s usage of TablDA. Without limiting any other terms or conditions contained herein, TablDA reserves the right at our sole discretion to deny access to and use of TablDA to any person or entity with or without notice for any reason or no reason, without limitation, for breach of any representation, warranty or covenant contained in our Terms; Privacy Policy; Agreements; policies; or guidelines; as well as any applicable law or regulation. </p>
+<p>We reserve the right to terminate anyone's use of or participation on TablDA or delete an account or any content; information; or file that is submitted at any time with or without warning. </p>
+<p>If TablDA terminates or suspends your account for any reason, you understand and agree that you are prohibited from registering and/or creating a new account either in your name or the name of any third party, even if the individual is acting on behalf of the third party. In addition to terminating or suspending an account, TablDA reserves the right to take appropriate legal action, including without limitation pursuing civil, criminal, and injunctive relief. </p>
+<h2 style="align-items: center;"> XXVII. SEVERABILITY </h2>
+<p>If any provision contained in these Terms is considered unenforceable or invalid under any law, rule, or statute; or made unenforceable by a Court of Law; the invalid or unenforceable clause shall not render any whole or part of these Terms invalid. Any unenforceable or invalid provision shall be considered altered and interpreted so it does not affect the rest of these Terms. </p>
+<h2 style="align-items: center;"> XXVIII. GOVERNING LAW </h2>
+<p>These Terms shall be governed by the laws of the State of North Carolina, U.S.A., excluding conflicts of law, choice of law, or C.I.S.G. provisions. </p>
+<p>If there is any dispute regarding these Terms, Dispute and Mediation provisions shall apply. This section shall survive termination or cancellation of these Terms. </p>
+<h2 style="align-items: center;"> XXIX. AUTHORIZATION </h2>
+<p><b>Users</b> warrants and promises they are of legal age (over 18), have legal authority to agree to these Terms, and waive any defenses regarding the application and use of an electronic signature. </p>
+<h2 style="align-items: center;"> XXX. MISCELLANEOUS </h2>
+<p>These Terms constitute the entire agreement between TablDA and the <b>User</b> and govern the use of TablDA and supersede any prior agreements on the subject matter. </p>
+<p>These Terms and any rights or licenses granted hereunder, may not be assigned, or delegated by a user. </p>
+<p>No agency, partnership, joint venture, or employee-employer relation is intended or created by these Terms. </p>
+<h2 style="align-items: center;"> XXXI. CONTACT </h2>
+<p><b>Users</b> may contact TablDA to request more information by email at: legal@TablDA.com. </p>
+<p><b>Sincerely, </b></p>
+<p><b>TablDA Team</b></p>
 
-  <ul>
-  <li>Identify the property or content that has allegedly been infringed; </li>
-  <li>Identify the location of the property or content believed to have been allegedly in-fringed; </li>
-  <li>State the name or identity as well as contact information of the person or persons(s) the claimant believes committed the alleged infringement; </li>
-  <li>Provide a signed statement under penalty of perjury, stating the claimant did not give permission to the alleged violator to use the copyrighted material; </li>
-  <li>If the claimant is not the owner of the original content, then he/she will also need to supply Tablda, LLC with a signed statement stating they are authorized to represent the original owner of the content or property, and provide the original owner's contact infor-mation. </li>
-  </ul>
-  </li>
 
-  <li><b>Investigation</b>. Tablda, LLC will conduct an investigation when our Copyright Agent receives the claim notice. We will immediately: (i) Freeze the alleged violator's account; (ii) Conduct an investigation; (iii) Verify the claim; (iv) Notify the violator of the claim; and (v) Send the claimant a prompt response about our investigation. </li>
 
-  <li><b>Warnings and False Claims</b>.  First-time offenders will receive a written warning and their content will be deleted. Upon receiving a second complaint, the offender's account will be terminated. If our Copyright Agent discovers the Claimant filed a false claim, we will imme-diately release any disputed material back to the original owner and unfreeze their account.
-  <p>The Claimant also agrees to be personally and financially responsible for all costs or fees incurred as a result of filing a false claim; as well as the cost of the investigation, including but not limited to attorney's fees, legal fees, and expenses. </p></li>
-  </ol>
-
-  <h2 style="align-items: center;">XIII. CUSTOMER SERVICE </h2>
-  <p><b>Subscribers</b> and users can contact Tablda Customer Service Department for assis-tance or technical support by emailing: support@tablda.com. Note: Local times will be ap-plicable for business hours, which are Eastern Time, U.S.A., Monday through Friday. All Customer Service requests will receive prompt responses based upon local time. </p>
-  <h2 style="align-items: center;">XIV. BILLING ERRORS </h2>
-  <p>If <b>Customers</b> or <b>Subscribers</b> discover a billing error on their ac-count, they should contact the payment processor, (i.e. Pay Pal) or their financial institu-tion. </p>
-  <h2 style="align-items: center;">XV. WARRANTY </h2>
-  <p>Tablda offers no warranty or guarantee regarding our website; platform; service; or its' content. Users and visitors warrant and agree that they are using or accessing our website and services at their own risk. </p>
-  <h2 style="align-items: center;">XVI. LIMITED LIABILITY </h2>
-  <ol type="a">
-  <li><b>Personal Liability</b>. <b>Subscribers</b> and users understand and agree that they assume all personal responsibility and risk when using; transmitting; uploading; downloading; or accessing our software and website.  Tablda’s owners; employees; or agents will not be liable for any: incidental; indirect; direct; punitive; exemplary; or conse-quential damages. </li>
-  <li><b>Backup copies</b>. It is recommended that all <b>Customers</b> and <b>Subscribers</b> make more than one backup copy of all data, files; pictures; illustra-tions; communications; or other content that is uploaded; downloaded; or otherwise shared via the Tablda. </li>
-  </ol>
-  <h2 style="align-items: center;">XVII. INDEMNIFICATION </h2>
-  <p><b>Customers</b> and <b>Subscribers</b> agree to indemnify and hold harmless Tablda our owners; directors; employees; and agents; from all third-party claims or losses; costs; actions; damages; expenses; or liabilities; that might arise from using or accessing our website; platform; content; or services. This section also applies to any unforeseen third-party claims. </p>
-  <h2 style="align-items: center;">XVIII. NOTICES </h2>
-  <p>Notices that are required in this <b>Agreement</b> must be in writing, and sent as follows: </p>
-
-  <p>To: Tablda </p>
-
-  <p>Notices can be sent via email to: legal@tablda.com. </p>
-
-  <p>To: <b>Subscriber</b></p>
-  <p>To the <b>Subscriber</b> or <b>Customer</b>'s last known email address and/or mailing address. </p>
-
-  <h2 style="align-items: center;">XIX. FORCE MAJEURE </h2>
-
-  <p>Force Majeure means any event beyond our control. Neither Tablda, <b>Customer</b>, or <b>Subscriber</b> shall be responsible for failure to perform in the event of: (i) an Act of God (such a flood; fire; or natural disaster); (ii) vandalism or ac-cident; (iii) strike; labor unrest; (iv) act of civil or military authority; (v) any other event over which we have no control. </p>
-  <p>When Tablda, LLC becomes aware of a force majeure event, we will immediately post it on our website. Changes to or resumption of service will be posted on our website as soon as possible. </p>
-
-  <h2 style="align-items: center;">XX. DISPUTES </h2>
-  <ol type="a">
-  <li><b>Mediation</b>. In the event of a disagreement regarding our Terms of Use or Terms of Service; Agreements; Policies; or their interpretation, it is agreed that Tablda and the <b>Customer</b> or <b>Subscriber</b> will attempt to resolve the dispute in a pro-fessional manner. </li>
-  If the parties are unable to resolve the dispute personally, then they both agree to use the services of a Private Mediator in Raleigh, North Carolina. The parties agree to share the cost and choice of a Mediator. </li>
-  <li><b>Notice of Intent</b>. The disputing party shall send the non-disputing party a thirty (30) day written "Notice of Intent" prior to filing a Mediation claim.  Service shall be completed as described within this Agreement. </li>
-  <li><b>Procedure</b>. The Mediation Hearing shall be conducted via Mediation and Arbitration Rules as adopted by the American Bar Association. </li>
-  <li><b>Award</b>. The prevailing party shall be entitled to reimbursement of any costs and fees, including but not limited to attorney’s fees. This Mediation provision shall survive cancellation or termination of this Agreement. </li>
-  </ol>
-  <h2 style="align-items: center;">XXI. ELECTRONIC COMMUNICATIONS </h2>
-  <p>Tablda, their staff and employees may communicate electronically with <b>Customers</b> and <b>Subscribers</b> to: provide services; answer questions; or offer special sales or promotions. <b>Customers</b> and <b>Subscribers</b> agree to accept electronic communications, emails, and transmissions from Tablda, LLC as well as business partners; and can opt-out or unsubscribe from emails by clicking the "unsub-scribe" link in any communications and follow the instructions provided. </p>
-  <h2 style="align-items: center;">XXII. TERM AND TERMINATION</h2>
-  <p>This <b>Agreement</b> shall remain in full force and effect during the <b>Customer</b> or <b>Subscriber's</b> usage of our website. Without limiting any other terms or conditions contained herein, Tablda, LLC reserves the right at our sole discretion to deny access to and use of Tablda to any person or entity with or without notice for any reason or no reason, without lim-itation, for breach of any representation, warranty or covenant contained in out Terms of Use or Service; Privacy Policy; Agreements; policies; or guidelines; as well as any applicable law or regulation. </p>
-  <p>We reserve the right to terminate anyone's use or participation on Tablda or delete an ac-count or any content; information; or file that is submitted at any time with or without warning. </p>
-  <p>If Tablda, LLC terminates or suspends a <b>Customer</b> or <b>Subscriber's</b> ac-count for any reason, you understand and agree that you are prohibited from registering and/or creating a new account either in your name or the name of any third party, even if the individual is acting on behalf of the third party.  In addition to terminating or suspending an account, Tablda, LLC reserves the right to take appropriate legal action, including without limitation pur-suing civil, criminal, and injunctive relief. </p>
-  <h2 style="align-items: center;">XXIII. SEVERABILITY</h2>
-  <p>If any provision contained in this agreement is considered unenforceable or invalid under any law, rule or statute; or made unenforceable by a Court of Law; the invalid or un-enforceable clause shall not render any whole or part of this Agreement invalid. Any unen-forceable or invalid provision shall be considered altered and interpreted so it does not affect the rest of this agreement. </p>
-  <h2 style="align-items: center;">XXIV. GOVERNING LAW</h2>
-  <p>This Agreement shall be governed by the laws of the State of North Carolina, U.S.A., ex-cluding conflicts of law, choice of law, or C.I.S.G. provisions. </p>
-  <p>If there is any dispute regarding the terms of this Agreement, Dispute and Mediation provisions shall apply. This section shall survive termination or cancellation of the Agree-ment. </p>
-  <h2 style="align-items: center;">XXV. AUTHORIZATION </h2>
-  <p>The <b>Customer</b> or <b>Subscriber</b> warrants and promises they are of le-gal age (over 18), have legal authority to enter into this Agreement, and waive any defens-es regarding the application and use of an electronic signature.  </p>
-  <h2 style="align-items: center;">XXVI. CONTACT </h2>
-  <p><b>Customers</b> and <b>Subscribers</b> can contact Tablda to request more in-formation by email at: legal@tablda.com </p>
-  <p><b>Sincerely, </b></p>
-  <p><b>Tablda Team</b></p>
-  <p><b>Contact: </b> legal@tablda.com </p>
-  <p><b>Effective Date:</b> 01/01/2019 </p>
  </div>
 @endsection

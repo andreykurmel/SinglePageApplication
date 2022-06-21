@@ -14,11 +14,12 @@ class FormulaWatcher
     }
 
     /**
-     * @param Table $table
+     * @param int $table_id
+     * @param int $lvl
      */
-    public function watch(Table $table)
+    public function watch(int $table_id, int $lvl = 0)
     {
-        $this->traitWatch($table);
+        $this->traitWatch($table_id, $lvl);
     }
 
 
@@ -29,7 +30,11 @@ class FormulaWatcher
      */
     protected function filterFunction(Table $ref_table, TableRefCondition $ref_cond)
     {
-        return !!(new TableDataQuery($ref_table))->hasReferencesInFormulas($ref_cond);
+        $formula_fields = $ref_table->_fields->where('input_type', '=', 'Formula');
+        if ($formula_fields->count()) {
+            return !!(new TableDataQuery($ref_table))->hasReferencesInFormulas($ref_cond);
+        }
+        return false;
     }
 
     /**

@@ -23,7 +23,7 @@
                 ></history-user-info>
             </div>
             <div class="history-body">
-                <span v-if="history_field_type === 'Date Time'">{{ $root.convertToLocal(fld.value, user.timezone) }}</span>
+                <span v-if="table_field.f_type === 'Date Time'">{{ $root.convertToLocal(fld.value, user.timezone) }}</span>
                 <span v-else v-html="$root.strip_tags(fld.value)"></span>
                 <span
                         v-if="user.is_admin || user.id === fld.created_by"
@@ -36,18 +36,20 @@
 </template>
 
 <script>
+    import HistoryMixin from "./../_Mixins/HistoryMixin";
+
     import HistoryUserInfo from "./HistoryUserInfo";
 
     export default {
         components: {
             HistoryUserInfo
         },
+        mixins: [
+            HistoryMixin
+        ],
         name: "HistoryElem",
         data: function () {
             return {
-                field_history: [],
-                current_history: null,
-                history_field_type: '',
             };
         },
         props:{
@@ -55,42 +57,19 @@
             tableMeta: Object,
             row_id: Number,
             table_field: Object,
+            redraw_history: Number,
         },
-        methods: {
-            delHistory(hist) {
-                $.LoadingOverlay('show');
-                axios.delete('/ajax/history', {
-                    params: {
-                        history_id: hist.id
-                    }
-                }).then(({ data }) => {
-                    let idx = _.findIndex(this.field_history, {id: hist.id});
-                    if (idx > -1) {
-                        this.field_history.splice(idx, 1);
-                    }
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    $.LoadingOverlay('hide');
-                });
+        watch: {
+            redraw_history(val) {
+                setTimeout(() => {
+                    this.loadOneHistory(this.tableMeta.id, this.table_field.id, this.row_id);
+                }, 500);
             },
         },
+        methods: {
+        },
         mounted() {
-            axios.get('/ajax/history', {
-                params: {
-                    table_id: this.tableMeta.id,
-                    table_field_id: this.table_field.id,
-                    row_id: this.row_id
-                }
-            }).then(({ data }) => {
-                this.history_field_type = this.table_field.f_type;
-                this.field_history = data.history;
-                this.current_history = data.current;
-            }).catch(errors => {
-                Swal('', getErrors(errors));
-            }).finally(() => {
-                $.LoadingOverlay('hide');
-            });
+            this.loadOneHistory(this.tableMeta.id, this.table_field.id, this.row_id);
         }
     }
 </script>

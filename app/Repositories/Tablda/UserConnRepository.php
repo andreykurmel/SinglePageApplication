@@ -9,7 +9,6 @@ use Vanguard\Models\User\UserConnection;
 use Vanguard\Models\User\UserEmailAccount;
 use Vanguard\Models\User\UserPaymentKey;
 use Vanguard\Services\Tablda\HelperService;
-use Vanguard\User;
 
 class UserConnRepository
 {
@@ -29,7 +28,8 @@ class UserConnRepository
      * @param int $user_id
      * @return mixed
      */
-    public function loadUserConns(int $user_id = null) {
+    public function loadUserConns(int $user_id = null)
+    {
         $conns = UserConnection::where('user_id', '=', $user_id)->get()->toArray();
         foreach ($conns as &$uc) {
             $uc['login'] = $uc['login'] ? TabldaEncrypter::decrypt($uc['login']) : '';
@@ -45,7 +45,8 @@ class UserConnRepository
      * @param int $cloud_id
      * @return mixed
      */
-    public function getUserConn(int $cloud_id = null) {
+    public function getUserConn(int $cloud_id = null)
+    {
         $conn = UserConnection::where('id', '=', $cloud_id)->first();
         if ($conn) {
             $conn = $conn->toArray();
@@ -55,17 +56,6 @@ class UserConnRepository
         } else {
             return null;
         }
-    }
-
-    /**
-     * @param array $data
-     * @return array
-     */
-    protected function setUC(array $data)
-    {
-        $data['login'] = $data['login']??'' ? TabldaEncrypter::encrypt($data['login']) : '';
-        $data['pass'] = $data['pass']??'' ? TabldaEncrypter::encrypt($data['pass']) : '';
-        return $data;
     }
 
     /**
@@ -86,7 +76,18 @@ class UserConnRepository
     public function addUserConn($data)
     {
         $data = $this->setUC($data);
-        return UserConnection::create( array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()) );
+        return UserConnection::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
+    }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    protected function setUC(array $data)
+    {
+        $data['login'] = $data['login'] ?? '' ? TabldaEncrypter::encrypt($data['login']) : '';
+        $data['pass'] = $data['pass'] ?? '' ? TabldaEncrypter::encrypt($data['pass']) : '';
+        return $data;
     }
 
     /**
@@ -109,7 +110,7 @@ class UserConnRepository
     {
         $data = $this->setUC($data);
         return UserConnection::where('id', $user_conn_id)
-            ->update( array_merge($this->service->delSystemFields($data), $this->service->getModified()) );
+            ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
     }
 
     /**
@@ -127,24 +128,15 @@ class UserConnRepository
      * Get UserApi
      *
      * @param int $cloud_id
-     * @return mixed
+     * @return UserApiKey
      */
-    public function getUserApi(int $cloud_id) {
-        return UserApiKey::where('id', '=', $cloud_id)
-            ->where('user_id', '=', auth()->id())
-            ->first();
-    }
-
-    /**
-     * @param array $data
-     * @return array
-     */
-    protected function setDef(array $data)
+    public function getUserApi(int $cloud_id, bool $force = false)
     {
-        $data['is_active'] = $data['is_active'] ? 1 : 0;
-        $data['type'] = $data['type'] ?? 'google';
-        $data['key'] = $data['key']??'' ? TabldaEncrypter::encrypt($data['key']) : '';
-        return $this->service->delSystemFields($data);
+        $q = UserApiKey::where('id', '=', $cloud_id);
+        if (!$force) {
+            $q->where('user_id', '=', auth()->id());
+        }
+        return $q->first();
     }
 
     /**
@@ -154,7 +146,24 @@ class UserConnRepository
     public function addUserApi(array $data)
     {
         $data = $this->setDef($data);
-        return UserApiKey::create( $data );
+        return UserApiKey::create($data);
+    }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    protected function setDef(array $data)
+    {
+        $data['name'] = $data['name'] ?? '';
+        $data['notes'] = $data['notes'] ?? '';
+        $data['is_active'] = $data['is_active'] ? 1 : 0;
+        $data['type'] = $data['type'] ?? 'google';
+        $data['key'] = $data['key'] ?? '' ? TabldaEncrypter::encrypt($data['key']) : '';
+        if ($data['type'] == 'airtable') {
+            $data['air_type'] = $data['air_type'] ?? 'public_rest';
+        }
+        return $this->service->delSystemFields($data);
     }
 
     /**
@@ -165,15 +174,15 @@ class UserConnRepository
     public function updateUserApi(int $user_conn_id, array $data)
     {
         //Radio fields
-        if ($data['_changed_field']??'' == 'is_active' && $data['type']??'') {
+        if ($data['_changed_field'] ?? '' == 'is_active' && $data['type'] ?? '') {
             UserApiKey::where('user_id', '=', auth()->id())
                 ->where('type', '=', $data['type'])
-                ->update( ['is_active' => 0] );
+                ->update(['is_active' => 0]);
         }
         //Update
         $data = $this->setDef($data);
         return UserApiKey::where('id', '=', $user_conn_id)
-            ->update( $data );
+            ->update($data);
     }
 
     /**
@@ -186,16 +195,14 @@ class UserConnRepository
     }
 
     /**
-     * Get UserPayment
-     *
-     * @param int $this_id
+     * @param array $data
      * @return mixed
      */
-    public function getUserPayment(int $this_id) {
-        $data = UserPaymentKey::where('id', '=', $this_id)
-            ->where('user_id', '=', auth()->id())
-            ->first();
-        $data = $this->userPaymentDecrypt($data);
+    public function addUserPayment(array $data)
+    {
+        $data = $this->setPaymentDef($data);
+        $saved = UserPaymentKey::create($data);
+        return $this->getUserPayment($saved->id);
     }
 
     /**
@@ -206,9 +213,24 @@ class UserConnRepository
     {
         $data['type'] = $data['type'] ?? 'stripe';
         $data['mode'] = $data['mode'] ?? 'sandbox';
-        $data['secret_key'] = $data['secret_key']??'' ? TabldaEncrypter::encrypt($data['secret_key']) : '';
-        $data['public_key'] = $data['public_key']??'' ? TabldaEncrypter::encrypt($data['public_key']) : '';
+        $data['secret_key'] = $data['secret_key'] ?? '' ? TabldaEncrypter::encrypt($data['secret_key']) : '';
+        $data['public_key'] = $data['public_key'] ?? '' ? TabldaEncrypter::encrypt($data['public_key']) : '';
         return $this->service->delSystemFields($data);
+    }
+
+    /**
+     * Get UserPayment
+     *
+     * @param int $this_id
+     * @return mixed
+     */
+    public function getUserPayment(int $this_id)
+    {
+        $data = UserPaymentKey::where('id', '=', $this_id)
+            ->where('user_id', '=', auth()->id())
+            ->first();
+        $data = $this->userPaymentDecrypt($data);
+        return $data;
     }
 
     /**
@@ -225,17 +247,6 @@ class UserConnRepository
     }
 
     /**
-     * @param array $data
-     * @return mixed
-     */
-    public function addUserPayment(array $data)
-    {
-        $data = $this->setPaymentDef($data);
-        $saved = UserPaymentKey::create( $data );
-        return $this->getUserPayment($saved->id);
-    }
-
-    /**
      * @param int $this_id
      * @param array $data
      * @return mixed
@@ -244,7 +255,7 @@ class UserConnRepository
     {
         $data = $this->setPaymentDef($data);
         return UserPaymentKey::where('id', '=', $this_id)
-            ->update( $data );
+            ->update($data);
     }
 
     /**
@@ -262,20 +273,11 @@ class UserConnRepository
      * @param int $cloud_id
      * @return mixed
      */
-    public function getUserEmailAcc(int $cloud_id) {
+    public function getUserEmailAcc(int $cloud_id)
+    {
         return UserEmailAccount::where('id', $cloud_id)
             ->where('user_id', auth()->id())
             ->first();
-    }
-
-    /**
-     * @param array $data
-     * @return array
-     */
-    protected function setDefEmailAcc(array $data)
-    {
-        $data['app_pass'] = $data['app_pass']??'' ? TabldaEncrypter::encrypt($data['app_pass']) : '';
-        return $data;
     }
 
     /**
@@ -285,7 +287,17 @@ class UserConnRepository
     public function addUserEmailAcc(array $data)
     {
         $data = $this->setDefEmailAcc($data);
-        return UserEmailAccount::create( $data );
+        return UserEmailAccount::create($data);
+    }
+
+    /**
+     * @param array $data
+     * @return array
+     */
+    protected function setDefEmailAcc(array $data)
+    {
+        $data['app_pass'] = $data['app_pass'] ?? '' ? TabldaEncrypter::encrypt($data['app_pass']) : '';
+        return $data;
     }
 
     /**
@@ -297,7 +309,7 @@ class UserConnRepository
     {
         $data = $this->setDefEmailAcc($data);
         return UserEmailAccount::where('id', $user_conn_id)
-            ->update( $data );
+            ->update($this->service->delSystemFields($data));
     }
 
     /**

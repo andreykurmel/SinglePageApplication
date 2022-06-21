@@ -1,9 +1,9 @@
 <template>
     <div class="full-height">
-        <table class="spaced-table" style="table-layout: fixed">
+        <table class="spaced-table" style="table-layout: fixed" :style="textSysStyle">
             <colgroup>
-                <col :width="100">
-                <col :width="300">
+                <col style="width: 12%">
+                <col style="width: 88%">
             </colgroup>
             <tbody>
 
@@ -13,7 +13,7 @@
 
             <tr>
                 <td colspan="2" class="pad-bot">
-                    <label>Trigger: check one or multiple items:</label>
+                    <label>Check one or multiple items (only selected record group (RGrp) will be monitored):</label>
                 </td>
             </tr>
 
@@ -21,16 +21,29 @@
                 <td class="pad-bot">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check checkbox-input"
-                              @click="updateCheckBox('on_added')"
-                              :style="$root.checkBoxStyle"
+                              @click="!can_edit ? null : updateCheckBox('on_added')"
+                              :class="{'disabled': !can_edit}"
+                              :style="checkboxSys"
                         >
                             <i v-if="alert_sett.on_added" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                     <label>When:</label>
                 </td>
-                <td class="pad-bot">
-                    <label class="th_style">New Record Added</label>
+                <td class="pad-bot flex flex--center-v">
+                    <label class="th_style flex__elem-remain">New Record Added</label>
+                    <label class="th_style">Row Group:</label>
+                    <select-block
+                            :options="getRGrps()"
+                            :sel_value="alert_sett.on_added_ref_cond_id"
+                            :style="{ maxWidth:'200px', height:'32px', }"
+                            :with_links="true"
+                            :is_disabled="!can_edit"
+                            :button_txt="'Add New'"
+                            @option-select="(opt) => { updateSelect('on_added_ref_cond_id', opt) }"
+                            @link-click="showRGRP(alert_sett.on_added_ref_cond_id)"
+                            @button-click="showRGRP(null)"
+                    ></select-block>
                 </td>
             </tr>
 
@@ -38,16 +51,29 @@
                 <td class="pad-bot">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check checkbox-input"
-                              @click="updateCheckBox('on_deleted')"
-                              :style="$root.checkBoxStyle"
+                              @click="!can_edit ? null : updateCheckBox('on_deleted')"
+                              :class="{'disabled': !can_edit}"
+                              :style="checkboxSys"
                         >
                             <i v-if="alert_sett.on_deleted" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                     <label>When:</label>
                 </td>
-                <td class="pad-bot">
-                    <label class="th_style">Record Deleted</label>
+                <td class="pad-bot flex flex--center-v">
+                    <label class="th_style flex__elem-remain">Record Deleted</label>
+                    <label class="th_style">Row Group:</label>
+                    <select-block
+                            :options="getRGrps()"
+                            :sel_value="alert_sett.on_deleted_ref_cond_id"
+                            :style="{ maxWidth:'200px', height:'32px', }"
+                            :with_links="true"
+                            :is_disabled="!can_edit"
+                            :button_txt="'Add New'"
+                            @option-select="(opt) => { updateSelect('on_deleted_ref_cond_id', opt) }"
+                            @link-click="showRGRP(alert_sett.on_deleted_ref_cond_id)"
+                            @button-click="showRGRP(null)"
+                    ></select-block>
                 </td>
             </tr>
 
@@ -55,16 +81,29 @@
                 <td class="pad-bot">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check checkbox-input"
-                              @click="updateCheckBox('on_updated')"
-                              :style="$root.checkBoxStyle"
+                              @click="!can_edit ? null : updateCheckBox('on_updated')"
+                              :class="{'disabled': !can_edit}"
+                              :style="checkboxSys"
                         >
                             <i v-if="alert_sett.on_updated" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                     <label>When:</label>
                 </td>
-                <td class="pad-bot">
-                    <label class="th_style">Existing Record Updated</label>
+                <td class="pad-bot flex flex--center-v">
+                    <label class="th_style flex__elem-remain">Existing Record Updated</label>
+                    <label class="th_style">Row Group:</label>
+                    <select-block
+                            :options="getRGrps()"
+                            :sel_value="alert_sett.on_updated_ref_cond_id"
+                            :style="{ maxWidth:'200px', height:'32px', }"
+                            :with_links="true"
+                            :is_disabled="!can_edit"
+                            :button_txt="'Add New'"
+                            @option-select="(opt) => { updateSelect('on_updated_ref_cond_id', opt) }"
+                            @link-click="showRGRP(alert_sett.on_updated_ref_cond_id)"
+                            @button-click="showRGRP(null)"
+                    ></select-block>
                 </td>
             </tr>
 
@@ -77,24 +116,19 @@
                             :table-meta="$root.settingsMeta['table_alert_conditions']"
                             :all-rows="alert_sett._conditions"
                             :rows-count="alert_sett._conditions.length"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :is-full-width="true"
                             :user="$root.user"
                             :behavior="'alert_notif'"
                             :adding-row="addingRow"
                             :available-columns="availAleConds"
                             :use_theme="true"
+                            :with_edit="can_edit"
                             @added-row="addAlertCond"
                             @updated-row="updateAlertCond"
                             @delete-row="deleteAlertCond"
                     ></custom-table>
-                </td>
-            </tr>
-
-            <tr>
-                <td colspan="2" class="pad-bot">
-                    <label>Automation:</label>
                 </td>
             </tr>
 
@@ -104,13 +138,22 @@
 </template>
 
 <script>
+    import {eventBus} from "../../../../../app";
+
     import CustomTable from "../../../../CustomTable/CustomTable";
+    import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "AlertTriggers",
         components: {
+            SelectBlock,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 addingRow: {
@@ -123,12 +166,17 @@
         props:{
             tableMeta: Object,
             alert_sett: Object,
+            can_edit: Boolean,
         },
         computed: {
         },
         watch: {
         },
         methods: {
+            updateSelect(key, option) {
+                this.alert_sett[key] = option.val;
+                this.sendUpdate();
+            },
             updateCheckBox(param) {
                 this.alert_sett[param] = this.alert_sett[param] ? 0 : 1;
                 this.sendUpdate();
@@ -183,6 +231,20 @@
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
+            },
+            getRGrps() {
+                let only_current = _.filter(this.tableMeta._row_groups, (rg) => {
+                    let rc = _.find(this.tableMeta._ref_conditions, {id: Number(rg.row_ref_condition_id)});
+                    return rc && rc.table_id == rc.ref_table_id;
+                });
+                let rrows = _.map(only_current, (rc) => {
+                    return { val:rc.row_ref_condition_id, show:rc.name };
+                });
+                rrows.unshift({ val:null, show:"" });
+                return rrows;
+            },
+            showRGRP(id) {
+                eventBus.$emit('show-grouping-settings-popup', this.tableMeta.db_name, 'row', id);
             },
         },
         mounted() {

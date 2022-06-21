@@ -14,8 +14,6 @@
                             <table-settings-basics
                                     :table-meta="tableMeta"
                                     :settings-meta="settingsMeta"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
                                     :user="user"
                                     :table_id="tableMeta.id"
                                     :init_tab="init_tab"
@@ -67,6 +65,7 @@
             hide() {
                 this.is_vis = false;
                 this.$root.tablesZidx -= 10;
+                this.$emit('settings-closed');
                 eventBus.$emit('table-settings-all-popup__closed');
             },
             showSettings(object) {

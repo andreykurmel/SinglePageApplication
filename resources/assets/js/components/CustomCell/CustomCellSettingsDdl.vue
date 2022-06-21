@@ -1,7 +1,11 @@
 <template>
-    <td :style="getCellStyle"
+    <td :style="custCellStyle"
         class="td-custom"
         ref="td"
+        @dragenter="ddlEnter"
+        @dragover.prevent=""
+        @dragleave="ddlLeave"
+        @drop.prevent.stop="ddlDrop"
         @click="showEdit()"
     >
         <div class="td-wrapper" :style="getTdWrappStyle">
@@ -19,7 +23,16 @@
                         </span>
                     </span>
 
-                    <a v-else-if="inArray(tableHeader.field, ['image_path']) && tableRow[tableHeader.field]"
+                    <tablda-colopicker
+                        v-else-if="tableHeader.f_type === 'Color'"
+                        :init_color="tableRow[tableHeader.field]"
+                        :avail_null="true"
+                        :fixed_pos="true"
+                        @set-color="updateCheckedDDL"
+                    ></tablda-colopicker>
+
+                    <a v-else-if="is_attach && tableRow[tableHeader.field]"
+                       title="Open file in a new tab."
                        target="_blank"
                        class="has-deleter"
                        :href="$root.fileUrl({url:tableRow[tableHeader.field]})"
@@ -28,15 +41,30 @@
                              :src="$root.fileUrl({url:tableRow[tableHeader.field]})"
                              :style="{maxHeight: (maxCellHGT ? maxCellHGT+'px' : tdCellHGT+'px')}"
                              @click="imgClick([{url:tableRow[tableHeader.field]}], 0)">
+                        <span class="delete-icon-btn" @click.stop.prevent="uploadItemFile(null)">&times;</span>
                     </a>
 
+                    <button v-if="tableHeader.field === '_ref_colors' && !isAddRow"
+                            class="btn btn-primary btn-sm blue-gradient btn-detail"
+                            @click.stop.prevent="showRefValueColors()"
+                            :style="$root.themeButtonStyle"
+                    >
+                        <span>Detail</span>
+                    </button>
+
                     <a v-else-if="tableHeader.field === 'apply_target_row_group_id'"
+                       title="Open row group in popup."
                        @click.stop="showGroupsPopup('row', tableRow.apply_target_row_group_id)"
                     >{{ showField() }}</a>
 
                     <a v-else-if="tableHeader.field === 'table_ref_condition_id'"
+                       title="Open ref condition in popup."
                        @click.stop="showAddRefCond(tableRow.table_ref_condition_id)"
                     >{{ showField() }}</a>
+
+                    <div v-else-if="tableHeader.field === 'ref_value'">
+                        <span class="is_select" :style="selectBG">{{ showField() }}</span>
+                    </div>
 
                     <div v-else="">{{ showField() }}</div>
 
@@ -50,13 +78,27 @@
         <!-- ABSOLUTE EDITINGS -->
         <div v-if="isEditing()" class="cell-editing">
 
+            <tablda-select-simple
+                v-if="'datas_sort' === tableHeader.field"
+                :options="[
+                        {val: 'asc', show: 'A->Z(0->9)'},
+                        {val: 'desc', show: 'Z->A(9->0)'},
+                    ]"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
+
             <!--DDL References-->
             <tablda-select-simple
-                    v-if="tableHeader.field === 'apply_target_row_group_id'"
+                    v-else-if="tableHeader.field === 'apply_target_row_group_id'"
                     :options="globalRowGroups()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -69,7 +111,7 @@
                     :options="globalRefConds()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -83,22 +125,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="tableHeader.field !== 'target_field_id'"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
-                    :style="getEditStyle"
-                    @selected-item="updateCheckedDDL"
-                    @hide-select="hideEdit"
-            ></tablda-select-simple>
-
-            <tablda-select-simple
-                    v-else-if="'sort_type' === tableHeader.field && tableRow.table_ref_condition_id"
-                    :options="[
-                        {val: 'asc', show: 'A->Z(0->9)'},
-                        {val: 'desc', show: 'Z->A(9->0)'},
-                    ]"
-                    :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
-                    :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -110,7 +137,7 @@
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -118,7 +145,7 @@
 
             <!--DDL items-->
             <input
-                    v-else-if="inArray(tableHeader.field, ['image_path'])"
+                    v-else-if="is_attach"
                     @change="uploadItemFile()"
                     @blur="hideFileEdit();"
                     type="file"
@@ -128,7 +155,7 @@
                     :style="getEditStyle">
 
             <input
-                    v-else-if="inArray(tableHeader.field, ['name', 'notes', 'option', 'description'])"
+                    v-else-if="inArray(tableHeader.field, ['name', 'notes', 'option', 'show_option', 'ref_value'])"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit();updateValue()"
                     ref="inline_input"
@@ -152,16 +179,21 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
+import {Endpoints} from "../../classes/Endpoints";
 
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import {eventBus} from '../../app';
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import FullSizeImgBlock from "../CommonBlocks/FullSizeImgBlock";
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    export default {
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import FullSizeImgBlock from "../CommonBlocks/FullSizeImgBlock";
+import TabldaColopicker from "./InCell/TabldaColopicker";
+
+export default {
         components: {
+            TabldaColopicker,
             FullSizeImgBlock,
             TabldaSelectSimple,
         },
@@ -170,14 +202,9 @@
             Select2DDLMixin,
             CellStyleMixin,
         ],
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
+                attach_overed: false,
                 editing: false,
                 compared_values: [],
                 source_field_for_values: null,
@@ -192,14 +219,23 @@
                     return {};
                 }
             },
+            tableMeta: Object,//style mixin
             tableHeader: Object,
             tableRow: Object,
             cellHeight: Number,
             maxCellRows: Number,
             isAddRow: Boolean,
             user: Object,
+            parentRow: Object,
+            with_edit: {
+                type: Boolean,
+                default: true
+            },
         },
         computed: {
+            is_attach() {
+                return this.inArray(this.tableHeader.field, ['image_path']);
+            },
             fields_from_condition() {
                 let fields = [];
                 let ref_cond = _.find(this.globalMeta._ref_conditions, {id: Number(this.tableRow.table_ref_condition_id)});
@@ -209,14 +245,32 @@
                 return fields;
             },
             canCellEdit() {
-                return this.tableHeader.f_type !== 'Attachment'
+                return this.with_edit
                     && this.globalMeta._is_owner
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields)
                     && (this.tableHeader.field !== 'target_field_id' || this.tableRow.table_ref_condition_id)
                     && (this.tableHeader.field !== 'show_field_id' || this.tableRow.table_ref_condition_id)
                     && (this.tableHeader.field !== 'image_field_id' || this.tableRow.table_ref_condition_id)
-                    && (this.tableHeader.field !== 'sort_type' || this.tableRow.table_ref_condition_id);
-                    //&& (this.tableHeader.field !== 'image_path' || !this.isAddRow);
+                    && (this.tableHeader.field !== '_ref_colors');
+            },
+            custCellStyle() {
+                let stl = this.getCellStyle;
+                if (!this.with_edit) {
+                    stl.backgroundColor = '#EEE';
+                }
+                if (this.tableHeader.field === '_ref_colors') {
+                    stl.textAlign = 'center';
+                }
+                return stl;
+            },
+            selectBG() {
+                let bg = this.tableRow.color || '';
+                return bg
+                    ? {
+                        backgroundColor: bg,
+                        color: SpecialFuncs.smartTextColorOnBg(bg),
+                    }
+                    : {};
             },
         },
         methods: {
@@ -261,7 +315,6 @@
                     this.tableRow.target_field_id = null;
                     this.tableRow.show_field_id = null;
                     this.tableRow.image_field_id = null;
-                    this.tableRow.sort_type = 'asc';
                 }
                 this.tableRow._changed_field = this.tableHeader.field;
                 this.$emit('updated-cell', this.tableRow);
@@ -295,8 +348,8 @@
                     res = idx > -1 ? this.globalMeta._ref_conditions[idx].name : '';
                 }
                 else
-                if (this.tableHeader.field === 'sort_type' && this.tableRow.sort_type) {
-                    switch (this.tableRow.sort_type) {
+                if (this.tableHeader.field === 'datas_sort' && this.tableRow.datas_sort) {
+                    switch (this.tableRow.datas_sort) {
                         case 'asc': res = 'A->Z(0->9)'; break;
                         case 'desc': res = 'Z->A(9->0)'; break;
                     }
@@ -327,22 +380,21 @@
                     this.hideEdit();
                 }
             },
-            uploadItemFile() {
-                let data = new FormData();
-                let file = this.$refs.inline_input ? this.$refs.inline_input.files[0] : null;
-                let rw_id = this.tableRow.id || window.uuidv4();
-                data.append('table_id', this.globalMeta.id);
-                data.append('table_field_id', this.tableHeader.id);
-                data.append('row_id', 'ddl_'+rw_id);
-                data.append('file', file);
-                data.append('clear_before', 1);
+            uploadItemFile(fore_file) {
+                let file = fore_file || (this.$refs.inline_input ? this.$refs.inline_input.files[0] : null);
+                let rw_id = window.uuidv4();
+                if (this.tableRow.id) {
+                    rw_id = this.tableRow.ddl_id+'_row'+this.tableRow.id
+                }
 
-                if (file && rw_id) {
+                if (rw_id) {
                     this.$root.sm_msg_type = 1;
-                    axios.post('/ajax/files', data, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        },
+                    Endpoints.fileUpload({
+                        table_id: this.globalMeta.id,
+                        table_field_id: this.tableHeader.id,
+                        row_id: 'ddl_'+rw_id,
+                        file: file,
+                        clear_before: 1,
                     }).then(({ data }) => {
                         this.tableRow[this.tableHeader.field] = data.filepath + data.filename;
                         this.emitUpdateSignal();
@@ -355,6 +407,30 @@
                 } else {
                     this.editing = false;
                 }
+            },
+            
+            //Drag&Drop
+            ddlEnter(e) {
+                if (!this.is_attach) {
+                    return;
+                }
+                this.attach_overed = true;
+            },
+            ddlLeave(e) {
+                if (!this.is_attach) {
+                    return;
+                }
+                this.attach_overed = false;
+            },
+            ddlDrop(ev) {
+                if (!this.is_attach) {
+                    return;
+                }
+                let file = ev.dataTransfer.items && ev.dataTransfer.items[0] && ev.dataTransfer.items[0].kind === 'file'
+                    ? ev.dataTransfer.items[0].getAsFile()
+                    : null;
+                this.uploadItemFile(file);
+                this.attach_overed = false;
             },
 
             //Emits
@@ -375,7 +451,7 @@
             },
             nameFieldsFromConds() {
                 let fields = _.filter(this.fields_from_condition, (hdr) => {
-                    return !in_array(hdr.field, this.$root.systemFields) && hdr.f_type !== 'Attachment';
+                    return !in_array(hdr.field, this.$root.systemFields);
                 });
                 if (this.tableHeader.field === 'target_field_id') {
                     fields.splice(0, 0, {id: null, name: 'ID'});
@@ -386,7 +462,8 @@
             },
             nameAttachsFromConds() {
                 let fields = _.filter(this.fields_from_condition, (hdr) => {
-                    return !this.inArray(hdr.field, this.$root.systemFields) && hdr.f_type === 'Attachment';
+                    return !this.inArray(hdr.field, this.$root.systemFields)
+                        && hdr.f_type === 'Attachment';
                 });
                 return _.map(fields, (hdr) => {
                     return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
@@ -400,10 +477,35 @@
                     window.event.preventDefault();
                 }
             },
+            showRefValueColors() {
+                eventBus.$emit('show-ref-value-colors', this.parentRow, this.tableRow);
+            },
         }
     }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
     @import "CustomCell.scss";
+
+    .btn-detail {
+        font-size: 0.8em;
+        padding: 0 7px;
+    }
+    .has-deleter {
+        display: inline-block;
+        position: relative;
+    }
+    .has-deleter > .img--deleter {
+        display: none;
+        color: #F00;
+        font-size: 1.6em;
+        font-weight: bold;
+        line-height: 0.8em;
+        position: absolute;
+        top: calc(50% - 8px);
+        left: 100%;
+    }
+    .has-deleter:hover > .img--deleter {
+        display: inline-block;
+    }
 </style>

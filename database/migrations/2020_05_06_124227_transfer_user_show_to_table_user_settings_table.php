@@ -36,6 +36,11 @@ class TransferUserShowToTableUserSettingsTable extends Migration
             $table->unsignedInteger('vote_user_show_last')->default(1);
             $table->unsignedInteger('vote_user_show_email')->default(1);
             $table->unsignedInteger('vote_user_show_username')->default(1);
+
+            $table->unsignedInteger('max_cell_rows')->default(0);
+            $table->unsignedInteger('cell_height')->default(1);
+            $table->unsignedInteger('left_menu_width')->default(250);
+            $table->unsignedInteger('stim_filter_width')->default(220);
         });
     }
 
@@ -69,6 +74,11 @@ class TransferUserShowToTableUserSettingsTable extends Migration
             $table->dropColumn('vote_user_show_last');
             $table->dropColumn('vote_user_show_email');
             $table->dropColumn('vote_user_show_username');
+
+            $table->dropColumn('max_cell_rows');
+            $table->dropColumn('cell_height');
+            $table->dropColumn('left_menu_width');
+            $table->dropColumn('stim_filter_width');
         });
     }
 }

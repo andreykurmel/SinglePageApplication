@@ -53,21 +53,14 @@
             },
             runAnimation(clear_spec) {
                 this.is_vis = true;
-                let end_top_pos = ((window.innerHeight*0.1) + (this.idx*40));
-                let end_left_pos = ((window.innerWidth - this.getPopupWidth) / 2 + this.idx*30);
-
-                if (this.shiftObject) {
-                    end_top_pos = this.shiftObject.top_px;
-                    end_left_pos = ((window.innerWidth*this.shiftObject.left - this.getPopupWidth) / 2 + this.idx*30);
-                }
-
                 this.topPos = this.$root.lastMouseClick.clientY;
                 this.leftPos = this.$root.lastMouseClick.clientX;
                 this.anim_opac = 0;
                 this.transition_ms = 800;
                 setTimeout(() => {
-                    this.topPos = end_top_pos;
-                    this.leftPos = end_left_pos;
+                    let positions = this._endPositions();
+                    this.topPos = positions.top;
+                    this.leftPos = positions.left;
                     this._pamTestPos();
                     this.anim_opac = 1;
                     setTimeout(() => {
@@ -77,11 +70,24 @@
                 }, 1);
             },
             noAnimation(clear_spec) {
-                this.topPos = (window.innerHeight*0.1) + (this.idx*40);
-                this.leftPos = (window.innerWidth - this.getPopupWidth) / 2 + this.idx*30;
+                let positions = this._endPositions();
+                this.topPos = positions.top;
+                this.leftPos = positions.left;
                 this._pamTestPos();
                 this.anim_opac = 1;
                 this._pamClear(clear_spec);
+            },
+            _endPositions() {
+                let positions = {
+                    top: ((window.innerHeight * 0.1) + (this.idx * 40)),
+                    left: ((window.innerWidth - this.getPopupWidth) / 2 + this.idx * 30),
+                };
+
+                if (this.shiftObject) {
+                    positions.top = this.shiftObject.top_px + (this.idx * 40);
+                    positions.left = ((window.innerWidth*this.shiftObject.left - this.getPopupWidth) / 2 + this.idx*30);
+                }
+                return positions;
             },
             _pamTestPos() {
                 if (this.topPos < 1) {

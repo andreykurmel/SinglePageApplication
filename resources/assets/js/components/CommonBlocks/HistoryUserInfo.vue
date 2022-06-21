@@ -1,12 +1,42 @@
 <template>
     <div class="user-wrapper" ref="history_user_info">
 
-        <span class="user-name"
-              @click="menu_opened = !menu_opened"
-              v-html="$root.getUserSimple(h_user, tableMeta._owner_settings, 'history_user')"
-        ></span>
-        <span>, {{ $root.convertToLocal(history.created_on, user.timezone) }}:</span>
+        <template v-if="isActivityComment">
+            <div>
+                <span>From:</span>
+                <span class="user-name"
+                      @click="menu_opened = !menu_opened"
+                      v-html="$root.getUserSimple(h_user, tableMeta._owner_settings, 'history_user')"
+                ></span>
+            </div>
+            <div>
+                <span>To:</span>
+                <span v-html="$root.getUserSimple(h_user, tableMeta._owner_settings, 'history_user')"></span>
+            </div>
+            <div>
+                <span>At:</span>
+                <span>{{ $root.convertToLocal(history.created_on, user.timezone) }}:</span>
+            </div>
+        </template>
 
+        <template v-else-if="isActivityHistory">
+            <span v-if="isActivity && h_field">Updated "{{ $root.uniqName(h_field.name) }}" by:</span>
+            <span class="user-name"
+                  @click="menu_opened = !menu_opened"
+                  v-html="$root.getUserSimple(h_user, tableMeta._owner_settings, 'history_user')"
+            ></span>
+            <span>, {{ $root.convertToLocal(history.created_on, user.timezone) }}:</span>
+        </template>
+
+        <template v-else>
+            <span class="user-name"
+                  @click="menu_opened = !menu_opened"
+                  v-html="$root.getUserSimple(h_user, tableMeta._owner_settings, 'history_user')"
+            ></span>
+            <span>, {{ $root.convertToLocal(history.created_on, user.timezone) }}:</span>
+        </template>
+
+        <!--TOOLTIP-->
         <div v-show="menu_opened" class="popup-info">
             <a :href="'mailto:'+h_user.email">
                 {{ h_user.email }}
@@ -17,7 +47,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     export default {
         name: "HistoryUserInfo",
@@ -25,12 +55,18 @@
             return {
                 menu_opened: false,
                 h_user: this.history._user || {},
+                h_to_user: this.history._to_user,
+                h_field: this.history._table_field,
+
+                isActivityComment: this.isActivity && this.history._to_user,
+                isActivityHistory: this.isActivity && this.history._table_field,
             };
         },
         props:{
             tableMeta: Object,
             user: Object,
             history: Object,
+            isActivity: Boolean,
         },
         methods: {
             hideMenu(e) {

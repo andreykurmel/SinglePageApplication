@@ -9,16 +9,16 @@
             <label>Use the following code for embedding the {{ (isDcr ? 'form' : 'view') }} on your site.</label>
             <div class="embed_code" @click="copyCode()">
                 {{ embed_code }}
-                <div v-if="msgshow" class="msg_copied">Copied&nbsp;</div>
+                <div v-if="msgshow" class="msg_copied">Code Copied!</div>
             </div>
         </div>
     </div>
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../classes/SpecialFuncs';
 
     export default {
         name: "EmbedButton",
@@ -28,7 +28,7 @@
                 menu_opened: false,
                 embed_code: '<iframe src="'
                     + this.$root.clear_url
-                    + (this.isDcr ? '/embed-dcr/' : (this.isFolder ? '/embed/' : '/view/'))
+                    + (this.isDcr ? '/embed-dcr/' : (this.isFolder ? '/embed/' : '/mrv/'))
                     + this.hash
                     + '" width="100%" height="100%"></iframe>'
             }

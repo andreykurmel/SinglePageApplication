@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div :style="textSysStyle">
         <table class="table">
             <colgroup>
                 <col :width="cw['1']">
@@ -100,6 +100,24 @@
                     </span>
                 </td>
                 <td><span>Drag to Change Column Order</span></td>
+            </tr>
+            <tr>
+                <td class="in-tb-check">
+                    <span class="indeterm_check__wrap">
+                        <span class="indeterm_check" @click="updateGroup(selPermission,'can_public_copy')">
+                            <i v-if="selPermission.can_public_copy" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                </td>
+                <td><span>Allow Copy for Public Sharing</span></td>
+                <td class="in-tb-check">
+                    <span class="indeterm_check__wrap">
+                        <span class="indeterm_check" @click="updateGroup(selPermission,'hide_folder_structure')">
+                            <i v-if="selPermission.hide_folder_structure" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                </td>
+                <td><span>Hide Directory</span></td>
             </tr>
             </tbody>
         </table>
@@ -222,7 +240,7 @@
 
         <!----------- View Sharing -------------->
 
-        <table class="table">
+        <table class="table" v-if="$root.checkAvailable(user, 'permission_views')">
             <colgroup>
                 <col :width="cw['1']">
                 <col :width="cw['11']">
@@ -246,7 +264,7 @@
                     <td><a @click.stop="showViewsPopup()">Create Views</a></td>
                 </tr>
                 <tr>
-                    <td colspan="2">Sharing Selected conditional Formattings</td>
+                    <td colspan="2">Share Selected Views</td>
                 </tr>
                 <template v-if="tableMeta._views.length">
                     <tr v-for="view in tableMeta._views">
@@ -260,7 +278,7 @@
                             </label>
                         </td>
                         <td>
-                            <a target="_blank" :href="'/view/'+view.hash">{{ view.name }}</a>
+                            <a target="_blank" :href="'/mrv/'+view.hash">{{ view.name }}</a>
                         </td>
                     </tr>
                 </template>
@@ -274,7 +292,7 @@
 
         <!----------- Conditional Formattings -------------->
 
-        <table class="table">
+        <table class="table" v-if="$root.checkAvailable(user, 'permission_cond_format')">
             <colgroup>
                 <col :width="cw['1']">
                 <col :width="cw['3']">
@@ -286,7 +304,7 @@
             <thead @click="otherTablesBody.cond = !otherTablesBody.cond">
             <tr>
                 <th colspan="6">
-                    <a @click.stop="showCondFormatPopup()">Conditional Formattings</a>
+                    <a @click.stop="showCondFormatPopup()">Conditional Formattings(CFs)</a>
                 </th>
             </tr>
             </thead>
@@ -299,10 +317,10 @@
                             </span>
                         </span>
                     </td>
-                    <td colspan="5"><a @click.stop="showCondFormatPopup()">Define Conditional Formats</a></td>
+                    <td colspan="5"><a @click.stop="showCondFormatPopup()">Define Conditional Formattings(CFs)</a></td>
                 </tr>
                 <tr>
-                    <td colspan="6">Sharing Selected conditional Formattings</td>
+                    <td colspan="6">Share Selected Conditional Formattings(CFs)</td>
                 </tr>
                 <template v-if="tableMeta._cond_formats.length">
                     <tr v-for="cond_format in tableMeta._cond_formats">
@@ -310,10 +328,7 @@
                             <label>
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
-                                          :class="{'disabled': !$root.checkAvailable(user, 'permission_cond_format')}"
-                                          @click="!$root.checkAvailable(user, 'permission_cond_format')
-                                              ? null
-                                              : toggleCFRight(cond_format)"
+                                          @click="toggleCFRight(cond_format)"
                                     >
                                         <i v-if="findCFRight(cond_format)" class="glyphicon glyphicon-ok group__icon"></i>
                                     </span>
@@ -327,8 +342,8 @@
                             <label>
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
-                                          :class="{'disabled': !$root.checkAvailable(user, 'permission_cond_format') || !findCFRight(cond_format)}"
-                                          @click="!$root.checkAvailable(user, 'permission_cond_format') || !findCFRight(cond_format)
+                                          :class="{'disabled': !findCFRight(cond_format)}"
+                                          @click="!findCFRight(cond_format)
                                               ? null
                                               : updateCFRight(cond_format, 'visible_shared')"
                                     >
@@ -342,8 +357,8 @@
                             <label>
                                 <span class="indeterm_check__wrap">
                                     <span class="indeterm_check"
-                                          :class="{'disabled': !$root.checkAvailable(user, 'permission_cond_format') || !findCFRight(cond_format)}"
-                                          @click="!$root.checkAvailable(user, 'permission_cond_format') || !findCFRight(cond_format)
+                                          :class="{'disabled': !findCFRight(cond_format)}"
+                                          @click="!findCFRight(cond_format)
                                               ? null
                                               : updateCFRight(cond_format, 'always_on')"
                                     >
@@ -418,17 +433,17 @@
             <thead @click="otherTablesBody.group = !otherTablesBody.group">
             <tr>
                 <th colspan="4" style="background-color: #AAA; color: #000; text-align: center;">
-                    <a @click.stop="showGroupsPopup('row')">Groups</a>
+                    <a @click.stop="showGroupsPopup('row')">Row and Column Groups(XGrps)</a>
                 </th>
             </tr>
             </thead>
             <tbody v-show="otherTablesBody.group">
             <tr>
                 <td colspan="2">
-                    <label>Rows:</label>
+                    <label>Row Groups(RGrps):</label>
                 </td>
                 <td colspan="2">
-                    <label>Columns:</label>
+                    <label>Column Groups(CGrps):</label>
                 </td>
             </tr>
             <tr v-for="i in max_groups">
@@ -471,7 +486,7 @@
             <thead @click="otherTablesBody.addon = !otherTablesBody.addon">
             <tr>
                 <th colspan="3">
-                    <span>Addons</span>
+                    <span>Add-ons</span>
                 </th>
             </tr>
             </thead>
@@ -479,109 +494,11 @@
                 <template v-if="someAddon">
                     <tr v-for="adn in $root.settingsMeta.all_addons" v-if="tableMeta['add_'+adn.code]">
                         <td colspan="3" style="padding: 0">
-                            <table class="table-others">
-                                <tr>
-                                    <td :style="{width: addon_widths.title, cursor: (adn.code === 'bi' ? 'pointer' : null)}"
-                                        @click="showChartsToggle(adn)"
-                                    >
-                                        <span>{{ adn.name }}</span>
-                                        <span v-if="adn.code === 'bi'">({{ (!showCharts && findAddonRight(adn.id, 'view') ? '+' : '-') }})</span>
-                                    </td>
-                                    <td :style="{width: addon_widths.view}">
-                                        <label>
-                                            <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="toggleAddonRight(adn, 'view')">
-                                                    <i v-if="findAddonRight(adn.id, 'view')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                </span>
-                                            </span>
-                                            <span>&nbsp;{{ (adn.code === 'bi' ? 'Available' : 'View') }}</span>
-                                        </label>
-                                    </td>
-                                    <td :style="{width: addon_widths.edit}">
-                                        <label v-if="adn.code !== 'request'"><!-- collaborator cannot edit DCR -->
-                                            <span class="indeterm_check__wrap">
-                                                    <span class="indeterm_check" @click="toggleAddonRight(adn, 'edit')">
-                                                        <i v-if="findAddonRight(adn.id, 'edit')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                    </span>
-                                                </span>
-                                            <span>&nbsp;Edit</span>
-                                        </label>
-                                    </td>
-                                </tr>
-                                <template v-if="adn.code === 'bi' && showCharts">
-                                    <tr v-if="findAddonRight(adn.id, 'edit')">
-                                        <td colspan="3">
-                                            <div class="flex">
-                                                <label class="flex flex--center-v">
-                                                    <span class="indeterm_check__wrap">
-                                                        <span class="indeterm_check" @click="updateAddonRight(adn, !findAddonRight(adn.id, 1, 'lockout_layout'), 'lockout_layout')">
-                                                            <i v-if="findAddonRight(adn.id, 1, 'lockout_layout')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                        </span>
-                                                    </span>
-                                                    <span>&nbsp;Lockout Layout&nbsp;&nbsp;&nbsp;</span>
-                                                </label>
-                                                <label class="flex flex--center-v">
-                                                    <span class="indeterm_check__wrap">
-                                                        <span class="indeterm_check" @click="updateAddonRight(adn, !findAddonRight(adn.id, 1, 'add_new'), 'add_new')">
-                                                            <i v-if="findAddonRight(adn.id, 1, 'add_new')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                        </span>
-                                                    </span>
-                                                    <span>&nbsp;Add New&nbsp;&nbsp;&nbsp;</span>
-                                                </label>
-                                                <label class="flex flex--center-v">
-                                                    <span class="indeterm_check__wrap">
-                                                        <span class="indeterm_check" @click="updateAddonRight(adn, !findAddonRight(adn.id, 1, 'hide_settings'), 'hide_settings')">
-                                                            <i v-if="findAddonRight(adn.id, 1, 'hide_settings')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                        </span>
-                                                    </span>
-                                                    <span>&nbsp;Hide Settings&nbsp;&nbsp;&nbsp;</span>
-                                                </label>
-                                            </div>
-                                            <div class="flex">
-                                                <label class="flex flex--center-v">
-                                                    <span class="indeterm_check__wrap">
-                                                        <span class="indeterm_check" @click="updateAddonRight(adn, !findAddonRight(adn.id, 1, 'block_spacing'), 'block_spacing')">
-                                                            <i v-if="findAddonRight(adn.id, 1, 'block_spacing')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                        </span>
-                                                    </span>
-                                                    <span>&nbsp;Block Spacing&nbsp;&nbsp;&nbsp;</span>
-                                                </label>
-                                                <label class="flex flex--center-v">
-                                                    <span class="indeterm_check__wrap">
-                                                        <span class="indeterm_check" @click="updateAddonRight(adn, !findAddonRight(adn.id, 1, 'vert_grid_step'), 'vert_grid_step')">
-                                                            <i v-if="findAddonRight(adn.id, 1, 'vert_grid_step')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                        </span>
-                                                    </span>
-                                                    <span>&nbsp;Block Vertical Grid Step</span>
-                                                </label>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <tr v-for="chart in sortedCharts">
-                                        <td :style="{width: addon_widths.title}" class="right-txt">{{ getChartTitle(chart) }}</td>
-                                        <td :style="{width: addon_widths.view}">
-                                            <label>
-                                                <span class="indeterm_check__wrap">
-                                                    <span class="indeterm_check" @click="toggleChartRight(chart, 'view')">
-                                                        <i v-if="findChartRight(chart, 'view')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                    </span>
-                                                </span>
-                                                <span>&nbsp;View</span>
-                                            </label>
-                                        </td>
-                                        <td :style="{width: addon_widths.edit}">
-                                            <label>
-                                                <span class="indeterm_check__wrap">
-                                                    <span class="indeterm_check" @click="toggleChartRight(chart, 'edit')">
-                                                        <i v-if="findChartRight(chart, 'edit')" class="glyphicon glyphicon-ok group__icon"></i>
-                                                    </span>
-                                                </span>
-                                                <span>&nbsp;Edit</span>
-                                            </label>
-                                        </td>
-                                    </tr>
-                                </template>
-                            </table>
+                            <tab-settings-permissions-basics-addon
+                                    :table-meta="tableMeta"
+                                    :sel-addon="adn"
+                                    :sel-permission="selPermission"
+                            ></tab-settings-permissions-basics-addon>
                         </td>
                     </tr>
                 </template>
@@ -596,22 +513,32 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../../app';
+    import {eventBus} from '../../../../../app';
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
+    import TabSettingsPermissionsBasicsAddon from "./TabSettingsPermissionsBasicsAddon";
 
     export default {
         name: "TabSettingsPermissionsBasics",
         components: {
+            TabSettingsPermissionsBasicsAddon
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 downloadings: ['Print', 'CSV', 'PDF', 'XLSX', 'JSON', 'XML', 'PNG'],
                 import_methods: [
                     {name: 'Paste to Import',  avail: true,    key: 5,     code: 'paste'},
                     {name: 'Build/Update',     avail: false,   key: 0,     code: 'scratch'},
-                    {name: 'CSV Import',       avail: true,    key: 1,     code: 'csv'},
+                    {name: 'CSV/Excel Import',       avail: true,    key: 1,     code: 'csv'},
                     {name: 'MySQL Import',     avail: false,   key: 2,     code: 'mysql'},
                     {name: 'Remote MySQL',     avail: false,   key: 3,     code: 'remote'},
                     {name: 'Referencing',      avail: true,    key: 4,     code: 'reference'},
+                    {name: 'Web Scraping',     avail: false,   key: 6,     code: 'web_scrap'},
+                    {name: 'Google Sheets',    avail: false,   key: 7,     code: 'g_sheets'},
                 ],
                 otherTablesBody: {
                     basic: false,
@@ -623,15 +550,9 @@
                     group: false,
                     addon: false,
                 },
-                showCharts: false,
-                addon_widths: {
-                    title: '50%',
-                    view: '25%',
-                    edit: '25%',
-                },
                 basic_params: [
-                    'can_add','enforced_theme','can_see_history','can_reference',
-                    'can_edit_tb','can_drag_rows','referencing_shared','can_drag_columns',
+                    'can_add','enforced_theme','can_see_history','can_reference','can_public_copy',
+                    'can_edit_tb','can_drag_rows','referencing_shared','can_drag_columns','hide_folder_structure',
                 ],
                 availability_cols_first: [],
                 availability_cols_second: [],
@@ -694,15 +615,15 @@
                     ? 2
                     : check ? 1 : 0;
             },
-            sortedCharts() {
-                return _.sortBy(this.tableMeta._charts, ['row_idx', 'col_idx'])
-            },
             someAddon() {
                 return this.tableMeta.add_map || this.tableMeta.add_bi || this.tableMeta.add_request || this.tableMeta.add_email
                     || this.tableMeta.add_alert || this.tableMeta.add_kanban || this.tableMeta.add_gantt || this.tableMeta.add_calendar;
             },
         },
         methods: {
+            in_array(key, arr) {
+                return window.in_array(key, arr);
+            },
             updateGroup(tableRow, key) {
                 if (tableRow && key) {
                     tableRow[key] = !tableRow[key];
@@ -811,7 +732,7 @@
                     case 'remote': res = this.$root.checkAvailable(this.user, 'data_remote'); break;
                     case 'reference': res = this.$root.checkAvailable(this.user, 'data_ref'); break;
                     case 'paste': res = this.$root.checkAvailable(this.user, 'data_paste'); break;
-                    case 'g_sheet': res = this.$root.checkAvailable(this.user, 'data_g_sheet'); break;
+                    case 'g_sheets': res = this.$root.checkAvailable(this.user, 'data_g_sheets'); break;
                     case 'web_scrap': res = this.$root.checkAvailable(this.user, 'data_web_scrap'); break;
                 }
                 return res;
@@ -858,63 +779,6 @@
                         table_permission_id: this.selPermission.id
                     }).then(({ data }) => {
                         view._view_rights.push(data);
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.$root.sm_msg_type = 0;
-                    });
-                }
-            },
-
-            //Addons
-            findAddonRight(adn_id, value, field) {
-                field = field || 'type';
-                let present = false;
-                _.each(this.selPermission._addons, (element) => {
-                    if (element.id === adn_id && element._link[field] == value) {
-                        present = true;
-                    }
-                });
-                return present;
-            },
-            updateAddonRight(adn, value, field) {
-                this.$root.sm_msg_type = 1;
-                axios.put('/ajax/table-permission/addon-right', {
-                    addon_id: adn.id,
-                    table_permission_id: this.selPermission.id,
-                    fld: field,
-                    val: value,
-                }).then(({ data }) => {
-                    this.selPermission._addons = data;
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            toggleAddonRight(adn, type) {
-                this.$root.sm_msg_type = 1;
-                if (this.findAddonRight(adn.id, type)) {
-                    axios.delete('/ajax/table-permission/addon-right', {
-                        params: {
-                            addon_id: adn.id,
-                            table_permission_id: this.selPermission.id,
-                            type: type
-                        }
-                    }).then(({ data }) => {
-                        this.selPermission._addons = data;
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.$root.sm_msg_type = 0;
-                    });
-                } else {
-                    axios.post('/ajax/table-permission/addon-right', {
-                        addon_id: adn.id,
-                        table_permission_id: this.selPermission.id,
-                        type: type
-                    }).then(({ data }) => {
-                        this.selPermission._addons = data;
                     }).catch(errors => {
                         Swal('', getErrors(errors));
                     }).finally(() => {
@@ -990,55 +854,6 @@
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
-            },
-
-            //Charts
-            findChartRight(chart, type) {
-                let right = _.find(chart._chart_rights, {table_permission_id: Number(this.selPermission.id)});
-                return (type == 'edit' ? right && right.can_edit : right);
-            },
-            toggleChartRight(chart, type) {
-                this.$root.sm_msg_type = 1;
-                let rightIdx = _.findIndex(chart._chart_rights, {table_permission_id: Number(this.selPermission.id)});
-                let right = (rightIdx > -1 ? chart._chart_rights[rightIdx] : null);
-                if (right && type === 'view') {//present right -> so delete it
-                    axios.delete('/ajax/table/chart/right', {
-                        params: {
-                            chart_id: chart.id,
-                            permission_id: this.selPermission.id,
-                            can_edit: 0,//not used
-                        }
-                    }).then(({ data }) => {
-                        chart._chart_rights.splice(rightIdx,1);
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.$root.sm_msg_type = 0;
-                    });
-                } else {
-                    let canedit = Number(right && right.can_edit);
-                    axios.post('/ajax/table/chart/right', {
-                        chart_id: chart.id,
-                        permission_id: this.selPermission.id,
-                        can_edit: (type === 'edit') ? !canedit : canedit,
-                    }).then(({ data }) => {
-                        if (rightIdx > -1) {
-                            chart._chart_rights.splice(rightIdx, 1 ,data);
-                        } else {
-                            chart._chart_rights.push( data );
-                        }
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.$root.sm_msg_type = 0;
-                    });
-                }
-            },
-            getChartTitle(chart) {
-                return '(' + (Number(chart.row_idx)+1) + ',' + (Number(chart.col_idx)+1) + ') ' + chart.title;
-            },
-            showChartsToggle(adn) {
-                this.showCharts = (this.tableMeta._charts.length && !this.showCharts && this.findAddonRight(adn.id, 'view'));
             },
 
             //Forbid Column Settings

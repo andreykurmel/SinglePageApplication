@@ -113,6 +113,16 @@
                 margin-left: 40px;
                 margin-right: 5px;
             }
+
+            .result-item--disabled {
+                background-color: #ccc !important;
+                color: #777;
+                cursor: not-allowed;
+
+                &:hover {
+                    text-decoration: none;
+                }
+            }
         }
 
         .embed-wrapper {

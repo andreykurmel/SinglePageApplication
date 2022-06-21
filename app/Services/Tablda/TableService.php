@@ -1,24 +1,16 @@
 <?php
-/**
- * Created by PhpStorm.
- * User: andrey_k
- * Date: 18.07.18
- * Time: 14:06
- */
 
 namespace Vanguard\Services\Tablda;
 
 
-use Illuminate\Database\Eloquent\Collection;
 use Ramsey\Uuid\Uuid;
-use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\Country;
 use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Correspondences\CorrespField;
 use Vanguard\Models\CountryData;
-use Vanguard\Models\DataSetPermissions\TablePermission;
+use Vanguard\Models\Dcr\TableDataRequest;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\Table\TableFieldLink;
@@ -27,23 +19,26 @@ use Vanguard\Models\UnitConversion;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\Plan;
 use Vanguard\Models\User\UserCloud;
-use Vanguard\Models\User\UserConnection;
+use Vanguard\Modules\Permissions\PermissionObject;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\ImportRepository;
 use Vanguard\Repositories\Tablda\Permissions\CondFormatsRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableDataRequestRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
-use Vanguard\Repositories\Tablda\TableEmailAddonRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
+use Vanguard\Repositories\Tablda\UploadingFileFormatsRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
+use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
 use Vanguard\Singletones\AuthUserSingleton;
+use Vanguard\Support\DirectDatabase;
 use Vanguard\User;
 
 class TableService
@@ -111,6 +106,10 @@ class TableService
             return ['error' => true, 'msg' => 'Node Name Taken. Enter a Different Name.'];
         }
 
+        if ($data['_changed_prop_name'] ?? '') {
+            (new UserRepository())->newMenutreeHash($user_id);
+        }
+
         $this->tableRepository->updateTableSettings($table_id, $data);
 
         $table = $this->getTable($table_id);
@@ -140,19 +139,20 @@ class TableService
         $auth = app(AuthUserSingleton::class);
         $folder_tree = $auth->getMenuTree();
 
-        $folders_arr = explode('/', $path);
+        $needed_type = preg_match('/\/$/i', $path) ? ['folder'] : ['table','link'];
+        $folders_arr = array_filter( explode('/', $path) );
         $object_name = strtolower(array_pop($folders_arr));
 
         if ($this->service->cur_subdomain == $this->service->public_subdomain) {
             //get table or folder from 'public' tab
-            $object = $this->findInTree($object_name, $folders_arr, $folder_tree['public'] ?? []);
+            $object = $this->findInTree($object_name, $folders_arr, $folder_tree['public'] ?? [], $needed_type);
             $object = $object['id'] ? $object : $this->findHiddenPublicTable($object_name);
         } else {
             //get table or folder from 'private', 'favorite' (owner) or 'myAccount' tabs
             if (!empty($folder_tree['private'])) {
-                $object = $this->findInTree($object_name, $folders_arr, $folder_tree['private'] ?? []);
-                $object = $object['id'] ? $object : $this->findInTree($object_name, $folders_arr, $folder_tree['favorite'] ?? []);
-                $object = $object['id'] ? $object : $this->findInTree($object_name, $folders_arr, $folder_tree['account'] ?? []);
+                $object = $this->findInTree($object_name, $folders_arr, $folder_tree['private'] ?? [], $needed_type);
+                $object = $object['id'] ? $object : $this->findInTree($object_name, $folders_arr, $folder_tree['favorite'] ?? [], $needed_type);
+                $object = $object['id'] ? $object : $this->findInTree($object_name, $folders_arr, $folder_tree['account'] ?? [], $needed_type);
             } else {
                 $object = [
                     'type' => '',
@@ -169,9 +169,10 @@ class TableService
      * @param string $object_name
      * @param array $folders_arr
      * @param $sub_tree
+     * @param array $type
      * @return array
      */
-    public function findInTree(string $object_name, array $folders_arr, $sub_tree)
+    public function findInTree(string $object_name, array $folders_arr, $sub_tree, array $type = [])
     {
         $object = [
             'type' => '',
@@ -179,7 +180,8 @@ class TableService
         ];
         if (!count($folders_arr)) {
             foreach ($sub_tree as $item) {
-                if (strtolower($item['init_name']) == $object_name) {
+                $accept_type = !$type || in_array($item['li_attr']['data-type'], $type);
+                if (strtolower($item['init_name']) == $object_name && $accept_type) {
                     $object = [
                         'type' => $item['li_attr']['data-type'] == 'folder' ? 'folder' : 'table',
                         'id' => $item['li_attr']['data-object']['id']
@@ -190,7 +192,7 @@ class TableService
             $folder = strtolower(array_shift($folders_arr));
             foreach ($sub_tree as $item) {
                 if (strtolower($item['init_name']) == $folder && $item['li_attr']['data-type'] == 'folder') {
-                    $object = $this->findInTree($object_name, $folders_arr, $item['children']);
+                    $object = $this->findInTree($object_name, $folders_arr, $item['children'], $type);
                 }
             }
         }
@@ -220,25 +222,26 @@ class TableService
      * Test that exists table request.
      *
      * @param $code (stings with 'hash' or 'table_id/.../user_link'
-     * @return array
+     * @return TableDataRequest
      */
     public function tableRequest($code)
     {
-        $path = explode('/', $code);
+        //user_link disabled for DCR.
+        /*$path = explode('/', $code);
         if (count($path) > 1) {
             $tb_hash = array_first($path);
             $user_link = array_last($path);
-            return TablePermission::whereHas('_table', function ($q) use ($tb_hash) {
+            $sql = TableDataRequest::whereHas('_table', function ($q) use ($tb_hash) {
                     $q->where('hash', $tb_hash);
                 })
-                ->where('user_link', $user_link)
-                ->where('active', 1)
-                ->first();
+                ->where('user_link', $user_link);
         } else {
-            return TablePermission::where('link_hash', $code)
-                ->where('active', 1)
-                ->first();
-        }
+            $sql = TableDataRequest::where('link_hash', $code);
+        }*/
+        return (TableDataRequest::where('link_hash', $code))
+            ->where('active', 1)
+            ->with([ '_dcr_linked_tables' ])
+            ->first();
     }
 
     /**
@@ -276,14 +279,20 @@ class TableService
         if (!empty($special_params['is_folder_view'])) {
             $special_params['view_hash'] = $this->folderRepository->getAssignedView($special_params['is_folder_view'], $table_id);
         }
-        $view_hash = $special_params['view_hash'] ?? ($special_params['edited_view_hash'] ?? '');
+        $view_hash = $special_params['view_hash'] ?? '';
 
         if ($view_hash) {
-            $view_object = $this->tableViewRepository->getByHash($view_hash, !empty($special_params['edited_view_hash']));
+            $view_object = $this->tableViewRepository->getByHash($view_hash);
             $view_data = $view_object ? json_decode($view_object->data, 1) : [];
             $data = [];
             if ($view_object && $view_object->can_sorting) {
                 $data['sort'] = $view_data['sort'] ?? [];
+            }
+            if ($view_object && $view_object->can_filter) {
+                $data['applied_filters'] = $view_data['applied_filters'] ?? [];
+            }
+            if ($view_object && $view_object->can_hide) {
+                $data['hidden_row_groups'] = $view_data['hidden_row_groups'] ?? [];
             }
         } else {
             $table = $this->tableRepository->getTable($table_id);
@@ -310,6 +319,9 @@ class TableService
      */
     public function getWithFields($table_id, $user_id, array $special_params = [], bool $light = false)
     {
+        if (!$table_id) {
+            return null;
+        }
         $user_id = $this->service->forceGuestForPublic($user_id);
 
         //loaded from Folder View
@@ -317,19 +329,18 @@ class TableService
             $special_params['view_hash'] = $this->folderRepository->getAssignedView($special_params['is_folder_view'], $table_id);
         }
 
-        $view_edited_by_owner = !empty($special_params['edited_view_hash']);
-        $view_hash = $special_params['view_hash'] ?? ($special_params['edited_view_hash'] ?? '');
+        $view_hash = $special_params['view_hash'] ?? '';
         $view_cols = [];
 
         $table = $this->tableRepository->getTableByIdOrDB($table_id);
+        $table->__data_permission_id = null;
+        $table->__data_dcr_id = null;
 
         if ($view_hash) {
-            $view_object = $this->tableViewRepository->getByHash($view_hash, !empty($special_params['edited_view_hash']));
-            $table_permission_id = $view_object->access_permission_id ?? -1;//View Permission OR View without Permissions
-            //TODO: saved view data mark
+            $view_object = $this->tableViewRepository->getByHash($view_hash);
+            $table->__data_permission_id = $view_object->access_permission_id ?? -1;//View Permission OR View without Permissions
             $v_data = $view_object ? json_decode($view_object->data, 1) : [];
-            $view_cols['hid_row_group'] = [];//view hidden row groups // $v_data['hidden_row_groups'] ?? []
-            $view_cols['hidden'] = [];//view hidden columns // $v_data['hidden_columns'] ?? []
+            $view_cols['temp_hidden'] = $view_object && $view_object->can_hide ? ($v_data['hidden_columns'] ?? []) : [];//view temp hidden columns
             $view_cols['orders'] = $view_object && $view_object->column_order ? ($v_data['order_columns'] ?? []) : [];//view order columns
             $view_cols['visible'] = [];//view order columns // $v_data['visible'] ?? []
             if ($view_object && $view_object->_col_group) {
@@ -340,60 +351,58 @@ class TableService
                 $view_cols['visible'] = array_merge($view_cols['visible'], $from_col->toArray());
             }
         } else {
-            $table_permission_id = $special_params['table_permission_id'] ?? null;//table_data_request right
+            $table->__data_dcr_id = $special_params['table_dcr_id'] ?? null;//DCR right
         }
 
-        //not owner for Views.
-        $user_owner_id = empty($special_params['view_hash']) ? $user_id : null;
-        //for DCR load all datas as for Owner.
-        $user_owner_id = (empty($special_params['table_permission_id']) ? $user_owner_id : $table->user_id);
-
         //User is owner if it is Table OR View loaded in edit mode (not owner if it is DataRequest OR View loaded from public link)
-        $table->_is_owner = $table->user_id === $user_id
-            && ($view_edited_by_owner || is_null($table_permission_id));
+        $permis = $this->tableRepository->loadCurrentRight($table, $user_id);
 
         $table->_is_favorite = $this->tableRepository->isFavorite($table_id, $user_id);
+        $table->google_api_key = HelperService::getTableGoogleApi($table);
 
         //load
         if (!$light) {
-            $this->tableRepository->loadCurrentRight($table, $user_id, $table_permission_id);
 
-            $this->tableRepository->loadCondFormats($table, $user_owner_id, $table_permission_id);
+            $this->tableRepository->loadCondFormats($table, $permis->is_owner);
             $this->tableRepository->loadOwnerSettings($table);
             $table->load([
+                '_user' => function ($q) {
+                    $q->with('_subscription', '_available_features:id,q_tables,row_table');
+                    $q->select('id','email','username','plan_feature_id');
+                },
                 '_theme',
                 '_cur_settings',
                 '_ddls' => function ($d) {
-                    $d->with('_items', '_references');
+                    $d->with([
+                        '_items',
+                        '_references' => function ($q) {
+                            $q->with('_reference_colors');
+                        },
+                    ]);
                 },
-                '_views' => function ($v) use ($table, $user_owner_id, $user_id, $table_permission_id) {
+                '_views' => function ($v) use ($table, $permis) {
                     $v->with('_view_rights', '_filtering');
-                    $v->where('user_id', $user_owner_id);
-                    if ($user_owner_id != $table->user_id && $table_permission_id != -1) {
+                    $v->where('user_id', $permis->is_owner);
+                    if (!$permis->is_owner && $table->__data_permission_id != -1) {
                         //get only 'shared' tableViews for regular User.
-                        $v->orWhereHas('_table_permissions', function ($tp) use ($table_permission_id) {
-                            $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
+                        $v->orWhereHas('_table_permissions', function ($tp) use ($table) {
+                            $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
                         });
                     }
                 },
                 '_user_notes',
-                '_row_groups' => function ($q) use ($user_id, $user_owner_id, $table, $table_permission_id) {
-                    $q->with('_conditions', '_regulars');
-                    if ($user_owner_id != $table->user_id && $table_permission_id != -1) {
+                '_row_groups' => function ($q) use ($permis, $table) {
+                    $q->with('_regulars');
+                    if (!$permis->is_owner) {
                         //get only 'shared' rowGroups for regular User.
-                        $q->activeForUser($table_permission_id);
+                        $q->whereIn('id', $permis->shared_row_groups);
                     }
                 },
-                '_column_groups' => function ($q) use ($user_id, $user_owner_id, $table, $table_permission_id) {
+                '_column_groups' => function ($q) use ($permis, $table) {
                     $q->with('_fields');
-                    if ($user_owner_id != $table->user_id && $table_permission_id != -1) {
+                    if (!$permis->is_owner) {
                         //get only 'shared' columnGroups for regular User.
-                        $q->whereHas('_table_permission_columns', function ($tpr) use ($table_permission_id) {
-                            $tpr->where('shared', 1);
-                            $tpr->whereHas('_table_permission', function ($tp) use ($table_permission_id) {
-                                $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
-                            });
-                        });
+                        $q->whereIn('id', $permis->shared_col_groups );
                     }
                 },
                 '_ref_conditions' => function ($q) {
@@ -432,25 +441,19 @@ class TableService
                 $table->setRelation('_cur_settings', $table->_owner_settings);
             }
 
-            //set Visibillity for RowGroups from SelectedView
-            if (!empty($view_cols['hid_row_group'])) {
-                foreach ($table->_row_groups as $row_group) {
-                    $row_group->is_showed = in_array($row_group->id, $view_cols['hid_row_group']) ? 0 : 1;
-                }
-            }
-
             //Set Settings To CondFormats for different Users
             $condRepo = new CondFormatsRepository();
             foreach ($table->_cond_formats as $format) {
                 $condRepo->prepareCondFormatFields($format, $user_id);
             }
+            $condRepo->fixRowOrder($table->_cond_formats);
 
             //LOAD ADDITIONAL SETTINGS
-            $this->loadMoreTableSettings($table, $user_id, $table_permission_id, $user_owner_id);
+            $this->loadMoreTableSettings($table, $permis, $user_id);
         }
 
 
-        $table_fields = $this->tableFieldService->getWithSettings($table, $user_id, $table_permission_id, $view_cols);
+        $table_fields = $this->tableFieldService->getWithSettings($table, $user_id, $view_cols);
         $this->tableFieldService->loadFldRelations($table_fields, $table);
 
         //create url for header fields which have links to other tables
@@ -480,29 +483,28 @@ class TableService
     /**
      * @param Table $table
      * @param $user_id
-     * @param $table_permission_id
      * @param $user_owner_id
      */
-    private function loadMoreTableSettings(Table $table, $user_id, $table_permission_id, $user_owner_id)
+    private function loadMoreTableSettings(Table $table, PermissionObject $permis, $user_id)
     {
         //Load Charts for Table
         if ($table->add_bi) {
             //saved Charts for BI
             $table->_charts_saved = $table->_charts()
                 ->with([
-                    '_table_permissions' => function ($tp) use ($table_permission_id) {
-                        $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
+                    '_table_permissions' => function ($tp) use ($table) {
+                        $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
                         $tp->with([
                             '_addons' => function ($adn) { $adn->isBi(); }
                         ]);
                     }
                 ])
-                ->where(function ($v) use ($table, $table_permission_id, $user_id, $user_owner_id) {
-                    $v->where('user_id', $user_owner_id);
-                    if ($user_owner_id != $table->user_id && $table_permission_id != -1) {
+                ->where(function ($v) use ($table, $user_id, $permis) {
+                    $v->where('user_id', '=', $permis->is_owner);
+                    if (!$permis->is_owner && $table->__data_permission_id != -1) {
                         //get only 'shared' tableCharts for regular User.
-                        $v->orWhereHas('_table_permissions', function ($tp) use ($table_permission_id) {
-                            $tp->applyIsActiveForUserOrPermission($table_permission_id, true);
+                        $v->orWhereHas('_table_permissions', function ($tp) use ($table) {
+                            $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
                         });
                     }
                 })
@@ -513,7 +515,7 @@ class TableService
                 ->flatten()->pluck('_addons')
                 ->flatten()->pluck('_link');
             $table->_collaborator_bi_settings = [
-                '_is_owner' => $table->user_id == $user_owner_id,
+                '_is_owner' => !!$permis->is_owner,
                 'avail_fix_layout' => $adns->where('lockout_layout', '=', 1)->count(),
                 'avail_can_add' => $adns->where('add_new', '=', 1)->count(),
                 'avail_hide_settings' => $adns->where('hide_settings', '=', 1)->count(),
@@ -526,7 +528,7 @@ class TableService
                 $chart->active = true;
                 $chart->chart_settings = json_decode($chart->chart_settings);
                 $chart->cached_data = json_decode($chart->cached_data);
-                $chart->_can_edit = ($chart->user_id == $user_owner_id) || ($chart->_table_permissions->where('_right.can_edit', '=', 1)->count());
+                $chart->_can_edit = ($permis->is_owner) || ($chart->_table_permissions->where('_right.can_edit', '=', 1)->count());
                 $chart->__gs_hash = Uuid::uuid4();
                 unset($chart->_table_permissions);
                 unset($chart->_chart_right);
@@ -534,11 +536,47 @@ class TableService
         }
         //^^^
 
+        //Load Alerts
+        if ($table->add_alert || $table->_is_owner) {
+            $table->load([
+                '_alerts' => function ($q) use ($table, $user_id) {
+
+                    if ($user_id != $table->user_id) {
+                        $q->isAvailForUser($user_id);
+
+                        //'can_edit' permission
+                        $q->with([
+                            '_table_permissions' => function ($tp) {
+                                $tp->isActiveForUserOrVisitor();
+                            }
+                        ]);
+                    }
+
+                    $q->with([
+                        '_alert_rights',
+                        '_conditions',
+                        '_ufv_tables' => function($q) {
+                            $q->with('_ufv_fields');
+                        },
+                        '_anr_tables' => function($q) {
+                            $q->with('_anr_fields');
+                        },
+                    ]);
+                },
+            ]);
+            foreach ($table->_alerts as $alert) {
+                $alert->_can_edit = ($user_id == $table->user_id && !$table->__data_permission_id)
+                    || ($alert->_table_permissions->where('_right.can_edit', '=', 1)->count());
+                unset($alert->_table_permissions);
+            }
+        }
+        //^^^
+
+        $_tb_requests = (new TableDataRequestRepository())->loadWithRelations($table->id)->get();
+        $table->setRelation('_table_requests', $_tb_requests);
+
         $_table_permissions = $this->getTbPermissions($table);
-        $tb_request = $_table_permissions->where('is_request', '>', 0)->values();
-        $tb_permis = $_table_permissions->where('is_request', '=', 0)->values();
-        $table->setRelation('_table_requests', $tb_request);
-        $table->setRelation('_table_permissions', $tb_permis);
+        $table->setRelation('_table_permissions', $_table_permissions);
 
         //set Permissions2UserGroups datas
         $table->_user_groups_2_table_permissions = $_table_permissions
@@ -550,26 +588,20 @@ class TableService
         // GET ADDITIONAL TABLE SETTINGS FOR OWNER
         if ($table->_is_owner) {
 
+            $table->__incoming_links = DirectDatabase::loadIncomingLinks($table->id);
+
             $table->load([
                 '_table_references' => function ($q) {
-                    $q->with([
-                        '_ref_table' => function ($qq) {
-                            $qq->with('_fields');
-                        },
-                        '_ref_field'
-                    ]);
+                    $q->with(['_reference_corrs']);
                 },
                 '_communications' => function ($q) {
                     $q->with('_from_user', '_to_user', '_to_user_group');
                 },
                 '_charts' => function ($q) use ($user_id) {
-                    $q->where('user_id', $user_id);
+                    $q->where('user_id', '=', $user_id);
                     $q->with('_chart_rights');
                 },
                 '_backups',
-                '_alerts' => function ($q) {
-                    $q->with('_conditions');
-                },
             ]);
 
         } else {
@@ -644,20 +676,11 @@ class TableService
     /**
      * @param Table $table
      * @param int|null $individual
-     * @return Collection
+     * @return \Illuminate\Support\Collection
      */
     public function getTbPermissions(Table $table, int $individual = null)
     {
-        $_table_permissions = $table->_table_permissions()
-            ->with([
-                '_permission_columns',
-                '_permission_rows',
-                '_user_groups',
-                '_default_fields',
-                '_addons',
-                '_forbid_settings',
-                '_link_limits',
-            ]);
+        $_table_permissions = (new TablePermissionRepository())->loadPermisWithRelations($table->id);
 
         if ($individual) {
             $_table_permissions->where('id', '=', $individual);
@@ -665,8 +688,7 @@ class TableService
 
         if (!$table->_is_owner) {
             $_table_permissions = $_table_permissions->where(function ($q) {
-                    $q->applyIsActiveForUserOrPermission();
-                    $q->orWhere('is_request', '>', 0);
+                    $q->isActiveForUserOrVisitor();
                 })
                 ->get();
             foreach ($_table_permissions as $idx => $permis) {
@@ -692,7 +714,7 @@ class TableService
     {
         $t_link->_src_table_link = '';
         $t_link->_src_conditions = [];
-        if (in_array($t_link->link_type, ['Table', 'RorT']) && $t_link->table_ref_condition_id) {
+        if (in_array($t_link->link_display, ['Table', 'RorT']) && $t_link->table_ref_condition_id) {
 
             $ref_cond = $table->_ref_conditions->where('id', $t_link->table_ref_condition_id)->first();
             if ($ref_cond && $ref_cond->_ref_table) {
@@ -723,7 +745,10 @@ class TableService
      */
     public function getTablePath(Table $table)
     {
-        $path = config('app.url') . '/data/';
+        $auth = app()->make(AuthUserSingleton::class);
+        return $auth->getTableUrl($table->id, $table->name);
+
+        /*$path = $this->service->getUsersUrl(auth()->user()) . '/data/';
         if ($table->_link_initial_folder && $table->_link_initial_folder->_folder && $table->_link_initial_folder->_folder->_root_folders) {
             $roots = $table->_link_initial_folder->_folder->_root_folders;
             foreach ($roots as $fld) {
@@ -734,7 +759,7 @@ class TableService
             $path .= $this->folderRepository->buildPath($table->_link_initial_folder->_folder->_root_folders);
         }
         $path .= $table->name;
-        return $path;
+        return $path;*/
     }
 
     /**
@@ -758,10 +783,8 @@ class TableService
     }
 
     /**
-     * Get only table info
-     *
      * @param $hash
-     * @return mixed
+     * @return Table
      */
     public function getTableByHash($hash)
     {
@@ -827,9 +850,15 @@ class TableService
 
         $arr['user_connections_data'] = (new UserConnRepository())->loadUserConns($user_id);
 
-        $arr['user_clouds_data'] = UserCloud::where('user_id', '=', $user_id)->get();
+        $u_clouds = UserCloud::where('user_id', '=', $user_id)->get();
+        foreach ($u_clouds as $cloud) {
+            $cloud->__is_connected = !!$cloud->token_json;
+        }
+        $arr['user_clouds_data'] = $u_clouds;
 
         $arr['available_tables'] = $this->getAvailableTables($user_id);
+
+        $arr['meta_app_settings'] = AppSetting::all()->keyBy('key');
 
         $arr['unit_conversion'] = UnitConversion::all();
 
@@ -858,9 +887,16 @@ class TableService
 
         $arr['user_headers_attributes'] = (new UserHeaders())->avail_override_fields;
 
-        $arr['template_dcrs'] = (new TablePermissionRepository())->getTemplates();
+        $arr['template_dcrs'] = (new TableDataRequestRepository())->getTemplates();
+
+        $arr['upload_file_formats'] = (new UploadingFileFormatsRepository())->loadAttachmentsFormats();
 
         $arr['countries_all'] = Country::all();
+
+        $arr['backend_env'] = [
+            'from_address' => config('mail.from.address'),
+            'from_name' => config('mail.from.name'),
+        ];
 
         return $arr;
     }
@@ -881,17 +917,19 @@ class TableService
 
         $available_tables = $this->tableRepository->getAvailableTables($user_id);
         $available_tables->load([
-            '_fields:id,table_id,field,name,input_type,ddl_id,f_type',
+            '_fields:id,table_id,field,name,input_type,ddl_id,f_type,is_showed,order,is_search_autocomplete_display',
             '_user:' . $this->service->onlyNames(),
             '_table_permissions' => function ($tp) {
-                $tp->applyIsActiveForUserOrPermission();
+                $tp->isActiveForUserOrVisitor();
                 $tp->where('can_reference', 1);
             },
             '_views' => function ($tp) {
                 $tp->where('is_system', 1);
             },
             '_ddls:id,table_id,name',
-            '_ref_conditions:id,table_id,ref_table_id',
+            '_ref_conditions:id,table_id,ref_table_id,name',
+            '_row_groups:id,table_id,name',
+            '_column_groups:id,table_id,name',
         ]);
 
         foreach ($available_tables as &$tb) {
@@ -907,6 +945,8 @@ class TableService
             $tb->__url = $auth->getTableUrl($tb->id, $tb->name);
             $tb->__visiting_url = $virepo->getVisitingUrl($tb->id, $tb->_views->first());
         }
+
+        $available_tables->load('_table_permissions:id,table_id,name,is_system');
 
         return $available_tables->values();
     }
@@ -1003,12 +1043,14 @@ class TableService
      */
     public function transferTable(Table $table, $new_user_id, $move_to_transferred = true)
     {
-        if ($move_to_transferred) {
-            $sys_folder = $this->folderRepository->getSysFolder($new_user_id, 'TRANSFERRED');
-            return $this->tableRepository->transferTable($table, $new_user_id, $sys_folder->id);
-        } else {
-            return $this->tableRepository->transferTable($table, $new_user_id);
-        }
+        $sys_folder = $move_to_transferred
+            ? $this->folderRepository->getSysFolder($new_user_id, 'TRANSFERRED')
+            : (object)['id' => null];
+
+        //new menutree user hash
+        (new UserRepository())->newMenutreeHash($new_user_id);
+
+        return $this->tableRepository->transferTable($table, $new_user_id, $sys_folder->id);
     }
 
     /**
@@ -1059,11 +1101,19 @@ class TableService
      * @param int $folder_id
      * @return string
      */
-    public function moveTable(Table $table, User $user, $link_id, int $folder_id = null, int $position = null)
+    public function moveTable(Table $table, User $user, int $link_id = null, int $folder_id = null, int $position = null)
     {
-        $this->tableRepository->updateLink($link_id, ['folder_id' => $folder_id]);
+        if ($link_id) {
+            $this->tableRepository->updateLink($link_id, ['folder_id' => $folder_id]);
+        } else {
+            $this->tableRepository->insertLink($table->id, $folder_id);
+        }
         $this->syncStructureOfShared([$table->id], $user->id);
         $this->tableRepository->updatePosition($table, $user->id, $folder_id, $position);
+
+        //menutree is changed
+        (new UserRepository())->newMenutreeHash($user->id);
+
         return $this->getTablePath($table);
     }
 
@@ -1248,7 +1298,7 @@ class TableService
 
         if ($field) {
             $map_icons = $field->_map_icons;
-            $values = $this->tableDataRepository->getDistinctiveField($table, $field, $field->field);
+            $values = $this->tableDataRepository->getDistinctiveField($table, $field);
             array_push($values, 'Default');
 
             foreach ($values as $value) {
@@ -1420,7 +1470,7 @@ class TableService
     {
         $table = $this->tableRepository->getTable($table_id);
         $with_attachs = collect([(object)$row]);
-        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, null, ['users','refs','groups']);
+        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users','refs','groups']);
         return $with_attachs->first();
     }
 }

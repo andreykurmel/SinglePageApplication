@@ -16,6 +16,13 @@
         methods: {
             keyHandler(e) {
                 if (['INPUT', 'TEXTAREA'].indexOf(e.target.nodeName) > -1) {
+                    //if press 'Enter' on selected edited cell -> close edit mode
+                    if (e.keyCode == 13 && this.editing) {
+                        e.preventDefault();
+                        this.hideEdit();
+                        this.updateValue();
+                        //this.changeCol(true);
+                    }
                     return;
                 }
 
@@ -23,14 +30,7 @@
                     //if press 'Enter' on selected not edited cell -> open edit mode
                     if (e.keyCode == 13 && !this.editing) {
                         e.preventDefault();
-                        this.showEdit();
-                    } else
-                    //if press 'Enter' on selected edited cell -> close edit mode
-                    if (e.keyCode == 13 && this.editing) {
-                        e.preventDefault();
-                        this.hideEdit();
-                        this.updateValue();
-                        this.changeCol(true);
+                        this.showEdit(true);
                     } else
                     //if press 'Tab','PgDn','ArrowDn' on selected not edited cell -> select next column
                     if (e.keyCode == 9 || e.keyCode == 34 || (this.isVertTable && (e.keyCode == 39 || e.keyCode == 40))) {

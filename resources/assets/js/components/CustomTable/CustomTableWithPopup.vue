@@ -9,7 +9,6 @@
                 :rows-count="allRows.length"
                 :cell-height="cellHeight"
                 :max-cell-rows="maxCellRows"
-                :is-full-width="true"
                 :adding-row="addingRow"
                 :user="user"
                 :behavior="behavior"

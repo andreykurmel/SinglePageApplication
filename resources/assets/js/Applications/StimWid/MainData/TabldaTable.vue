@@ -16,7 +16,6 @@
                     :behavior="is_showed ? 'list_view' : ''"
                     :is-add-row="!found_model._id"
                     :available-columns="avail_columns_for_app"
-                    :fixed_ddl_pos="true"
                     style="max-width: 800px"
                     @updated-cell="checkRowBknd"
                     @show-src-record="showSrcRecord"
@@ -56,7 +55,7 @@
         <template v-else-if="show_type === 'table' && allshow">
             <div v-if="stim_link_params.filters_active && metaTable.is_loaded"
                  class="filters-wrapper"
-                 :style="{width: show_tb_filters ? '220px' : '0px', padding: show_tb_filters ? '5px' : '0px'}"
+                 :style="{width: show_tb_filters ? filter_sizes.width+'px' : '0px', padding: show_tb_filters ? '5px' : '0px'}"
             >
                 <div class="filters-wrapper--head">
                     <span v-show="show_tb_filters">Filters</span>
@@ -75,6 +74,7 @@
                             @changed-filter="changedFilter"
                     ></filters-block>
                 </div>
+                <header-resizer :table-header="filter_sizes" @resize-finished="saveFltrSiz"></header-resizer>
             </div>
             <custom-table
                     v-if="metaTable.is_loaded"
@@ -101,6 +101,7 @@
                     @added-row="insertRow"
                     @updated-row="updateRow"
                     @delete-row="deleteRow"
+                    @mass-updated-rows="massUpdatedRows"
                     @change-page="changePage"
                     @row-index-clicked="rowIndexClicked"
                     @sort-by-field="sortByFieldTablda"
@@ -111,6 +112,7 @@
                     @backend-row-checked="afterBackendCheck"
                     @show-src-record="showSrcRecord"
                     @row-selected="emitPermissions"
+                    @show-add-ddl-option="showAddDDLOption"
             ></custom-table>
             <custom-edit-pop-up
                     v-if="metaTable.is_loaded && editPopUpRow"
@@ -213,6 +215,15 @@
                 @copy-model-completed="copyFromModelFinished()"
         ></stim-copy-from-model-popup>
 
+        <!--Rotate Translate Scale-->
+        <stim-rel-calcs-popup
+                v-if="showRLCalcPopup"
+                :stim-link="master_stim_link"
+                :found-model="found_model"
+                @popup-close="copyFromModelClosed()"
+                @recalc-completed="copyFromModelFinished()"
+        ></stim-rel-calcs-popup>
+
         <!--Add Select Option Popup-->
         <add-option-popup
                 v-if="addOptionPopup.show"
@@ -280,6 +291,7 @@
 </template>
 
 <script>
+    import {ThreeHelper} from '../../../classes/helpers/ThreeHelper';
     import {MetaTabldaTable} from '../../../classes/MetaTabldaTable';
     import {MetaTabldaRows} from '../../../classes/MetaTabldaRows';
     import {StimLinkParams} from '../../../classes/StimLinkParams';
@@ -313,6 +325,8 @@
     import GroupingSettingsPopup from "../../../components/CustomPopup/GroupingSettingsPopup";
     import RefConditionsPopup from "../../../components/CustomPopup/RefConditionsPopup";
     import TabMapView from "../../../components/MainApp/Object/Table/TabMapView";
+    import StimRelCalcsPopup from "./StimRelCalcsPopup";
+    import HeaderResizer from "../../../components/CustomTable/Header/HeaderResizer";
 
     export default {
         name: 'TabldaTable',
@@ -323,6 +337,7 @@
             VerticalRowMixin,
         ],
         components: {
+            HeaderResizer, StimRelCalcsPopup,
             TabMapView,
             RefConditionsPopup,
             GroupingSettingsPopup,
@@ -345,6 +360,7 @@
         },
         data() {
             return {
+                can_version: true,
                 local_req_params: {},
                 allshow: true,
                 addOptionPopup: {
@@ -353,6 +369,7 @@
                     tableRow: null,
                 },
                 replaceInherits: {},
+                showRLCalcPopup: false,
                 showCopyFromModel: false,
                 showRTSPopup: false,
                 showParsePopup: false,
@@ -360,7 +377,7 @@
                 show_tb_filters: false,
                 can_first_set_model: false,
                 avail_columns_for_app: this.stim_link_params.avail_columns_for_app,
-                forbidden_columns: ['i_favorite'],
+                forbidden_columns: ['i_srv','i_favorite'],
 
                 localMetaTable: new MetaTabldaTable({
                     table_id: this.stim_link_params.table_id,
@@ -377,6 +394,13 @@
 
                 linkPopups: [],
                 keyIdx: 0,
+                progress_rl: 0,
+
+                filter_sizes:{
+                    width: 220,
+                    max_width: 450,
+                    min_width: 150,
+                },
             }
         },
         computed: {
@@ -432,6 +456,7 @@
             parse_sections_handler_click: Number,
             copy_from_model_handler_click: Number,
             fill_attachments_handler_click: Number,
+            rl_calculation_handler_click: Number,
 
             foreign_meta_table: MetaTabldaTable,
             foreign_all_rows: MetaTabldaRows,
@@ -466,6 +491,9 @@
             fill_attachments_handler_click(val) {
                 this.stimFillEqptAttachments();
             },
+            rl_calculation_handler_click(val) {
+                this.showRLCalcPopup = true;
+            },
             rts_popup_handler_click(val) {
                 if (_.find(this.allRows.all_rows, {_checked_row: true})) {
                     this.showRTSPopup = true;
@@ -482,6 +510,10 @@
                         this.$root.sm_msg_type = 2;
                         this.metaTable.loadHeaders().then(() => {
                             this.emitPermissions();
+                            this.filter_sizes.width = Number(this.metaTable.params._cur_settings.stim_filter_width)
+                                || Number(readLocalStorage('local_stim_filter_width'))
+                                || 220;
+
                         }).finally(() => {
                             this.$root.sm_msg_type = 0;
                         });
@@ -538,6 +570,9 @@
             },
         },
         methods: {
+            saveFltrSiz() {
+                this.$root.changeStimFilterWi(this.filter_sizes.width, this.metaTable.params);
+            },
             reshowComponent() {
                 this.allshow = false;
                 this.$nextTick(() => {
@@ -556,6 +591,7 @@
                     has_search_block: this.stim_link_params.app_table_options.indexOf('search_block:true') > -1,
                     has_fill_attachments: this.stim_link_params.app_table_options.indexOf('fill_attachments:true') > -1,
                     has_rts: this.stim_link_params.app_table_options.indexOf('rts:true') > -1,
+                    has_rl_calculator: this.stim_link_params.app_table_options.indexOf('rl_calc:true') > -1,
                     has_download: this.stim_link_params.download_active,
                     has_halfmoon: this.stim_link_params.halfmoon_active,
                     has_condformat: this.stim_link_params.condformat_active,
@@ -632,8 +668,12 @@
                     }
 
                     this.autoFillFromMasterTable(tableRow);
+                    let row_3d = this.allRows.convertOne(tableRow);
                     this.$root.sm_msg_type = 1;
                     this.allRows.insertRow(tableRow).then((data) => {
+                        if (row_3d && data && data.rows) {
+                            row_3d._id = data.rows[0].id;
+                        }
                         this.metaTable.empty_row = this.createEmptyRow();
                         this.$emit('row-inserted', data);
                     }).finally(() => {
@@ -641,13 +681,17 @@
                     });
                 }
             },
-            updateRow(tableRow) {
-                if (this.$root.setCheckRequired(this.metaTable.params, tableRow)) {
+            massUpdatedRows(massTableRows) {
+                let can = true;
+                _.each(massTableRows, (tableRow) => {
+                    can = can && this.$root.setCheckRequired(this.metaTable.params, tableRow);
                     this.autoFillFromMasterTable(tableRow);
-                    eventBus.$emit('quick-update-3d', tableRow.row_hash, this.allRows.convertOne(tableRow), 'update');
+                });
+
+                if (can) {
                     this.$root.sm_msg_type = 1;
                     this.$root.prevent_cell_edit = true;
-                    this.allRows.updateRow(tableRow).then((data) => {
+                    this.allRows.massUpdatedRows(this.metaTable.params, massTableRows).then((data) => {
                         this.$emit('row-updated', data);
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
@@ -655,8 +699,10 @@
                     });
                 }
             },
+            updateRow(tableRow) {
+                this.massUpdatedRows([tableRow]);
+            },
             deleteRow(tableRow) {
-                eventBus.$emit('quick-update-3d', tableRow.row_hash, this.allRows.convertOne(tableRow), 'del');
                 this.$root.sm_msg_type = 1;
                 this.allRows.deleteRow(tableRow).then((data) => {
                     this.$emit('row-deleted', data);
@@ -709,19 +755,35 @@
             },
 
             //VERTICAL TABLE
+            recheckBacknd(table_id) {
+                if (table_id && table_id != this.metaTable.table_id) {
+                    return;
+                }
+                this.checkRowBknd();
+            },
             checkRowBknd() {
                 if (this.allRows.is_loaded) {
-                    this.checkRowOnBackend(this.metaTable.table_id, this.verticalRow).then((data) => {
+                    if (this.verticalRow.id) {
                         this.autoFillFromMasterTable(this.verticalRow);
                         if (this.metaTable.can_edit && this.allRows.master_row) {
                             this.updateRow(this.allRows.master_row);
                         }
-                        //For model 3D drawing in new rows
-                        if (!this.allRows.master_row) {
-                            this.allRows.set3DTempRow( this.verticalRow );
-                            this.$emit('new-row-changed', this.verticalRow);
+                    } else {
+                        let promise = this.checkRowOnBackend(this.metaTable.table_id, this.verticalRow);
+                        if (promise) {
+                            promise.then((data) => {
+                                this.autoFillFromMasterTable(this.verticalRow);
+                                if (this.metaTable.can_edit && this.allRows.master_row) {
+                                    this.updateRow(this.allRows.master_row);
+                                }
+                                //For model 3D drawing in new rows
+                                if (!this.allRows.master_row) {
+                                    this.allRows.set3DTempRow(this.verticalRow);
+                                    this.$emit('new-row-changed', this.verticalRow);
+                                }
+                            });
                         }
-                    });
+                    }
                 }
             },
 
@@ -766,7 +828,7 @@
             //FILTERS
             changedFilter() {
                 this.allRowsLoadingProcess();
-                this.$emit('reload-3d');
+                this.$emit('reload-3d', 'soft');
             },
 
             //LINK POPUPS
@@ -822,12 +884,14 @@
                 this.$emit('reload-3d');
             },
 
-            //RTS Popup
+            //RTS Popup AND RL Calcs Popup
             copyFromModelClosed() {
                 this.showCopyFromModel = false;
+                this.showRLCalcPopup = false;
             },
             copyFromModelFinished() {
                 this.showCopyFromModel = false;
+                this.showRLCalcPopup = false;
                 this.allRowsLoadingProcess();
                 this.$emit('reload-3d');
             },
@@ -844,7 +908,7 @@
                     request_params: request_params,
                 }).then(({data}) => {
                     this.allRowsLoadingProcess();
-                    this.$emit('reload-3d');
+                    this.$emit('reload-3d', 'soft');
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -894,16 +958,15 @@
             },
 
             //search word changed -> reload all rows.
-            searchStimWordChanged(table_id) {
+            checkTableAndReloadRows(table_id) {
                 if (this.stim_link_params.table_id === table_id) {
-                    console.log(this.stim_link_params.table_id, table_id);
                     this.loadAllRows();
                 }
             },
 
             //autoload new data
             intervalTickHandler() {
-                if (this.metaTable.is_loaded && this.allRows.is_loaded) {
+                if (this.metaTable.is_loaded && this.allRows.is_loaded && !this.$root.sm_msg_type) {
                     let list_row_ids = _.map(this.allRows.all_rows, 'id');
                     axios.post('/ajax/table/version_hash', {
                         table_id: this.metaTable.params.id,
@@ -938,30 +1001,35 @@
 
             //sync datas with collaborators
             setInterval(() => {
-                if (!this.$root.debug && this.is_showed) {
+                if (!localStorage.getItem('no_ping') && this.is_showed) {
                     this.intervalTickHandler();
                 }
-            }, 1000 * 3);
+            }, this.$root.version_hash_delay);
 
+            eventBus.$on('recheck-backend', this.checkRowBknd);
             eventBus.$on('global-keydown', this.globalKeyHandler);
+            eventBus.$on('reload-filters', this.checkTableAndReloadRows);
             eventBus.$on('cell-app-has-been-closed', this.appClosedReloadTabRows);
-            eventBus.$on('stim-search-word-changed', this.searchStimWordChanged);
+            eventBus.$on('stim-search-word-changed', this.checkTableAndReloadRows);
         },
         beforeDestroy() {
+            eventBus.$off('recheck-backend', this.checkRowBknd);
             eventBus.$off('global-keydown', this.globalKeyHandler);
+            eventBus.$off('reload-filters', this.checkTableAndReloadRows);
             eventBus.$off('cell-app-has-been-closed', this.appClosedReloadTabRows);
-            eventBus.$off('stim-search-word-changed', this.searchStimWordChanged);
+            eventBus.$off('stim-search-word-changed', this.checkTableAndReloadRows);
         }
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .tablda-table-wrapper {
         .popup-wrapper {
             z-index: 12000;
         }
 
         .filters-wrapper {
+            position: relative;
             width: 220px;
             flex-shrink: 0;
             padding: 5px;

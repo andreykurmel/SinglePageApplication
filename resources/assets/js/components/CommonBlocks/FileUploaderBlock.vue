@@ -1,16 +1,21 @@
 <template>
     <div style="overflow: hidden;">
-        <div class="row row-padding">
+        <div class="row row-padding" v-if="!just_default">
             <div class="col-xs-4">
                 <select class="form-control" :disabled="progressBarWidth > -1" v-model="uploadStyle" @change="initSpecials()">
                     <option value="file">Browse</option>
                     <option value="link">Link</option>
                     <option value="drag">Drag & Drop</option>
-                    <option value="photo">Camera (photo)</option>
+                    <option value="photo" v-if="table_id != 'temp'">Camera (photo)</option>
+                    <option value="paste">Paste</option>
                 </select>
             </div>
             <div class="col-xs-4">
-                <input class="form-control" :disabled="progressBarWidth > -1" placeholder="Enter new name if to change" v-model="uploadNewName"/>
+                <input v-if="table_id != 'temp'"
+                       class="form-control"
+                       :disabled="progressBarWidth > -1"
+                       placeholder="Enter new name if to change"
+                       v-model="uploadNewName"/>
             </div>
             <div class="col-xs-4" v-show="inArr(uploadStyle,['file','link'])">
                 <button class="btn btn-primary pull-right"
@@ -37,8 +42,23 @@
             </div>
         </div>
         <div>
-            <input type="file" :disabled="progressBarWidth > -1" ref="upload_file" class="form-control" placeholder="Select a file" v-show="uploadStyle === 'file'">
-            <input type="text" :disabled="progressBarWidth > -1" ref="upload_link" class="form-control" placeholder="Type a link" v-show="uploadStyle === 'link'">
+            <input
+                v-show="uploadStyle === 'file'"
+                type="file"
+                :disabled="progressBarWidth > -1"
+                :accept="acceptExt"
+                ref="upload_file"
+                class="form-control"
+                placeholder="Select a file">
+
+            <input
+                v-show="uploadStyle === 'link'"
+                type="text"
+                :disabled="progressBarWidth > -1"
+                ref="upload_link"
+                class="form-control"
+                placeholder="Type a link">
+
             <div class="drag-drop-wrapper" v-show="uploadStyle === 'drag'">
                 <div ref="dropzone_elem" class="full-frame flex flex--center">
                     <img v-if="progressBarWidth > -1" height="22" src="/assets/img/Loading_icon.gif">
@@ -51,11 +71,20 @@
                     >Drag & Drop File Here</span>
                 </div>
             </div>
+
             <div class="cam-rec-wrapper" v-show="uploadStyle === 'photo'">
                 <video ref="video_elem" class="vid-elem" autoplay></video>
                 <canvas ref="canvas_elem" class="canv-elem" :width="canv.wi" :height="canv.he"></canvas>
                 <h1 v-show="cam_not_found" class="head-elem">Camera is not found!</h1>
             </div>
+
+            <input
+                v-show="uploadStyle === 'paste'"
+                type="text"
+                :disabled="progressBarWidth > -1"
+                class="form-control"
+                placeholder="Ctrl + V to Paste File"
+                @paste="attachPasted">
         </div>
         <div class="progress-wrapper" v-show="progressBarWidth > -1">
             <div class="progress-bar" :style="{width: progressBarWidth+'%'}"></div>
@@ -64,6 +93,9 @@
 </template>
 
 <script>
+    import {Endpoints} from "../../classes/Endpoints";
+    import {FileHelper} from "../../classes/helpers/FileHelper";
+
     import Dropzone from 'dropzone';
 
     export default {
@@ -83,18 +115,60 @@
             };
         },
         props:{
+            format: String,
             headerIndex: Number,
-            table_id: Number,
-            field_id: Number,
+            table_id: String|Number,
+            field_id: String|Number,
             row_id: String|Number,
             clear_before: Boolean,
-            special_params: String|Object,
+            just_default: Boolean,
+            special_params: Object,
+        },
+        computed: {
+            acceptExt() {
+                let arr = this.format ? String(this.format).split('-') : [];
+                arr = String(_.first(arr) || '').split(',');
+                return _.filter(arr).join(',.');
+            },
         },
         methods: {
             inArr(el, arr) {
                 return $.inArray(el, arr) > -1;
             },
             //working with files
+            attachPasted(e) {
+                let images = this.$root.getImagesFromClipboard(e);
+                if (images.length) {
+                    this.progressBarWidth = 0;
+                    _.each(images, (file) => {
+
+                        if (!FileHelper.checkFile(file, this.format)) {
+                            return false;
+                        }
+
+                        Endpoints.fileUpload({
+                            table_id: this.table_id,
+                            table_field_id: this.field_id,
+                            row_id: this.row_id,
+                            file: file,
+                            file_new_name: this.uploadNewName,
+                            clear_before: this.clear_before,
+                            special_params: this.special_params ? JSON.stringify(this.special_params) : null,
+                        }).then(({ data }) => {
+                            this.$emit('uploaded-file', this.headerIndex, data);
+                        }).catch(errors => {
+                            Swal('', getErrors(errors));
+                        }).finally(() => {
+                            this.progressBarWidth += (1/images.length)*100 + 1;
+                            if (this.progressBarWidth >= 100) {
+                                this.progressBarWidth = -1;
+                            }
+                        });
+                    });
+                } else {
+                    Swal('', 'Images not found in the Clipboard.');
+                }
+            },
             insertFile(ext_file) {
                 let data = new FormData();
                 let file = ext_file || ($.inArray(this.uploadStyle, ['file','drag']) > -1 ? this.$refs.upload_file.files[0] : '');
@@ -107,7 +181,11 @@
                 data.append('file_new_name', this.uploadNewName);
                 data.append('clear_before', this.clear_before ? 1 : 0);
                 if (this.special_params) {
-                    data.append('special_params', this.special_params);
+                    data.append('special_params', JSON.stringify(this.special_params));
+                }
+
+                if (!FileHelper.checkFile(file, this.format)) {
+                    return false;
                 }
 
                 if (file || file_link) {
@@ -145,25 +223,35 @@
                     paramName: 'file',
                     previewTemplate: '<div></div>',
                     clickable: false,
+                    autoQueue: false,
                     headers: {
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
                     },
+                    addedfile: ( file ) => {
+                        if (FileHelper.checkFile(file, this.format)) {
+                            file.accepted = true;
+                            this.activeDropzone = true;
+                            this.dropzone.enqueueFile(file);
+                        }
+                    },
                     uploadprogress: ( file, progress, bytesSent ) => {
                         this.progressBarWidth = parseInt( progress );
-                    },
-                    addedfile: ( file ) => {
-                        this.activeDropzone = true;
                     },
                     params: {
                         table_id: this.table_id,
                         table_field_id: this.field_id,
                         row_id: this.row_id,
-                        clear_before: this.clear_before ? 1 : 0
+                        file_new_name: this.uploadNewName,
+                        clear_before: this.clear_before ? 1 : 0,
+                        special_params: this.special_params ? JSON.stringify(this.special_params) : null,
                     },
                     success: (file, data) => {
                         //add uploaded file to the row
                         this.$emit('uploaded-file', this.headerIndex, data);
                         Swal('Uploaded', '', 'success');
+                    },
+                    error: (file, errors) => {
+                        Swal('', errors.message);
                     },
                     complete: ( file ) => {
                         this.activeDropzone = false;
@@ -189,6 +277,7 @@
                     tracks.forEach(function(track) {
                         track.stop();
                     });
+                    this.$refs.video_elem.pause();
                     this.$refs.video_elem.srcObject = null;
                 }
             },

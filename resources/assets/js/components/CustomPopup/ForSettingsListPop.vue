@@ -28,6 +28,9 @@
                                 <button class="btn btn-default" :class="{active: activeTab === 'customizable'}" @click="activeTab = 'customizable';redraw_tab=true;">
                                     Customizable
                                 </button>
+                                <button class="btn btn-default" :class="{active: activeTab === 'bas_popup'}" @click="activeTab = 'bas_popup';redraw_tab=true;">
+                                    Pop-up
+                                </button>
                             </div>
 
                             <div class="flex basic-tab" v-if="!redraw_tab">
@@ -57,7 +60,7 @@
                                                     :settings-meta="settingsMeta"
                                                     :table-row="tableRow"
                                                     :user="user"
-                                                    :cell-height="cellHeight"
+                                                    :cell-height="1"
                                                     :max-cell-rows="maxCellRows"
                                                     :behavior="'settings_display'"
                                                     :available-columns="getAvaCols"
@@ -128,7 +131,7 @@
                     tableRow: null,
                 },
                 getPopupWidth: 1000,
-                is_small_spacing: localStorage.getItem('is_small_spacing') || 'no',
+                is_small_spacing: readLocalStorage('is_small_spacing') || 'no',
             };
         },
         props:{
@@ -176,6 +179,7 @@
                 switch (this.activeTab) {
                     case 'inps': return this.$root.availableInpsColumns;
                     case 'columns': return this.$root.availableSettingsColumns;
+                    case 'bas_popup': return this.$root.availablePopupDisplayColumns;
                     default: return this.$root.availableNotOwnerDisplayColumns;
                 }
             },
@@ -228,15 +232,21 @@
 
             //backend autocomplete
             checkRowAutocomplete() {
-                this.checkRowOnBackend( this.tableMeta.id, this.tableRow ).then((data) => {
-                    this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
-                    this.tableRow.id ? this.popupUpdate() : null;
-                });
+                if (this.tableRow.id) {
+                    this.popupUpdate();
+                } else {
+                    let promise = this.checkRowOnBackend(this.tableMeta.id, this.tableRow);
+                    if (promise) {
+                        promise.then((data) => {
+                            this.$emit('backend-row-checked', this.tableRow, data); //STIM 3D APP
+                        });
+                    }
+                }
             },
 
             smallSpace() {
                 this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                localStorage.setItem('is_small_spacing', this.is_small_spacing);
+                setLocalStorage('is_small_spacing', this.is_small_spacing);
             },
             anotherRow(is_next) {
                 this.$emit('another-row', is_next);

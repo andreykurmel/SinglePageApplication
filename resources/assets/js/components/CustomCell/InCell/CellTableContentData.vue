@@ -1,6 +1,6 @@
 <template>
     <span>
-        <template v-for="lnk in tableHeader._links" v-if="isAvail && lnk.icon !== 'Underlined' && tableHeader.active_links">
+        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'before')">
             <link-object :table-meta="tableMeta"
                          :global-meta="globalMeta"
                          :table-header="tableHeader"
@@ -44,11 +44,12 @@
                 </a>
             </template>
             <template v-else-if="show_html()">
-                <img v-if="is_select && specObjImg"
-                     :src="$root.fileUrl({url:specObjImg})"
+                <img v-if="is_select && specObjImgs.length"
+                     :src="$root.fileUrl(specObjImgs[0])"
                      class="item-image"
+                     @click="fullSizeImg"
                      :height="lineHeight"/>
-                <span :class="{'is_select': is_select, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type)}">
+                <span :class="{'is_select': is_select, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type)}" :style="selectBG">
                     <span v-html="show_html()"></span>
                     <span v-if="is_select && $root.isMSEL(tableHeader.input_type)"
                           class="m_sel__remove"
@@ -61,18 +62,31 @@
             <span v-else-if="placeholderAvail"
                   style="color: #CCC">{{ tableHeader.placeholder_content }}</span>
         </template>
+
+        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'after')">
+            <link-object :table-meta="tableMeta"
+                         :global-meta="globalMeta"
+                         :table-header="tableHeader"
+                         :table-row="tableRow"
+                         :cell-value="htmlConvValue"
+                         :link="lnk"
+                         :user="user"
+                         @show-src-record="showSrcRecord"
+                         @open-app-as-popup="openAppAsPopup"
+            ></link-object>
+        </template>
     </span>
 </template>
 
 <script>
-    import {SpecialFuncs} from "./../../../classes/SpecialFuncs";
+import {SpecialFuncs} from "../../../classes/SpecialFuncs";
 
-    import ShowLinkMixin from '../../_Mixins/ShowLinkMixin.vue';
-    import CellStyleMixin from '../../_Mixins/CellStyleMixin.vue';
+import ShowLinkMixin from '../../_Mixins/ShowLinkMixin.vue';
+import CellStyleMixin from '../../_Mixins/CellStyleMixin.vue';
 
-    import LinkObject from './LinkObject.vue';
+import LinkObject from './LinkObject.vue';
 
-    export default {
+export default {
         name: "CellTableContentData",
         mixins: [
             ShowLinkMixin,
@@ -81,18 +95,12 @@
         components: {
             LinkObject,
         },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
-                avail_behave_links: ['list_view','favorite','link_popup','bi_module'],
+                avail_behave_links: ['list_view','favorite','link_popup','bi_module','map_view','single-record-view'],
             }
         },
-        props:{
+        props: {
             user: Object,
             globalMeta: Object,
             tableMeta: Object,
@@ -102,6 +110,10 @@
             realValue: String|Number,
             is_select: Boolean,
             isVertTable: Boolean,
+            behavior: String,
+            is_def_fields: Boolean,
+            is_td_single: Boolean,
+            no_height_limit: Boolean,
         },
         computed: {
             placeholderAvail() {
@@ -115,34 +127,38 @@
                     : null;
             },
             isAvail() {
-                return $.inArray(this.reactive_provider.behavior, this.avail_behave_links) > -1
-                    && this.tableRow.id;
+                return $.inArray(this.behavior, this.avail_behave_links) > -1
+                    && this.tableRow.id
+                    && !this.is_td_single;
             },
-            specObjImg() {
-                let img = '';
+            specObjImgs() {
+                let imgs = [];
                 if (this.is_select) {
-                    img = this.$root.rcObj(this.tableRow, this.tableHeader.field, this.realValue).img_val;
-                    if (!img) {
+                    imgs = SpecialFuncs.rcObj(this.tableRow, this.tableHeader.field, this.realValue).img_vals || [];
+                    if (!imgs.length) {
                         try {
+                            //OLD (new 'sys' columns are not create
                             let obj = JSON.parse(this.tableRow[this.tableHeader.field+'_sys']);
-                            img = obj ? obj.s_img : '';
+                            imgs = obj && obj.s_img ? [obj.s_img] : '';
                         } catch (e) {}
                     }
                 }
-                return img;
+                return _.map(imgs, (el) => { return {url:el} });
             },
             htmlConvValue() {
-                if (this.reactive_provider.is_def_fields && !this.htmlValue) {
+                if (this.is_def_fields && !this.htmlValue && this.tableHeader.f_type === 'User') {
                     return '{$user}';
                 }
-                if (
-                    !this.reactive_provider.is_def_fields
-                    &&
-                    $.inArray(this.htmlValue, ['{$first_name}','{$last_name}','{$email}','{$user}']) > -1
-                ) {
-                    return '';
-                }
                 return this.htmlValue;
+            },
+            selectBG() {
+                let bg = this.is_select ? SpecialFuncs.rcObj(this.tableRow, this.tableHeader.field, this.realValue).ref_bg_color : '';
+                return bg
+                    ? {
+                        backgroundColor: bg,
+                        color: SpecialFuncs.smartTextColorOnBg(bg),
+                    }
+                    : {};
             },
         },
         methods: {
@@ -150,10 +166,16 @@
                 return SpecialFuncs.showhtml(this.tableHeader, this.tableRow, this.htmlConvValue, this.tableMeta.unit_conv_is_active);
             },
             //
+            canLink(lnk, needed_pos) {
+                return this.isAvail
+                    && lnk.icon !== 'Underlined'
+                    && lnk.link_pos === needed_pos
+                    && this.tableHeader.active_links;
+            },
             canShowUser() {
                 return !this.$root.isMSEL(this.tableHeader.input_type) //no mselect
-                    || this.tableMeta._is_owner //owner
-                    || this.tableMeta._current_right._user_is_manager //manager
+                    || this.tableMeta.user_id == this.user.id //owner
+                    || SpecialFuncs.managerOfRow(this.tableMeta, this.tableRow) //manager
                     || String(this.realValue).charAt(0) === '_' //group
                     || this.realValue == this.user.id; //same user as current
             },
@@ -170,13 +192,18 @@
                     ? '/profile/'+usr.id
                     : 'javascript:void(0)';
             },
+            fullSizeImg() {
+                window.event.stopPropagation();
+                window.event.preventDefault();
+                this.$emit('full-size-image', this.specObjImgs, 0);
+            },
         },
         mounted() {
         }
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     span {
         /*display: inline-block;*/
         text-decoration: inherit;

@@ -13,7 +13,7 @@
                                 :table-meta="$root.settingsMeta['folder_views']"
                                 :all-rows="folderMeta._folder_views"
                                 :rows-count="folderMeta._folder_views.length"
-                                :cell-height="$root.cellHeight"
+                                :cell-height="1"
                                 :is-full-width="true"
                                 :behavior="'folder_view'"
                                 :user="$root.user"
@@ -55,9 +55,8 @@
                             :settings-meta="$root.settingsMeta"
                             :table-row="folderMeta._folder_views[selectedView]"
                             :user="$root.user"
-                            :fixed_ddl_pos="true"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :behavior="'folder_views'"
                             :available-columns="colViewAvailable"
                             :no_height_limit="true"
@@ -135,7 +134,9 @@
                     user_link: folderRow.user_link,
                     folder_id: this.folderMeta.id,
                 }).then(({ data }) => {
-                    this.folderMeta._folder_views.push(data);
+                    if (this.folderMeta._folder_views) {
+                        this.folderMeta._folder_views.push(data);
+                    }
                     this.selectedView = -1;
                 }).catch(errors => {
                     Swal('', getErrors(errors));

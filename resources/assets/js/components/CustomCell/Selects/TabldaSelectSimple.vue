@@ -8,7 +8,7 @@
         </div>
 
         <div v-if="opened" class="select-results border-radius--bottom" :style="ItemsListStyle()">
-            <div v-if="allowed_tags" class="filter-wrapper">
+            <div v-if="allowed_tags || allowed_search" class="filter-wrapper">
                 <input class="form-control" v-model="search_text" @keyup="filterOptions" placeholder="Search"/>
             </div>
 
@@ -19,9 +19,15 @@
 
                 <div v-for="opt in filtered_options"
                      class="result-item"
-                     :class="[isSelected(opt.val) ? 'result-item--selected' : '']"
-                     @click="selectedItem( opt.val, opt.show )"
-                >{{ opt.show || opt.val || '&nbsp;' }}</div>
+                     :class="{'result-item--selected': isSelected(opt), 'result-item--disabled': opt.disabled}"
+                     :style="opt.style"
+                     @click="!opt.isTitle && !opt.disabled ? selectedItem( opt.val, opt.show ) : null"
+                >
+                    <img v-if="opt.img" :src="opt.img" height="14">
+
+                    <span v-if="opt.html" v-html="opt.html"></span>
+                    <span v-else>{{ opt.show || opt.val || '&nbsp;' }}</span>
+                </div>
             </div>
 
             <div v-if="embed_func_txt" class="embed-wrapper">
@@ -33,7 +39,7 @@
 </template>
 
 <script>
-    import MixinSmartPosition from './MixinSmartPosition.vue';
+    import MixinSmartPosition from '../../_Mixins/MixinSmartPosition.vue';
 
     export default {
         name: "TabldaSelectSimple",
@@ -50,25 +56,18 @@
             }
         },
         props:{
-            options: Array,
+            options: Array, // available: { val:'id', show:string, html:string, style:object, isTitle:bool, disabled:bool }
             tableRow: Object,
             hdr_field: String,
             fld_input_type: String,
             can_empty: Boolean,
             allowed_tags: Boolean,
+            allowed_search: Boolean,
             embed_func_txt: String,
             fixed_pos: Boolean,
             init_no_open: Boolean,
             refilter_options: Number,
             is_disabled: Boolean,
-        },
-        computed: {
-            selValue() {
-                let elem = _.find(this.options, (opt) => {
-                    return opt.val == this.tableRow[this.hdr_field]
-                });
-                return elem ? elem.show : this.tableRow[this.hdr_field];
-            },
         },
         watch: {
             refilter_options(val) {
@@ -80,20 +79,26 @@
             showPresent() {
                 let arr = [];
                 _.each(this.filtered_options, (opt) => {
-                    if (this.isSelected(opt.val)) {
+                    if (this.isSelected(opt)) {
                         arr.push(opt.show || opt.val || '');
                     }
                 });
                 return arr.join(', ');
             },
-            isSelected(key) {
+            isSelected(option) {
+                if (option.isTitle) {
+                    return false;
+                }
+                let field_val = this.tableRow[this.hdr_field] || '';
+                field_val = typeof field_val == 'object' ? JSON.stringify(field_val) : field_val;
                 return this.multiselect
-                    ? String(this.tableRow[this.hdr_field] || '').indexOf(String(key)) > -1
-                    : this.tableRow[this.hdr_field] == key;
+                    ? field_val.indexOf(String(option.val)) > -1
+                    : field_val == option.val;
             },
             selectedItem(key, show) {
-                show = !isNaN(show) ? String(show) : show;
+                show = isNumber(show) ? String(show) : show;
                 this.$emit('selected-item', key, show);
+                this.search_text = '';
                 if (!this.multiselect) {
                     this.hideSelect();
                 }

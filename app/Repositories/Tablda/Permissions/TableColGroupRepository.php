@@ -34,6 +34,17 @@ class TableColGroupRepository
     }
 
     /**
+     * @param int $table_id
+     * @return mixed
+     */
+    public function getSys(int $table_id)
+    {
+        return TableColumnGroup::where('is_system', '=', 1)
+            ->where('table_id', '=', $table_id)
+            ->first();
+    }
+
+    /**
      * Get Group of Columns with Fields.
      *
      * @param $group_id

@@ -7,6 +7,24 @@ use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableViewRight
+ *
+ * @property int $id
+ * @property int $table_view_id
+ * @property int|null $created_by
+ * @property string|null $created_name
+ * @property string $created_on
+ * @property int|null $modified_by
+ * @property string|null $modified_name
+ * @property string $modified_on
+ * @property int $table_permission_id
+ * @property-read \Vanguard\User|null $_created_user
+ * @property-read \Vanguard\User|null $_modified_user
+ * @property-read \Vanguard\Models\DataSetPermissions\TablePermission $_table_permission
+ * @property-read \Vanguard\Models\Table\TableView $_view
+ * @mixin \Eloquent
+ */
 class TableViewRight extends Model
 {
     protected $table = 'table_view_rights';

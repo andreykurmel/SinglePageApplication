@@ -8,7 +8,10 @@ use Vanguard\Repositories\Tablda\UserCloudRepository;
 
 class GoogleStrategy implements BackupStrategy
 {
-    private $access_token;
+    /**
+     * @var string
+     */
+    protected $access_token;
 
     /**
      * GoogleStrategy constructor.
@@ -17,7 +20,7 @@ class GoogleStrategy implements BackupStrategy
      */
     public function __construct(UserCloud $cloud)
     {
-        $this->access_token = (new GoogleApiModule())->accessToken($cloud->gettoken());
+        $this->access_token = (new GoogleApiModule())->accessToken($cloud->gettoken(), $cloud->id);
 
         if (!$this->access_token) {
             (new UserCloudRepository())->setInactiveCloud($cloud);
@@ -26,15 +29,14 @@ class GoogleStrategy implements BackupStrategy
     }
 
     /**
-     * @param string $source_path
-     * @param string $file_name
-     * @param string $target_path
-     * @return \Google_Service_Drive_DriveFile|null
+     * @param string $source_filepath
+     * @param string $target_filepath
+     * @return string
      */
-    public function upload(string $source_path, string $file_name, string $target_path)
+    public function upload(string $source_filepath, string $target_filepath)
     {
-        $source = preg_replace('#\/+#i','/', $source_path.'/'.$file_name);
-        $target = preg_replace('#\/+#i','/', $target_path.'/'.$file_name);
-        return (new GoogleApiModule())->saveFileToDisk($this->access_token, $target, $source);
+        $source_file = preg_replace('#\/+#i','/', $source_filepath);
+        $target_folder = preg_replace('#\/+#i','/', $target_filepath);
+        return (new GoogleApiModule())->saveFileToDisk($this->access_token, $target_folder, $source_file);
     }
 }

@@ -40,7 +40,7 @@ class LoginRequest extends Request
             ];
         }
 
-        return $this->only('username', 'password');
+        return [];//$this->only('username', 'password');
     }
 
     /**

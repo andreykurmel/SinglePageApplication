@@ -50,7 +50,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .container-app {
         width: 150px;
         height: 100px;

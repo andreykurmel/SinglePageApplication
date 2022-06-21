@@ -6,6 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableChart
+ *
+ * @property int $id
+ * @property int $table_id
+ * @property int $user_id
+ * @property int $col_idx
+ * @property int $row_idx
+ * @property string $chart_settings
+ * @property string|null $cached_data
+ * @property string|null $title
+ * @property string|null $name
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableChartRight[] $_chart_rights
+ * @property-read int|null $_chart_rights_count
+ * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DataSetPermissions\TablePermission[] $_table_permissions
+ * @property-read int|null $_table_permissions_count
+ * @mixin \Eloquent
+ */
 class TableChart extends Model
 {
     protected $table = 'table_charts';
@@ -17,6 +36,7 @@ class TableChart extends Model
         'user_id',
         'row_idx',
         'col_idx',
+        'name',
         'title',
         'chart_settings',
         'cached_data',

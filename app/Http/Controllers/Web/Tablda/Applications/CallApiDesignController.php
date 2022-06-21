@@ -5,6 +5,7 @@ namespace Vanguard\Http\Controllers\Web\Tablda\Applications;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\CurlFactory;
 use function GuzzleHttp\Psr7\build_query;
+use GuzzleHttp\Psr7\Query;
 use Illuminate\Http\Request;
 use JsonSchema\Uri\Retrievers\Curl;
 use Vanguard\AppsModules\StimMaJson\JsonService;
@@ -19,6 +20,7 @@ use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Services\Tablda\BladeVariablesService;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\TabldaApps\Risa3dWriterRLS;
 
 class CallApiDesignController extends Controller implements AppControllerInterface
 {
@@ -57,6 +59,19 @@ class CallApiDesignController extends Controller implements AppControllerInterfa
         }
         $row = $can ? $sql->first() : null;
 
+        //recreate json-file
+        if ($request->rejson && $row) {
+            try {
+                [$errors_present, $warnings_present] = (new JsonService())->makeFile($row->id);
+                $row = $can ? $sql->first() : null;
+            } catch (\Exception $e) {
+                $errors_present[] = $e->getMessage();
+            }
+            if ($errors_present) {
+                return implode('<br>', $errors_present);
+            }
+        }
+
         $json_fld = $corrFields->where('app_field', '=', 'json')->first();
         $risa_fld = $corrFields->where('app_field', '=', 'r3d')->first();
 
@@ -65,6 +80,16 @@ class CallApiDesignController extends Controller implements AppControllerInterfa
 
         if ($json_path) {
             $abs_path = storage_path('app/public/');
+
+            //add RLs
+            if ($request->rls) {
+                $usr_fld = $corrFields->where('app_field', '=', 'usergroup')->first();
+                $geom_fld = $corrFields->where('app_field', '=', 'structure')->first();
+                $usrdata = $row && $usr_fld ? $row->{$usr_fld->data_field} : '';
+                $geomdata = $row && $geom_fld ? $row->{$geom_fld->data_field} : '';
+                (new Risa3dWriterRLS($usrdata, $geomdata, $correspApp))->writeRLs($abs_path.$risa_path);
+            }
+
             $params = [
                 'inp_type' => 'stim_page',
                 'json' => $abs_path.$json_path,
@@ -74,7 +99,7 @@ class CallApiDesignController extends Controller implements AppControllerInterfa
             return view('tablda.applications.iframe-app', array_merge(
                 (new BladeVariablesService())->getVariables(),
                 [
-                    'iframe_path' => $this->url . '?' . build_query($params),
+                    'iframe_path' => $this->url . '?' . Query::build($params),
                 ]
             ));
         } else {

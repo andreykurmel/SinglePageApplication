@@ -16,38 +16,52 @@
 
 @include('partials.messages')
 
-{!! Form::open(['route' => 'user.store_bulk', 'files' => true, 'id' => 'user-form']) !!}
-    <div class="card">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-4">
-                    <h5 class="card-title">
-                        CSV File
-                    </h5>
-                    <p class="text-muted font-weight-light">
-                        Starting from top left cell, with or without header row (username, email, password, first_name, last_name),
-                        sequentially entering Username, Email, Password, First Name and Last Name for users to be added.
-                        Username and Email to be unique. Record(s) with username or email taken by existing account(s) will not be added.
-                    </p>
-                </div>
-                <div class="col-md-8">
-                    <div class="form-group">
-                        <label for="users">@lang('app.users')</label>
-                        <input type="file" class="form-control" id="users" name="users" placeholder="@lang('app.users')" accept=".csv">
+<div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                {!! Form::open(['route' => 'user.store_bulk_csv', 'files' => true, 'id' => 'user-form-csv']) !!}
+                    <h5 class="card-title">Upload and import a CSV File saving email addresses.</h5>
+                    <div style="display: flex; white-space: nowrap; align-items: center;">
+                        <input type="file" class="form-control" name="csv_emails" placeholder="Emails" accept=".csv">
+                        <button type="submit" class="btn btn-primary" style="margin-left: 15px;">Import</button>
                     </div>
-                </div>
+                {!! Form::close() !!}
             </div>
         </div>
     </div>
+</div>
 
-    <div class="row">
-        <div class="col-md-12">
-            <button type="submit" class="btn btn-primary">
-                Add Users
-            </button>
+<div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                {!! Form::open(['route' => 'user.store_bulk_paste', 'files' => true, 'id' => 'user-form-paste']) !!}
+                    <div class="form-group" style="display: flex; white-space: nowrap; align-items: center; justify-content: space-between;">
+                        <h5 class="card-title" style="margin: 0;">Paste email addresses separated by comma, space or semi-colon:</h5>
+                        <button type="submit" class="btn btn-primary" style="margin-left: 15px;">Import</button>
+                    </div>
+                    <textarea class="form-control" name="pasted_emails" placeholder="Emails" rows="5"></textarea>
+                {!! Form::close() !!}
+            </div>
         </div>
     </div>
-{!! Form::close() !!}
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-12">
+                <h5 class="card-title" style="margin: 0;">
+                    A confirmation email with auto-generated password will be sent to emails imported.
+                    If there is an existing account associated with any email, that email will be ignored.
+                    Newly registered users need to confirm their registration, open, read and accept the ToS at the first-time login.
+                </h5>
+            </div>
+        </div>
+
+    </div>
+</div>
 
 <br>
 @stop

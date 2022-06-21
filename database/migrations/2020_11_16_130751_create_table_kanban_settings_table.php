@@ -35,6 +35,10 @@ class CreateTableKanbanSettingsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_kanban_setting_id');
             $table->unsignedInteger('table_field_id');
+            $table->tinyInteger('table_show_name')->default(1);
+            $table->string('picture_style', 16)->default('scroll');
+            $table->tinyInteger('cell_border')->default(1);
+            $table->string('picture_fit', 16)->default('fill');
 
             $table->foreign('table_field_id', 'tks2tf__table_field_id')
                 ->references('id')

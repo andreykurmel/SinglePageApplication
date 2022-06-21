@@ -3,25 +3,20 @@
 namespace Vanguard\Repositories\Tablda\Permissions;
 
 
+use Exception;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Http\UploadedFile;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Ramsey\Uuid\Uuid;
 use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
 use Vanguard\Models\DataSetPermissions\TablePermissionDefaultField;
 use Vanguard\Models\DataSetPermissions\TablePermissionRow;
-use Vanguard\Models\DDLReference;
-use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableStatuse;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserGroup2TablePermission;
-use Vanguard\Repositories\Tablda\FileRepository;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Services\Tablda\HelperService;
-use Vanguard\Services\Tablda\TableService;
 use Vanguard\Singletones\AuthUserSingleton;
-use Vanguard\User;
 
 class TablePermissionRepository
 {
@@ -36,132 +31,114 @@ class TablePermissionRepository
     }
 
     /**
-     * Get Permission.
-     *
-     * @param $table_permission_id
-     * @return null|TablePermission
+     * @param int $table_id
+     * @param int|null $user_id
+     * @param int|null $direct_id
+     * @param bool $visitor_scope
+     * @return \Illuminate\Support\Collection
      */
-    public function getPermission($table_permission_id)
+    public function tablePermissions(int $table_id, int $user_id = null, int $direct_id = null, bool $visitor_scope = false)
     {
-        return TablePermission::where('id', '=', $table_permission_id)->first();
-    }
-
-    /**
-     * @return Collection
-     */
-    public function getTemplates()
-    {
-        $ids = array_merge(HelperService::adminIds(), [auth()->id()]);//get from admin and current user.
-        return TablePermission::where('is_request', '=', 2)
-            ->whereHas('_table', function ($tb) use ($ids) {
-                $tb->whereIn('user_id', $ids);
-            })
-            ->with('_table:id,user_id,db_name,name')
+        $added = (app(AuthUserSingleton::class))->getManagerOfUserGroups();
+        return TablePermission::where('table_id', '=', $table_id)
+            ->applyIsActiveForUserOrPermission($direct_id, $visitor_scope)
+            //get relations
+            ->with([
+                '_row_groups',
+                '_column_groups' => function ($_cg) {
+                    $_cg->with('_fields');
+                },
+                '_default_fields' => function ($_df) use ($user_id) {
+                    $_df->with('_field:id,table_id,field');
+                    $_df->hasUserGroupForUser($user_id);
+                },
+                '_addons',
+                '_forbid_settings',
+                '_shared_tables' => function ($_ug) use ($added) {
+                    $_ug->where('is_active', 1);
+                    $_ug->whereIn('user_group_id', $added);
+                }
+            ])
             ->get();
     }
 
     /**
      * @param TablePermission $from
      * @param TablePermission $to
-     * @param bool $as_template
-     * @param array $permis_fields
      * @return mixed
      */
-    public function copyPermission(TablePermission $from, TablePermission $to, bool $as_template = false, array $permis_fields = [])
+    public function copyPermission(TablePermission $from, TablePermission $to)
     {
+        TableRights::forgetCache($to->table_id);
+
         $arr = [
             'name' => $to->name,
-            'is_request' => $as_template ? 1 : $to->is_request,
-            'dcr_hash' => Uuid::uuid4(),
             'is_system' => 0,
         ];
-        $updates = $permis_fields
-            ? $this->service->filter_keys($from->toArray(), $permis_fields)
-            : $from->toArray();
-        $res = TablePermission::where('id', '=', $to->id)->update( array_merge( $this->service->delSystemFields($updates), $arr) );
-
-        if ($as_template) {
-            return $res;
-        }
+        $res = TablePermission::where('id', '=', $to->id)->update(array_merge($this->service->delSystemFields($from->toArray()), $arr));
 
         $to->_addons()->detach();
         foreach ($from->_addons as $elem) {
-            $to->_addons()->attach( $elem->id, [
+            $to->_addons()->attach($elem->id, [
                 'type' => $elem->_link->type,
-            ] );
+            ]);
         }
 
         $to->_column_groups()->detach();
         foreach ($from->_column_groups as $elem) {
-            $to->_column_groups()->attach( $elem->id, [
+            $to->_column_groups()->attach($elem->id, [
                 'view' => $elem->_link->view,
                 'edit' => $elem->_link->edit,
                 'delete' => $elem->_link->delete,
                 'shared' => $elem->_link->shared,
-            ] );
+            ]);
         }
 
         $to->_row_groups()->detach();
         foreach ($from->_row_groups as $elem) {
-            $to->_row_groups()->attach( $elem->id, [
+            $to->_row_groups()->attach($elem->id, [
                 'view' => $elem->_link->view,
                 'edit' => $elem->_link->edit,
                 'delete' => $elem->_link->delete,
                 'shared' => $elem->_link->shared,
-            ] );
+            ]);
         }
 
         $to->_cond_formats()->detach();
         foreach ($from->_cond_formats as $elem) {
-            $to->_cond_formats()->attach( $elem->id, [
+            $to->_cond_formats()->attach($elem->id, [
                 'always_on' => $elem->_pivot->always_on,
                 'visible_shared' => $elem->_pivot->visible_shared,
-            ] );
+            ]);
         }
 
         $to->_charts()->detach();
         foreach ($from->_charts as $elem) {
-            $to->_charts()->attach( $elem->id, [
+            $to->_charts()->attach($elem->id, [
                 'can_edit' => $elem->_pivot->can_edit,
-            ] );
+            ]);
         }
 
         $to->_views()->detach();
         foreach ($from->_views as $elem) {
-            $to->_views()->attach( $elem->id );
+            $to->_views()->attach($elem->id);
         }
 
         $to->_forbid_settings()->delete();
         foreach ($from->_forbid_settings as $elem) {
-            $to->_forbid_settings()->insert( array_merge(
+            $to->_forbid_settings()->insert(array_merge(
                 $this->service->delSystemFields($elem->toArray()),
                 ['permission_id' => $to->id]
-            ) );
+            ));
         }
 
         $to->_link_limits()->delete();
         foreach ($from->_link_limits as $elem) {
-            $to->_link_limits()->insert( array_merge(
+            $to->_link_limits()->insert(array_merge(
                 $this->service->delSystemFields($elem->toArray()),
                 ['table_permission_id' => $to->id]
-            ) );
+            ));
         }
-
-        //Assigning permissions
-        /*$to->_user_groups()->detach();
-        foreach ($from->_user_groups as $elem) {
-            $to->_user_groups()->attach( $elem->id, [
-                'is_active' => $elem->pivot->is_active,
-                'is_app' => $elem->pivot->is_app,
-            ] );
-        }
-        $to->_default_fields()->delete();
-        foreach ($from->_default_fields as $elem) {
-            $to->_default_fields()->insert( array_merge(
-                $this->service->delSystemFields($elem->toArray()),
-                ['table_permission_id' => $to->id]
-            ) );
-        }*/
 
         return $res;
     }
@@ -176,25 +153,8 @@ class TablePermissionRepository
     public function getSysPermission($table_id, int $type)
     {
         return TablePermission::where('table_id', '=', $table_id)
-            ->where('is_system', $type)
+            ->where('is_system', '=', $type)
             ->first();
-    }
-
-    /**
-     * Check availability of request address.
-     *
-     * @param $table_name
-     * @param $link
-     * @param $id
-     * @return mixed
-     */
-    public function checkAddress($table_name, $link, $id = 0) {
-        return TablePermission::where('id', '!=', $id)
-            ->whereHas('_table', function ($t) use ($table_name) {
-                $t->where('name', $table_name);
-            })
-            ->where('user_link', $link)
-            ->count();
     }
 
     /**
@@ -209,126 +169,117 @@ class TablePermissionRepository
      */
     public function addPermission($data)
     {
+        TableRights::forgetCache($data['table_id']);
+
         if (!empty($data['user_group_id'])) {
             $ug = UserGroup::where('id', $data['user_group_id'])->first();
             $ug->_tables()->attach($data['table_id']);
         }
-        if (!empty($data['is_request'])) {
-            $data['active'] = 1;
-            $data['enforced_theme'] = 1;
-            $data['dcr_hash'] = Uuid::uuid4();
-        }
 
-        foreach ($data as $key => $val) {
-            if (in_array($key, ['active','one_per_submission','dcr_form_shadow','dcr_form_transparency'])) {
-                $data[$key] = 0;
-            }
-            if (in_array($key, ['dcr_title_line_top','dcr_title_line_bot','dcr_form_line_thick','dcr_sec_line_thick'])) {
-                $data[$key] = 1;
-            }
-            if (in_array($key, ['dcr_form_line_radius'])) {
-                $data[$key] = 10;
-            }
-            if (in_array($key, ['dcr_email_format','dcr_save_email_format','dcr_upd_email_format'])) {
-                switch ($val) {
-                    case 'list': $data[$key] = 'list'; break;
-                    case 'vertical': $data[$key] = 'vertical'; break;
-                    default: $data[$key] = 'table'; break;
-                }
-            }
-            if (in_array($key, ['dcr_sec_bg_img_fit','dcr_title_bg_fit'])) {
-                $data[$key] = 'Width';
-            }
-            if (in_array($key, ['dcr_form_line_type'])) {
-                $data[$key] = 'line';
-            }
-            if (in_array($key, ['dcr_form_shadow_dir'])) {
-                $data[$key] = 'BR';
-            }
-            if (in_array($key, ['dcr_sec_scroll_style'])) {
-                $data[$key] = 'scroll';
-            }
-            if (in_array($key, ['dcr_sec_background_by','dcr_title_background_by'])) {
-                $data[$key] = 'color';
-            }
-            if (in_array($key, ['dcr_form_width', 'dcr_title_width'])) {
-                $data[$key] = 600;
-            }
-            if (in_array($key, ['dcr_confirm_msg'])) {
-                $data[$key] = 'Thanks for your submission.';
-            }
-            if (in_array($key, ['dcr_save_confirm_msg'])) {
-                $data[$key] = 'You may save the URL for future access of the saved record if permission is granted.';
-            }
-            if (in_array($key, ['dcr_upd_confirm_msg'])) {
-                $data[$key] = 'Your submission has been updated.';
-            }
-            if (in_array($key, ['dcr_title_bg_color','dcr_form_bg_color'])) {
-                $data[$key] = '#ffffff';
-            }
-        }
-
-        $created = TablePermission::create( $this->service->delSystemFields($data) );
-        $table_group = $this->getPermission($created->id); //because TablePermission::create returns not all fields
-        $table_group->_column_groups = [];
-        $table_group->_row_groups = [];
-        $table_group->_default_fields = [];
-        $table_group->_permission_rows = [];
-        $table_group->_permission_columns = [];
-        $table_group->_forbid_settings = [];
-        return $table_group;
+        $created = TablePermission::create($this->service->delSystemFields($data));
+        return $this->loadPermisWithRelations($created->table_id, $created->id)->first();
     }
 
     /**
-     * Update Permission
-     *
-     * @param int $table_permissions_id
+     * @param int $table_id
+     * @param int|null $permis_id
+     * @return Builder
+     */
+    public function loadPermisWithRelations(int $table_id, int $permis_id = null)
+    {
+        $sql = TablePermission::where('table_id', '=', $table_id);
+        if ($permis_id) {
+            $sql->where('id', '=', $permis_id);
+        }
+        $sql->with([
+            '_permission_columns',
+            '_permission_rows',
+            '_user_groups',
+            '_default_fields',
+            '_addons',
+            '_forbid_settings',
+            '_link_limits',
+        ]);
+        return $sql;
+    }
+
+    /**
+     * @param TablePermission $permission
      * @param $data
-     * @return array
+     * @return bool
      */
-    public function updatePermission($table_permissions_id, $data)
+    public function updatePermission(TablePermission $permission, $data)
     {
-        foreach ($data as $key => $val) {
-            if (in_array($key, ['dcr_email_format','dcr_save_email_format','dcr_upd_email_format'])) {
-                switch ($val) {
-                    case 'list': $data[$key] = 'list'; break;
-                    case 'vertical': $data[$key] = 'vertical'; break;
-                    default: $data[$key] = 'table'; break;
-                }
-            }
-        }
-        return TablePermission::where('id', $table_permissions_id)
-            ->update( $this->service->delSystemFields($data) );
+        TableRights::forgetCache($permission->table_id);
+
+        return TablePermission::where('id', $permission->id)
+            ->update($this->service->delSystemFields($data));
     }
 
     /**
-     * Delete Permission
-     *
-     * @param int $table_permissions_id
-     * @return mixed
+     * @param TablePermission $permission
+     * @param $table_id
+     * @return bool|null
+     * @throws Exception
      */
-    public function deletePermission($table_permissions_id, $table_id)
+    public function deletePermission(TablePermission $permission, $table_id)
     {
-        return TablePermission::where('id', $table_permissions_id)->delete();
+        TableRights::forgetCache($permission->table_id);
+
+        return TablePermission::where('id', $permission->id)->delete();
     }
 
     /**
-     * Get link to Table Column Permission in Table Permission.
+     * Update or Create Table Column Permission in Table Permission.
      *
      * @param $table_permission_id
      * @param $col_group_id
+     * @param int $view
+     * @param int $edit
+     * @param int $shared
      * @return TablePermissionColumn
+     * @throws Exception
      */
-    public function getTableColInPermission($table_permission_id, $col_group_id) {
-        return TablePermissionColumn::where('table_permission_id', $table_permission_id)
+    public function updateTableColPermission($table_permission_id, $col_group_id, $view = 0, $edit = 0, $shared = 0): TablePermissionColumn
+    {
+        $permission = $this->getPermission($table_permission_id);
+        TableRights::forgetCache($permission->table_id);
+
+        $this->clearStatusForNewColumns($table_permission_id);
+
+        $permisCol = TablePermissionColumn::where('table_permission_id', $table_permission_id)
             ->where('table_column_group_id', $col_group_id)
             ->first();
+
+        if (!$permisCol) {
+            $permisCol = TablePermissionColumn::create([
+                'table_permission_id' => $table_permission_id,
+                'table_column_group_id' => $col_group_id
+            ]);
+        }
+
+        $permisCol->update(['view' => $view, 'edit' => $edit, 'shared' => $shared]);
+
+        return $permisCol;
+    }
+
+    /**
+     * Get Permission.
+     *
+     * @param $table_permission_id
+     * @return null|TablePermission
+     */
+    public function getPermission($table_permission_id)
+    {
+        return TablePermission::where('id', '=', $table_permission_id)->first();
     }
 
     /**
      * @param $table_permission_id
+     * @throws Exception
      */
-    public function clearStatusForNewColumns($table_permission_id) {
+    protected function clearStatusForNewColumns($table_permission_id)
+    {
         $tp = TablePermission::where('id', $table_permission_id)
             ->with([
                 '_user_groups' => function ($ug) {
@@ -351,42 +302,14 @@ class TablePermissionRepository
     }
 
     /**
-     * Update or Create Table Column Permission in Table Permission.
-     *
-     * @param $table_permission_id
-     * @param $col_group_id
-     * @param $view
-     * @param $edit
-     * @param $shared
-     * @return int
-     */
-    public function updateTableColPermission($table_permission_id, $col_group_id, $view = 0, $edit = 0, $shared = 0) {
-        $this->clearStatusForNewColumns($table_permission_id);
-
-        $permis = TablePermissionColumn::where('table_permission_id', $table_permission_id)
-            ->where('table_column_group_id', $col_group_id)
-            ->first();
-
-        if (!$permis) {
-            $permis = TablePermissionColumn::create([
-                'table_permission_id' => $table_permission_id,
-                'table_column_group_id' => $col_group_id
-            ]);
-        }
-
-        $permis->update( ['view' => $view, 'edit' => $edit, 'shared' => $shared] );
-
-        return $permis;
-    }
-
-    /**
      * Get link to Table Row Permission in Table Permission.
      *
      * @param $table_permission_id
      * @param $row_group_id
      * @return TablePermissionRow
      */
-    public function getTableRowInPermission($table_permission_id, $row_group_id) {
+    public function getTableRowInPermission($table_permission_id, $row_group_id)
+    {
         return TablePermissionRow::where('table_permission_id', $table_permission_id)
             ->where('table_row_group_id', $row_group_id)
             ->first();
@@ -402,6 +325,8 @@ class TablePermissionRepository
      */
     public function attachUserGroupPermission(TablePermission $tablePermission, $user_group_id, $active)
     {
+        TableRights::forgetCache($tablePermission->table_id);
+
         $tablePermission->_user_groups()->attach($user_group_id, [
             'is_active' => $active ? 1 : 0,
             'table_id' => $tablePermission->table_id,
@@ -422,13 +347,15 @@ class TablePermissionRepository
      */
     public function updateUserGroupPermission(TablePermission $tablePermission, $user_group_id, $active)
     {
+        TableRights::forgetCache($tablePermission->table_id);
+
         if ($active && $tablePermission->active != 1) {
             $tablePermission->update(['active' => 1]);
         }
 
         return UserGroup2TablePermission::where('table_permission_id', $tablePermission->id)
             ->where('user_group_id', $user_group_id)
-            ->update( ['is_active' => $active ? 1 : 0] );
+            ->update(['is_active' => $active ? 1 : 0]);
     }
 
     /**
@@ -440,6 +367,8 @@ class TablePermissionRepository
      */
     public function detachUserGroupPermission(TablePermission $tablePermission, $user_group_id)
     {
+        TableRights::forgetCache($tablePermission->table_id);
+
         return $tablePermission->_user_groups()->detach($user_group_id);
     }
 
@@ -454,22 +383,25 @@ class TablePermissionRepository
      * @param $shared
      * @return TablePermissionRow
      */
-    public function updateTableRowPermission($table_permission_id, $row_group_id, $view = 0, $edit = 0, $del = 0, $shared = 0)
+    public function updateTableRowPermission($table_permission_id, $row_group_id, $view = 0, $edit = 0, $del = 0, $shared = 0): TablePermissionRow
     {
-        $permis = TablePermissionRow::where('table_permission_id', $table_permission_id)
+        $permission = $this->getPermission($table_permission_id);
+        TableRights::forgetCache($permission->table_id);
+
+        $permisRow = TablePermissionRow::where('table_permission_id', $table_permission_id)
             ->where('table_row_group_id', $row_group_id)
             ->first();
 
-        if (!$permis) {
-            $permis = TablePermissionRow::create([
+        if (!$permisRow) {
+            $permisRow = TablePermissionRow::create([
                 'table_permission_id' => $table_permission_id,
                 'table_row_group_id' => $row_group_id
             ]);
         }
 
-        $permis->update( ['view' => $view, 'edit' => $edit, 'delete' => $del, 'shared' => $shared] );
+        $permisRow->update(['view' => $view, 'edit' => $edit, 'delete' => $del, 'shared' => $shared]);
 
-        return $permis;
+        return $permisRow;
     }
 
     /**
@@ -480,7 +412,8 @@ class TablePermissionRepository
      * @param Int $table_field_id
      * @return mixed
      */
-    public function getDefField(Int $table_permission_id, $user_group_id, Int $table_field_id) {
+    public function getDefField(int $table_permission_id, $user_group_id, int $table_field_id)
+    {
         return TablePermissionDefaultField::where('table_permission_id', '=', $table_permission_id)
             ->where('user_group_id', '=', $user_group_id)
             ->where('table_field_id', '=', $table_field_id)
@@ -500,7 +433,9 @@ class TablePermissionRepository
      */
     public function insertDefField($data)
     {
-        return TablePermissionDefaultField::create( $this->service->delSystemFields($data) );
+        $permission = $this->getPermission($data['table_permission_id']);
+        TableRights::forgetCache($permission->table_id);
+        return TablePermissionDefaultField::create($this->service->delSystemFields($data));
     }
 
     /**
@@ -512,12 +447,15 @@ class TablePermissionRepository
      * @param $default
      * @return mixed
      */
-    public function updateDefField(Int $table_permission_id, $user_group_id, Int $table_field_id, $default)
+    public function updateDefField(int $table_permission_id, $user_group_id, int $table_field_id, $default)
     {
+        $permission = $this->getPermission($table_permission_id);
+        TableRights::forgetCache($permission->table_id);
+
         return TablePermissionDefaultField::where('table_permission_id', '=', $table_permission_id)
             ->where('user_group_id', '=', $user_group_id)
             ->where('table_field_id', '=', $table_field_id)
-            ->update( ['default' => $default] );
+            ->update(['default' => $default]);
     }
 
     /**
@@ -528,9 +466,12 @@ class TablePermissionRepository
      * @param $type
      * @return Collection
      */
-    public function insertAddonRight(TablePermission $tablePermission, $addon_id, $type) {
+    public function insertAddonRight(TablePermission $tablePermission, $addon_id, $type)
+    {
+        TableRights::forgetCache($tablePermission->table_id);
+
         if (
-            ! $tablePermission->_addons()
+            !$tablePermission->_addons()
                 ->where('addons.id', $addon_id)
                 ->where('table_permissions_2_addons.type', $type)
                 ->count()
@@ -547,7 +488,10 @@ class TablePermissionRepository
      * @param $val
      * @return mixed
      */
-    public function updateAddonRight(TablePermission $tablePermission, int $addon_id, string $fld, $val) {
+    public function updateAddonRight(TablePermission $tablePermission, int $addon_id, string $fld, $val)
+    {
+        TableRights::forgetCache($tablePermission->table_id);
+
         DB::table('table_permissions_2_addons')
             ->where('table_permission_id', $tablePermission->id)
             ->where('addon_id', $addon_id)
@@ -563,7 +507,10 @@ class TablePermissionRepository
      * @param $addon_id
      * @return Collection
      */
-    public function deleteAddonRight(TablePermission $tablePermission, $addon_id, $type) {
+    public function deleteAddonRight(TablePermission $tablePermission, $addon_id, $type)
+    {
+        TableRights::forgetCache($tablePermission->table_id);
+
         DB::table('table_permissions_2_addons')
             ->where('table_permission_id', $tablePermission->id)
             ->where('addon_id', $addon_id)
@@ -571,44 +518,6 @@ class TablePermissionRepository
             ->delete();
 
         return $tablePermission->_addons()->get();
-    }
-
-    /**
-     * Insert DCR File to TablePermission.
-     *
-     * @param TablePermission $tablePermission
-     * @param string $field
-     * @param UploadedFile $upload_file
-     * @return string
-     */
-    public function insertDCRFile(TablePermission $tablePermission, string $field, UploadedFile $upload_file) {
-        if ($tablePermission->{$field}) {
-            Storage::delete($tablePermission->{$field});
-        }
-
-        $fileRepo = app()->make(FileRepository::class);
-        $filePath = $fileRepo->getStorageTable($tablePermission->_table) . '/';
-        $fileName = 'dcr_'.Uuid::uuid4();
-        $upload_file->storeAs('public/'.$filePath, $fileName);
-
-        $tablePermission->{$field} = $filePath.$fileName;
-        $tablePermission->save();
-        return $tablePermission->{$field};
-    }
-
-    /**
-     * Delete DCR File to TablePermission.
-     *
-     * @param TablePermission $tablePermission
-     * @param string $field
-     * @return bool
-     */
-    public function deleteDCRFile(TablePermission $tablePermission, string $field) {
-        Storage::delete($tablePermission->{$field});
-
-        return $tablePermission->update([
-            $field => null
-        ]);
     }
 
     /**
@@ -629,7 +538,7 @@ class TablePermissionRepository
             //for current user
             return TablePermission::where('table_id', $table_id)
                 ->where('can_reference', 1)
-                ->applyIsActiveForUserOrPermission()
+                ->isActiveForUserOrVisitor()
                 ->count();
         }
     }

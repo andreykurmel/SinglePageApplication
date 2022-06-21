@@ -55,12 +55,13 @@
             },
             //save changing width of the headers
             saveResized(tableHeader) {
-                if (this.user.id) {
+                if (this.user && this.user.id) {
                     axios.put('/ajax/settings/data', {
                         table_field_id: tableHeader.id,
                         field: 'width',
                         val: tableHeader.width,
                     }).then(({ data }) => {
+                        this.$emit('col-resized');
                     }).catch(errors => {
                         Swal('', getErrors(errors));
                     });

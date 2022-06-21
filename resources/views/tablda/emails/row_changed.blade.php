@@ -13,7 +13,7 @@
         </p>
     @endif
 
-    @include('tablda.emails.partial_table', [
+    @include('tablda.emails.templates.partial_table', [
         'pt_mail_format' => ($alert_arr['mail_format'] ?? ''),
         'pt_fields_arr' => $fields_arr ?? [],
         'pt_all_rows' => $all_rows_arr ?? [],
@@ -26,7 +26,7 @@
         @foreach($link_tables as $ltable)
             <p style="{{ $styles['paragraph'] }}">Linked Table <span style="color: #2ca02c">"{{ ($ltable['name'] ?? '') }}"</span>:</p>
 
-            @include('tablda.emails.partial_table', [
+            @include('tablda.emails.templates.partial_table', [
                 'pt_mail_format' => ($alert_arr['mail_format'] ?? ''),
                 'pt_fields_arr' => $ltable['fields'] ?? [],
                 'pt_all_rows' => $ltable['all_rows'] ?? [],

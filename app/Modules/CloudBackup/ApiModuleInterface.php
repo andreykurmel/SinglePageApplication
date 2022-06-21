@@ -5,9 +5,23 @@ namespace Vanguard\Modules\CloudBackup;
 
 interface ApiModuleInterface
 {
-    public function getCloudActivationUrl(int $cloud_id);
+    /**
+     * @param int $cloud_id
+     * @return string
+     */
+    public function getCloudActivationUrl(int $cloud_id): string;
 
-    public function getTokenFromCode(string $code);
+    /**
+     * @param string $code
+     * @param bool $is_refresh
+     * @return array
+     */
+    public function getTokenFromCode(string $code, bool $is_refresh = false): array;
 
-    public function accessToken(string $token_json);
+    /**
+     * @param string $token_json
+     * @param int $cloud_id
+     * @return string
+     */
+    public function accessToken(string $token_json, int $cloud_id = 0): string;
 }

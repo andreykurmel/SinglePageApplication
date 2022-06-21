@@ -13,12 +13,30 @@
                     </div>
                 </div>
                 <div class="flex__elem-remain popup-content">
-                    <div class="flex__elem__inner popup-main" :style="$root.themeMainBgStyle">
-                        <div class="full-frame">
-                            <table-view-module
-                                    :table-meta="tableMeta"
-                                    @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
-                            ></table-view-module>
+                    <div class="flex__elem__inner permissions-tab" :style="$root.themeMainBgStyle">
+                        <div class="permissions-panel full-height">
+                            <div class="permissions-menu-header">
+                                <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'multiple'}" @click="activeRightTab = 'multiple'">
+                                    Multiple-Record Views (MRV)
+                                </button>
+                                <button class="btn btn-default btn-sm":style="textSysStyle" :class="{active : activeRightTab === 'single'}" @click="activeRightTab = 'single'">
+                                    Single-Record View (SRV)
+                                </button>
+                            </div>
+                            <div class="permissions-menu-body">
+                                <div v-if="activeRightTab === 'multiple'" class="full-frame" style="background-color: #047">
+                                    <table-view-module
+                                            :table-meta="tableMeta"
+                                            @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
+                                    ></table-view-module>
+                                </div>
+                                <div v-if="activeRightTab === 'single'" class="full-frame" style="background-color: #FFF">
+                                    <single-view-module
+                                            :table-meta="tableMeta"
+                                            @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
+                                    ></single-view-module>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -31,17 +49,21 @@
     import {eventBus} from '../../app';
 
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
+    import CellStyleMixin from "../_Mixins/CellStyleMixin";
 
     import EmbedButton from '../Buttons/EmbedButton';
     import CustomTable from "../CustomTable/CustomTable";
     import TableViewModule from "../MainApp/Object/Table/SettingsModule/TableViewModule";
+    import SingleViewModule from "../MainApp/Object/Table/SettingsModule/SingleViewModule";
 
     export default {
         name: "TableViewsPopup",
         mixins: [
             PopupAnimationMixin,
+            CellStyleMixin,
         ],
         components: {
+            SingleViewModule,
             TableViewModule,
             CustomTable,
             EmbedButton,
@@ -49,6 +71,7 @@
         data: function () {
             return {
                 show_this: false,
+                activeRightTab: 'multiple',
 
                 flash_msg: '',
                 flash_show: false,
@@ -90,15 +113,34 @@
 <style lang="scss" scoped>
     @import "./CustomEditPopUp";
     @import "./../CustomTable/CustomTable";
-
-    .popup-main {
-        padding: 0;
-    }
+    @import "./../MainApp/Object/Table/SettingsModule/TabSettingsPermissions";
 
     .flasher--ctr {
         position: absolute;
         left: 50%;
         transform: translateX(-50%);
         transition: all 0.75s;
+    }
+
+    .permissions-tab {
+        .permissions-panel {
+            background-color: inherit;
+        }
+        .permissions-panel {
+            .permissions-menu-body {
+                background-color: inherit;
+                border: 2px solid #CCC;
+                left: 5px;
+                right: 5px;
+                bottom: 5px;
+                div {
+                    border: none;
+                }
+            }
+        }
+    }
+
+    .btn-default {
+        height: 30px;
     }
 </style>

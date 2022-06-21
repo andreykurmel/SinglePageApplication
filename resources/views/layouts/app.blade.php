@@ -5,6 +5,7 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta id="cur_user" content="{{ json_encode(auth()->user()) }}">
 
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
@@ -26,7 +27,7 @@
 <body>
     @include('partials.navbar')
 
-    <div class="container-fluid">
+    <div id="vang" class="container-fluid">
         <div class="row">
             @include('partials.sidebar')
 
@@ -39,7 +40,9 @@
     </div>
 
     <script src="{{ mix('assets/js/vendor.js') }}"></script>
-    <script src="{{ mix('assets/js/vanguard.js') }}"></script>
+    @if(Request::is('profile*'))
+        <script src="{{ mix('assets/js/vanguard.js') }}"></script>
+    @endif
     <script src="{{ url('assets/js/as/app.js') }}"></script>
 
     @include('tablda.each-file-scripts')

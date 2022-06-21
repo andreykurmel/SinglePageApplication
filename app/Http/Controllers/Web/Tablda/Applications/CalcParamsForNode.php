@@ -56,8 +56,8 @@ class CalcParamsForNode extends Controller implements AppControllerInterface
         $row = $input->getRow();
         if ($row[$maps['restrict']] ?? '') {
             if ($row[$maps['arithmetic']]) {
-                $evaluator = new ExpressionLanguage();
-                $row[$maps['value']] = $evaluator->evaluate($row[$maps['arithmetic']]);
+                $evaluator = new FormulaEvaluatorRepository();
+                $row[$maps['value']] = $evaluator->justCalc($row[$maps['arithmetic']]);
             } else {
                 $row[$maps['value']] = $row[$maps['dim_value']];
             }

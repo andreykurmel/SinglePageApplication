@@ -14,6 +14,10 @@ class AddNewColsToBackups extends Migration
     public function up()
     {
         Schema::table('table_backups', function (Blueprint $table) {
+            $table->tinyInteger('overwrite')->nullable();
+            $table->tinyInteger('ddl_attach')->nullable();
+            $table->string('notes', 255)->nullable();
+            $table->string('root_folder', 128)->nullable();
             $table->string('timezone', 64)->nullable();
             $table->unsignedInteger('bkp_email_field_id')->nullable();
             $table->unsignedInteger('bkp_addressee_field_id')->nullable();
@@ -51,6 +55,8 @@ class AddNewColsToBackups extends Migration
             $table->dropColumn('bkp_addressee_txt');
             $table->dropColumn('bkp_email_message');
             $table->dropColumn('timezone');
+            $table->dropColumn('root_folder');
+            $table->dropColumn('notes');
         });
     }
 }

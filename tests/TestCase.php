@@ -2,55 +2,33 @@
 
 namespace Tests;
 
-class TestCase extends \Laravel\BrowserKitTesting\TestCase
+use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Schema;
+
+abstract class TestCase extends BaseTestCase
 {
+    use CreatesApplication, CreatesDatabase;
+
+    /**
+     * @var bool
+     */
     protected $seed = true;
 
     /**
-     * The base URL to use while testing the application.
-     *
-     * @var string
+     * Database migrated just once if needed
      */
-    protected $baseUrl = 'http://vanguard.dev';
-
-    /**
-     * Creates the application.
-     *
-     * @return \Illuminate\Foundation\Application
-     */
-    public function createApplication()
+    public function setUp(): void
     {
-        ini_set('memory_limit', '2048M');
+        $this->afterApplicationCreated(function () {
+            $this->createDatabase();
 
-        $app = require __DIR__.'/../bootstrap/app.php';
+            if (!Schema::hasTable('migrations')) {
+                $this->artisan('migrate');
+                $this->artisan('db:seed');
+            }
+        });
 
-        $app->make(\Illuminate\Contracts\Console\Kernel::class)->bootstrap();
-
-        \Hash::setRounds(5);
-
-        return $app;
+        parent::setUp();
     }
 
-    protected function refreshAppAndExecuteCallbacks()
-    {
-        $oldSeed = $this->seed;
-        $this->seed = $this->isSQLiteConnection();
-
-        $this->refreshApplication();
-        $this->executeCallbacks();
-
-        $this->seed = $oldSeed;
-    }
-
-    protected function executeCallbacks()
-    {
-        foreach ($this->afterApplicationCreatedCallbacks as $callback) {
-            call_user_func($callback);
-        }
-    }
-
-    protected function isSQLiteConnection()
-    {
-        return \DB::connection() instanceof \Illuminate\Database\SQLiteConnection;
-    }
 }

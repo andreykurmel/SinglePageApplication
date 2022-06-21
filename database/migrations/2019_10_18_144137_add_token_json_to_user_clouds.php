@@ -14,7 +14,7 @@ class AddTokenJsonToUserClouds extends Migration
     public function up()
     {
         Schema::table('user_clouds', function (Blueprint $table) {
-            $table->string('token_json', 2048)->nullable();
+            $table->text('token_json')->nullable();
             $table->string('msg_to_user', 1024)->nullable();
         });
     }

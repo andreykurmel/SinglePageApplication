@@ -65,7 +65,7 @@ class TableFieldLinkRepository
     public function getRortForFields(array $fields_ids)
     {
         return TableFieldLink::whereIn('table_field_id', $fields_ids)
-            ->whereIn('link_type', ['Record','RorT'])
+            ->whereIn('link_display', ['Popup','RorT'])
             ->get();
     }
 
@@ -91,6 +91,7 @@ class TableFieldLinkRepository
             'active_links' => 1
         ]);
         $data['link_preview_show_flds'] = 1;
+        $data['link_pos'] = $data['link_pos'] ?? 'before';
 
         $link = TableFieldLink::create( array_merge(
             $this->service->delSystemFields($data),

@@ -87,12 +87,12 @@ Each table which is used in 3D model must have special "APP,Property" in Corresp
     App,Array: '${table with 3d:members}'
     APP,Property: [
         no, //Int (ID)
+        sec_name, //String
         Mbr_Name, //String {$member name}
         Mbr_Lth, //Int
         ROT, //String
         NodeS, //String {$node name}
         NodeE, //String {$node name}
-        NodeO, //String {$node name}
         Mat, //String {$material name}
     ]
 
@@ -114,6 +114,7 @@ Each table which is used in 3D model must have special "APP,Property" in Corresp
         elev_rad, //Float
         elev_gctr, //Float
         dist_to_node_s, //Float
+        local_id, //Int
     ]
 
     App,Array: '${master table for "3D:MA"}'
@@ -157,12 +158,15 @@ For correct colors in 3D Model must be present next records in Correspondence Fi
         nodesName, //0,1
         wireframe, //0,1
         wireframeName, //0,1
+        rl_view, //0,1
         members, //0,1
         objects, //0,1
         edges_members, //0,1
         edges_eqpts, //0,1
+        edges_color, //String
         defaultAngle, //0,1
         showLabelsEqpt, //0,1
+        rl_size, //Int
         fontSize, //Int
         frameScale, //Int
         skyboxColor, //String
@@ -171,6 +175,7 @@ For correct colors in 3D Model must be present next records in Correspondence Fi
         gridShrink, //Int
         defEqptColor, //String
         defMemberColor, //String
+        defRLColor, //String
     ]
 
     App,Array: '${table with 3d:secpos}'
@@ -222,6 +227,11 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
         label_side, //String [top,left,bottom,right]
         label_dir, //String [horizontal,vertical]
         technology, //String
+    ]
+    App,Array: '${table with 2d:filters}' //NOTE: table for available filters in ConfiguratorComponent
+    APP,Property: [
+        equipment, //String {$equipment name}
+        {all needed columns for filters}
     ]
     App,Array: '${table with 2d:equipment}' //NOTE: all sizes in this table must be in 'inch'
     APP,Property: [
@@ -357,15 +367,36 @@ For correct drawing sections in 3D must be present:
 Additional Settings in Correspondence Tables.tbl ("Options"):
 - 'is_public:true' - table will be available for all users (on 'Visitor' permission);
 - 'filter:true' - filters will be available for 'Table' view type;
-- 'download:true' - download will be available for 'Table' view type;
+- 'download:true' - activate "Download" btn for 'Table';
+- 'deletable:false' - disable deletion of from children tables;
 - 'rts:true' - Rotate,translate,scale popup will be available for 'Table' view type;
-- 'del_icon:hide' - delete row icon will be hidden for 'Table' view type;
-- 'check_icon:hide' - check row icon will be hidden for 'Table' view type;
+- 'del_icon:hide' - delete row icon will be hidden in 'Table' component;
+- 'check_icon:hide' - check row icon will be hidden in 'Table' component;
+- 'cell_height:true' - activate 'CellHeight' btn for 'Table';
+- 'cond_format:true' - activate 'CondFormats' btn for 'Table';
+- 'fill_attachments:true' - activate "Fill Eqpt Attachments" btn for 'Table';
+- 'halfmoon:true' - activate "Show/Hide Columns" btn for 'Table';
+- 'copy_from_model:true' - activate "Copy From Model" btn for 'Table';
+- 'paste2import:true' - activate "Paste to Import" btn for 'Table';
+- 'recalc_rl:true' - in 3D avail auto-recalculation of RL element from Epts to Sections;
+- 'rl_calc:true' - activate "Create RL Brackets" btn for 'Table';
+- 'search_block:true' - activate "Show/Hide Columns" btn for 'Table';
+- 'section_parse:true' - activate "Show/Hide Columns" btn for 'Table';
+- 'string_replace:true' - activate "String Copy/Replace" btn for 'Table';
+- 'view_popup:true' - activate "Views" btn for 'Table';
 
 Additional Settings in Correspondence Fields.tbl ("Options"):
+- 'in_url:true' - this field will be displayed in URL when model is selected (And used in TopSearch component);
 - 'copy_prefix:true' - when model is copied 'copy_' prefix will be added to this field;
-- 'in_url:true' - this field will be displayed in URL when model is selected;
 - 'display_top:true' - this field will be displayed below the search when model is selected;
 - 'show:true' - this field will be visible in APP;
 - 'is_rts:dx','is_rts:dy','is_rts:dz' - used in RTS popup as x,y,z;
-- 'is_fld:name' - this column is 'name' for rows';
+- 'is_fld:name' - this column is 'name' for rows' (RTS);
+- 'is_sec:add,name,shape,size1,size2' - columns used for Geometry/Section parsing;
+- 'logo:in_select' - fields where stored logo image;
+- 'on:edit' - fill field from Fields/Notes;
+- 'key:true' - key columns for Risa3DParser;
+
+Additional Settings in Correspondence UI Parts.tbl ("Options"):
+- 'is_master:true' - master table (each combination of "TopTabs,Select" must have one master table);
+- 'is_hidden:true' - hide table from 3D tabs;

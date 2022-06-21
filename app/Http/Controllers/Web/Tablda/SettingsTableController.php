@@ -84,6 +84,18 @@ class SettingsTableController extends Controller
     }
 
     /**
+     * @param \Illuminate\Http\Request $request
+     * @return array
+     */
+    public function justUserSetts(\Illuminate\Http\Request $request)
+    {
+        if (auth()->id() && $request->table_id && is_array($request->datas)) {
+            return ['_cur_settings' => $this->fieldService->justUserSetts($request->table_id, $request->datas)];
+        }
+        abort(403);
+    }
+
+    /**
      * Update all columns settings for user
      *
      * @param \Illuminate\Http\Request $request
@@ -145,7 +157,9 @@ class SettingsTableController extends Controller
     {
         if (auth()->id()) {
             $table = $this->tableService->getTable($request->table_id);
-            $this->authorize('load', [TableData::class, $table]);
+            if (!$table->is_system) {
+                $this->authorize('load', [TableData::class, $table]);
+            }
             return $this->tableDataService->changeRowOrder($table, $request->from_order, $request->to_order, $request->from_id, $request->to_id);
         }
         return ['status' => 0];
@@ -200,7 +214,8 @@ class SettingsTableController extends Controller
 
     /**
      * @param \Illuminate\Http\Request $request
-     * @return array
+     * @return array|mixed
+     * @throws \Illuminate\Auth\Access\AuthorizationException
      */
     public function attachDetachKanbanFld(\Illuminate\Http\Request $request)
     {
@@ -208,7 +223,11 @@ class SettingsTableController extends Controller
         $this->authorize('isOwner', [TableData::class, $table]);
         if ($request->kanban_id && $request->field_id) {
             $repo = new TableKanbanRepository();
-            $repo->attachDetachFld($request->kanban_id, $request->field_id, !!$request->val);
+            if ($request->setting == 'table_field_id') {
+                $repo->attachDetachFld($request->kanban_id, $request->field_id, !!$request->val);
+            } else {
+                $repo->changePivotFld($request->kanban_id, $request->field_id, $request->setting, $request->val);
+            }
             return $repo->getKanban($request->kanban_id);
         }
         return [];

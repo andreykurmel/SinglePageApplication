@@ -3,7 +3,7 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../app';
+    import {eventBus} from '../../../app';
 
     export default {
         name: "GoogleAddressViewer",
@@ -25,9 +25,8 @@
             hideElement(tableRow) {
                 if (tableRow) {
                     this.$emit('update-row', tableRow);
-                } else {
-                    this.$emit('hide-elem');
                 }
+                this.$emit('hide-elem');
             }
         },
         mounted() {

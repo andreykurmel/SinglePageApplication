@@ -4,18 +4,26 @@
 namespace Vanguard\Services\Tablda;
 
 
+use Exception;
+use File;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
-use Vanguard\Classes\TabldaEncrypter;
+use Vanguard\Classes\ExcelWrapper;
+use Vanguard\Classes\Tablda;
 use Vanguard\Jobs\ImportTableData;
 use Vanguard\Jobs\RecalcTableFormula;
 use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
-use Vanguard\Models\Table\TableReference;
+use Vanguard\Models\User\UserApiKey;
 use Vanguard\Models\User\UserConnection;
+use Vanguard\Modules\Airtable\AirtableApi;
+use Vanguard\Modules\CloudBackup\DropBoxApiModule;
+use Vanguard\Modules\CloudBackup\GoogleApiModule;
+use Vanguard\Modules\CloudBackup\OneDriveApiModule;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\CopyTableRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
@@ -24,6 +32,7 @@ use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
+use Vanguard\Repositories\Tablda\UserCloudRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
 use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\Permissions\TablePermissionService;
@@ -77,28 +86,28 @@ class ImportService
     /**
      * Copy Folder with Sub-Folders and Tables to another User.
      *
-     * @param $jstree_folder
-     * @param $new_user_id
-     * @param $parent_folder_id
+     * @param array $jstree_folder
+     * @param int $new_user_id
+     * @param int $parent_folder_id
      * @param string $new_name
      * @param bool $overwrite
+     * @param bool $with_links
      * @return array
+     * @throws Exception
      */
-    public function copyFolderAndSubfolder($jstree_folder, $new_user_id, $parent_folder_id, $new_name = '', $overwrite = false)
+    public function copyFolderAndSubfolder(array $jstree_folder, int $new_user_id, int $parent_folder_id, string $new_name = '', bool $overwrite = false, bool $with_links = false): array
     {
         $fld_name = $new_name ?: $jstree_folder['init_name'] ?? ($jstree_folder['text'] ?? '');
         if ($tested = $this->folderRepository->testNameOnLvl($fld_name, $parent_folder_id, $new_user_id)) {
             if (!$overwrite) {
                 return ['error' => true, 'msg' => 'Already Copied.', 'already_copied' => true];
             } else {
-                (new FolderService())->deleteFolderWithSubs($tested->id);
+                (new FolderService())->deleteFolderWithSubs($tested->id, $new_user_id);
             }
         }
 
         //copy folders and tables
-        $new_fld_id = $this->copyFolderTreeForOthers($jstree_folder, $new_user_id, $parent_folder_id);
-        //copy table settings
-        $this->copyFolderTreeForOthers($jstree_folder, $new_user_id, $parent_folder_id, 1);
+        $new_fld_id = $this->copyFolderTreeForOthers($jstree_folder, $new_user_id, $parent_folder_id, $with_links);
 
         //new menutree user hash
         (new UserRepository())->newMenutreeHash($new_user_id);
@@ -109,13 +118,14 @@ class ImportService
     /**
      * Copy Folder with Sub-Folders and Tables to another User.
      *
-     * @param $jstree_folder
-     * @param $new_user_id
-     * @param $parent_folder_id
-     * @param $copy_tb_settings_mode -- function runned second time to copy Settings for Copied Tables and Folders.
-     * @return int
+     * @param array $jstree_folder
+     * @param int $new_user_id
+     * @param int $parent_folder_id
+     * @param bool $with_links
+     * @return false|int|null
+     * @throws Exception
      */
-    private function copyFolderTreeForOthers(array &$jstree_folder, $new_user_id, $parent_folder_id, $copy_tb_settings_mode = false)
+    private function copyFolderTreeForOthers(array $jstree_folder, int $new_user_id, int $parent_folder_id, bool $with_links = false)
     {
         $created_fld_id = null;
         if ($this->jsonObjectIsSelected($jstree_folder)) {
@@ -126,19 +136,15 @@ class ImportService
 
                 foreach ($jstree_folder['children'] as &$inner) {
                     $type = $inner['li_attr']['data-type'] ?? '';
-                    if ($type == 'table' && $this->jsonObjectIsSelected($inner)) {
+                    $is_table = $type == 'table' || ($with_links && $type == 'link');
+                    if ($is_table && $this->jsonObjectIsSelected($inner)) {
 
                         $table = $this->tableRepository->getTable($inner['li_attr']['data-object']['id'] ?? 0);
                         $tb_settings = !empty($inner['li_attr']['data-copy-settings']) ? $inner['li_attr']['data-copy-settings'] : null;
 
-                        //instead of '$copy_tb_settings_mode'
-                        if (empty($inner['li_attr']['data-new-table'])) {
-                            $res = $this->copyTable($table, $new_user_id, $created_fld_id, $tb_settings);
-                            $inner['li_attr']['data-new-table'] = $res['new_table'];
-                            $this->copyTableRepository->copied_table_compares[$table->id] = $res['new_table']->id;
-                        } else {
-                            $this->copyTableSettings($table, $new_user_id, $inner['li_attr']['data-new-table'], $tb_settings);
-                        }
+                        $res = $this->copyTable($table, $new_user_id, $created_fld_id, $tb_settings);
+                        $this->copyTableRepository->copied_table_compares[$table->id] = $res['new_table']->id;
+                        $this->copyTableSettings($table, $new_user_id, $res['new_table'], $tb_settings);
 
                     }
                     if ($type == 'folder' && $this->jsonObjectIsSelected($inner)) {
@@ -202,12 +208,11 @@ class ImportService
      */
     private function copyFolder(array $old, $parent_folder_id, $new_user_id)
     {
-
         $folder = $this->folderRepository->insertFolder(
             $parent_folder_id,
             $new_user_id,
             $old['name'],
-            $old['structure'],
+            'private',
             [
                 'in_shared' => $old['in_shared']
             ]
@@ -216,12 +221,12 @@ class ImportService
         //copy Folder Icon.
         if ($old['icon_path']) {
             $new_icon_path = preg_replace('/\/\d+_/i', '/' . $folder->id . '_', $old['icon_path']);
-            $this->folderRepository->updateFolder($folder->id, ['icon_path' => $new_icon_path]);
+            $this->folderRepository->updateFolder($folder->id, ['icon_path' => $new_icon_path], $new_user_id);
             //copy folder icon in Storage
             $old_path = storage_path('app/public/') . $old['icon_path'];
-            if (\File::exists($old_path)) {
+            if (File::exists($old_path)) {
                 $new_path = storage_path('app/public/') . $new_icon_path;
-                \File::copy($old_path, $new_path);
+                File::copy($old_path, $new_path);
             }
         }
 
@@ -236,9 +241,10 @@ class ImportService
      * @param int $new_folder_id
      * @param null $settings
      * @param bool $overwrite
+     * @param bool $visitor
      * @return array
      */
-    public function copyTable(Table $table, $new_user_id, int $new_folder_id, $settings = null, $overwrite = false)
+    public function copyTable(Table $table, $new_user_id, int $new_folder_id, $settings = null, $overwrite = false, $visitor = false)
     {
         $data = $this->prepareData($table->only(['name', 'rows_per_page', 'notes']), $new_user_id);
 
@@ -250,24 +256,13 @@ class ImportService
             }
         }
 
-        //config connection
-        $db = $this->service->getConnectionForTable($table);
-
-        //copy in DB_DATA
-        if (is_null($settings) || !empty($settings['data'])) {
-            //with data
-            $db->select('CREATE TABLE `' . $data['db_name'] . '` SELECT * FROM `' . $table->db_name . '`');
-        } else {
-            //only structure
-            $db->select('CREATE TABLE `' . $data['db_name'] . '` LIKE `' . $table->db_name . '`');
-        }
-        //create 'id' as primary key
-//        $db->select('ALTER TABLE `' . $data['db_name'] . '` DROP COLUMN `id`');
-        $db->select('UPDATE `' . $data['db_name'] . '` SET `created_on` = now(), `modified_on` = now()');
-        $db->select('ALTER TABLE `' . $data['db_name'] . '` CHANGE `id` `id` INT(10) AUTO_INCREMENT, add PRIMARY KEY (`id`)');
+        //Copy table and data in DB
+        $copyAvails = $visitor ? $this->copyAvails($table, null) : [];
+        $with_data = is_null($settings) || !empty($settings['data']);
+        $this->copyTableInDB($table, $copyAvails, $data['db_name'], $with_data);
 
         //copy in DB_SYS
-        $initial_columns = $this->getInitialColumns($table);
+        $initial_columns = $this->getInitialColumns($table, $copyAvails['columns'] ?? []);
         $result = $this->createTable($data, $new_user_id, $new_folder_id, '', $initial_columns);
         if ($result['error']) {
             return $result;
@@ -294,7 +289,7 @@ class ImportService
      * @param $user_id
      * @return array
      */
-    public function prepareData(Array $data, $user_id)
+    public function prepareData(array $data, $user_id)
     {
         if (empty($data['db_name'])) {
             //$data['name'] = preg_replace('/[^\w\d-_ ]/i', '', $data['name']);
@@ -311,12 +306,81 @@ class ImportService
     }
 
     /**
+     * Delete user`s table
+     *
+     * @param Table $table
+     * @return array|bool|null
+     */
+    public function deleteTable(Table $table)
+    {
+        $this->fileRepository->deleteAllAttachments($table);
+        $error = $this->importRepository->deleteTable($table->db_name);
+        if ($error) {
+            $res = ['error' => true, 'msg' => $error];
+        }
+        $deleted = $this->tableRepository->deleteTable($table->id);
+        if (!$deleted) {
+            $res = ['error' => true];
+        }
+
+        //menutree is changed
+        (new UserRepository())->newMenutreeHash($table->user_id);
+
+        return (isset($res) ? $res : ['error' => false]);
+    }
+
+    /**
+     * @param Table $table
+     * @param int|null $user_id
+     * @return array
+     */
+    protected function copyAvails(Table $table, int $user_id = null)
+    {
+        $permission = TableRights::permissions($table);
+        return [
+            'columns' => $permission->view_fields->merge((new HelperService())->system_fields)->unique()->toArray(),
+            'rows' => (new TableDataRepository())->getRowsColumn($table, $permission)->toArray(),
+        ];
+    }
+
+    /**
+     * @param Table $table
+     * @param array $copyAvails
+     * @param string $db_name
+     * @param bool $with_data
+     */
+    protected function copyTableInDB(Table $table, array $copyAvails, string $db_name, bool $with_data)
+    {
+        //config connection
+        $db = $this->service->getConnectionForTable($table);
+
+        $columns = $copyAvails
+            ? implode(',', $copyAvails['columns'])
+            : '*';
+
+        if ($with_data) {
+            $rows = $copyAvails
+                ? '`id` IN (' . implode(',', $copyAvails['rows']) . ')'
+                : 'true';
+        } else {
+            $rows = 'false';
+        }
+
+        //copy in DB_DATA
+        $db->select('CREATE TABLE `' . $db_name . '` SELECT ' . $columns . ' FROM `' . $table->db_name . '` WHERE ' . $rows);
+        //create 'id' as primary key
+        $db->select('UPDATE `' . $db_name . '` SET `created_on` = now(), `modified_on` = now()');
+        $db->select('ALTER TABLE `' . $db_name . '` CHANGE `id` `id` INT(10) AUTO_INCREMENT, add PRIMARY KEY (`id`)');
+    }
+
+    /**
      * Get Initial Columns From Table to Add them to another Table.
      *
      * @param Table $table
+     * @param array $columns
      * @return mixed
      */
-    public function getInitialColumns(Table $table)
+    public function getInitialColumns(Table $table, array $columns)
     {
         $table->load([
             '_fields' => function ($f) {
@@ -326,7 +390,9 @@ class ImportService
 
         $init_fields = [];
         foreach ($table->_fields as $fld) {
-            $init_fields[] = $fld->only((new TableField())->getFillable());
+            if (!$columns || in_array($fld->field, $columns)) {
+                $init_fields[] = $fld->only((new TableField())->getFillable());
+            }
         }
 
         return $init_fields;
@@ -342,8 +408,9 @@ class ImportService
      * @param array $initial_columns
      * @return array
      */
-    public function createTable(Array $data, $user_id, $folder_id, $folder_path = '', $initial_columns = [])
+    public function createTable(array $data, $user_id, $folder_id, $folder_path = '', $initial_columns = [])
     {
+        $data['name'] = Tablda::safeName($data['name']);
         if ($this->tableRepository->testNameOnLvl($data['name'], $folder_id, $user_id)) {
             return ['error' => true, 'msg' => 'Node Name Taken. Enter a Different Name.'];
         }
@@ -373,6 +440,10 @@ class ImportService
 
         $table->link = $table->_link_initial_folder;
         $path = ($folder_path ? $folder_path : config('app.url') . "/data/");
+
+        //menutree is changed
+        (new UserRepository())->newMenutreeHash($user_id);
+
         return [
             'error' => false,
             'path' => ($folder_path ? $folder_path : config('app.url') . "/data/") . $table->name,
@@ -389,12 +460,53 @@ class ImportService
     private function getSystemColumns()
     {
         return [
-            ['field' => 'id', 'name' => 'ID', 'f_type' => 'Auto Number', 'is_showed' => 0],
-            ['field' => 'created_by', 'name' => 'Created By', 'f_type' => 'User', 'is_showed' => 0],
-            ['field' => 'created_on', 'name' => 'Created On', 'f_type' => 'Date Time', 'is_showed' => 0],
-            ['field' => 'modified_by', 'name' => 'Modified By', 'f_type' => 'User', 'is_showed' => 0],
-            ['field' => 'modified_on', 'name' => 'Modified On', 'f_type' => 'Date Time', 'is_showed' => 0],
+            [
+                'field' => 'id',
+                'name' => 'ID',
+                'f_type' => 'Auto Number',
+                'input_type' => 'Auto',
+                'is_showed' => 0,
+                'show_zeros' => 0,
+                'order' => 1
+            ],
+            [
+                'field' => 'created_by',
+                'name' => 'Created By',
+                'f_type' => 'User',
+                'input_type' => 'Auto',
+                'is_showed' => 0,
+                'show_zeros' => 0,
+                'order' => 0
+            ],
+            [
+                'field' => 'created_on',
+                'name' => 'Created On',
+                'f_type' => 'Date Time',
+                'input_type' => 'Auto',
+                'is_showed' => 0,
+                'show_zeros' => 0,
+                'order' => 0
+            ],
+            [
+                'field' => 'modified_by',
+                'name' => 'Modified By',
+                'f_type' => 'User',
+                'input_type' => 'Auto',
+                'is_showed' => 0,
+                'show_zeros' => 0,
+                'order' => 0
+            ],
+            [
+                'field' => 'modified_on',
+                'name' => 'Modified On',
+                'f_type' => 'Date Time',
+                'input_type' => 'Auto',
+                'is_showed' => 0,
+                'show_zeros' => 0,
+                'order' => 0
+            ],
         ];
+
     }
 
     /**
@@ -405,7 +517,7 @@ class ImportService
      * @param Table $new_table
      * @param null $settings
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
     public function copyTableSettings(Table $table, $new_user_id, Table $new_table, $settings = null)
     {
@@ -414,7 +526,7 @@ class ImportService
 
         try {
             $this->copyTableRepository->copyHeaderSettings($table, $new_table);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $errors[] = 'Headers Settings';
         }
 
@@ -424,7 +536,7 @@ class ImportService
             $new_user = User::where('id', $new_user_id)->first();
             try {
                 $this->copyTableRepository->copyReferenceConditions($table, $new_table, $new_user);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Reference Conditions';
             }
         }
@@ -432,14 +544,14 @@ class ImportService
         if (is_null($settings) || !empty($settings['grouping_rows'])) {
             try {
                 $this->copyTableRepository->copyRowGroups($table, $new_table);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Row Groups';
             }
         }
         if (is_null($settings) || !empty($settings['grouping_columns'])) {
             try {
                 $this->copyTableRepository->copyColumnGroups($table, $new_table);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Column Groups';
             }
         }
@@ -447,40 +559,40 @@ class ImportService
         if (is_null($settings) || !empty($settings['ddls'])) {
             try {
                 $this->copyTableRepository->copyDDLs($table, $new_table);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'DDLs';
             }
         }
         if (is_null($settings) || !empty($settings['basics'])) {
             try {
                 $this->copyTableRepository->copyBasics($table, $new_table);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Basics';
             }
         }
         if (is_null($settings) || !empty($settings['links'])) {
             try {
                 $this->copyTableRepository->copyLinks($table, $new_table);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Links';
             }
         }
         if (is_null($settings) || !empty($settings['cond_formats'])) {
             try {
                 $this->copyTableRepository->copyCondFormats($table, $new_table, $new_user_id);
-            } catch (\Exception $e) {
+            } catch (Exception $e) {
                 $errors[] = 'Cond Formats';
             }
         }
 
         try {
             $this->copyTableRepository->copyMapIconsAndCharts($table, $new_table);
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             $errors[] = 'Map Icons And Charts';
         }
 
         if ($errors) {
-            throw new \Exception(implode(', ',$errors).' are not copied!', 1);
+            throw new Exception(implode(', ', $errors) . ' are not copied!', 1);
         }
         return true;
     }
@@ -492,13 +604,14 @@ class ImportService
      * @param $new_user_id
      * @param null $settings
      * @param bool $overwrite
+     * @param bool $visitor
      * @return array|mixed
      */
-    public function saveCopyTable(Table $table, $new_user_id, $settings = null, $overwrite = false)
+    public function saveCopyTable(Table $table, $new_user_id, $settings = null, $overwrite = false, $visitor = false)
     {
         $sys_folder = $this->folderRepository->getSysFolder($new_user_id, 'TRANSFERRED');
 
-        $res = $this->copyTable($table, $new_user_id, $sys_folder->id, $settings, $overwrite);
+        $res = $this->copyTable($table, $new_user_id, $sys_folder->id, $settings, $overwrite, $visitor);
         if (!empty($res['error'])) {
             return $res;
         }
@@ -530,24 +643,24 @@ class ImportService
      * ]
      * @return array
      */
-    public function modifyTable(Table $table, Array $data)
+    public function modifyTable(Table $table, array $data)
     {
         //if needs to replace table with columns -> prepare to do it.
-        if (in_array($data['import_type'], ['csv', 'mysql', 'remote', 'paste', 'g_sheet']) && $data['import_action'] === 'New') {
+        if (
+            in_array($data['import_type'], ['csv', 'mysql', 'remote', 'paste', 'web_scrap', 'g_sheets', 'table_ocr', 'airtable_import', 'chart_export'])
+            &&
+            $data['import_action'] === 'new'
+        ) {
             $table = $this->prepareTableForReplace($table, $data);
             if (!empty($table['error'])) {
                 return $table;
             }
         }
 
-        $idx = 0;
-        foreach ($data['columns'] as $col) {
-            if ($col['status'] != 'add') $idx++;
-        }
         //prepare 'columns' and build db_name for columns from provided column names.
-        foreach ($data['columns'] as &$col) {
+        foreach ($data['columns'] as $idx => &$col) {
             $col['name'] = $col['name'] ?: 'col_' . $idx;
-            $col['field'] = empty($col['field']) ? $this->getDbField($col['name'], ++$idx) : $col['field'];
+            $col['field'] = empty($col['field']) ? $this->fieldRepository->getDbField($col['name'], $idx) : $col['field'];
             $col['f_size'] = empty($col['f_size']) ? 255 : floatval(str_replace(',', '.', $col['f_size']));
             if ($col['f_type'] === 'Boolean' && empty($col['f_required'])) {
                 $col['f_required'] = 0;
@@ -566,18 +679,39 @@ class ImportService
         //sync saved views
         $this->tableViewRepository->syncTableViews($table->id, $data['columns']);
 
-        //modify table references for that import type.
-        if ($data['import_type'] === 'reference') {
-            $res = $this->updateTableReferences($table, $data['referenced_table']);
-            if ($res['error']) {
-                return $res;
-            }
+        //work with data (import or remove)
+        if ($table->_fields()->notSystemFields()->count()) {
+            $job_id = $this->importData($table, $data);
+        } else {
+            $reqst = [ 'table_id' => $table->id, 'page' => 1, 'rows_per_page' => 0, ];
+            $this->tableDataService->deleteAllRows($table, $reqst, $table->user_id);
         }
 
+        $this->tableRepository->onlyUpdateTable($table->id, [
+            'source' => $data['import_type'],
+            'connection_id' => in_array($data['import_type'], ['mysql', 'remote']) ? $data['mysql_settings']['connection_id'] : null,
+            'num_columns' => count($this->fieldRepository->getFieldsForTable($table->id)),
+        ]);
+
+        return [
+            'error' => false,
+            'msg' => '',
+            'job_id' => $job_id ?? 0,
+            'new_id' => $table->id,
+        ];
+    }
+
+    /**
+     * @param Table $table
+     * @param array $data
+     * @return int
+     */
+    protected function importData(Table $table, array $data): int
+    {
         //import data
-        if (in_array($data['import_type'], ['csv', 'mysql', 'reference', 'paste', 'g_sheet', 'web_scrap'])) {
+        if (in_array($data['import_type'], ['csv', 'mysql', 'reference', 'paste', 'g_sheets', 'web_scrap', 'table_ocr', 'airtable_import', 'chart_export'])) {
             $job = Import::create([
-                'file' => "app/csv/" . $data['csv_settings']['filename'],
+                'file' => "app/tmp_import/" . $data['csv_settings']['filename'],
                 'status' => 'initialized'
             ]);
             dispatch(new ImportTableData($table, $data, auth()->user(), $job->id));
@@ -594,28 +728,25 @@ class ImportService
                 $this->tableDataService->recalcTableFormulas($table);
             }
         }
-        $this->tableRepository->onlyUpdateTable($table->id, [
-            'source' => $data['import_type'],
-            'connection_id' => in_array($data['import_type'], ['mysql', 'remote']) ? $data['mysql_settings']['connection_id'] : null,
-            'num_columns' => count($this->fieldRepository->getFieldsForTable($table->id)),
-        ]);
-
-        return ['error' => false, 'msg' => '', 'job_id' => isset($job) ? $job->id : 0];
+        return isset($job) ? $job->id : 0;
     }
 
     /**
      * Delete table and create again for Replacing
      *
-     * @param \Vanguard\Models\Table\Table $table
+     * @param Table $table
      * @param array $data
-     * @return array|bool|null
+     * @return Table|array|bool|null
      */
-    public function prepareTableForReplace(Table $table, Array $data)
+    public function prepareTableForReplace(Table $table, array $data)
     {
         $folder = $table->_folder_links()->where('type', '=', 'table')->first();
-        $folder_id = $folder->folder_id;
+        $folder_id = $folder ? $folder->folder_id : null;
         $user_id = $table->user_id;
-        $tb = $table->only(['db_name', 'name', 'rows_per_page', 'notes']);
+        $tb = $table->only([
+            'db_name', 'name', 'rows_per_page', 'notes', 'import_web_scrap_save', 'import_gsheet_save',
+            'import_airtable_save', 'import_table_ocr_save', 'import_csv_save', 'import_mysql_save', 'import_paste_save'
+        ]);
 
         $resp = $this->deleteTable($table);
         if (!empty($resp['error'])) {
@@ -632,71 +763,6 @@ class ImportService
         }
 
         return Table::where('id', '=', $resp['table_id'])->first();
-    }
-
-    /**
-     * Delete user`s table
-     *
-     * @param \Vanguard\Models\Table\Table $table
-     * @return array|bool|null
-     */
-    public function deleteTable(Table $table)
-    {
-        $this->fileRepository->deleteAttachments($table);
-        $error = $this->importRepository->deleteTable($table->db_name);
-        if ($error) {
-            $res = ['error' => true, 'msg' => $error];
-        }
-        $deleted = $this->tableRepository->deleteTable($table->id);
-        if (!$deleted) {
-            $res = ['error' => true];
-        }
-        return (isset($res) ? $res : ['error' => false]);
-    }
-
-    /**
-     * Get db_name for field from name
-     *
-     * @param $name
-     * @param $idx
-     * @return string
-     */
-    private function getDbField($name, $idx)
-    {
-        $name = strtolower($name);
-        if (preg_match('/[^a-zA-Z]/i', $name)) {
-            $name = 'f' . substr($name, 1);
-        }
-        $name = preg_replace('/ /i', '_', substr($name, 0, 50));
-        return preg_replace('/[^\w\d_]/i', '', $name) . '_' . ($idx);
-    }
-
-    /**
-     * Update table reference records for table.
-     *
-     * @param \Vanguard\Models\Table\Table $table
-     * @param array $references
-     * @return array
-     */
-    private function updateTableReferences(Table $table, Array $references)
-    {
-        $response = ['error' => false, 'msg' => ''];
-
-        TableReference::where('table_id', '=', $table->id)->where('ref_table_id', '=', $references['id'])->delete();
-        if (!$references['only_del']) {
-            foreach ($references['objects'] as $ref) {
-                if (!empty($ref['ref_field_id'])) {
-                    try {
-                        $ref = collect($ref)->only(['table_id', 'table_field_id', 'ref_table_id', 'ref_field_id'])->toArray();
-                        TableReference::create(array_merge($ref, $this->service->getModified(), $this->service->getCreated()));
-                    } catch (\Exception $e) {
-                        $response = ['error' => true, 'msg' => 'Table references inserting down!' . $e->getMessage()];
-                    }
-                }
-            }
-        }
-
-        return $response;
     }
 
     /**
@@ -750,14 +816,55 @@ class ImportService
     }
 
     /**
-     * Get fields from Google Sheet for import it as table
+     * @param array $row
+     * @param bool $use_val
+     * @param array $types
+     * @param array $specials
+     * @return array
+     */
+    protected function makeHeaders(array $row, bool $use_val = false, array $types = [], array $specials = [])
+    {
+        $headers = [];
+        foreach ($row as $key => $val) {
+            $headers[$key]['name'] = $use_val ? ($val ?: 'col_' . $key) : 'col_' . $key;
+            $headers[$key]['status'] = 'add';
+            $headers[$key]['field'] = ($specials['autofield']??'') ? ('field_' . $key) : '';
+            $headers[$key]['col'] = ($specials['autocol']??'') ? $key : null;
+            $headers[$key]['f_type'] = $types[$key] ?? 'String';
+            $headers[$key]['f_size'] = 64;
+            $headers[$key]['f_default'] = '';
+            $headers[$key]['f_required'] = 0;
+        }
+        return $headers;
+    }
+
+    /**
+     * @param array $headers
+     * @param array $rows
+     * @return array
+     */
+    public function datasForChartExport(array $headers, array $rows): array
+    {
+        return [
+            'import_type' => 'chart_export',
+            'import_action' => 'new',
+            'columns' => $this->makeHeaders($headers, true, [], ['autofield'=>true, 'autocol'=>true]),
+            'chart_rows' => $rows,
+            'csv_settings' => [
+                'filename' => ''
+            ]
+        ];
+    }
+
+    /**
+     * Get fields from Google Sheets for import it as table
      *
-     * @param $g_sheet_link
-     * @param $g_sheet_name
+     * @param $g_sheets_id
+     * @param $g_sheets_page
      * @param $settings
      * @return array
      */
-    public function getFieldsFromGSheet(string $g_sheet_link, string $g_sheet_name, array $settings)
+    public function getFieldsFromGSheet(string $g_sheets_id, string $g_sheets_page, array $settings)
     {
         try {
             $user = auth()->user();
@@ -765,8 +872,8 @@ class ImportService
                 ? $user->_clouds()->where('cloud', 'Google')->whereNotNull('token_json')->first()
                 : null;
             $token_json = $token_json ? $token_json->gettoken() : null;
-            $strings = $this->service->parseGoogleSheet($g_sheet_link, $g_sheet_name, $token_json);
-        } catch (\Exception $e) {
+            $strings = $this->service->parseGoogleSheet($g_sheets_id, $g_sheets_page, $token_json);
+        } catch (Exception $e) {
             return ['error' => (json_decode($e->getMessage(), 1))['error']['message'] ?? $e->getMessage()];
         }
 
@@ -803,18 +910,20 @@ class ImportService
 
     /**
      * @param $url
+     * @param $xpath
      * @param $query
      * @param $index
+     * @param $web_headers
      * @return array
      */
-    public function getFieldsFromHtml($url, $xpath, $query, $index)
+    public function getFieldsFromHtml($url, $xpath, $query, $index, $web_headers)
     {
         if ($xpath) {
             $row = $this->htmlservice->parseXpathHtml($url, $xpath);
         } else {
             $row = $this->htmlservice->parsePageHtml($url, $query, $index);
         }
-        $headers = $this->makeHeaders($row);
+        $headers = $this->makeHeaders($row, !!$web_headers);
         return [
             'headers' => $headers,
             'fields' => array_pluck($headers, 'name'),
@@ -822,18 +931,52 @@ class ImportService
     }
 
     /**
-     * @param $url
-     * @param $xpath
+     * @param array $xml_settings
      * @return array
      */
-    public function getFieldsFromXml($url, $xpath)
+    public function getFieldsFromXml(array $xml_settings)
     {
-        $row = $this->htmlservice->parseXmlPage($url, $xpath);
-        $headers = $this->makeHeaders($row);
+        $row = $this->htmlservice->parseXmlPage($xml_settings, false);
+        $headers = $this->makeHeaders($row, true);
         return [
             'headers' => $headers,
             'fields' => array_pluck($headers, 'name'),
         ];
+    }
+
+    /**
+     * @param UserApiKey $key
+     * @param string $table_name
+     * @param string $fromtype
+     * @return array
+     * @throws Exception
+     */
+    public function getFieldsFromAirtable(UserApiKey $key, string $table_name, string $fromtype): array
+    {
+        $api = new AirtableApi($key->decryptedKey(), $key->air_base, $fromtype);
+        $air_columns = $api->tableFields($table_name);
+        $headers = $this->makeHeaders(array_keys($air_columns), true, array_values($air_columns));
+        foreach ($headers as &$hdr) {
+            $hdr['_source_type'] = $api->typeConvertToAir($hdr['f_type']);
+        }
+        return [
+            'headers' => $headers,
+            'fields' => array_pluck($headers, 'name'),
+        ];
+    }
+
+    /**
+     * @param UserApiKey $key
+     * @param string $table_name
+     * @param string $col_name
+     * @param string $fromtype
+     * @return array
+     * @throws Exception
+     */
+    public function getColValuesFromAirtable(UserApiKey $key, string $table_name, string $col_name, string $fromtype): array
+    {
+        $api = new AirtableApi($key->decryptedKey(), $key->air_base, $fromtype);
+        return $api->fetchColValues($table_name, $col_name);
     }
 
     /**
@@ -846,27 +989,6 @@ class ImportService
     }
 
     /**
-     * @param array $row
-     * @param bool $use_val
-     * @return array
-     */
-    protected function makeHeaders(array $row, bool $use_val = false)
-    {
-        $headers = [];
-        foreach ($row as $key => $val) {
-            $headers[$key]['name'] = $use_val ? ($val ?: 'col_'.$key) : 'col_'.$key;
-            $headers[$key]['status'] = 'add';
-            $headers[$key]['field'] = '';
-            $headers[$key]['col'] = null;
-            $headers[$key]['f_type'] = 'String';
-            $headers[$key]['f_size'] = 64;
-            $headers[$key]['f_default'] = '';
-            $headers[$key]['f_required'] = 0;
-        }
-        return $headers;
-    }
-
-    /**
      * Get fields from CSV file for import it as table
      *
      * @param $upload_file
@@ -874,21 +996,47 @@ class ImportService
      * @param array $data
      * @return array
      */
-    public function getFieldsFromCSV($upload_file, $file_link, Array $data)
+    public function getFieldsFromCSV($upload_file, $file_link, array $data)
     {
-        if ($file_link) {
-            $tmp_csv = time() . "_" . rand() . ".csv";
-            if (!Storage::put("csv/" . $tmp_csv, file_get_contents($file_link))) {
+        $originalName = $upload_file ? $upload_file->getClientOriginalName() : $file_link;
+        $ext = $data['extension'] ?? strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+        if ($upload_file) {
+            $tmp_csv = time() . "_" . rand() . "." . $ext;
+            $upload_file->storeAs('tmp_import', $tmp_csv);
+        } else {
+            $tmp_csv = time() . "_" . rand() . "." . $ext;
+            $llink = preg_match('/^http/i', $file_link) ? $file_link : storage_path('app/tmp_import/' . $file_link);
+            if (!file_exists($llink) || !Storage::put("tmp_import/" . $tmp_csv, file_get_contents($llink))) {
                 return ['error' => "File accessing error!"];
             }
-        } else {
-            $tmp_csv = time() . "_" . rand() . ".csv";
-            $upload_file->storeAs('csv', $tmp_csv);
         }
 
+        $xls_sheets = [];
+        if ($ext == 'csv') {
+            $headers = $this->loadCsv($data, $tmp_csv);
+        } else {
+            $headers = $this->loadExcel($data, $tmp_csv);
+            $xls_sheets = ExcelWrapper::getSheets($tmp_csv);
+        }
+
+        return [
+            'headers' => $headers,
+            'csv_fields' => array_pluck($headers, 'name'),
+            'csv_file' => $tmp_csv,
+            'xls_sheets' => $xls_sheets,
+        ];
+    }
+
+    /**
+     * @param array $data
+     * @param string $file
+     * @return array
+     */
+    protected function loadCsv(array $data, string $file)
+    {
         $columns = 0;
         $headers = $csv_fields = [];
-        $fileHandle = fopen(storage_path("app/csv/" . $tmp_csv), 'r');
+        $fileHandle = fopen(storage_path("app/tmp_import/" . $file), 'r');
         $row_idx = 0;
         while (($row = fgetcsv($fileHandle)) !== FALSE) {
             $row_idx++;
@@ -900,27 +1048,27 @@ class ImportService
                 $headers = $this->makeHeaders($row);
             }
 
-            if ($row_idx == 1 && $data['firstHeader']) {
+            if ($row_idx == 1 && ($data['firstHeader'] ?? "")) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['name'] = $val;
                 }
             }
-            if ($row_idx == 3 && $data['secondType']) {
+            if ($row_idx == 3 && ($data['secondType'] ?? "")) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['f_type'] = ucfirst(strtolower($val));
                 }
             }
-            if ($row_idx == 4 && $data['thirdSize']) {
+            if ($row_idx == 4 && ($data['thirdSize'] ?? "")) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['f_size'] = (int)$val;
                 }
             }
-            if ($row_idx == 5 && $data['fourthDefault']) {
+            if ($row_idx == 5 && ($data['fourthDefault'] ?? "")) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['f_default'] = $val;
                 }
             }
-            if ($row_idx == 6 && $data['fifthRequired']) {
+            if ($row_idx == 6 && ($data['fifthRequired'] ?? "")) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['f_required'] = $val ? 1 : 0;
                 }
@@ -937,12 +1085,33 @@ class ImportService
                 }
             }
         }
+        return $headers;
+    }
 
-        return [
-            'headers' => $headers,
-            'csv_fields' => array_pluck($headers, 'name'),
-            'csv_file' => $tmp_csv
-        ];
+    /**
+     * @param array $data
+     * @param string $file
+     * @return array
+     */
+    protected function loadExcel(array $data, string $file)
+    {
+        $worksheet = ExcelWrapper::loadWorksheet($file, $data['xls_sheet'] ?? '');
+        $first_row = ExcelWrapper::getWorkSheetRows($worksheet, true);
+
+        return $this->makeHeaders(array_filter($first_row), !empty($data['firstHeader']));
+    }
+
+    /**
+     * @param string $file_path
+     * @return array
+     */
+    public function getXlsSheets(string $file_path)
+    {
+        try {
+            return ExcelWrapper::getSheets($file_path);
+        } catch (Exception $e) {
+            return [];
+        }
     }
 
     /**
@@ -951,7 +1120,7 @@ class ImportService
      * @param array $mysql_settings
      * @return array
      */
-    public function getFieldsFromMySQL(Array $mysql_settings, $user_id)
+    public function getFieldsFromMySQL(array $mysql_settings, $user_id)
     {
         //if need to save connection info
         $user_conn = $this->saveUserConnection($mysql_settings, $user_id);
@@ -965,7 +1134,7 @@ class ImportService
                 ->where('TABLE_SCHEMA', '=', $mysql_settings['db'])
                 ->where('TABLE_NAME', '=', $mysql_settings['table'])
                 ->get();
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return ['error' => true, 'msg' => 'Access to Information_schema denied!'];
         }
 
@@ -1022,7 +1191,7 @@ class ImportService
      * @param $user_id
      * @return mixed
      */
-    private function saveUserConnection(Array $data, $user_id)
+    private function saveUserConnection(array $data, $user_id)
     {
         $conn_data = collect($data)->only(['name', 'host', 'login', 'pass', 'db', 'table', 'notes'])->toArray();
         $conn_data['user_id'] = $user_id;
@@ -1040,12 +1209,12 @@ class ImportService
     /**
      * Get Import status by id
      *
-     * @param $import_id
+     * @param $import_ids
      * @return mixed
      */
-    public function getImportStatus($import_id)
+    public function getImportStatus($import_ids)
     {
-        return Import::where('id', '=', $import_id)->first();
+        return Import::whereIn('id', $import_ids)->get();
     }
 
     /**
@@ -1101,5 +1270,81 @@ class ImportService
         }
 
         return $res;
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $mime
+     * @return array
+     */
+    public function allGoogleFiles(int $user_cloud_id, string $mime = '')
+    {
+        $token_json = (new UserCloudRepository())->getCloudToken($user_cloud_id);
+        return (new GoogleApiModule())->driveFindFiles($token_json, $mime);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $spreadsheet_id
+     * @return array
+     */
+    public function sheetsForGoogleTable(int $user_cloud_id, string $spreadsheet_id)
+    {
+        $token_json = (new UserCloudRepository())->getCloudToken($user_cloud_id);
+        return (new GoogleApiModule())->getSheetsFromTable($token_json, $spreadsheet_id);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $file_id
+     * @param string $path
+     * @return string
+     */
+    public function storeGoogleFile(int $user_cloud_id, string $file_id, string $path)
+    {
+        $token_json = (new UserCloudRepository())->getCloudToken($user_cloud_id);
+        return (new GoogleApiModule())->storeGoogleFile($token_json, $file_id, $path);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param array $extension
+     * @return array
+     */
+    public function allDropboxFiles(int $user_cloud_id, array $extension)
+    {
+        return (new DropBoxApiModule())->driveFindFiles($user_cloud_id, $extension);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $file_id
+     * @param string $path
+     * @return string
+     */
+    public function storeDropboxFile(int $user_cloud_id, string $file_id, string $path)
+    {
+        return (new DropboxApiModule())->storeDropboxFile($user_cloud_id, $file_id, $path);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $extension
+     * @return array
+     */
+    public function allOneDriveFiles(int $user_cloud_id, string $extension)
+    {
+        return (new OneDriveApiModule())->driveFindFiles($user_cloud_id, $extension);
+    }
+
+    /**
+     * @param int $user_cloud_id
+     * @param string $file_id
+     * @param string $path
+     * @return string
+     */
+    public function storeOneDriveFile(int $user_cloud_id, string $file_id, string $path)
+    {
+        return (new OneDriveApiModule())->storeOneDriveFile($user_cloud_id, $file_id, $path);
     }
 }

@@ -1,14 +1,15 @@
 <template>
-    <div class="custom-table-wrapper full-frame" :class="[show_rows_sum ? 'flex flex--col' : '']">
-        <div class="full-frame"
-             ref="scroll_wrapper"
+    <div class="custom-table-wrapper" :class="{'flex flex--col': !!show_rows_sum, 'full-frame': !tableAutoHeight}">
+        <div ref="scroll_wrapper"
              @scroll="tableScroll"
+             :class="{'full-frame': !tableAutoHeight}"
              :style="{
                  overflowX: show_rows_sum ? 'hidden' : null,
                  width: show_rows_sum ? 'fit-content' : null,
              }"
         >
             <sticky-table-component
+                    :tb_id="tb_id"
                     :global-meta="globalMeta"
                     :table-meta="tableMeta"
                     :settings-meta="settingsMeta"
@@ -39,6 +40,7 @@
                     :use_theme="use_theme"
                     :no_width="no_width"
                     :is_visible="is_visible"
+                    :no_height_limit="no_height_limit"
 
                     :widths="widths"
                     :list-view-actions="listViewActions"
@@ -66,20 +68,21 @@
                     @reorder-rows="reorderRows"
                     @show-header-settings="showHeaderSettings"
                     @show-add-ref-cond="showAddRefCond"
+                    @col-resized="colResized"
             ></sticky-table-component>
         </div>
 
 
         <!--Sum Total Rows-->
         <rows-sum-block
-                v-if="show_rows_sum"
+                v-if="show_rows_sum && can_sum"
                 :table-meta="tableMeta"
                 :all-rows="allRows"
                 :widths="widths"
                 :list-view-actions="listViewActions"
                 :is-floating-table="false"
                 :has-float-columns="Boolean(floatingTableWidth)"
-                :is-full-width="(!floatingTableWidth ? isFullWidth : false)"
+                :is-full-width="false"
                 :cell-height="cellHeight"
                 :behavior="behavior"
                 :forbidden-columns="forbiddenColumns"
@@ -94,70 +97,45 @@
                           :rows-count="rowsCount"
                           @change-page="changePage"
         ></table-pagination>
-
-
-        <!--Add Select Option Popup-->
-        <add-option-popup
-                v-if="addOptionPopup.show"
-                :table-header="addOptionPopup.tableHeader"
-                :table-row="addOptionPopup.tableRow"
-                :table-meta="tableMeta"
-                :settings-meta="settingsMeta"
-                :user="user"
-                @updated-row="updatedRow"
-                @hide="addOptionPopup.show = false"
-                @show-src-record="showSrcRecord"
-        ></add-option-popup>
     </div>
 </template>
 
 <script>
-    import {SelectedCells} from './../../classes/SelectedCells';
+import {SelectedCells} from '../../classes/SelectedCells';
 
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import StickyTableComponent from "./StickyTableComponent";
-    import AddOptionPopup from "../CustomPopup/AddOptionPopup.vue";
-    import TablePagination from "./Pagination/TablePagination.vue";
-    import RowsSumBlock from "../CommonBlocks/RowsSumBlock.vue";
+import StickyTableComponent from "./StickyTableComponent";
+import TablePagination from "./Pagination/TablePagination.vue";
+import RowsSumBlock from "../CommonBlocks/RowsSumBlock.vue";
 
-    import ReactiveProviderMixin from './../_CommonMixins/ReactiveProviderMixin.vue';
-    import IsShowFieldMixin from './../_Mixins/IsShowFieldMixin.vue';
-    import LinkEmptyObjectMixin from './../_Mixins/LinkEmptyObjectMixin.vue';
-    import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
-    import CheckRowBackendMixin from './../_Mixins/CheckRowBackendMixin.vue';
-    import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import IsShowFieldMixin from './../_Mixins/IsShowFieldMixin.vue';
+import LinkEmptyObjectMixin from './../_Mixins/LinkEmptyObjectMixin.vue';
+import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
+import CheckRowBackendMixin from './../_Mixins/CheckRowBackendMixin.vue';
+import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import SrvMixin from "../_Mixins/SrvMixin.vue";
 
-    export default {
+export default {
         name: "CustomTable",
         mixins: [
-            ReactiveProviderMixin,
             IsShowFieldMixin,
             LinkEmptyObjectMixin,
             CanEditMixin,
             CheckRowBackendMixin,
             CellStyleMixin,
+            SrvMixin,
         ],
         components: {
             StickyTableComponent,
             RowsSumBlock,
             TablePagination,
-            AddOptionPopup,
         },
         data: function () {
             return {
-                addOptionPopup: {
-                    show: false,
-                    tableHeader: null,
-                    tableRow: null,
-                },
                 selectedCell: new SelectedCells(),
                 floatingLeftPos: 0,
-            }
-        },
-        provide() {
-            return {
-                reactive_provider: this.reactive_provider,
+                can_sum: true,
             }
         },
         props:{
@@ -250,12 +228,12 @@
             link_popup_tablerow: Object|Array, // for LinkEmptyObjectMixin.vue
             use_theme: Boolean,
             show_rows_sum: Boolean,
-            fixed_ddl_pos: Boolean,
             no_width: Boolean,
             no_height_limit: Boolean,
-            widths_div: Number,
+            widths_div: Number|Object,
             externalObjectForAdd: Object,
             is_visible: Boolean,
+            tableAutoHeight: Boolean,
         },
         computed: {
             floatingTableWidth() {
@@ -272,13 +250,7 @@
 
             //
             listViewActions() {
-                let res = (
-                        this.inArray(this.behavior, ['list_view','favorite'])
-                        &&
-                        this.user.id
-                    )
-                    ||
-                    this.behavior === 'request_view';
+                let res = this.inArray(this.behavior, ['list_view','favorite','request_view']);
                 return Boolean(res);
             },
 
@@ -300,11 +272,21 @@
                     : String(this.rowsCount).length - 1;
             },
             widths() {
+                if (typeof this.widths_div === 'object') {
+                    return this.widths_div;
+                }
+
                 let index_c = this.tableMeta.is_system == 1
                     ? 35
                     : 45 + (this.countStrLen * 6);
-                let fav_c = this.canDelete ? 100 : 60;
+
+                let fav_c = this.canRemove ? 80 : 60;
+                if (this.canSrvShow) {
+                    fav_c += 20;
+                }
+
                 let act_c = 55 + (this.behavior === 'invite_module' ? 45 : 0);
+
                 if (this.widths_div) {
                     index_c /= this.widths_div;
                     fav_c /= this.widths_div;
@@ -315,6 +297,13 @@
                     favorite_col: fav_c,
                     action_col: act_c,
                 }
+            },
+            canSrvShow() {
+                return !this.$root.inArray('i_srv', this.forbiddenColumns)
+                    && this.canSRV(this.tableMeta);
+            },
+            canRemove() {
+                return !this.$root.inArray('i_remove', this.forbiddenColumns) && this.canDelete;
             },
             //adding object
             curObjectForAdd() {
@@ -367,11 +356,7 @@
 
             //rows changing
             showAddDDLOption(tableHeader, tableRow) {
-                this.addOptionPopup = {
-                    show: true,
-                    tableHeader: tableHeader,
-                    tableRow: tableRow,
-                };
+                this.$emit('show-add-ddl-option', tableHeader, tableRow);
             },
             insertPopRow(order, copy_row) {
                 this.newObject();
@@ -416,6 +401,12 @@
             showAddRefCond(refId) {
                 this.$emit('show-add-ref-cond', refId);
             },
+            colResized() {
+                this.can_sum = false;
+                this.$nextTick(() => {
+                    this.can_sum = true;
+                });
+            },
 
             //pagination
             changePage(page) {
@@ -456,6 +447,10 @@
 
             //global key handler
             globalKeyHandler(e) {
+                if (this.behavior === 'list_view' && e.ctrlKey && e.keyCode === 13 && this.addingRow.active) {//ctrl + 'enter' + 'active top adding row'
+                    this.addRow();
+                }
+
                 if (['INPUT', 'TEXTAREA'].indexOf(e.target.nodeName) > -1) {
                     return;
                 }
@@ -492,29 +487,48 @@
                         if (e.ctrlKey && e.keyCode === 67) {//ctrl + 'c'
                             this.selectedCell.start_copy(this.tableMeta, this.allRows);
                         }
-                        if (e.ctrlKey && e.keyCode === 86) {//ctrl + 'v'
-                            let envs = this.selectedCell.idxs(this.tableMeta, '');
-                            let tocopy = this.selectedCell.idxs(this.tableMeta, 'copy_');
-                            let len = Math.abs(envs.row_end - envs.row_start) || Math.abs(tocopy.row_end - tocopy.row_start);
-                            this.$root.data_reverser.pre_change(this.allRows, envs.row_start, len);
-                            this.selectedCell.fill_copy(this.tableMeta, this.allRows).then(($filled_rows) => {
-                                this.$root.data_reverser.after_change(this.tableMeta.id, this.allRows);
-                                _.each($filled_rows, (f_row) => {
-                                    this.$emit('updated-row', f_row);
-                                });
-                            });
+                        if (e.ctrlKey && e.keyCode === 86 && this.canEditSelected()) {//ctrl + 'v'
+                            let sel_fld = _.find(this.tableMeta._fields, {field: this.selectedCell.get_col()}) || {};
+                            if (sel_fld.f_type === 'Attachment') {
+                                return;
+                            } else {
+                                this.pasteData();
+                            }
                         }
-                        if (e.ctrlKey && e.keyCode === 90) {//ctrl + 'z'
+                        if (e.ctrlKey && e.keyCode === 90 && this.canEditSelected()) {//ctrl + 'z'
                             let $rev_rows = this.$root.data_reverser.do_reverse(this.tableMeta.id);
-                            _.each($rev_rows, (f_row) => {
-                                this.$emit('updated-row', f_row);
-                            });
+                            this.$emit('mass-updated-rows', $rev_rows);
+                        }
+                        if (e.keyCode === 46 && this.canEditSelected()) {//delete
+                            let $changed_rows = this.selectedCell.delete_in_selected(this.tableMeta, this.allRows);
+                            this.$emit('mass-updated-rows', $changed_rows);
                         }
                         if (e.keyCode === 27) {//esc
-                            this.selectedCell.clear_copy();
+                            this.selectedCell.clear();
                         }
                     }
                 }
+            },
+            canEditSelected() {
+                let can = true;
+                let idxs = this.selectedCell.idxs(this.tableMeta);
+                for (let r = idxs.row_start; r <= idxs.row_end; r++) {
+                    for (let c = idxs.col_start; c <= idxs.col_end; c++) {
+                        let fld = this.tableMeta._fields[c];
+                        can = can && this.canEditCell(fld, this.allRows[r]);
+                    }
+                }
+                return can;
+            },
+            pasteData() {
+                let envs = this.selectedCell.idxs(this.tableMeta, '');
+                let tocopy = this.selectedCell.idxs(this.tableMeta, 'copy_');
+                let len = Math.abs(envs.row_end - envs.row_start) || Math.abs(tocopy.row_end - tocopy.row_start);
+                this.$root.data_reverser.pre_change(this.allRows, envs.row_start, len);
+                this.selectedCell.fill_copy(this.tableMeta, this.allRows).then(($filled_rows) => {
+                    this.$root.data_reverser.after_change(this.tableMeta.id, this.allRows);
+                    this.$emit('mass-updated-rows', $filled_rows);
+                });
             },
 
             //transits
@@ -548,16 +562,6 @@
         mounted() {
             eventBus.$on('global-keydown', this.globalKeyHandler);
             eventBus.$on('add-inline-clicked', this.addInlineClickedHandler);
-
-            this.reactive_provider_watcher([
-                'behavior',
-                'allRows',
-                'fullWidthCell',
-                'cellHeight',
-                'maxCellRows',
-                'fixed_ddl_pos',
-                'no_height_limit'
-            ]);
         },
         beforeDestroy() {
             eventBus.$off('global-keydown', this.globalKeyHandler);

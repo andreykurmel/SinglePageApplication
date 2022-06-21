@@ -4,12 +4,16 @@
          @dragenter="stopper"
          :style="{width: tableMeta.kanban_card_width+'px', borderColor: cardSelected ? '#A55' : null}"
     >
-        <div class="card_wrap">
+        <div class="card_wrap" @click="cardClick">
             <div class="card_header"
-                 :style="{backgroundColor: tableMeta.kanban_header_color}"
-                 @click="cardClick"
+                 :style="hdrBgClr"
+                 @click="$emit('show-popup', tableRow)"
             >
-                <div class="drag-bkg" draggable="true" @drag="$emit('drag-move')"></div>
+                <div class="drag-bkg"
+                     draggable="true"
+                     @dragstart="cardClick"
+                     @drag="$emit('drag-move')"
+                ></div>
                 <single-td-field
                         v-if="!redraw"
                         :table-meta="tableMeta"
@@ -32,40 +36,62 @@
             </div>
             <div class="card_body"
                  v-show="!extCollapse"
+                 :class="tHeader ? 'flex' : ''"
                  :style="{ height: tableMeta.kanban_card_height+'px', overflowY: tableMeta.kanban_card_height ? 'auto' : 'hidden' }"
                  @click="$emit('show-popup', tableRow)"
             >
-                <vertical-table
-                        :td="$root.tdCellComponent(tableMeta.is_system)"
-                        :global-meta="tableMeta"
+                <div class="table_part" :style="tablePartStyle">
+                    <vertical-table
+                            :td="$root.tdCellComponent(tableMeta.is_system)"
+                            :global-meta="tableMeta"
+                            :table-meta="tableMeta"
+                            :settings-meta="$root.settingsMeta"
+                            :table-row="tableRow"
+                            :cell-height="1"
+                            :max-cell-rows="0"
+                            :user="$root.user"
+                            :behavior="'kanban_view'"
+                            :disabled_sel="true"
+                            :hide-borders="fieldsHideBorders"
+                            :is_small_spacing="'yes'"
+                            :available-columns="cardFields"
+                            :hide-names="fieldsHideNames"
+                            :parent-row="kanbanSett"
+                            :widths="{ name: '35%', col: '65%', history: 0, unit: 0, }"
+                            style="table-layout: auto"
+                            @show-src-record="showSrcRecord"
+                            @updated-cell="singleTdUpdate"
+                    ></vertical-table>
+                </div>
+
+                <div v-if="tHeader" class="attach_part" :style="{width: (tableMeta.kanban_picture_width)+'%'}">
+                    <show-attachments-block
+                        :image-fit="cardAttachImageFit"
+                        :show-type="cardAttachShowType"
+                        :table-header="tHeader"
                         :table-meta="tableMeta"
-                        :settings-meta="$root.settingsMeta"
                         :table-row="tableRow"
-                        :cell-height="$root.cellHeight"
-                        :max-cell-rows="$root.maxCellRows"
-                        :user="$root.user"
-                        :behavior="'kanban_view'"
-                        :can-see-history="false"
-                        :disabled_sel="true"
-                        :is_small_spacing="'yes'"
-                        :available-columns="cardFields"
-                        :widths="{ name: '35%', col: '65%', history: 0, unit: 0, }"
-                        style="table-layout: auto"
-                        @show-src-record="showSrcRecord"
-                        @updated-cell="singleTdUpdate"
-                ></vertical-table>
+                        :just-first="true"
+                    ></show-attachments-block>
+                </div>
             </div>
         </div>
     </div>
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
+
     import VerticalTable from "../../../../CustomTable/VerticalTable";
     import SingleTdField from "../../../../CommonBlocks/SingleTdField";
+    import CarouselBlock from "../../../../CommonBlocks/CarouselBlock";
+    import ShowAttachmentsBlock from "../../../../CommonBlocks/ShowAttachmentsBlock";
 
     export default {
         name: "KanbanCard",
         components: {
+            ShowAttachmentsBlock,
+            CarouselBlock,
             SingleTdField,
             VerticalTable,
         },
@@ -83,13 +109,50 @@
             dragRow: Object,
         },
         computed: {
+            fieldsPivots() {
+                return this.kanbanSett._fields_pivot;
+            },
+            attachmentPivot() {
+                return _.find(this.fieldsPivots, {table_field_id: Number(this.tHeader.id)});
+            },
+            cardAttachShowType() {
+                return this.attachmentPivot ? this.attachmentPivot.picture_style : '';
+            },
+            cardAttachImageFit() {
+                return this.attachmentPivot ? this.attachmentPivot.picture_fit : '';
+            },
             cardFields() {
-                return _.map(this.kanbanSett._columns, (map) => {
-                    return map.field;
-                });
+                return this.mapFromField(this.fieldsPivots);
+            },
+            fieldsHideNames() {
+                let filtered = _.filter(this.fieldsPivots, (pivot) => { return !!pivot.table_show_name; });
+                return this.mapFromField(filtered);
+            },
+            fieldsHideBorders() {
+                let filtered = _.filter(this.fieldsPivots, (pivot) => { return !pivot.cell_border; });
+                return this.mapFromField(filtered);
             },
             headerFld() {
                 return _.find(this.tableMeta._fields, {id: Number(this.kanbanSett.kanban_group_field_id)});
+            },
+            tablePartStyle() {
+                if (this.tHeader) {
+                    return {
+                        paddingRight: '10px',
+                        width: (100 - this.tableMeta.kanban_picture_width)+'%',
+                    };
+                } else {
+                    return {};
+                }
+            },
+            tHeader() {
+                return _.find(this.tableMeta._fields, {id: Number(this.tableMeta.kanban_picture_field)});
+            },
+            hdrBgClr() {
+                return {
+                    backgroundColor: this.tableMeta.kanban_header_color,
+                    color: SpecialFuncs.smartTextColorOnBg(this.tableMeta.kanban_header_color)
+                };
             },
         },
         watch: {
@@ -101,6 +164,12 @@
             },
         },
         methods: {
+            mapFromField(arrData) {
+                return _.map(arrData, (pivot) => {
+                    let fld = _.find(this.tableMeta._fields, {id: Number(pivot.table_field_id)});
+                    return fld.field;
+                });
+            },
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow);
             },
@@ -169,8 +238,17 @@
             }
             .card_body {
                 padding: 0 5px;
-                overflow-y: auto;
-                overflow-x: hidden;
+                overflow: auto;
+
+                .table_part {
+                    overflow-x: hidden;
+                    overflow-y: auto;
+                }
+                .attach_part {
+                    background-color: #EEE;
+                    position: relative;
+                    overflow: auto;
+                }
             }
             .glyphicon {
                 margin: 0 3px;

@@ -51,6 +51,7 @@ export default new Vuex.Store({
         cur_tab: '',
         cur_select: '',
         redraw_counter: 0,
+        redraw_soft_counter: 0,
         width_main: 60,
         width_3d: 40,
     },
@@ -110,10 +111,10 @@ export default new Vuex.Store({
             let href = window.location.href.replace(window.location.search, '');
             let params = [];
 
-            let tab = SpecialFuncs.capitalizeFirst(state.cur_tab);
+            let tab = SpecialFuncs.lowerCase(state.cur_tab);
             (tab ? params.push('tab='+tab) : '');
 
-            let select = SpecialFuncs.capitalizeFirst(state.cur_select);
+            let select = SpecialFuncs.lowerCase(state.cur_select);
             (select ? params.push('sel='+select) : '');
 
             $('head title').html('STIM: '+tab+'/'+select);
@@ -130,8 +131,12 @@ export default new Vuex.Store({
             window.history.pushState('', '', href);
         },
         //REDRAW 3D
-        REDRAW_3D(state) {
-            state.redraw_counter++;
+        REDRAW_3D(state, soft) {
+            if (soft) {
+                state.redraw_soft_counter++;
+            } else {
+                state.redraw_counter++;
+            }
         },
     },
 

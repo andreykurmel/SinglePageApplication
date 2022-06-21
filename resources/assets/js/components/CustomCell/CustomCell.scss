@@ -27,23 +27,6 @@ textarea {
     cursor: not-allowed !important;
 }
 
-.has-deleter {
-    display: inline-block;
-    position: relative;
-}
-.has-deleter > .img--deleter {
-    display: none;
-    color: #F00;
-    font-size: 1.6em;
-    font-weight: bold;
-    line-height: 0.8em;
-    position: absolute;
-    top: calc(50% - 8px);
-    left: 100%;
-}
-.has-deleter:hover > .img--deleter {
-    display: inline-block;
-}
 .more_elem {
     position: absolute;
     bottom: 0;
@@ -51,13 +34,4 @@ textarea {
     padding: 0 3px;
     background-color: #FFF;
     cursor: pointer;
-}
-
-.img_a {
-    height: 100%;
-    margin-right: 10px;
-
-    ._img_preview {
-        height: 100%;
-    }
 }

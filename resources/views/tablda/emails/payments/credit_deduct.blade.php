@@ -30,7 +30,7 @@
             <td style="{{ $styles['table--td'] }}">{{ $transaction_id }}</td>
         </tr>
         <tr>
-            <td style="{{ $styles['table--th'] }}">For Service</td>
+            <td style="{{ $styles['table--th'] }}">For Service Valid Through</td>
             <td style="{{ $styles['table--td'] }}">{{ $service_date }}</td>
         </tr>
     </table>

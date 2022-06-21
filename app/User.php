@@ -32,6 +32,149 @@ use Illuminate\Auth\Passwords\CanResetPassword;
 use Laracasts\Presenter\PresentableTrait;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 
+/**
+ * Vanguard\User
+ *
+ * @property int $id
+ * @property string $email
+ * @property string|null $username
+ * @property string $password
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string|null $phone
+ * @property string|null $avatar
+ * @property string|null $address
+ * @property int|null $country_id
+ * @property int $role_id
+ * @property \Illuminate\Support\Carbon|null $birthday
+ * @property \Illuminate\Support\Carbon|null $last_login
+ * @property string|null $confirmation_token
+ * @property string $status
+ * @property int|null $two_factor_country_code
+ * @property int|null $two_factor_phone
+ * @property string|null $two_factor_options
+ * @property string $two_factor_type
+ * @property string|null $remember_token
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property float $avail_credit
+ * @property string|null $company
+ * @property string|null $team
+ * @property int|null $plan_feature_id
+ * @property string $renew
+ * @property int $recurrent_pay
+ * @property string|null $timezone
+ * @property string|null $subdomain
+ * @property string|null $sub_icon
+ * @property int $auto_logout
+ * @property string|null $personal_hash
+ * @property float $invitations_reward
+ * @property string|null $stripe_user_id
+ * @property string|null $paypal_card_id
+ * @property string|null $paypal_card_last
+ * @property string $pay_method
+ * @property int $use_credit
+ * @property string|null $tos_accepted
+ * @property int|null $selected_card
+ * @property int|null $app_theme_id
+ * @property string $memutree_hash
+ * @property \Vanguard\Models\User\UserSubscription|null $_all_subs
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_api_keys
+ * @property int|null $_api_keys_count
+ * @property \Vanguard\Models\User\PlanFeature|null $_available_features
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserCard[] $_cards
+ * @property int|null $_cards_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserCloud[] $_clouds
+ * @property int|null $_clouds_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\Folder[] $_folders
+ * @property int|null $_folders_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_google_api_keys
+ * @property int|null $_google_api_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserEmailAccount[] $_google_email_accs
+ * @property int|null $_google_email_accs_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserInvitation[] $_invitations
+ * @property int|null $_invitations_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup[] $_member_of_groups
+ * @property int|null $_member_of_groups_count
+ * @property \Vanguard\Models\User\UserSubscription|null $_next_subscription
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserPaymentKey[] $_payment_keys
+ * @property int|null $_payment_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserPaymentKey[] $_paypal_payment_keys
+ * @property int|null $_paypal_payment_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_sendgrid_api_keys
+ * @property int|null $_sendgrid_api_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserPaymentKey[] $_stripe_payment_keys
+ * @property int|null $_stripe_payment_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\SubscribedApp[] $_subscribed_apps
+ * @property int|null $_subscribed_apps_count
+ * @property \Vanguard\Models\User\UserSubscription|null $_subscription
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_tables
+ * @property int|null $_tables_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\AppTheme[] $_themes
+ * @property int|null $_themes_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup[] $_user_groups
+ * @property int|null $_user_groups_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Services\Logging\UserActivity\Activity[] $activities
+ * @property int|null $activities_count
+ * @property \Vanguard\Country|null $country
+ * @property bool $using_two_factor_auth
+ * @property \Illuminate\Notifications\DatabaseNotificationCollection|\Illuminate\Notifications\DatabaseNotification[] $notifications
+ * @property int|null $notifications_count
+ * @property \Vanguard\Role $role
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User query()
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAddress($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAppThemeId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAutoLogout($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAvailCredit($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAvatar($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereBirthday($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCompany($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereConfirmationToken($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCountryId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereEmail($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereFirstName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereInvitationsReward($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereLastLogin($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereLastName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereMemutreeHash($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePassword($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePayMethod($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePaypalCardId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePaypalCardLast($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePersonalHash($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePhone($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePlanFeatureId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRecurrentPay($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRememberToken($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRenew($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRoleId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSelectedCard($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereStripeUserId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSubIcon($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSubdomain($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTeam($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTimezone($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTosAccepted($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorCountryCode($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorOptions($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorPhone($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUseCredit($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUsername($value)
+ * @mixin \Eloquent
+ * @property int $extracttable_terms
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_airtable_api_keys
+ * @property int|null $_airtable_api_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_extracttable_api_keys
+ * @property int|null $_extracttable_api_keys_count
+ * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereExtracttableTerms($value)
+ */
 class User extends Authenticatable implements TwoFactorAuthenticatableContract, JWTSubject
 {
     use TwoFactorAuthenticatable,
@@ -63,7 +206,7 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
         'recurrent_pay', 'timezone', 'subdomain', 'sub_icon', 'auto_logout', 'renew',
         'personal_hash', 'invitations_reward', 'tos_accepted', 'app_theme_id',
         'stripe_user_id', 'paypal_card_id', 'paypal_card_last', 'pay_method', 'use_credit',
-        'memutree_hash',
+        'memutree_hash', 'extracttable_terms',
     ];
 
     /**
@@ -142,6 +285,14 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
         return $this->hasMany(UserApiKey::class, 'user_id', 'id')
             ->where('type', '=', 'sendgrid');
     }
+    public function _extracttable_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'extracttable');
+    }
+    public function _airtable_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'airtable');
+    }
     public function _google_email_accs() {
         return $this->hasMany(UserEmailAccount::class, 'user_id', 'id');
     }
@@ -172,6 +323,13 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
     public function setBirthdayAttribute($value)
     {
         $this->attributes['birthday'] = trim($value) ?: null;
+    }
+
+    public function full_name()
+    {
+        return $this->first_name
+            ? $this->first_name . ($this->last_name ? ' ' . $this->last_name : '')
+            : $this->username;
     }
 
     public function gravatar()

@@ -49,6 +49,15 @@ class UserController extends Controller
 
     /**
      * @param Request $request
+     * @return array
+     */
+    public function setBalance(Request $request)
+    {
+        return ['status' => $this->users->setAdminBalance($request->amount)];
+    }
+
+    /**
+     * @param Request $request
      * @return object
      */
     public function getUserOrGroupInfo(Request $request) {
@@ -113,6 +122,21 @@ class UserController extends Controller
         $user = auth()->user();
         if ($request->app_theme_id) {
             $user->app_theme_id = $request->app_theme_id;
+        }
+        return ['status' => $user->save()];
+    }
+
+    /**
+     * setSelTheme
+     *
+     * @param Request $request
+     * @return array
+     */
+    public function setEctracttableTerms(Request $request)
+    {
+        $user = auth()->user();
+        if ($request->extracttable_terms) {
+            $user->extracttable_terms = $request->extracttable_terms;
         }
         return ['status' => $user->save()];
     }
@@ -198,7 +222,7 @@ class UserController extends Controller
     public function linkCard(Request $request)
     {
         $user = auth()->user();
-        return $this->users->addStripeCard($user, $request->token);
+        return $this->payments->addStripeCard($user, $request->token);
     }
 
     /**
@@ -237,7 +261,7 @@ class UserController extends Controller
     public function transferCredits(TransferCreditsRequest $request)
     {
         $user = auth()->user();
-        $res = $this->users->transferCredits($user, $request->groups);
+        $res = $this->users->transferCredits($user, $request->groups, $request->users);
         return !empty($res['error']) ? response($res['error'], 500) : $res;
     }
 

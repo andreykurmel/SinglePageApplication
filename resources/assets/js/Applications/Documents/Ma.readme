@@ -1,0 +1,21 @@
+#Ma
+Call special projects from https://tablda.com/_external_api_/tia_222/api_design.php
+
+Must be: correspondence_apps.code = call_api_design
+
+Works on CorrespondenceTables.
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    //table for setting
+    App,Array: 'ma_table'
+    APP,Property: [
+        usergroup, //String
+        model, //String
+        structure, //String
+        r3d, //String (output results)
+        json, //String (input file)
+    ]

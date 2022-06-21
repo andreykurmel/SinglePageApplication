@@ -51,7 +51,7 @@ class DownloadController extends Controller
             header("Content-Disposition: attachment;filename=" . $table->name . " " . $time . "." . $request->filename);
             header("Content-Transfer-Encoding: binary");
 
-            $this->downloadService->download($request->data['table_meta'], $request->filename, $request->data, $time);
+            $this->downloadService->download($table, $request->filename, $request->data, $time);
         }
         else {
             return "<h1>Incorrect request</h1>";

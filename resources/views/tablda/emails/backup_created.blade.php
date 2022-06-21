@@ -5,7 +5,7 @@
         {{ $replace_main_message ?? 'Backup has been created' }}
     </p>
 
-    @include('tablda.emails.partial_table', [
+    @include('tablda.emails.templates.partial_table', [
         'pt_mail_format' => ($alert_arr['mail_format'] ?? ''),
         'pt_fields_arr' => $fields_arr ?? [],
         'pt_all_rows' => $all_rows_arr ?? [],

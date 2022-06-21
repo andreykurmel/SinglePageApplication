@@ -1,0 +1,15 @@
+FROM httpd:2.4
+COPY ./my-httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY ./my-vhosts.conf /usr/local/apache2/conf/extra/httpd-vhosts.conf
+
+RUN sed -i \
+        -e 's/^#\(Include .*httpd-ssl.conf\)/\1/' \
+        -e 's/^#\(LoadModule .*mod_ssl.so\)/\1/' \
+        -e 's/^#\(LoadModule .*mod_socache_shmcb.so\)/\1/' \
+        conf/httpd.conf
+
+COPY ./tablda.com.crt /usr/local/apache2/conf/server.crt
+COPY ./tablda.com.key /usr/local/apache2/conf/server.key
+
+EXPOSE 80
+EXPOSE 443

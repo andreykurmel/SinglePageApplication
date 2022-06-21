@@ -3,8 +3,8 @@
         <div class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="col-xs-6 full-height" style="padding-right: 0;">
-                <div class="top-text">
-                    <span>Permissions list</span>
+                <div class="top-text" :style="textSysStyle">
+                    <span>List of Permissions. Click # to Load.</span>
                     <button class="btn btn-default btn-sm blue-gradient"
                             :style="$root.themeButtonStyle"
                             style="float: right;padding: 0 3px;"
@@ -18,8 +18,8 @@
                         :table-meta="$root.settingsMeta['table_permissions']"
                         :all-rows="tableMeta._table_permissions"
                         :rows-count="tableMeta._table_permissions.length"
-                        :cell-height="$root.cellHeight"
-                        :max-cell-rows="$root.maxCellRows"
+                        :cell-height="1"
+                        :max-cell-rows="0"
                         :is-full-width="true"
                         :behavior="'table_permission_group'"
                         :user="user"
@@ -35,7 +35,7 @@
                     ></custom-table>
                 </div>
 
-                <div class="top-text">
+                <div class="top-text" :style="textSysStyle">
                     <span>Assigning Permissions</span>
                 </div>
                 <div class="permissions-panel no-padding" style="height: calc(50% - 35px);">
@@ -45,8 +45,8 @@
                             :table-meta="$root.settingsMeta['user_groups_2_table_permissions']"
                             :all-rows="tableMeta._user_groups_2_table_permissions"
                             :rows-count="tableMeta._user_groups_2_table_permissions.length"
-                            :cell-height="$root.cellHeight"
-                            :max-cell-rows="$root.maxCellRows"
+                            :cell-height="1"
+                            :max-cell-rows="0"
                             :is-full-width="true"
                             :behavior="'table_permission_group'"
                             :user="user"
@@ -62,8 +62,8 @@
             </div>
             <!--RIGHT-->
             <div class="col-xs-6 full-height" style="">
-                <div class="top-text">
-                    <span>Permission Details ( <span>{{ (selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup].name : '') }}</span> )</span>
+                <div class="top-text" :style="textSysStyle">
+                    <span>Details for Permission: <span>{{ (selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup].name : '') }}</span></span>
 
                     <info-sign-link
                             class="right-elem"
@@ -73,10 +73,10 @@
                 </div>
                 <div class="permissions-panel">
                     <div class="permissions-menu-header">
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'data_range'}" @click="activeRightTab = 'data_range'">
+                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'data_range'}" :style="textSysStyle" @click="activeRightTab = 'data_range'">
                             Data Range
                         </button>
-                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'others'}" @click="activeRightTab = 'others'">
+                        <button class="btn btn-default btn-sm" :class="{active : activeRightTab === 'others'}" :style="textSysStyle" @click="activeRightTab = 'others'">
                             Operational Privileges
                         </button>
                     </div>
@@ -89,8 +89,8 @@
                                 :table-meta="$root.settingsMeta['table_permissions_2_table_column_groups']"
                                 :all-rows="selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup]._permission_columns : null"
                                 :rows-count="selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup]._permission_columns.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :adding-row="selectedGroup > -1 ? addingRow : {active: false}"
                                 :user="user"
@@ -112,8 +112,8 @@
                                 :table-meta="$root.settingsMeta['table_permissions_2_table_row_groups']"
                                 :all-rows="selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup]._permission_rows : null"
                                 :rows-count="selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup]._permission_rows.length : 0"
-                                :cell-height="$root.cellHeight"
-                                :max-cell-rows="$root.maxCellRows"
+                                :cell-height="1"
+                                :max-cell-rows="0"
                                 :is-full-width="true"
                                 :adding-row="selectedGroup > -1 ? addingRow : {active: false}"
                                 :user="user"
@@ -155,8 +155,8 @@
             :table-meta="tableMeta"
             :default-fields="def_fields_arr"
             :user="user"
-            :cell-height="$root.cellHeight"
-            :max-cell-rows="$root.maxCellRows"
+            :cell-height="1"
+            :max-cell-rows="0"
             @popup-close="hideDefValPopup"
         ></default-fields-pop-up>
 
@@ -170,6 +170,8 @@
 
 <script>
     import {eventBus} from '../../../../../app';
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     import TabSettingsPermissionsBasics from "./TabSettingsPermissionsBasics";
     import CustomTable from '../../../../CustomTable/CustomTable';
@@ -186,6 +188,9 @@
             CustomTable,
             DefaultFieldsPopUp,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 show_copy_permis: false,
@@ -201,19 +206,17 @@
                 },
                 showDefVal: false,
                 permissionAvailable: [
-                    'name',
+                    'name', 'notes',
                 ],
             }
         },
         props:{
             tableMeta: Object,
-            cellHeight: Number,
-            maxCellRows: Number,
             table_id: Number|null,
             user:  Object,
             init_ddl_idx: {
                 type: Number,
-                default: -1,
+                default: 0,
             },
         },
         watch: {
@@ -242,7 +245,6 @@
                 let fields = _.cloneDeep(tableRow);//copy object
                 this.$root.deleteSystemFields(fields);
                 fields.active = fields.active ? 1 : 0;
-                fields.is_request = 0;
 
                 axios.post('/ajax/table-permission', {
                     table_id: this.tableMeta.id,
@@ -474,4 +476,9 @@
 
 <style lang="scss" scoped>
     @import "TabSettingsPermissions";
+    .permissions-menu-header {
+        .btn-sm {
+            height: 30px;
+        }
+    }
 </style>

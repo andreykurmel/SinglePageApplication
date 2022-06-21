@@ -7,7 +7,9 @@ namespace Vanguard\Services\Tablda\Permissions;
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\User\UserGroup;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\Permissions\TableColGroupRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableDataRequestRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
@@ -179,18 +181,22 @@ class UserPermissionsService
         $res = $this->userGroupRepository->addGroupCondition(array_merge($data, ['user_group_id' => $userGroup->id]));
         $this->cacheUsersFromConditions($userGroup);
         $this->updateCollaboratorsForTables($userGroup->_tables);
-        return $res;
+        if ($userGroup->_conditions()->count()+1 > 2) { //+1 - because 'system' is virtual
+            $this->userGroupRepository->updateAllConditions($userGroup->id, ['logic_operator' => 'AND']);
+        }
+        return $userGroup->_conditions()->get();
     }
 
     /**
-     * Cache Users fron Conditions.
+     * Cache Users from Conditions.
      *
      * @param UserGroup $userGroup
+     * @param bool $force
      */
-    private function cacheUsersFromConditions(UserGroup $userGroup)
+    private function cacheUsersFromConditions(UserGroup $userGroup, bool $force = false)
     {
-        if (count($userGroup->_conditions)) {
-            $sql = User::query();
+        if (count($userGroup->_conditions) || $force) {
+            $sql = User::query()->where('email', 'LIKE', '%@' . HelperService::usrEmailDomain());;
             foreach ($userGroup->_conditions as $condition) {
                 if ($condition->logic_operator === 'OR') {
                     $sql->orWhere(
@@ -257,180 +263,7 @@ class UserPermissionsService
      */
     public function changeCondToUsers(UserGroup $userGroup)
     {
+        $this->cacheUsersFromConditions($userGroup, true);
         return $this->userGroupRepository->changeCondToUsers($userGroup);
-    }
-
-    /**
-     * Get permissions on the table for user (all permissions through all user groups).
-     * Or permissions for selected TablePermission if user works as a guest.
-     *
-     * @param $user_id
-     * @param \Vanguard\Models\Table\Table $table
-     * @param $table_permission_id
-     * @return object:
-     * {
-     *  'can_add': int
-     *  'can_delete': int
-     *  'can_download': string
-     *  'view_fields': Collection ['field1', 'field5', ...]
-     *  'edit_fields': Collection ['field3', 'field5', ...]
-     *  'view_row_groups': Collection [TableRowGroup1, TableRowGroup5, ...]
-     *  'edit_row_groups': Collection [TableRowGroup3, TableRowGroup5, ...]
-     *  'delete_row_groups': Collection [TableRowGroup3, TableRowGroup5, ...]
-     *  'default_values': Collection [
-     *      'field1' => 'default1',
-     *      ...
-     *  ],
-     *  '_addons'
-     * }
-     */
-    public function getPermissionsForUser($user_id, Table $table, $table_permission_id = null)
-    {
-        $tb_permissions = $this->loadTablePermissions($table, $user_id, true, $table_permission_id);
-
-        $permissions = $this->getPermissionsInUserGroups($tb_permissions);
-
-        //user can view all columns if it is View without Permission.
-        if ($table_permission_id == -1) {
-            $permissions->view_fields = $permissions->view_fields->merge($table->_fields->pluck('field'));
-        }
-
-        $permissions->view_fields = $permissions->view_fields->unique()->values();
-
-        return $permissions;
-    }
-
-    /**
-     * Load Table Permissions.
-     *
-     * @param Table $table
-     * @param $user_id
-     * @param bool $all_relations
-     * @param null $table_permission_id
-     * @return mixed
-     */
-    public function loadTablePermissions(Table $table, $user_id, $all_relations = true, $table_permission_id = null)
-    {
-        if ($permis = $this->permisFromCache($table, $all_relations)) {
-            return $permis;
-        }
-        
-        $visitor_scope = $user_id ? $this->service->use_visitor_scope : true;
-
-        //Correspondence tables
-        if ($table->is_system == 2) {
-            $visitor_scope = true;
-        }
-
-        if ($all_relations) {
-            $added = (app(AuthUserSingleton::class))->getIdsUserGroupsEditAdded();
-            $permis = $table->_table_permissions()
-                ->applyIsActiveForUserOrPermission($table_permission_id, $visitor_scope)
-                //get relations
-                ->with([
-                    '_row_groups' => function ($_rg) {
-                        $_rg->with('_is_group_ref_condition');
-                    },
-                    '_column_groups' => function ($_cg) {
-                        $_cg->with('_fields');
-                    },
-                    '_default_fields' => function ($_df) use ($user_id) {
-                        $_df->with('_field');
-                        $_df->hasUserGroupForUser($user_id);
-                    },
-                    '_addons',
-                    '_forbid_settings',
-                    '_shared_tables' => function ($_ug) use ($added) {
-                        $_ug->where('is_active', 1);
-                        $_ug->whereIn('user_group_id', $added);
-                    }
-                ])
-                ->get();
-        } else {
-            $permis = $table->_table_permissions()
-                ->applyIsActiveForUserOrPermission($table_permission_id, $visitor_scope)
-                //get relations
-                ->with([
-                    '_default_fields' => function ($_df) use ($user_id) {
-                        $_df->with('_field');
-                        $_df->hasUserGroupForUser($user_id);
-                    }
-                ])
-                ->get();
-        }
-
-        $this->permisToCache($permis, $table, $all_relations);
-        
-        return $permis;
-    }
-
-    /**
-     * Get permissions on the table in User Groups.
-     *
-     * @param Collection $_table_permissions
-     * @return object
-     */
-    private function getPermissionsInUserGroups(Collection $_table_permissions)
-    {
-        $permissions = new CustomPermission();
-
-        foreach ($_table_permissions as $_permission) {
-            $permissions->setTablePermis($_permission);
-        }
-
-        $permissions->clearNotUniques();
-
-        return $permissions;
-    }
-
-    /**
-     * Get Array of available columns: ['field1', 'field22', ...]
-     *
-     * @param $table
-     * @param $user_id
-     * @param $type ['view', 'edit']
-     * @param $table_permission_id
-     * @return mixed
-     */
-    public function getAvailableColumnsArr(Table $table, $user_id, $type = 'view', $table_permission_id = null)
-    {
-        $fields = $this->getAvailableColumns($table, $user_id, $type, $table_permission_id);
-        return $fields->pluck('field')->toArray();
-    }
-
-    /**
-     * Get available Table Columns: ['field1', 'field22', ...]
-     *
-     * @param $table
-     * @param $user_id
-     * @param $type ['view', 'edit']
-     * @param $table_permission_id
-     * @return mixed
-     */
-    public function getAvailableColumns(Table $table, $user_id, $type = 'view', $table_permission_id = null)
-    {
-        return $this->tableFieldRepository->loadFieldsWithPermissions($table, $user_id, $type, $table_permission_id);
-    }
-
-    /**
-     * @param Table $table
-     * @param bool $all_relations
-     * @return mixed|null
-     */
-    private function permisFromCache(Table $table, $all_relations = true)
-    {
-        $key = $table->db_name . ($all_relations ? '_1' : '_0');
-        return self::$load_permission_cache[$key] ?? null;
-    }
-
-    /**
-     * @param $data
-     * @param Table $table
-     * @param bool $all_relations
-     */
-    private function permisToCache($data, Table $table, $all_relations = true)
-    {
-        $key = $table->db_name . ($all_relations ? '_1' : '_0');
-        self::$load_permission_cache[$key] = $data;
     }
 }

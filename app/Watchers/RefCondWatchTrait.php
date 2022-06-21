@@ -8,28 +8,33 @@ use Vanguard\Models\Table\Table;
 
 trait RefCondWatchTrait
 {
-    protected $calculated_references = [];
+    /**
+     * @var int[]
+     */
+    protected $calculated_references = [0];
 
     /**
-     * @param Table $table
+     * @param int $table_id
+     * @param int $lvl
      */
-    public function watch(Table $table)
+    public function watch(int $table_id, int $lvl = 0)
     {
-        $references = $this->getGroupedReferences($table);
+        $references = $this->getGroupedReferences($table_id);
         $references = $this->filterReferences($references);
-        $this->recalsSelectedReferences($references);
+        $this->recalsSelectedReferences($references, $lvl);
     }
 
     /**
-     * @param Table $table
+     * @param int $table_id
      */
-    protected function getGroupedReferences(Table $table)
+    protected function getGroupedReferences(int $table_id)
     {
-        $references = TableRefCondition::where('ref_table_id', $table->id)
-            ->where('table_id', '!=', $table->id)
+        $references = TableRefCondition::where('ref_table_id', $table_id)
+            ->where('table_id', '!=', $table_id)
             ->whereNotIn('id', $this->calculated_references)
             ->with(['_table' => function ($q) {
-                $q->with('_fields');
+                $q->select(['id','db_name','name','source','connection_id']);
+                $q->with('_fields:id,table_id,field,input_type');
             }])
             ->get();
         return $references->groupBy('table_id');
@@ -61,8 +66,9 @@ trait RefCondWatchTrait
 
     /**
      * @param Collection $references
+     * @param int $lvl
      */
-    protected function recalsSelectedReferences(Collection $references)
+    protected function recalsSelectedReferences(Collection $references, int $lvl = 0)
     {
         //recalc references
         foreach ($references as $ref_group) {
@@ -79,7 +85,9 @@ trait RefCondWatchTrait
                 $this->doAction($ref_table);
 
                 //recursive checking
-                $this->watch($ref_table);
+                if ($lvl < 3) {
+                    $this->watch($ref_table->id, $lvl + 1);
+                }
             }
         }
     }

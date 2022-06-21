@@ -26,7 +26,6 @@ class TablePermissionCopyRequest extends FormRequest
         return [
             'from_permis_id' => 'required|integer|exists:table_permissions,id',
             'to_permis_id' => 'required|integer|exists:table_permissions,id',
-            'as_template' => 'nullable',
         ];
     }
 }

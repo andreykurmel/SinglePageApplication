@@ -165,7 +165,7 @@
                     folder_json: copy_arr.shift()
                 }).then(({ data }) => {
                     if (this.$root.user.id == $(this.$refs.search_user).val()) {
-                        eventBus.$emit('event-reload-menu-tree');
+                        this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
                     }
                     this.$emit('popup-close');
                 }).catch(errors => {
@@ -186,7 +186,7 @@
                     dataType: 'json',
                     delay: 250
                 },
-                minimumInputLength: 1,
+                minimumInputLength: {val:3},
                 width: '100%',
                 height: '100%'
             });

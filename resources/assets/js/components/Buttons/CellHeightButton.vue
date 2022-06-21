@@ -73,30 +73,37 @@
         data: function () {
             return {
                 menu_opened: false,
-                max_auto: !this.maxCellRows,
+                max_auto: !Number(this.maxCellRows),
                 max_cell_rows: this.maxCellRows,
                 sizes: [1,2,3,5],
             }
         },
         props:{
+            table_meta: Object,
             cellHeight: Number,
             maxCellRows: Number,
+        },
+        watch: {
+            maxCellRows(val) {
+                this.max_cell_rows = val;
+                this.max_auto = !Number(val);
+            },
         },
         methods: {
             maxAutoChanged() {
                 this.max_auto = !this.max_auto;
-                this.$emit('change-max-cell-rows', this.max_auto ? null : Number(this.max_cell_rows));
+                this.$emit('change-max-cell-rows', this.max_auto ? null : Number(this.max_cell_rows), this.table_meta);
             },
             rowsChanged() {
                 this.max_cell_rows = Number(this.max_cell_rows);
                 this.max_cell_rows = Math.max(1, this.max_cell_rows);
                 this.max_cell_rows = Math.min(20, this.max_cell_rows);//max_he_for_auto_rows: 20
 
-                this.$emit('change-max-cell-rows', this.max_cell_rows);
+                this.$emit('change-max-cell-rows', this.max_cell_rows, this.table_meta);
                 this.menu_opened = false;
             },
             heightChanged(val) {
-                this.$emit('change-cell-height', val);
+                this.$emit('change-cell-height', val, this.table_meta);
                 this.menu_opened = false;
             },
             hideMenu(e) {

@@ -25,22 +25,26 @@ class HtmlXmlService
      */
     public function preloadElements($url)
     {
-        $html = new \DOMDocument();
-        $html->loadHTMLFile($url, LIBXML_NOERROR);
-        $results = [];
-        $nodeList = $html->getElementsByTagName('table');
-        foreach ($nodeList as $idx=>$nl) {
-            $results[] = $this->getResult($nl, $idx);
+        try {
+            $html = new \DOMDocument();
+            $html->loadHTMLFile($url, LIBXML_NOERROR);
+            $results = [];
+            $nodeList = $html->getElementsByTagName('table');
+            foreach ($nodeList as $idx=>$nl) {
+                $results[] = $this->getResult($nl, $idx);
+            }
+            $nodeList = $html->getElementsByTagName('ol');
+            foreach ($nodeList as $idx=>$nl) {
+                $results[] = $this->getResult($nl, $idx);
+            }
+            $nodeList = $html->getElementsByTagName('ul');
+            foreach ($nodeList as $idx=>$nl) {
+                $results[] = $this->getResult($nl, $idx);
+            }
+            return $results;
+        } catch (\Exception $e) {
+            return [];
         }
-        $nodeList = $html->getElementsByTagName('ol');
-        foreach ($nodeList as $idx=>$nl) {
-            $results[] = $this->getResult($nl, $idx);
-        }
-        $nodeList = $html->getElementsByTagName('ul');
-        foreach ($nodeList as $idx=>$nl) {
-            $results[] = $this->getResult($nl, $idx);
-        }
-        return $results;
     }
 
     /**
@@ -133,29 +137,144 @@ class HtmlXmlService
     }
 
     /**
-     * @param $url
-     * @param $xpath
+     * @param array $xml_settings
      * @param bool $all
      * @return array
      */
-    public function parseXmlPage($url, $xpath, bool $all = false)
+    public function parseXmlPage(array $xml_settings, bool $all = false)
     {
-        $data = file_get_contents($url);
+        $path = !empty($xml_settings['web_xml_file'])
+            ? storage_path('app/tmp_import/'.$xml_settings['web_xml_file'])
+            : $xml_settings['web_url'] ?? '';
+        $data = file_get_contents($path);
+
         $html = new \DOMDocument();
         $html->loadXML($data, LIBXML_NOERROR);
+
+        $web_xpath = $xml_settings['web_xpath'] ?? '';
+        $web_xpath = '//' . preg_replace('/^[\/]+/i', '', $web_xpath);
         $xpather = new \DOMXPath($html);
-        $nodeList = $xpather->query($xpath);
+        $nodeList = $xpather->query($web_xpath);
+
+        $attributes = !empty($xml_settings['web_scrap_xpath_query']) ? $this->attributesArray($nodeList) : [];
+
+        return $all
+            ? $this->allNodes($nodeList, $attributes, $xml_settings)
+            : $this->nodesHeader($nodeList[0] ?? null, $attributes, $xml_settings);
+    }
+
+    /**
+     * @param \DOMNodeList $nodeList
+     * @param array $attributes
+     * @param array $xml_settings
+     * @return array
+     */
+    protected function allNodes(\DOMNodeList $nodeList, array $attributes = [], array $xml_settings = [])
+    {
         $rows = [];
         foreach ($nodeList as $nod) {
             $row = [];
-            foreach ($nod->childNodes as $el) {
-                if (strtolower($el->nodeName) != '#text') {
-                    $row[] = $el->textContent;
+            foreach ($attributes as $attr) {
+                $row[] = $nod->getAttribute($attr);
+            }
+            $left_lvl = $xml_settings['web_xml_nested'] ?? 0;
+            $rows[] = array_merge($row, $this->nestedNode($nod, '', $left_lvl));
+        }
+        return $rows;
+    }
+
+    /**
+     * @param \DOMNode|null $node
+     * @param array $attributes
+     * @param array $xml_settings
+     * @return array
+     */
+    protected function nodesHeader(\DOMNode $node = null, array $attributes = [], array $xml_settings = [])
+    {
+        $row = [];
+        foreach ($attributes as $attr) {
+            $row[] = $node->nodeName.','.$attr;
+        }
+        $left_lvl = $xml_settings['web_xml_nested'] ?? 0;
+        return array_merge($row, $this->nestedNode($node, $node->nodeName . ',', $left_lvl));
+    }
+
+    /**
+     * @param \DOMNode $node
+     * @param string $pre_header
+     * @param int $left_levels
+     * @param array $name_idx
+     * @param string $lvl_prefix
+     * @return array
+     */
+    protected function nestedNode(\DOMNode $node, string $pre_header = '', int $left_levels = 0, array $name_idx = [], string $lvl_prefix = '')
+    {
+        if (!$name_idx) {
+            $name_idx = [ 'items' => [], 'prefix_index' => 0, 'hist' => [] ];
+        }
+
+        $row = [];
+        foreach ($this->getChildNodes($node) as $el)
+        {
+            if ($left_levels && $this->getChildNodes($el)) {
+
+                $next_prefix = $lvl_prefix . $el->nodeName . (++$name_idx['prefix_index']) . '/';
+                $name_idx['hist'][] = $next_prefix;
+                $next_header = $pre_header ? ($pre_header . $el->nodeName . ',') : '';
+                $nest_row = $this->nestedNode($el, $next_header, $left_levels-1, $name_idx, $next_prefix);
+                $row = array_merge($row, $nest_row);
+
+            } else {
+
+                $key = $lvl_prefix . $el->nodeName;
+                if (isset($name_idx['items'][$key])) {
+                    $ii = $name_idx['items'][$key];
+                    $row[$ii] = $pre_header
+                        ? $pre_header . $el->nodeName
+                        : $row[$ii] . ', ' . $el->textContent;
+                } else {
+                    $name_idx['items'][$key] = count($row);
+                    $row[] = $pre_header
+                        ? $pre_header . $el->nodeName
+                        : $el->textContent;
+                }
+
+            }
+        }
+        return $row;
+    }
+
+    /**
+     * @param \DOMNode $node
+     * @return array
+     */
+    protected function getChildNodes(\DOMNode $node)
+    {
+        $nodes = [];
+        foreach ($node->childNodes as $child) {
+            if (strtolower($child->nodeName) != '#text') {
+                $nodes[] = $child;
+            }
+        }
+        return $nodes;
+    }
+
+    /**
+     * @param \DOMNodeList $list
+     * @return array
+     */
+    protected function attributesArray(\DOMNodeList $list)
+    {
+        $attrs = [];
+        foreach ($list as $el) {
+            if ($el->attributes && count($attrs) < count($el->attributes)) {
+                $attrs = [];
+                foreach ($el->attributes as $attribute) {
+                    $attrs[] = $attribute->name;
                 }
             }
-            $rows[] = $row;
         }
-        return $all ? $rows : (array_first($rows) ?: []);
+        return $attrs;
     }
 
     /**

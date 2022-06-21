@@ -10,9 +10,9 @@
             <input type="hidden" value="<?= csrf_token() ?>" name="_token">
             <input type="hidden" value="<?= $_SERVER['REQUEST_URI'] ?>" name="cur_path">
             <div class="form-group input-icon has-success">
-                <label for="username" class="sr-only">@lang('app.email_or_username')</label>
+                <label for="username" class="sr-only">@lang('app.email')</label>
                 <i class="fa fa-user"></i>
-                <input type="email" name="username" class="form-control valid" placeholder="@lang('app.email_or_username')" aria-invalid="false" aria-describedby="username-error"><span id="username-error" class="help-block error-help-block"></span>
+                <input type="email" name="username" class="form-control valid" placeholder="@lang('app.email')" aria-invalid="false" aria-describedby="username-error"><span id="username-error" class="help-block error-help-block"></span>
             </div>
             <div class="form-group password-field input-icon">
                 <label for="password" class="sr-only">@lang('app.password')</label>

@@ -5,6 +5,11 @@
     export default {
         data: function () {
             return {
+                paste_lines: 0,
+                paste_chars: 0,
+                paste_row_limit: 1000,
+                paste_char_limit: 50000,
+
                 paste_data: '',
                 paste_settings: {
                     f_header: true,
@@ -33,11 +38,14 @@
                     });
                 });
             },
-            onPaste() {
+            onPaste(inputText) {
+                this.alert_note = '';
                 window.event.preventDefault();
                 var cb;
                 var clipText = '';
-                if (window.clipboardData && window.clipboardData.getData) {
+                if (inputText !== undefined) {
+                    clipText = inputText;
+                } else if (window.clipboardData && window.clipboardData.getData) {
                     cb = window.clipboardData;
                     clipText = cb.getData('Text');
                 } else if (window.event.clipboardData && window.event.clipboardData.getData) {
@@ -48,9 +56,10 @@
                     clipText = cb.getData('text/plain');
                 }
 
-                if (clipText.length > 50000) {
-                    this.alert_note = 'More than 50000 symbols is pasted. Only the first 50000 will be parsed and imported. Using other importing method is recommended.';
-                    clipText = clipText.substr(0, 50000);
+                this.paste_chars = clipText.length;
+                if (clipText.length > this.paste_char_limit) {
+                    this.alert_note = 'More than '+this.paste_char_limit+' characters are pasted. Only the first '+this.paste_char_limit+' will be parsed and imported. Using other importing method is recommended.';
+                    clipText = clipText.substr(0, this.paste_char_limit);
                 }
 
                 //ignore \n between "..."
@@ -68,9 +77,20 @@
 
                 let clipRows = clipText.split('\n');
 
-                if (clipRows.length > 1000) {
-                    this.alert_note = 'More than 1000 records is pasted. Only the first 1000 will be parsed and imported. Using other importing method is recommended.';
-                    clipRows = clipRows.slice(0, 1000);
+                this.paste_lines = clipRows.length;
+                if (clipRows.length > this.paste_row_limit) {
+                    this.alert_note = 'More than '+this.paste_row_limit+' lines are pasted. Only the first '+this.paste_row_limit+' will be parsed and imported. Using other importing method is recommended.';
+                    clipRows = clipRows.slice(0, this.paste_row_limit);
+                }
+
+                //remove last row
+                if (this.paste_chars > this.paste_char_limit) {
+                    clipRows = clipRows.slice(0, clipRows.length-1);
+                }
+
+                //clear if called from input action.
+                if (inputText !== undefined) {
+                    this.paste_data = '';
                 }
 
                 if (/\t/.test(clipText)) {
@@ -94,6 +114,9 @@
                     }
                     this.paste_data += clipRows.join('\n');
                 }
+            },
+            onPasteChange(e) {
+                this.onPaste(e.target.value || '');
             },
         },
     }

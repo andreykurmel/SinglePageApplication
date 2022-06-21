@@ -358,7 +358,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .line__wrap {
 
         .line__connect {

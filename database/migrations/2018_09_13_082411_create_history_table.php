@@ -17,9 +17,12 @@ class CreateHistoryTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('user_id');
             $table->unsignedInteger('table_id');
-            $table->unsignedInteger('table_field_id');
+            $table->unsignedInteger('table_field_id')->nullable();
             $table->unsignedInteger('row_id');
             $table->string('value', 255)->nullable();
+
+            $table->unsignedInteger('to_user_id')->nullable();
+            $table->string('comment', 255)->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();
@@ -29,6 +32,7 @@ class CreateHistoryTable extends Migration
             $table->dateTime('modified_on');
 
             $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('to_user_id')->references('id')->on('users')->onDelete('cascade');
             $table->foreign('table_id')->references('id')->on('tables')->onDelete('cascade');
             $table->foreign('table_field_id')->references('id')->on('table_fields')->onDelete('cascade');
             $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');

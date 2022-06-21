@@ -13,7 +13,10 @@ use Vanguard\Singletones\AuthUserSingleton;
 class RefCondItemQueryApplier
 {
     protected $ref_item;
-    protected $ref_condition;
+    protected $_ref_table;
+    protected $_table;
+    protected $_ref_field;
+    protected $_field;
 
     protected $compared_operator;
     protected $logic_operator;
@@ -22,9 +25,9 @@ class RefCondItemQueryApplier
     protected $com_header_applier;
     protected $compared_db_field;
     protected $table_db_field;
+    protected $subquery_data;
 
     /**
-     * RefCondItemQueryApplier constructor.
      * @param TableRefConditionItem $ref_item
      */
     public function __construct(TableRefConditionItem $ref_item)
@@ -32,21 +35,32 @@ class RefCondItemQueryApplier
         $ref_item->loadMissing('_ref_condition', '_compared_field', '_field');
         $ref_item->_ref_condition->loadMissing('_ref_table', '_table');
 
+        if ($ref_item->_ref_condition->__reverse) {
+            $this->subquery_data = is_array($ref_item->_ref_condition->__reverse) ? $ref_item->_ref_condition->__reverse : [];
+            $this->_ref_table = $ref_item->_ref_condition->_table;
+            $this->_table = $ref_item->_ref_condition->_ref_table;
+            $this->_ref_field = $ref_item->_field;
+            $this->_field = $ref_item->_compared_field;
+        } else {
+            $this->_ref_table = $ref_item->_ref_condition->_ref_table;
+            $this->_table = $ref_item->_ref_condition->_table;
+            $this->_ref_field = $ref_item->_compared_field;
+            $this->_field = $ref_item->_field;
+        }
         $this->ref_item = $ref_item;
-        $this->ref_condition = $ref_item->_ref_condition;
 
         $this->logic_operator = $ref_item->logic_operator;
         $this->compared_operator = $ref_item->compared_operator == 'Include' ? 'Like' : ($ref_item->compared_operator ?: '=');
-        $this->input_type = $ref_item->_compared_field ? $ref_item->_compared_field->input_type : 'Input';
-        $this->table_id = $ref_item->_ref_condition->_table ? $ref_item->_ref_condition->_table->id : null;
+        $this->input_type = $this->_ref_field ? $this->_ref_field->input_type : 'Input';
+        $this->table_id = $this->_table ? $this->_table->id : null;
 
-        $com_db_field = $ref_item->_compared_field ? $ref_item->_compared_field->field : 'id';
-        $this->compared_db_field = SqlFieldHelper::getSqlFld($this->ref_condition->_ref_table, $com_db_field);
-        $f_type = $ref_item->_compared_field ? $ref_item->_compared_field->f_type : '';
+        $com_db_field = $this->_ref_field ? $this->_ref_field->field : 'id';
+        $this->compared_db_field = SqlFieldHelper::getSqlFld($this->_ref_table, $com_db_field);
+        $fld = $this->_field ? $this->_field->field : 'id';
+        $this->table_db_field = SqlFieldHelper::getSqlFld($this->_table, $fld);
+
+        $f_type = $this->_ref_field ? $this->_ref_field->f_type : '';
         $this->com_header_applier = new FieldTypeApplier($f_type, $this->compared_db_field);
-
-        $fld = $ref_item->_field ? $ref_item->_field->field : 'id';
-        $this->table_db_field = SqlFieldHelper::getSqlFld($this->ref_condition->_table, $fld);
     }
 
     /**
@@ -63,11 +77,11 @@ class RefCondItemQueryApplier
 
         if ($this->ref_item->item_type == 'P2S') {
             if ($present_row) {
-                $fld = $this->ref_item->_field ? $this->ref_item->_field->field : null;
+                $fld = $this->_field ? $this->_field->field : null;
                 $val = !empty($present_row[$fld]) ? HelperService::sanitizeNull($present_row[$fld]) : null;
                 $this->applyDirect($cond_query, $val ?: false);
             } else {
-                $this->applySubQuery($cond_query, $this->ref_condition->_table);
+                $this->applySubQuery($cond_query, $this->_ref_table);
             }
         } elseif ($this->ref_item->item_type == 'S2V') {
             $this->applyDirect($cond_query, $this->ref_item->compared_value);
@@ -82,12 +96,11 @@ class RefCondItemQueryApplier
      */
     protected function correctRefItem()
     {
-        $ref_item = $this->ref_item;
-        return $ref_item->_compared_field
+        return $this->_ref_field
             && (
-                ($ref_item->item_type == 'P2S' && $ref_item->_field)
+                ($this->ref_item->item_type == 'P2S' && $this->_field)
                 ||
-                ($ref_item->item_type == 'S2V') //$ref_item->compared_value can be null
+                ($this->ref_item->item_type == 'S2V') //$ref_item->compared_value can be null
             );
     }
 
@@ -104,7 +117,8 @@ class RefCondItemQueryApplier
             $val = $this->compared_operator == 'Like' ? '%' . trim($val) . '%' : trim($val);
         }
 
-        if ($val == '{$user}') {
+        $arr_of_val = MselConvert::getArr($val);
+        if (array_first($arr_of_val) == '{$user}') {
             $this->applyCurrentUser($cond_query);
         } elseif ($val == '{$group}') {
             $this->applyCurrentUserAndGroup($cond_query);
@@ -128,6 +142,9 @@ class RefCondItemQueryApplier
             foreach ($arr_of_val as $el) {
 
                 $inner->orWhere(function ($sub) use ($that, $el) {
+                    if (in_array($that->compared_operator, ['>','<'])) {
+                        $el = floatval($el);
+                    }
                     $that->com_header_applier->where($sub, $that->compared_operator, $el);
                 });
 
@@ -183,11 +200,15 @@ class RefCondItemQueryApplier
      */
     protected function applySubQuery(Builder $cond_query, Table $_table)
     {
-        $sqlSub = (new TableDataQuery($_table, true))->getQuery();
+        $sqlSub = new TableDataQuery($_table, true);
+        $sqlSub->noSysRules();
+        if ($this->subquery_data) {
+            $sqlSub->testViewAndApplyWhereClauses($this->subquery_data, $this->_table->user_id);
+        }
+        $sqlSub = $sqlSub->getQuery()->select($this->compared_db_field);
         $this->com_header_applier->where($sqlSub, $this->compared_operator, DB::raw($this->table_db_field));
-        $sqlSub->select($this->table_db_field);
 
         $func = $this->logic_operator == 'OR' ? 'orWhereIn' : 'whereIn';
-        $cond_query->{$func}($this->compared_db_field, $sqlSub);
+        $cond_query->{$func}($this->table_db_field, $sqlSub);
     }
 }

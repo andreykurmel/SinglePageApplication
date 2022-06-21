@@ -21,13 +21,12 @@ require('jquery.easing');
 require('jquery-mousewheel');
 require('jquery-ui/ui/widgets/slider.js');
 //jquery plugins
-require('./libs/viewScroller');
 require('./libs/jsvalidation');
+require('./libs/bootstrap-datetimepicker');
 //imports-loader?define=>false,module=>false! - disable AMD and CommonJS for global import
 require('imports-loader?define=>false,module=>false!jstree');
 require('imports-loader?define=>false,module=>false!gasparesganga-jquery-loading-overlay');
-require('imports-loader?define=>false,module=>false!select2');
-require('imports-loader?define=>false,exports=>false!eonasdan-bootstrap-datetimepicker');
+require('imports-loader?define=>false,module=>false!./libs/select2');
 
 
 window.axios = require('axios');

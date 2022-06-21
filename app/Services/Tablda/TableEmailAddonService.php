@@ -2,14 +2,21 @@
 
 namespace Vanguard\Services\Tablda;
 
+use Carbon\Carbon;
+use Exception;
 use Vanguard\Classes\TabldaEncrypter;
-use Vanguard\Jobs\SendgridBackground;
+use Vanguard\Jobs\DelayEmailAddon;
 use Vanguard\Mail\TabldaMail;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableEmailAddonHistory;
 use Vanguard\Models\Table\TableEmailAddonSetting;
+use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableEmailAddonRepository;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
 
 class TableEmailAddonService
 {
@@ -27,21 +34,241 @@ class TableEmailAddonService
 
     /**
      * @param TableEmailAddonSetting $email
+     * @param int|null $row_id
+     * @param string $special
      * @return array
      */
-    public function previewEmail(TableEmailAddonSetting $email)
+    public function previewEmail(TableEmailAddonSetting $email, int $row_id = null, string $special = '')
     {
-        $table = $email->_table;
-        $formula_parser = new FormulaEvaluatorRepository($table, $table->user_id, true);
-        $all_rows = $this->getRowsArray($table, $email->limit_row_group_id);
-        $response = [];
-        foreach ($all_rows as $row) {
-            $mailable = $this->getTabldaMail($email, $formula_parser, $row);
-            if ($mailable) {
-                $response[] = $mailable->for_preview();
+        $all_rows = $this->getRowsArray($email->_table, $email->limit_row_group_id, $row_id);
+        $previews = [];
+        foreach ($all_rows as $i => $row) {
+            if (
+                ($special && $i == 0) //init -> preview first
+                ||
+                (!$special && (!$row_id || $row_id == $row['id'])) //preview selected
+            ) {
+                $mailable = $this->getTabldaMail($email, $row, auth()->id());
+                if ($mailable) {
+                    $previews[$row['id']] = $mailable->for_preview();
+                    $previews[$row['id']]['history'] = $email->_history_emails
+                        ->where('row_id', '=', $row['id'])
+                        ->sortBy('send_date', SORT_REGULAR, true)
+                        ->map(function(TableEmailAddonHistory $item) {
+                            return $item->decodeArrays();
+                        })
+                        ->values();
+                }
             }
         }
-        return $response;
+        return [
+            'all_rows' => $all_rows,
+            'previews' => $previews,
+        ];
+    }
+
+    /**
+     * @param Table $table
+     * @param int|null $row_group_id
+     * @param int|null $single_id
+     * @return array
+     */
+    protected function getRowsArray(Table $table, int $row_group_id = null, int $single_id = null)
+    {
+        if (!$row_group_id) {
+            return [];
+        }
+
+        $query = new TableDataQuery($table);
+        $query->applySelectedRowGroup($row_group_id);
+
+        $query = $query->getQuery();
+        if ($single_id) {
+            $query->where('id', '=', $single_id);
+        }
+
+        return $query->get()->toArray();
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param array $row
+     * @return null|TabldaMail
+     */
+    public function getTabldaMail(TableEmailAddonSetting $email, array $row, $uid)
+    {
+        $table = $email->_table;
+        $parser = new FormulaEvaluatorRepository($table, $table->user_id, true);
+
+        $reply_source = $email->sender_reply_to_isdif
+            ? ($row[$email->_sender_reply_to_field->field ?? ''] ?? '')
+            : ($email->sender_reply_to ?? '');
+        $reply_to = $this->service->parseRecipients($reply_source);
+
+        $recipients = ['to' => [], 'cc' => [], 'bcc' => []];
+
+        $recipients['to'] = $this->service->addRecipientsEmails($recipients['to'], $row[$email->_recipient_field->field ?? ''] ?? '');
+        $recipients['to'] = $this->service->addRecipientsEmails($recipients['to'], $email->recipient_email ?? '', true);
+        $recipients['cc'] = $this->service->addRecipientsEmails($recipients['cc'], $row[$email->_cc_recipient_field->field ?? ''] ?? '');
+        $recipients['cc'] = $this->service->addRecipientsEmails($recipients['cc'], $email->cc_recipient_email ?? '', true);
+        $recipients['bcc'] = $this->service->addRecipientsEmails($recipients['bcc'], $row[$email->_bcc_recipient_field->field ?? ''] ?? '');
+        $recipients['bcc'] = $this->service->addRecipientsEmails($recipients['bcc'], $email->bcc_recipient_email ?? '', true);
+
+        if ($email->server_type == 'sendgrid') {
+            $sender_email = $email->sender_email_isdif
+                ? ($row[$email->_sender_email_field->field ?? ''] ?? '')
+                : ($email->sender_email ?? '');
+            $sender_pass = $email->smtp_key_mode == 'account' ? TabldaEncrypter::decrypt($email->_sendgrid_key->key ?? '') : $email->sendgrid_api_key;
+        } else {
+            $sender_email = $email->smtp_key_mode == 'account' ? ($email->_google_key->email ?? '') : $email->google_email;
+            $sender_pass = $email->smtp_key_mode == 'account' ? TabldaEncrypter::decrypt($email->_google_key->app_pass ?? '') : $email->google_app_pass;
+        }
+
+        $sender_email = filter_var($sender_email, FILTER_VALIDATE_EMAIL);
+        $empty_recipients = !$recipients['to'] && $row;
+        if ($empty_recipients || !$sender_email || !$sender_pass) {
+            return null;
+        }
+
+        $params = [
+            'from.email' => $sender_email,
+            'from.name' => $email->sender_name ?: config('app.name'),
+            'from.account' => 'users_account',
+            'subject' => $email->email_subject ? $parser->formulaReplaceVars($row, $email->email_subject) : '',
+            'to.address' => $recipients['to'],
+            'to.name' => '',
+            'cc.address' => $recipients['cc'],
+            'bcc.address' => $recipients['bcc'],
+            'reply.to' => $reply_to ?? '',
+            'users_account' => [
+                'email' => $sender_email,
+                'pass' => $sender_pass,
+            ],
+            'attach_files' => $this->getNeededAttachments($email, $row),
+            'tablda_row' => $row ? (new TableDataService())->getDirectRow($table, $row['id'], ['files']) : null,
+        ];
+        $body_data = $email->email_body ? $parser->formulaReplaceVars($row, $email->email_body) : '';
+        $body_data = $this->attachLinkTablesToBody($email, $row, $body_data, $uid);
+        $data = [
+            'body_data' => $body_data,
+        ];
+        if ($email->email_background_body) {
+            $data['styles'] = [
+                'body' => "margin: 0; padding: 0; width: 100%; background-color: {$email->email_background_body};",
+            ];
+        }
+
+        return new TabldaMail('tablda.emails.addon_sender', $data, $params);
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param array $row
+     * @return array
+     */
+    protected function getNeededAttachments(TableEmailAddonSetting $email, array $row): array
+    {
+        if ($email->field_id_attachments && $row) {
+            return (new FileRepository())->getEmailPaths($email->table_id, $email->field_id_attachments, $row['id']);
+        } else {
+            return [];
+        }
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param array $row
+     * @param string $body
+     * @param int|null $uid
+     * @return string
+     */
+    protected function attachLinkTablesToBody(TableEmailAddonSetting $email, array $row, string $body, int $uid = null): string
+    {
+        if ($body) {
+            $body = preg_replace_callback('/\[Link:#(\d+)\/([^\/]+)@Col:#(\d+)\/([^\]]+)\]/mi', function ($match) use ($email, $row, $uid) {
+                $table = $email->_table;
+
+                $all_fields = $table->_fields()->get();
+                $field = $all_fields->filter(function ($el) use ($match) {
+                    return $this->prepName($el['name']) == $this->prepName($match[4]);
+                })->first();
+
+                $link = null;
+                if ($field) {
+                    $all_links = $field->_links()->get();
+                    $link = $all_links[$match[1]-1];
+                    $link = $link && $link->icon && $this->prepName($link->icon) == $this->prepName($match[2])
+                        ? $link
+                        : null;
+                }
+
+                if ($field && $link && $link->table_ref_condition_id) {
+                    $table = $field->_table;
+                    [$rows_count, $rows_arr] = (new TableDataService())->getFieldRows($table, $link->toArray(), $row, 1, 50, $uid);
+
+                    $flds = $link->email_addon_fields ? json_decode($link->email_addon_fields) : [];
+                    $fields_arr = $this->service->getFieldsArrayForEmailAddon($table, $flds);
+
+                    $data = [
+                        'table_header' => $field->name.' ('.$link->link_type.')',
+                        'mail_format' => 'table',
+                        'fields_arr' => $fields_arr,
+                        'all_rows_arr' => $rows_arr,
+                        'rows_count' => $rows_count,
+                        'has_unit' => $this->service->fldsArrHasUnit($fields_arr),
+                        'styles' => $this->extraStyles($email, $fields_arr),
+                    ];
+
+                    $partial = new TabldaMail('tablda.emails.templates.email_addon_linked_tb', $data);
+                    return $partial->bodys();
+                }
+                return '[Error while getting rows from link!]';
+            }, $body);
+        }
+        return $body;
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param array $fields_arr
+     * @return string[]
+     */
+    protected function extraStyles(TableEmailAddonSetting $email, array $fields_arr): array
+    {
+        $extra_styles = [
+            'table' => 'color: #000; font-size: 15px; border-collapse: collapse;',
+            'table--th' => 'padding: 0 3px; border: 1px solid #000; min-width:50px; background-color: #AAA;',
+            'table--td' => 'padding: 0 3px; border: 1px solid #000; min-width:50px; background-color: #FFF;',
+            'table--td-changed' => 'padding: 0 3px; border: 1px solid #000; min-width:50px; background-color: #AFA;',
+            'table--td-noborder' => 'padding: 0 3px; border: none; min-width:50px; background-color: #FFF;',
+        ];
+        switch ($email->email_link_width_type) {
+            case 'full': $extra_styles['table'] .= 'width: 100%;'; break;
+            case 'content': $extra_styles['table'] .= 'width: auto;'; break;
+            case 'column_size': $extra_styles['table'] .= 'width: '.($email->email_link_width_size*count($fields_arr)).'px;'; break;
+            case 'total_size': $extra_styles['table'] .= 'width: '.($email->email_link_width_size).'px;'; break;
+        }
+        switch ($email->email_link_align) {
+            case 'left': $extra_styles['table'] .= 'text-align: left;';
+                $extra_styles['table--th'] .= 'text-align: left;';
+                break;
+            case 'center': $extra_styles['table'] .= 'text-align: center;';
+                $extra_styles['table--th'] .= 'text-align: center;';
+                break;
+            case 'right': $extra_styles['table'] .= 'text-align: right;';
+                $extra_styles['table--th'] .= 'text-align: right;';
+                break;
+        }
+        return $extra_styles;
+    }
+
+    /**
+     * @param string $str
+     * @return string
+     */
+    protected function prepName(string $str): string
+    {
+        return preg_replace('/[^\w\d]/i', '', $str);
     }
 
     /**
@@ -63,9 +290,9 @@ class TableEmailAddonService
 
     /**
      * @param array $data
-     * @return mixed
+     * @return TableEmailAddonSetting
      */
-    public function insertEmailSett(Array $data)
+    public function insertEmailSett(array $data)
     {
         return $this->addonRepo->insertEmailSett($data);
     }
@@ -75,7 +302,7 @@ class TableEmailAddonService
      * @param array $data
      * @return mixed
      */
-    public function updateEmailSett($email_id, Array $data)
+    public function updateEmailSett($email_id, array $data)
     {
         return $this->addonRepo->updateEmailSett($email_id, $data);
     }
@@ -90,101 +317,33 @@ class TableEmailAddonService
     }
 
     /**
-     * @param Table $table
-     * @param int|null $row_group_id
-     * @param bool $single
-     * @return array
+     * @param int $from_add_id
+     * @param int $to_add_id
+     * @return TableEmailAddonSetting
      */
-    protected function getRowsArray(Table $table, int $row_group_id = null, bool $single = false)
+    public function copyAdn(int $from_add_id, int $to_add_id)
     {
-        if (!$row_group_id) {
-            return [];
-        }
-
-        $query = new TableDataQuery($table);
-        $query->applySelectedRowGroup($row_group_id);
-
-        $query = $query->getQuery();
-        $res = $single ? $query->first() : $query->get();
-
-        return $res ? $res->toArray() : [];
+        return $this->addonRepo->copyAdn($from_add_id, $to_add_id);
     }
 
     /**
      * @param TableEmailAddonSetting $email
-     * @param FormulaEvaluatorRepository $parser
-     * @param array $row
-     * @return null|TabldaMail
-     */
-    protected function getTabldaMail(TableEmailAddonSetting $email, FormulaEvaluatorRepository $parser, array $row)
-    {
-        $reply_source = $email->sender_reply_to_isdif
-            ? ($row[$email->_sender_reply_to_field->field??''] ?? '')
-            : ($email->sender_reply_to ?? '');
-        $reply_to = $this->service->parseRecipients($reply_source);
-
-        $recipients = array_merge(
-            $this->service->parseRecipients($row[$email->_recipient_field->field??''] ?? ''),
-            $this->service->parseRecipients($email->recipient_email ?? '')
-        );
-
-        if ($email->server_type == 'sendgrid') {
-            $sender_email = $email->sender_email_isdif
-                ? ($row[$email->_sender_email_field->field??''] ?? '')
-                : ($email->sender_email ?? '');
-            $sender_pass = $email->smtp_key_mode == 'account' ? TabldaEncrypter::decrypt($email->_sendgrid_key->key ?? '') : $email->sendgrid_api_key;
-        } else {
-            $sender_email = $email->smtp_key_mode == 'account' ? ($email->_google_key->email ?? '') : $email->google_email;
-            $sender_pass = $email->smtp_key_mode == 'account' ? TabldaEncrypter::decrypt($email->_google_key->app_pass ?? '') : $email->google_app_pass;
-        }
-
-        $sender_email = filter_var($sender_email, FILTER_VALIDATE_EMAIL);
-        if (!$recipients || !$sender_email || !$sender_pass) {
-            return null;
-        }
-
-        $params = [
-            'from.email' => $sender_email,
-            'from.name' => $email->sender_name ?: config('app.name'),
-            'from.account' => 'users_account',
-            'subject' => $email->email_subject ? $parser->formulaReplaceVars($row, $email->email_subject, true) : '',
-            'to.address' => $recipients,
-            'to.name' => '',
-            'reply.to' => $reply_to ?? '',
-            'users_account' => [
-                'email' => $sender_email,
-                'pass' => $sender_pass,
-            ]
-        ];
-        $data = [
-            'body_data' => $email->email_body ? $parser->formulaReplaceVars($row, $email->email_body, true) : '',
-        ];
-
-        return new TabldaMail('tablda.emails.addon_sender', $data, $params, $email);
-    }
-
-    /**
-     * @param TableEmailAddonSetting $email
+     * @param int|null $row_id
      * @return array
      */
-    public function sendEmails(TableEmailAddonSetting $email)
+    public function sendEmails(TableEmailAddonSetting $email, int $row_id = null)
     {
-        $table = $email->_table;
-        $formula_parser = new FormulaEvaluatorRepository($table, $table->user_id, true);
         $msg = $email->notInProgress()
             ? 'Icorrect email settings or empty rows!'
             : 'Emails are in sending process!';
-        if ($this->getTabldaMail($email, $formula_parser, []) && $email->notInProgress()) {
-            $all_rows = $this->getRowsArray($table, $email->limit_row_group_id);
+        if ($email->notInProgress()) {
+            $all_rows = $this->getRowsArray($email->_table, $email->limit_row_group_id, $row_id);
             foreach ($all_rows as $row) {
-                switch ($email->server_type) {
-                    case 'google': $this->sendViaGoogleSmtp($email, $formula_parser, $row); break;
-                    case 'sendgrid': $this->sendViaSendGridApi($email, $formula_parser, $row); break;
-                }
+                $this->emailJob($email, $row, auth()->id());
             }
             if ($all_rows) {
-                $email->startPrepared(count($all_rows));
-                $msg = count($all_rows).' emails are added to query!';
+                $email->startPrepared(count($all_rows), !!$row_id);
+                $msg = count($all_rows) . ' emails are added to query!';
             }
         }
         return [
@@ -192,6 +351,29 @@ class TableEmailAddonService
             'prepared_emails' => $email->prepared_emails,
             'sent_emails' => $email->sent_emails,
         ];
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param $row
+     * @param $uid
+     */
+    protected function emailJob(TableEmailAddonSetting $email, $row, $uid)
+    {
+        $queued = DelayEmailAddon::dispatch($email, $row, $uid);
+        if ($email->email_send_time != 'now') {
+            try {
+                $interval = $email->email_delay_by_rec
+                    ? ($email->_email_delay_record_fld ? $row[$email->_email_delay_record_fld->field] ?? '' : '')
+                    : $email->email_delay_time;
+
+                if (Carbon::make($interval) > Carbon::now()) {
+                    $seconds = Carbon::now()->diffInSeconds($interval ?: '');
+                    $queued->delay(Carbon::now()->addSeconds($seconds));
+                }
+            } catch (Exception $e) {
+            }
+        }
     }
 
     /**
@@ -209,48 +391,13 @@ class TableEmailAddonService
 
     /**
      * @param TableEmailAddonSetting $email
-     * @param FormulaEvaluatorRepository $parser
-     * @param array $row
+     * @param int|null $row_id
+     * @return array
      */
-    protected function sendViaGoogleSmtp(TableEmailAddonSetting $email, FormulaEvaluatorRepository $parser, array $row)
+    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null)
     {
-        $mailable = $this->getTabldaMail($email, $parser, $row);
-        if ($mailable) {
-            \Mail::to($mailable->recipients())->send($mailable);
-        }
-    }
-
-    /**
-     * @param TableEmailAddonSetting $email
-     * @param FormulaEvaluatorRepository $parser
-     * @param array $row
-     */
-    protected function sendViaSendGridApi(TableEmailAddonSetting $email, FormulaEvaluatorRepository $parser, array $row)
-    {
-        $mailable = $this->getTabldaMail($email, $parser, $row);
-        if (!$mailable) {
-            return;
-        }
-
-        $sender_email = $email->sender_email;
-        $sender_api = $email->smtp_key_mode == 'account' ? TabldaEncrypter::decrypt($email->_sendgrid_key->key ?? '') : $email->sendgrid_api_key;
-        $reply = $email->sender_reply_to ?? '';
-        $recipients = [];
-        foreach ($mailable->recipients() as $eml) {
-            $recipients[$eml] = $eml;
-        }
-
-        if (!$recipients || !$sender_email || !$sender_api || !$reply) {
-            return;
-        }
-
-        $sendgrid = new \SendGrid\Mail\Mail();
-        $sendgrid->setFrom($sender_email, $email->sender_name ?: config('app.name'));
-        $sendgrid->setSubject( $mailable->subjects() );
-        $sendgrid->addTos( $recipients );
-        $sendgrid->setReplyTo($reply, $reply);
-        $sendgrid->addContent("text/html", $mailable->bodys());
-
-        dispatch(new SendgridBackground($sendgrid, $sender_api, $email));
+        return [
+            'status' => $this->addonRepo->clearHistory($email, $row_id)
+        ];
     }
 }

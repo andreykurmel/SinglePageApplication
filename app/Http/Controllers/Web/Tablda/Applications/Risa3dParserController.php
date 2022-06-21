@@ -95,7 +95,7 @@ class Risa3dParserController extends Controller implements AppControllerInterfac
 
     public function direct_call(DirectCallInput $input)
     {
-        // TODO: Implement direct_call() method.
+        //
     }
 
 

@@ -26,7 +26,8 @@ class SearchDataRequest extends FormRequest
         return [
             'table_id' => 'required|integer|exists:tables,id',
             'term' => 'required|string',
-            'columns' => 'required|array'
+            'columns' => 'required|array',
+            'special_params' => 'required|array',
         ];
     }
 }

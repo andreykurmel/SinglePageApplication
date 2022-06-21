@@ -8,7 +8,6 @@
                 <div class="mini-colorpicker">
                     <tablda-colopicker
                             :init_color="fontColor"
-                            :saved_colors="$root.color_palette"
                             :show_text="'Color'"
                             :avail_null="true"
                             @set-color="setColor"
@@ -73,8 +72,7 @@
 
             setColor(clr, save) {
                 if (save) {
-                    this.$root.color_palette.unshift(clr);
-                    localStorage.setItem('color_palette', this.$root.color_palette.join(','));
+                    this.$root.saveColorToPalette(clr);
                 }
                 this.fontColor = clr;
                 this.addTag('color');

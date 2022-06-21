@@ -1,7 +1,6 @@
 <template>
     <div class="full-size-image" ref="full_block" @click="$emit('close-full-img')">
         <div class="image-wrapper" @click.stop="">
-            <!--<img width="100%" :src="img_src"/>-->
             <carousel-block :images="file_arr" :image_idx="file_idx"></carousel-block>
         </div>
     </div>
@@ -13,7 +12,6 @@
         components: {CarouselBlock}, name: "FullSizeImgBlock",
         data: function () {
             return {
-                img_src: this.$root.fileUrl({url:this.file_url})
             };
         },
         props:{

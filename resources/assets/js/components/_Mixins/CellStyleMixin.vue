@@ -1,22 +1,25 @@
 <script>
-    /**
-     *  should be present:
-     *
-     *  this.tableHeader: Object
-     *  this.tableRow: Object
-     *  this.cellHeight: Number
-     *
-     *  also are needed:
-     *
-     *  this.isVertTable: Boolean
-     *  this.isSelected: Boolean
-     *  this.maxCellRows: Number
-     *  */
-    import TestRowColMixin from './TestRowColMixin.vue';
+/**
+ *  should be present:
+ *
+ *  this.tableMeta: Object
+ *  this.tableHeader: Object
+ *  this.tableRow: Object
+ *  this.cellHeight: Number
+ *
+ *  also are needed:
+ *
+ *  this.isVertTable: Boolean
+ *  this.isSelected: Boolean
+ *  this.maxCellRows: Number
+ *  */
+import TestRowColMixin from './TestRowColMixin.vue';
+import ThemeStyleMixin from "../../global_mixins/ThemeStyleMixin.vue";
 
-    export default {
+export default {
         mixins: [
             TestRowColMixin,
+            ThemeStyleMixin,
         ],
         data: function () {
             return {
@@ -29,7 +32,7 @@
         computed: {
             //mains
             lineHeight() {
-                return this.$root.themeTextFontSize + 2;
+                return this.themeTextLineHeigh;
             },
             curRowHeight() {
                 if (this.isVertTable && this.tableHeader) {
@@ -62,7 +65,10 @@
 
             //cell style
             getCellStyle() {
-                return this.getCellStyleMethod(this.tableRow, this.tableHeader);
+                let nostyle = this.editing && ['Date Time', 'Date', 'Time'].indexOf(this.tableHeader.f_type) > -1;
+                return nostyle
+                    ? { color:'initial', fontWeight: 'initial' }
+                    : this.getCellStyleMethod(this.tableRow, this.tableHeader);
             },
 
             //inner cell styles
@@ -83,7 +89,7 @@
             },
 
             getWrapperStyle() {
-                if (this.reactive_provider && this.reactive_provider.no_height_limit) {
+                if (this.no_height_limit) {
                     return {
                         maxHeight: 'auto',
                         overflow: 'hidden',//this.isVertTable ? 'auto' : 'hidden',
@@ -119,9 +125,36 @@
             textStyle() {
                 return {
                     lineHeight: this.lineHeight+'px',
-                    fontSize: this.$root.themeTextFontSize+'px',
-                    color: this.$root.themeTextFontColor,
+                    fontSize: this.themeTextFontSize+'px',
+                    color: this.themeTextFontColor,
+                    fontFamily: this.themeTextFontFamily,
                 };
+            },
+            textSysStyle() {
+                let style = {
+                    color: this.themeSysColor,
+                    fontFamily: this.themeSysFont,
+                };
+                if (this.themeSysSize) {
+                    style.lineHeight = (Number(this.themeSysSize) + 2)+'px';
+                    style.fontSize = Number(this.themeSysSize)+'px';
+                }
+                return style;
+            },
+            textSysContentSt() {
+                return {
+                    lineHeight: (Number(this.themeSysContentSize) + 2)+'px',
+                    fontSize: this.themeSysContentSize+'px',
+                    color: this.themeSysContentColor,
+                    fontFamily: this.themeSysContentFont,
+                };
+            },
+            checkboxSys() {
+                return {
+                    width: (this.themeSysSize || 12)+'px',
+                    height: (this.themeSysSize || 12)+'px',
+                    color: this.themeSysColor,
+                }
             },
         },
         methods: {
@@ -169,9 +202,8 @@
                 if (tableRow.row_hash) {
                     res.color = null;
                 }
-                let isdeftable = this.reactive_provider && this.reactive_provider.is_def_fields;
 
-                if (isdeftable) {
+                if (this.is_def_fields) {
                     res.hidden_by_format = false;
                 }
                 else
@@ -207,7 +239,7 @@
                 }
 
                 res.backgroundColor = (this.isSelected ? '#CFC' : (res.hidden_by_format ? '#CCC' : res.backgroundColor));
-                res.color = res.color || this.$root.themeTextFontColor;
+                res.color = res.color || (this.is_td_single ? 'inherit' : this.themeTextFontColor);
 
                 if (tableHeader.f_type === 'Color' && tableRow[tableHeader.field]) {
                     res.padding = '0';
@@ -215,11 +247,12 @@
 
                 if (!res.fontSize || !res.lineHeight) {
                     res.lineHeight = this.lineHeight+'px';
-                    res.fontSize = Number(this.$root.themeTextFontSize)+'px';
+                    res.fontSize = Number(this.themeTextFontSize)+'px';
                 }
 
                 this.freezed_by_format = res.freezed_by_format;
                 this.hidden_by_format = res.hidden_by_format;
+
                 return res;
             },
         },

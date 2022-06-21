@@ -1,7 +1,7 @@
 <template>
     <div class="basic-data" style="background-color: inherit;">
         <div v-if="tableMeta._is_owner" class="pull-right flex flex--center flex--automargin" :style="{height: '30px'}">
-            <div class="basic_checks">
+            <div v-show="activeTab !== 'general'" class="basic_checks">
                 <span>Settings:</span>
                 <select class="form-control" v-model="fill_field">
                     <option v-for="tableHeader in settingsMeta['table_fields']._fields"
@@ -25,23 +25,27 @@
         </div>
 
         <div class="basic-menu">
-            <button v-if="isOwnerOrCanEdit" class="btn btn-default" :class="{active: activeTab === 'general'}" @click="activeTab = 'general'">
+            <button v-if="isOwnerOrCanEdit" class="btn btn-default" :class="{active: activeTab === 'general'}" :style="btnStyle" @click="activeTab = 'general'">
                 General
             </button>
-            <button v-if="tableMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'inps'}" @click="activeTab = 'inps';redraw_table++;">
+            <button v-if="tableMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'inps'}" :style="btnStyle" @click="activeTab = 'inps';redraw_table++;">
                 Input
             </button>
-            <button v-if="tableMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'columns'}" @click="activeTab = 'columns';redraw_table++;">
+            <button v-if="tableMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'columns'}" :style="btnStyle" @click="activeTab = 'columns';redraw_table++;">
                 Standard
             </button>
-            <button class="btn btn-default" :class="{active: activeTab === 'customizable'}" @click="activeTab = 'customizable';redraw_table++;">
+            <button class="btn btn-default" :class="{active: activeTab === 'customizable'}" :style="btnStyle" @click="activeTab = 'customizable';redraw_table++;">
                 Customizable
+            </button>
+            <button class="btn btn-default" :class="{active: activeTab === 'bas_popup'}" :style="btnStyle" @click="activeTab = 'bas_popup';redraw_table++;">
+                Pop-up
             </button>
         </div>
 
         <!--Tab with table settings-->
         <div class="basic-tab table-settings" v-show="activeTab === 'general'">
             <table-settings-module
+                    :table-meta="tableMeta"
                     :tb_meta="tableMeta"
                     :tb_theme="tableMeta._theme || {}"
                     :tb_views="tableMeta._views || []"
@@ -62,8 +66,8 @@
                     :settings-meta="settingsMeta"
                     :all-rows="tableMeta._fields"
                     :rows-count="tableMeta._fields.length"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="user"
                     :behavior="'settings_display'"
                     :available-columns="inpsAvailCols"
@@ -81,8 +85,8 @@
                     :settings-meta="settingsMeta"
                     :table-row="editDisplayPopUpRow"
                     :user="user"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :forbidden-columns="forbiddenColumns"
                     :init_active="'columns'"
                     @popup-update="updateRow"
@@ -101,8 +105,8 @@
                     :settings-meta="settingsMeta"
                     :all-rows="tableMeta._fields"
                     :rows-count="tableMeta._fields.length"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="user"
                     :behavior="'settings_display'"
                     :available-columns="standardAvailCols"
@@ -120,8 +124,8 @@
                     :settings-meta="settingsMeta"
                     :table-row="editDisplayPopUpRow2"
                     :user="user"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :forbidden-columns="forbiddenColumns"
                     :init_active="'columns'"
                     @popup-update="updateRow"
@@ -140,8 +144,8 @@
                     :settings-meta="settingsMeta"
                     :all-rows="tableMeta._fields"
                     :rows-count="tableMeta._fields.length"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :user="user"
                     :behavior="'settings_display'"
                     :available-columns="customizAvailCols"
@@ -159,8 +163,8 @@
                     :settings-meta="settingsMeta"
                     :table-row="editDisplayPopUpRow3"
                     :user="user"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="maxCellRows"
+                    :cell-height="1"
+                    :max-cell-rows="0"
                     :forbidden-columns="forbiddenColumns"
                     :init_active="'customizable'"
                     @popup-update="updateRow"
@@ -170,17 +174,56 @@
             ></for-settings-list-pop>
         </div>
 
+        <!--Tab with Popup settings-->
+        <div class="basic-tab" v-show="activeTab === 'bas_popup'" style="background-color: inherit;">
+            <custom-table
+                    :cell_component_name="'custom-cell-settings-display'"
+                    :global-meta="tableMeta"
+                    :table-meta="settingsMeta['table_fields']"
+                    :settings-meta="settingsMeta"
+                    :all-rows="tableMeta._fields"
+                    :rows-count="tableMeta._fields.length"
+                    :cell-height="1"
+                    :max-cell-rows="0"
+                    :user="user"
+                    :behavior="'settings_display'"
+                    :available-columns="popupAvailCols"
+                    :forbidden-columns="forbiddenColumns"
+                    :use_theme="true"
+                    :redraw_table="redraw_table"
+                    :is_visible="isVisible && activeTab === 'bas_popup'"
+                    @updated-row="updateRow"
+                    @row-index-clicked="rowIndexClickedDisplay4"
+            ></custom-table>
+            <for-settings-list-pop
+                    v-if="settingsMeta['table_fields'] && editDisplayPopUpRow4"
+                    :global-meta="tableMeta"
+                    :table-meta="settingsMeta['table_fields']"
+                    :settings-meta="settingsMeta"
+                    :table-row="editDisplayPopUpRow4"
+                    :user="user"
+                    :cell-height="1"
+                    :max-cell-rows="0"
+                    :forbidden-columns="forbiddenColumns"
+                    :init_active="'bas_popup'"
+                    @popup-update="updateRow"
+                    @popup-close="closePopUp"
+                    @another-row="anotherRowPopup4"
+                    @select-another-row="selAnotherPop4"
+            ></for-settings-list-pop>
+        </div>
+
         <!--Import tooltips for settings/basics-->
         <div v-show="importTooltips" class="modal-wrapper">
             <div class="modal">
                 <div class="modal-dialog modal-sm">
                     <div class="modal-content">
                         <div class="modal-body">
-                            <label>Paste tooltips below:</label>
+                            <label>Paste tooltips for columns arranged in rows below:</label>
                             <textarea v-model="parseTooltipOptions" class="form-control" rows="7"></textarea>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-success" @click="parseTooltip()">Parse Tooltips</button>
+                            <button type="button" class="btn btn-success" @click="parseTooltip()">Parse&Import</button>
                             <button type="button" class="btn btn-default" @click="importTooltips = false">Cancel</button>
                         </div>
                     </div>
@@ -192,12 +235,16 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
+
+    import {eventBus} from '../../../../../app';
+
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     import CustomTable from '../../../../CustomTable/CustomTable.vue';
     import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink.vue";
     import TableSettingsModule from "../../../../CommonBlocks/TableSettingsModule.vue";
     import ForSettingsPopUp from "../../../../CustomPopup/ForSettingsPopUp";
-
-    import {eventBus} from '../../../../../app';
     import VerticalTable from "../../../../CustomTable/VerticalTable";
     import ForSettingsListPop from "../../../../CustomPopup/ForSettingsListPop";
 
@@ -212,6 +259,7 @@
             CustomTable,
         },
         mixins: [
+            CellStyleMixin,
         ],
         data: function () {
             return {
@@ -231,19 +279,14 @@
                 editDisplayPopUpRow: null,
                 editDisplayPopUpRow2: null,
                 editDisplayPopUpRow3: null,
+                editDisplayPopUpRow4: null,
                 popUpRole: null,
                 oldTbName: this.tableMeta.name,
             }
         },
         computed: {
             forbiddenColumns() {
-                let forbid = [];
-                if (this.tableMeta._current_right) {
-                    _.each(this.tableMeta._current_right.forbidden_col_settings, (db_name) => {
-                        forbid.push(db_name);
-                    });
-                }
-                return forbid;
+                return SpecialFuncs.forbiddenCustomizables(this.tableMeta);
             },
             isOwnerOrCanEdit() {
                 return this.tableMeta._is_owner
@@ -267,10 +310,6 @@
                     if (this.filter_for_field !== 'Table') {
                         fltr.push('default_stats');
                     }
-                    if (this.filter_for_field !== 'Boards') {
-                        fltr.push('is_show_on_board');
-                        fltr.push('is_image_on_board');
-                    }
                     cols = _.filter(_.clone(cols), (el) => {
                         return fltr.indexOf(el) === -1;
                     });
@@ -288,12 +327,30 @@
                 }
                 return cols;
             },
+            popupAvailCols() {
+                let cols = this.$root.availablePopupDisplayColumns;
+                if (this.filter_for_field) {
+                    let fltr = [];
+                    if (this.filter_for_field !== 'Boards') {
+                        fltr.push('is_show_on_board');
+                        fltr.push('is_image_on_board');
+                    }
+                    cols = _.filter(_.clone(cols), (el) => {
+                        return fltr.indexOf(el) === -1;
+                    });
+                }
+                return cols;
+            },
+            btnStyle() {
+                return {
+                    height: '36px',
+                    ...this.textSysStyle,
+                }
+            },
         },
         props:{
             tableMeta: Object,
             settingsMeta: Object,
-            cellHeight: Number,
-            maxCellRows: Number,
             user:  Object,
             table_id: Number,
             isVisible: Boolean,
@@ -348,10 +405,15 @@
                 this.editDisplayPopUpRow3 = this.tableMeta._fields[index];
                 this.popUpRole = 'update';
             },
+            rowIndexClickedDisplay4(index) {
+                this.editDisplayPopUpRow4 = this.tableMeta._fields[index];
+                this.popUpRole = 'update';
+            },
             closePopUp() {
                 this.editDisplayPopUpRow = null;
                 this.editDisplayPopUpRow2 = null;
                 this.editDisplayPopUpRow3 = null;
+                this.editDisplayPopUpRow4 = null;
             },
 
             //update table settings
@@ -360,10 +422,13 @@
 
                 let data = {
                     table_id: this.tableMeta.id,
+                    _theme: {},
+                    _cur_settings: {},
+                    _changed_prop_name: prop_name,
                 };
-                Object.assign(data, this.tableMeta);
-                Object.assign(data, this.tableMeta._theme);
-                Object.assign(data, this.tableMeta._cur_settings);
+                this.$root.justObject(this.tableMeta, data);
+                this.$root.justObject(this.tableMeta._theme, data._theme);
+                this.$root.justObject(this.tableMeta._cur_settings, data._cur_settings);
 
                 axios.put('/ajax/table', data).then(({ data }) => {
                     if (in_array(prop_name, [
@@ -374,7 +439,7 @@
                         this.tableMeta.__unit_convers = data.__unit_convers || [];
                     }
                     if (prop_name === 'name') {
-                        eventBus.$emit('event-reload-menu-tree');
+                        this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
 
                         $('head title').html(this.$root.app_name+': '+this.tableMeta.name);
 
@@ -399,8 +464,12 @@
                 this.$root.anotherPopup(this.tableMeta._fields, row_id, is_next, this.rowIndexClickedDisplay2);
             },
             anotherRowPopup3(is_next) {
-                let row_id = (this.editDisplayPopUpRow2 ? this.editDisplayPopUpRow2.id : null);
+                let row_id = (this.editDisplayPopUpRow3 ? this.editDisplayPopUpRow3.id : null);
                 this.$root.anotherPopup(this.tableMeta._fields, row_id, is_next, this.rowIndexClickedDisplay3);
+            },
+            anotherRowPopup4(is_next) {
+                let row_id = (this.editDisplayPopUpRow4 ? this.editDisplayPopUpRow4.id : null);
+                this.$root.anotherPopup(this.tableMeta._fields, row_id, is_next, this.rowIndexClickedDisplay4);
             },
             selAnotherPop(row) {
                 this.editDisplayPopUpRow = row;
@@ -410,6 +479,9 @@
             },
             selAnotherPop3(row) {
                 this.editDisplayPopUpRow3 = row;
+            },
+            selAnotherPop4(row) {
+                this.editDisplayPopUpRow4 = row;
             },
 
             //mass changer

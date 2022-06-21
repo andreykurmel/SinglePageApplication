@@ -7,6 +7,17 @@ use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\User;
 
+/**
+ * Vanguard\Models\Table\TableChartRight
+ *
+ * @property int $id
+ * @property int $table_chart_id
+ * @property int $table_permission_id
+ * @property int $can_edit
+ * @property-read \Vanguard\Models\Table\TableChart $_chart
+ * @property-read \Vanguard\Models\DataSetPermissions\TablePermission $_table_permission
+ * @mixin \Eloquent
+ */
 class TableChartRight extends Model
 {
     protected $table = 'table_chart_rights';

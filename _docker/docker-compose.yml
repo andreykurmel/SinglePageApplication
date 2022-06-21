@@ -1,0 +1,61 @@
+version: "3.7"
+
+services:
+
+  tablda_mysql:
+    build: ./mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASS}
+    ports:
+      - "3306:3306"
+    volumes:
+      - "./mysql/database:/var/lib/mysql"
+      - "./www:/var/www/"
+    networks:
+      - tablda_network
+
+  tablda_apache:
+    build: ./apache
+    ports:
+      - "80:80"
+      - "443:443"
+    extra_hosts:
+      - "tablda.com:127.0.0.1"
+    volumes:
+      - "./www:/var/www/"
+    networks:
+      - tablda_network
+
+  tablda_php:
+    build: 
+      args:
+        - user=laravel
+      context: ./php
+      dockerfile: Dockerfile
+    volumes:
+      - "./mysql/database:/var/lib/mysql"
+      - "./www:/var/www/"
+    networks:
+      - tablda_network
+
+  tablda_redis:
+    build: ./redis
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASS}
+    networks:
+      - tablda_network
+
+  tablda_phpmyadmin:
+    image: phpmyadmin
+    ports:
+      - "8081:80"
+    environment:
+      - PMA_ARBITRARY=1
+    networks:
+      - tablda_network
+
+networks:
+  tablda_network:
+    driver: bridge

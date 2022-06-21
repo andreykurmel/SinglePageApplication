@@ -9,12 +9,38 @@
             <div class="wrapper-inner" :style="customInnerStyle">
                 <div class="inner-content">
 
-                    <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
+                    <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px', margin: '0 auto'}">
                         <input type="checkbox" :disabled="!canEdit" v-model="editValue" @change="updateValue()">
                         <span class="toggler round" :class="[!canEdit ? 'disabled' : '']"></span>
                     </label>
 
-                    <a v-else-if="!isAddRow && inArray(tableHeader.field, ['name'])"
+                    <button v-else-if="tableHeader.field === '_edit_email' && !isAddRow"
+                            class="btn btn-primary btn-sm blue-gradient btn-detail"
+                            @click.stop.prevent="showEmailRequestPop()"
+                            :style="$root.themeButtonStyle"
+                    >
+                        <span>Edit</span>
+                    </button>
+
+                    <button v-else-if="tableHeader.field === '_send_email' && !isAddRow"
+                            class="btn btn-primary btn-sm blue-gradient btn-detail"
+                            @click.stop.prevent="emitSignal()"
+                            :style="$root.themeButtonStyle"
+                    >
+                        <span>Send</span>
+                    </button>
+
+                    <show-attachments-block
+                        v-else-if="tableHeader.f_type === 'Attachment'"
+                        :table-header="tableHeader"
+                        :table-meta="tableMeta"
+                        :table-row="tableRow"
+                        :can-edit="canEdit"
+                        @update-signal="updateValue"
+                    ></show-attachments-block>
+
+                    <a v-else-if="!isAddRow && inArray(tableHeader.field, ['name']) && tableRow.is_active"
+                       title="Open the view in a new tab."
                        target="_blank"
                        ref="sett_content_elem"
                        :href="getLink()">{{ tableRow.name }}</a>
@@ -32,17 +58,17 @@
             </div>
 
             <cell-table-data-expand
-                    v-if="cont_height > maxCellHGT+cell_top_padding || cont_width > tableHeader.width"
-                    style="background-color: #FFF;"
-                    :cont_height="cont_height"
-                    :cont_width="cont_width"
-                    :table-meta="globalMeta"
-                    :table-row="tableRow"
-                    :table-header="tableHeader"
-                    :html="cont_html"
-                    :uniqid="getuniqid()"
-                    :can-edit="canEdit"
-                    :user="user"
+                v-if="cont_height > maxCellHGT+cell_top_padding"
+                style="background-color: #FFF;"
+                :cont_height="cont_height"
+                :cont_width="cont_width"
+                :table-meta="globalMeta"
+                :table-row="tableRow"
+                :table-header="tableHeader"
+                :html="cont_html"
+                :uniqid="getuniqid()"
+                :can-edit="canEdit"
+                :user="user"
             ></cell-table-data-expand>
 
         </div>
@@ -61,7 +87,7 @@
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -83,29 +109,29 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
-    import ExpandIconMixin from './../_Mixins/ExpandIconMixin.vue';
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
-    import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-    import CellTableDataExpand from "./InCell/CellTableDataExpand";
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import ExpandIconMixin from './../_Mixins/ExpandIconMixin.vue';
 
-    export default {
+import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
+import CellTableDataExpand from "./InCell/CellTableDataExpand";
+import CarouselBlock from "../CommonBlocks/CarouselBlock";
+import ShowAttachmentsBlock from "../CommonBlocks/ShowAttachmentsBlock";
+
+export default {
         name: "CustomCellStimAppView",
         mixins: [
             CellStyleMixin,
             ExpandIconMixin,
         ],
         components: {
+            ShowAttachmentsBlock,
+            CarouselBlock,
             CellTableDataExpand,
             TabldaSelectSimple,
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         data: function () {
             return {
@@ -124,11 +150,20 @@
             user: Object,
             isAddRow: Boolean,
             is_visible: Boolean,
+            no_height_limit: Boolean,
+            with_edit: Boolean,
         },
         watch: {
         },
         computed: {
             canEdit() {
+                if (this.inArray(this.tableMeta.db_name, ['stim_app_view_feedback_results'])) {
+                    return this.inArray(this.tableHeader.field, ['signature','notes']);
+                }
+                if (this.inArray(this.tableMeta.db_name, ['stim_app_view_feedbacks'])) {
+                    return this.inArray(this.tableHeader.field, ['purpose','request_pass']);
+                }
+
                 let can = !this.inArray(this.tableHeader.field, this.$root.systemFields)
                     && (this.user.id == this.tableRow.user_id || this.isAddRow);
                 if (this.isAddRow) {
@@ -143,6 +178,9 @@
                 let obj = this.getCellStyle;
                 if (this.tableHeader.field === 'lock_pass' && !this.tableRow.is_locked) {
                     obj.backgroundColor = '#EEE';
+                }
+                if (this.inArray(this.tableHeader.field, ['_edit_email', '_send_email'])) {
+                    obj.textAlign = 'center';
                 }
                 return obj;
             },
@@ -193,13 +231,18 @@
             updateValue() {
                 let newVal = this.editValue;
                 if (newVal !== this.oldValue) {
-                    this.tableRow[this.tableHeader.field] = newVal;
-                    this.tableRow._changed_field = this.tableHeader.field;
-                    this.$emit('updated-cell', this.tableRow);
+                    this.emitSignal(newVal);
                     this.$nextTick(() => {
                         this.changedContSize();
                     });
                 }
+            },
+            emitSignal(val) {
+                if (val !== undefined) {
+                    this.tableRow[this.tableHeader.field] = val;
+                }
+                this.tableRow._changed_field = this.tableHeader.field;
+                this.$emit('updated-cell', this.tableRow);
             },
 
             //show
@@ -212,10 +255,19 @@
                         case 'show': res = 'Show'; break;
                     }
                 }
+                else if (!this.isAddRow && this.tableHeader.field === 'name') {
+                    res = this.tableRow.name + (this.tableRow.is_active ? '' : ' (OFF)');
+                }
+                else if (this.tableHeader.f_type === 'Date Time') {
+                    res = SpecialFuncs.convertToLocal(this.tableRow[this.tableHeader.field], this.user.timezone);
+                }
                 else {
                     res = this.editValue;
                 }
                 return this.$root.strip_tags(res);
+            },
+            showEmailRequestPop() {
+                eventBus.$emit('stim-app-show-email-edit-popup', this.tableRow);
             },
         },
         mounted() {
@@ -230,4 +282,15 @@
 
 <style lang="scss" scoped>
     @import "CustomCell.scss";
+
+    .btn-detail {
+        padding: 2px 7px;
+    }
+    label {
+        margin: 0;
+    }
+
+    .no-wrap {
+        overflow: auto;
+    }
 </style>

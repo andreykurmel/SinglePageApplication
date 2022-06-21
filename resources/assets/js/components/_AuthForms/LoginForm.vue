@@ -11,9 +11,9 @@
                 <input type="hidden" :value="settings.csrf_token" name="_token">
                 <input type="hidden" :value="cururl" name="cur_path">
                 <div class="form-group input-icon has-success">
-                    <label class="sr-only">Email or Username</label>
-                    <i class="fa fa-user"></i>
-                    <input type="email" name="username" class="form-control valid" placeholder="Email or Username" aria-invalid="false" aria-describedby="username-error">
+                    <label class="sr-only">Email</label>
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" name="username" class="form-control valid" placeholder="Email" aria-invalid="false" aria-describedby="username-error" v-model="login_email">
                     <span id="username-error" class="help-block error-help-block"></span>
                 </div>
                 <div class="form-group password-field input-icon">
@@ -59,6 +59,7 @@
         },
         data: function () {
             return {
+                login_email: this.settings.register_old_email || '',
             }
         },
         props: {
@@ -76,6 +77,6 @@
     }
 </script>
 
-<style scoped="" lang="scss">
+<style scoped lang="scss">
     @import "ModalForm";
 </style>

@@ -13,6 +13,7 @@
             </div>
 
             <div class="grid-wrap"
+                 v-show="rows_count"
                  v-if="candraw"
                  :style="{ margin: (5 - bi_cell_space)+'px' }"
             >
@@ -46,7 +47,7 @@
                 </div>
             </div>
 
-            <slot-popup v-if="settings_obj" :popup_width="800" @popup-close="settings_obj = null">
+            <slot-popup v-if="settings_obj" :popup_width="850" @popup-close="settings_obj = null">
                 <template v-slot:title>
                     <span>Setup - {{ settings_obj.title }}</span>
                 </template>
@@ -55,6 +56,7 @@
                             :table-meta="tableMeta"
                             :can-edit="settings_obj.canedit"
                             :all_settings="settings_obj.all"
+                            :request_params="request_params"
                             @settings-changed="emitSettings"
                     ></bi-chart-settings>
                 </template>
@@ -66,7 +68,7 @@
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
     import {ChartFunctions} from './ChartAddon/ChartFunctions';
 
     import BiChartElement from './ChartAddon/BiChartElement.vue';
@@ -74,7 +76,7 @@
     import SlotPopup from "../../../CustomPopup/SlotPopup";
     import BiChartSettings from "./ChartAddon/BiChartSettings";
 
-    import {eventBus} from './../../../../app';
+    import {eventBus} from '../../../../app';
 
     export default {
         name: "TabBiView",
@@ -130,7 +132,7 @@
             makeWidget(newChart) {
                 let iidd = newChart.chart_settings.dimensions.gs_hash;
                 this.$nextTick(() => {
-                    this.grid.makeWidget('#BiGridWrap'+iidd);
+                    this.grid.makeWidget();
                 });
             },
             addWidget(newChart) {
@@ -179,10 +181,18 @@
                             margin: this.bi_cell_space,
                             handleClass: 'chart-body',
                         });
-                        this.grid._extra_disable_drag = !!this.bi_settings.fix_layout;
                         this.grid.on('change', this.changedPosition);
                     });
                 });
+            },
+            applyGridstackSettings() {
+                this.checkSaved();
+                if (this.bi_settings.fix_layout) {
+                    this.grid.disable();
+                } else {
+                    this.grid.enable();
+                }
+                this.grid.cellHeight(this.bi_settings.cell_height || 50, true);
             },
 
             //drag
@@ -218,10 +228,12 @@
         },
         mounted() {
             this.loadSavedCharts();
+            eventBus.$on('bi-view-changed-settings', this.applyGridstackSettings);
             eventBus.$on('bi-view-recreate', this.loadSavedCharts);
             eventBus.$on('bi-add-clicked', this.addWidget);
         },
         beforeDestroy() {
+            eventBus.$off('bi-view-changed-settings', this.applyGridstackSettings);
             eventBus.$off('bi-view-recreate', this.loadSavedCharts);
             eventBus.$off('bi-add-clicked', this.addWidget);
         }

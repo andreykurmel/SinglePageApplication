@@ -1,0 +1,31 @@
+#Risa 3D Parser
+Parsing of Risa-files for Stim Application.
+
+Must be: correspondence_apps.code = risa3d_parser
+
+Works on CorrespondenceTables.
+
+//---------
+Correspondence settings (Correspondence Fields.tbl):
+//---------
+Each table which is used in 3D model must have special "APP,Property" in Correspondence Fields.tbl:
+
+    // Needed for defining transfer parameters
+    App,Array: 'CALLING_URL_PARAMETERS'
+    APP,Property: [
+        usergroup, //String
+        mg_name, //String
+        file_col, //String
+        row_id, //Float
+    ]
+
+    //All other tables should have name like sections in this file
+    //https://risa.com/risahelp/risa3d/Content/Online%20Help%20File%20Topics/Appendix%20D%20(3D).htm
+    //or you can use file "app/TabldaApps/Risa3dParser.php::getParseParams(string $subsegment)" from row 540 to get available sections
+    App,Array: '{SECTION_NAME}'
+    APP,Property: [
+        USERGROUP, //String
+        MG_NAME, //String
+        ... and all needed columns for parsing
+    ]
+    ...

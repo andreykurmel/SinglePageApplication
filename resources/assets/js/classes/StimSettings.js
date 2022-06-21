@@ -25,5 +25,7 @@ export class StimSettings {
         this.plain_settings = obj.plain_settings || [];
 
         this._app_cur_view = obj._app_cur_view || null;
+        this.__feedback_results = obj.__feedback_results || [];
+        this.__selected_feedback = obj.__selected_feedback || null;
     }
 }

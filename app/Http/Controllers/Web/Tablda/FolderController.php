@@ -2,6 +2,7 @@
 
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
+use Vanguard\Classes\Tablda;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\Folder\AddIconFolderRequest;
 use Vanguard\Http\Requests\Tablda\Folder\CopyFolderRequest;
@@ -11,7 +12,9 @@ use Vanguard\Http\Requests\Tablda\Folder\GetFolderRequest;
 use Vanguard\Http\Requests\Tablda\Folder\PostFolderRequest;
 use Vanguard\Http\Requests\Tablda\Folder\PutFolderRequest;
 use Vanguard\Http\Requests\Tablda\Folder\TransferFolderRequest;
+use Vanguard\Http\Requests\Tablda\GetLinkRequest;
 use Vanguard\Http\Requests\Tablda\MoveNodeRequest;
+use Vanguard\Http\Requests\Tablda\PostLinkRequest;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Services\Tablda\FolderService;
 use Vanguard\Services\Tablda\HelperService;
@@ -59,9 +62,11 @@ class FolderController extends Controller
      */
     public function getSettings(GetFolderRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->folder_id);
-        $this->authorize('isOwner', [Folder::class, $folder]);
-        $this->folderService->loadSettings($folder, auth()->id());
+        $folder = $this->folderService->getFolder($request->folder_id) ?? new Folder();
+        if ($folder->user_id) { //if not 'public'
+            $this->authorize('isOwner', [Folder::class, $folder]);
+        }
+        $this->folderService->loadSettings($folder, auth()->id(), $request->structure ?: 'private');
         return [
             'folder' => $folder,
         ];
@@ -76,6 +81,7 @@ class FolderController extends Controller
     public function insert(PostFolderRequest $request)
     {
         $request->parent_id = $request->parent_id ?: 0;
+        $request->name = Tablda::safeName($request->name);
         $folder = $this->folderService->insertFolder($request->parent_id, auth()->id(), $request->name, $request->structure, $request->in_shared);
         if (empty($folder['error'])) {
             return $this->service->getFolderObjectForMenuTree($folder, [], $request->path);
@@ -94,7 +100,11 @@ class FolderController extends Controller
     public function update(PutFolderRequest $request)
     {
         $folder = $this->folderService->getFolder($request->folder_id);
-        $this->authorize('isOwner', [Folder::class, $folder]);
+        if ($folder) {
+            $this->authorize('isOwner', [Folder::class, $folder]);
+        } else {
+            return [];
+        }
 
         $resp = $this->folderService->updateFolder($request->folder_id, $request->fields, auth()->id());
         return response($resp, (empty($resp['error']) ? 200 : 500));
@@ -110,10 +120,10 @@ class FolderController extends Controller
      */
     public function delete(DeleteFolderRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->folder_id);
+        $folder = $this->folderService->getFolder($request->folder_id) ?? new Folder();
         $this->authorize('isOwner', [Folder::class, $folder]);
 
-        return ['status' => $this->folderService->deleteFolderWithSubs($request->folder_id)];
+        return ['status' => $this->folderService->deleteFolderWithSubs($request->folder_id, $folder->user_id ?: auth()->id())];
     }
 
     /**
@@ -126,7 +136,7 @@ class FolderController extends Controller
      */
     public function transfer(TransferFolderRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->id);
+        $folder = $this->folderService->getFolder($request->id) ?? new Folder();
         $this->authorize('isOwner', [Folder::class, $folder]);
 
         return ['status' => $this->folderService->transferFolder($folder, $request->new_user_id)];
@@ -140,7 +150,7 @@ class FolderController extends Controller
      */
     public function move(MoveNodeRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->id);
+        $folder = $this->folderService->getFolder($request->id) ?? new Folder();
         $this->authorize('isOwner', [Folder::class, $folder]);
 
         return ['status' => $this->folderService->moveFolder($folder, $request->folder_id, auth()->id(), $request->position)];
@@ -160,8 +170,21 @@ class FolderController extends Controller
             $request->new_user_id,
             $sys_folder->id,
             $request->new_name ?: '',
-            !!$request->overwrite
+            !!$request->overwrite,
+            !!$request->with_links
         );
+    }
+
+    /**
+     * @param PostLinkRequest $request
+     * @return array
+     * @throws \Exception
+     */
+    public function createLink(PostLinkRequest $request)
+    {
+        return [
+            'result' => $this->folderService->createLink(auth()->id(), $request->object_id, $request->folder_id, $request->type, $request->structure)
+        ];
     }
 
     /**
@@ -173,7 +196,7 @@ class FolderController extends Controller
      */
     public function addIcon(AddIconFolderRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->folder_id);
+        $folder = $this->folderService->getFolder($request->folder_id) ?? new Folder();
         $this->authorize('isOwner', [Folder::class, $folder]);
 
         return $this->folderService->addIcon($folder, $request->file('file'));
@@ -188,7 +211,7 @@ class FolderController extends Controller
      */
     public function delIcon(GetFolderRequest $request)
     {
-        $folder = $this->folderService->getFolder($request->folder_id);
+        $folder = $this->folderService->getFolder($request->folder_id) ?? new Folder();
         $this->authorize('isOwner', [Folder::class, $folder]);
 
         return ['status' => $this->folderService->delIcon($folder)];

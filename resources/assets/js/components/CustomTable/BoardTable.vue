@@ -3,11 +3,11 @@
         <div v-for="(tableRow, r_idx) in allRows"
              v-if="show_delay"
              class="board-wrapper flex"
-             :style="{height: boardSettings.board_view_height ? (boardSettings.board_view_height+10)+'px' : 'auto'}"
+             :style="{height: globalMeta.board_view_height ? (globalMeta.board_view_height+10)+'px' : 'auto'}"
              @click="selectedBoard(r_idx)"
         >
-            <div class="board-border">
-                <div class="board-table" :style="{width: (100-boardSettings.board_image_width)+'%'}">
+            <div class="board-border flex">
+                <div class="board-table" :style="{width: (100-globalMeta.board_image_width)+'%'}" @click="showPopupHandler(tableRow)">
                     <vertical-table
                             :td="$root.tdCellComponent(tableMeta.is_system)"
                             :global-meta="globalMeta"
@@ -18,16 +18,14 @@
                             :max-cell-rows="maxCellRows"
                             :user="user"
                             :behavior="behavior"
-                            :with_edit="false"
-                            :can-see-history="false"
                             :disabled_sel="true"
                             :is_small_spacing="'yes'"
                             :available-columns="boardFields"
                             :forbidden-columns="forbiddenColumns"
+                            @updated-cell="updatedRow"
                     ></vertical-table>
-                    <a @click="showPopupHandler(tableRow)">More...</a>
                 </div>
-                <div v-if="boardSettings.board_image_width" class="attach-table" :style="{width: (boardSettings.board_image_width)+'%'}">
+                <div v-if="globalMeta.board_image_width" class="attach-table" :style="{width: (globalMeta.board_image_width)+'%'}">
                     <carousel-block :images="getBoardImages(tableRow)" @img-clicked="imageClick"></carousel-block>
                 </div>
             </div>
@@ -48,7 +46,10 @@
                 :max-cell-rows="maxCellRows"
                 :forbidden-columns="forbiddenColumns"
                 :available-columns="availableColumns"
-                @popup-update="updatedCell"
+                @popup-insert="addedRow"
+                @popup-copy="addedRow"
+                @popup-update="updatedRow"
+                @popup-delete="deletedRow"
                 @popup-close="closePopUp"
                 @show-src-record="showSrcRecord"
                 @another-row="anotherRowPopup"
@@ -64,38 +65,34 @@
 </template>
 
 <script>
-    import {SelectedCells} from './../../classes/SelectedCells';
+import {SelectedCells} from './../../classes/SelectedCells';
 
-    import ReactiveProviderMixin from '../_CommonMixins/ReactiveProviderMixin.vue';
-    import IsShowFieldMixin from '../_Mixins/IsShowFieldMixin.vue';
-    import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import IsShowFieldMixin from '../_Mixins/IsShowFieldMixin.vue';
+import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
+import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
+import CustomCellCorrespTableData from '../CustomCell/CustomCellCorrespTableData.vue';
+import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
+import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
+import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
+import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
+import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
+import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
+import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
+import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
+import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
 
-    import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
-    import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
-    import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
-    import CustomCellCorrespTableData from '../CustomCell/CustomCellCorrespTableData.vue';
-    import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
-    import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
-    import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
-    import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
-    import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
-    import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
-    import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
-    import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
-    import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
-    import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
-    import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
-    import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
+import CustomEditPopUp from "../CustomPopup/CustomEditPopUp";
+import CarouselBlock from "../CommonBlocks/CarouselBlock";
+import FullSizeImgBlock from "../CommonBlocks/FullSizeImgBlock";
+import VerticalTable from "./VerticalTable";
 
-    import CustomEditPopUp from "../CustomPopup/CustomEditPopUp";
-    import CarouselBlock from "../CommonBlocks/CarouselBlock";
-    import FullSizeImgBlock from "../CommonBlocks/FullSizeImgBlock";
-    import VerticalTable from "./VerticalTable";
-
-    export default {
+export default {
         name: "BoardTable",
         mixins: [
-            ReactiveProviderMixin,
             IsShowFieldMixin,
             CellStyleMixin,
         ],
@@ -131,7 +128,6 @@
             };
         },
         props:{
-            boardSettings: Object,
             globalMeta: Object,
             tableMeta: Object,
             allRows: Object|null,
@@ -182,8 +178,14 @@
             showAddRefCond(refId) {
                 this.$emit('show-add-ref-cond', refId);
             },
-            updatedCell(tableRow, hdr) {
-                this.$emit('updated-cell', tableRow, hdr);
+            addedRow(tableRow) {
+                this.$emit('added-row', tableRow);
+            },
+            updatedRow(tableRow, hdr) {
+                this.$emit('updated-row', tableRow, hdr);
+            },
+            deletedRow(tableRow) {
+                this.$emit('delete-row', tableRow);
             },
             showDefValPopup(tableRow) {
                 this.$emit('show-def-val-popup', tableRow);
@@ -264,6 +266,7 @@
         }
 
         .board-table {
+            padding-right: 10px;
             width: 65%;
             overflow-x: hidden;
             overflow-y: auto;

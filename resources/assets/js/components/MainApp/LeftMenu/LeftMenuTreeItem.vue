@@ -6,7 +6,7 @@
         </div>
 
         <div class="search-in-tree">
-            <input type="text" class="form-control" @change="searchInTab()" v-model="searchVal">
+            <input type="text" class="form-control" @input="clearSearchIndex" @keydown="searchKey" v-model="searchVal">
             <button class="btn btn-default" @click="searchInTab()"><i class="fa fa-search"></i></button>
         </div>
 
@@ -27,14 +27,37 @@
         <!--Transfer form-->
         <div v-show="toOtherModal.show" class="modal-wrapper">
             <div class="modal">
-                <div class="modal-dialog modal-sm">
+                <div class="modal-dialog modal-sm" style="width: 350px; margin-bottom: 100px;">
                     <div class="modal-content">
                         <div class="modal-header">
                             <h4 class="modal-title">{{ toOtherModal.text }}</h4>
                         </div>
                         <div class="modal-body">
-                            <label>Select User</label>
-                            <select ref="search_user"></select>
+                            <table class="full-width">
+                                <tr>
+                                    <td style="font-weight: bold;">Search & Select a User</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <select ref="search_user" class="form-group"></select>
+                                    </td>
+                                </tr>
+                                <tr v-if="$root.tableMeta && $root.tableMeta.id">
+                                    <td style="font-weight: bold;">Or select a usergroup or a user</td>
+                                </tr>
+                                <tr v-if="$root.tableMeta && $root.tableMeta.id">
+                                    <td style="position: relative; height: 30px;">
+                                        <tablda-user-select
+                                                :edit_value="toOtherModal.user_select"
+                                                :show_selected="true"
+                                                :table_meta="$root.tableMeta"
+                                                :can_empty="true"
+                                                style="min-width: auto;"
+                                                @selected-item="(val) => { toOtherModal.user_select = val; }"
+                                        ></tablda-user-select>
+                                    </td>
+                                </tr>
+                            </table>
                             <copy-table-settings-block
                                     v-if="toOtherModal.action === 'copy'"
                                     @send-settings="getSettingsWith"
@@ -51,6 +74,14 @@
                 </div>
             </div>
         </div>
+
+        <!--Info Message-->
+        <info-popup v-if="info_message"
+                    :title_html="'Info'"
+                    :content_html="info_message"
+                    :extra_style="{top:'calc(50% - 75px)'}"
+                    @hide="info_message = ''"
+        ></info-popup>
 
         <!--Add/Edit Table form-->
         <left-menu-tree-table-popup
@@ -81,26 +112,33 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../app';
+    import {eventBus} from '../../../app';
 
-    import {JsTree} from './../../../classes/JsTree';
-    import {SpecialFuncs} from './../../../classes/SpecialFuncs';
+    import {JsTree} from '../../../classes/JsTree';
+    import {SpecialFuncs} from '../../../classes/SpecialFuncs';
 
     import CopyTableSettingsBlock from "../../CommonBlocks/CopyTableSettingsBlock";
     import LeftMenuTreeTablePopup from "./LeftMenuTreeTablePopup";
     import LeftMenuTreeFolderPopup from "./LeftMenuTreeFolderPopup";
     import MenuTreeAlreadyCopied from "../../CustomPopup/MenuTreeAlreadyCopied";
+    import InfoPopup from "../../CustomPopup/InfoPopup";
+    import TabldaUserSelect from "../../CustomCell/Selects/TabldaUserSelect";
 
     export default {
         name: 'LeftMenuTreeItem',
         components: {
+            InfoPopup,
+            TabldaUserSelect,
             MenuTreeAlreadyCopied,
             LeftMenuTreeFolderPopup,
             LeftMenuTreeTablePopup,
-            CopyTableSettingsBlock
+            CopyTableSettingsBlock,
         },
         data() {
             return {
+                search_index: 0,
+                prevent_recusrion: false,
+                info_message: '',
                 already_copied_popup_show: '',
                 searchVal: '',
 
@@ -119,6 +157,7 @@
                     node: null,
                     proceed_type: null,
                     new_name: null,
+                    user_select: null,
                     _with: {}
                 },
                 editedFolderNode: null,
@@ -151,15 +190,15 @@
         },
         methods: {
             saveScrollPos() { //save scroll position
-                this.tabObj.init_scrl = this.$refs.tree_wrap ? $(this.$refs.tree_wrap).scrollTop() : 0;
+                localStorage.setItem('scroll_menutree_'+this.tab, this.$refs.tree_wrap ? $(this.$refs.tree_wrap).scrollTop() : 0);
             },
             changeOpenedObject(type, object_id, name, path, reload) {
-                if (reload) {
-                    window.location.reload();
-                    //window.location.href = path;
-                    return;
-                }
+                //remove domain
+                try {
+                    path = (new URL(path)).pathname;
+                } catch (e) {}
 
+                //change browser url
                 try {
                     if (this.tab !== 'folder_view') {
                         window.history.pushState(name, name, path);
@@ -170,13 +209,20 @@
                 } catch (e) {
                     window.location.href = path;
                 }
+
+                if (reload) {
+                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
+                    //window.location.reload();
+                }
             },
 
             // creating JsTree -----------------------------------------------------------------------------------------
             createTreeMenu() {
                 let self = this;
                 $(this.$refs.jstree).bind('loaded.jstree', (e, data) => {
-                        $(this.$refs.tree_wrap).scrollTop(this.tabObj.init_scrl);
+                        let top = Number(localStorage.getItem('scroll_menutree_'+this.tab) || 0);
+                        $(this.$refs.tree_wrap).scrollTop(top);
+                        this.highligtSelectedNode(true);
                     })
                     .jstree( this.getContextMenu() )
                     .on('select_node.jstree', function (e, data) {
@@ -193,9 +239,26 @@
                     })
                     .on('copy_node.jstree', function (e, data) {
                         self.jstree_copy_node(data);
+                    })
+                    .on('search.jstree', function (e, data) {
+                        let array = $(this).find('.jstree-search');
+                        if (array && array.length) {
+                            if (!array[this.search_index]) {
+                                this.search_index = 0;
+                            }
+                            array[this.search_index].scrollIntoView();
+                            this.search_index++;
+                        }
                     });
             },
             jstree_select_node(e, $node) {
+                //highlight current table/folder
+                if (this.prevent_recusrion) {
+                    this.prevent_recusrion = false;
+                    return false;
+                }
+                this.highligtSelectedNode(true);
+
                 //only for left click
                 let evt =  window.event || e;
                 let button = evt.which || evt.button;
@@ -206,13 +269,14 @@
 
                 if (this.selectedLink) {
                     if (type !== 'folder') {
-                        Swal('', 'You should select a folder');
+                        this.info_message = 'You should select a folder';
                     } else
                     if (this.tab === 'public' && !this.$root.user.is_admin && object.name !== 'UNCATEGORIZED') {
-                        Swal('', 'You can create link on "public" tab only in "UNCATEGORIZED" folder');
+                        this.info_message = 'You can create link on "public" tab only in "UNCATEGORIZED" folder';
                     } else {
-                        //create link for table
-                        this.createLink(this.selectedLink.id, object, $node);
+                        //create link for table or folder
+                        let type = this.selectedLink.db_name ? 'table' : 'folder';
+                        this.createLink(this.selectedLink.id, object, $node, type);
                         this.$emit('update-selected-link', null);
                     }
                 } else {
@@ -225,7 +289,7 @@
                 }
             },
             jstree_toggle_node($node, is_open) {
-                if (this.tab !== 'public' && this.tab !== 'folder_view') {
+                if (this.tab !== 'folder_view') {
                     let folder_id = $node.li_attr['data-object'].id;
                     if (this.$root.user.id === $node.li_attr['data-object'].user_id) {
                         this.toggleFolder(folder_id, is_open);
@@ -236,6 +300,11 @@
                             .removeClass(is_open ? 'fa-folder' : 'fa-folder-open')
                             .addClass(is_open ? 'fa-folder-open' : 'fa-folder');
                     }
+                    if (icon.hasClass('fa-folder-minus') || icon.hasClass('fa-folder-plus')) {
+                        icon
+                            .removeClass(is_open ? 'fa-folder-plus' : 'fa-folder-minus')
+                            .addClass(is_open ? 'fa-folder-minus' : 'fa-folder-plus');
+                    }
                 }
             },
             jstree_move_node(data) {
@@ -243,7 +312,6 @@
             },
             jstree_copy_node(data) {
                 let nmo = this.node_move_object(data);
-                $.LoadingOverlay('show');
                 this.copyObject(
                     nmo.sel_type, nmo.object.id, this.$root.user.id
                 ).then(({ data }) => {
@@ -257,9 +325,12 @@
                     }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
-                }).finally(() => {
-                    $.LoadingOverlay('hide');
                 });
+
+                $.LoadingOverlay('show');
+                setTimeout(() => {
+                    $.LoadingOverlay('hide');
+                }, 500);
             },
             node_move_object(data) {
                 let nmo = {};
@@ -286,25 +357,28 @@
 
             //creating context menu ------------------------------------------------------------------------------------
             getContextMenu() {
+                let context_menu = {
+                    'core': {
+                        'data': this.tab_tree,
+                        'keyboard': {
+                            'left': false,
+                            'right': false,
+                            'up': false,
+                            'down': false,
+                        },
+                    }
+                };
+
                 //no functions for Folder Views
                 if (this.tab === 'folder_view') {
-                    return {
-                        'core' : {
-                            'data' : this.tab_tree
-                        }
-                    };
+                    return context_menu;
                 }
 
                 let self = this;
                 let plugins = ['contextmenu', 'search'];
-                let context_menu = {
-                    'contextmenu': {
-                        'items': function ($node) {
-                            return {};
-                        }
-                    },
-                    'core' : {
-                        'data' : this.tab_tree
+                context_menu['contextmenu'] = {
+                    'items': function ($node) {
+                        return {};
                     }
                 };
 
@@ -322,6 +396,8 @@
                 return context_menu;
             },
             getContextMenuItems($node, $is_admin) {
+                let $is_editor = this.$root.user.role_id == 3;
+
                 let self = this;
                 let type = $node.li_attr['data-type'];
                 let object = $node.li_attr['data-object'];//can be instance 'Folder' or 'Table' !!!
@@ -333,21 +409,54 @@
                     return menu;
                 }
 
+                //no menu for System objects
                 if (object.is_system && !object.in_shared && this.tab !== 'favorite') {
                     return menu;
                 }
 
-                if ($is_admin || object.user_id === this.$root.user.id || object.in_shared) {
+                if (type === 'folder' && this.tab === 'public' && !object.is_system && object.is_folder_link) {
+                    menu.public_copy = {
+                        'separator_before': false,
+                        'separator_after': false,
+                        'label': 'Make a Copy',
+                        'action': (obj) => {
+                            if (this.$root.user.id) {
+                                $.LoadingOverlay('show');
+                                self.copyObject('folder', object.id, this.$root.user.id, [], 'overwrite', null, 'with_links').then(({data}) => {
+                                    this.info_message = 'The Folder has been copied to folder "Private/Transferred"';
+                                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
+                                }).finally(() => {
+                                    $.LoadingOverlay('hide');
+                                });
+                            } else {
+                                Swal('Please log in to save a copy to your private folder.');
+                            }
+                        }
+                    };
+                }
+
+                //no menu for visitor.
+                if (!this.$root.user.id) {
+                    return menu;
+                }
+
+                let $is_owner = object.user_id == this.$root.user.id;
+                let $link_owner = object.is_folder_link == this.$root.user.id || (object.link && object.link.is_folder_link == this.$root.user.id);
+
+                if ($is_admin || $is_owner || $is_editor || $link_owner) {
                     //menu items for 'folders'
                     if (type === 'folder') {
-                        menu.add = {
-                            'separator_before': false,
-                            'separator_after': false,
-                            'label': 'Add Folder',
-                            'action': function (obj) {
-                                self.addFolder(object.id, $node, object.in_shared ? 1 : 0);
-                            }
-                        };
+                        if ($is_admin || $is_owner) {
+                            menu.add = {
+                                'separator_before': false,
+                                'separator_after': false,
+                                'label': 'Add Folder',
+                                'action': function (obj) {
+                                    self.addFolder(object.id, $node, object.in_shared ? 1 : 0);
+                                }
+                            };
+                        }
+
                         if (this.tab === 'private' && this.canAddTable && !object.in_shared) {
                             menu.add_table = {
                                 'separator_before': false,
@@ -357,8 +466,20 @@
                                     self.showTablePopup('new', $node);
                                 }
                             };
+                            if ($is_admin || $is_editor) {
+                                menu.add_link = {
+                                    'separator_before': false,
+                                    'separator_after': false,
+                                    'label': 'Create Link',
+                                    'action': function (obj) {
+                                        self.$emit('update-selected-link', object);
+                                        Swal('Create a Link to the Folder', 'Select a Tab in the menutree and then a folder in the Tab (folder "UNCATEGORIZED" only in Tab "Public").');
+                                    }
+                                };
+                            }
                         }
-                        if (!object.is_system && object.user_id === this.$root.user.id) {
+
+                        if (!object.is_system && ($is_admin || $is_owner || $is_editor || $link_owner)) {
                             menu.remove = {
                                 'separator_before': false,
                                 'separator_after': false,
@@ -367,7 +488,7 @@
                                     self.deleteFolder(object.id, $node);
                                 }
                             };
-                            if (this.tab !== 'favorite' && !object.in_shared) {
+                            if (this.tab === 'private' && !object.in_shared) {
                                 menu.favorite = {
                                     'separator_before': false,
                                     'separator_after': false,
@@ -376,12 +497,10 @@
                                         self.favoriteFolder(object);
                                     }
                                 };
-                            }
-                            if (this.tab === 'private' && !object.in_shared) {
                                 menu.edit = {
                                     'separator_before': false,
                                     'separator_after': false,
-                                    'label': 'Settings',
+                                    'label': 'Settings&More',
                                     'action': function (obj) {
                                         let path = $node.a_attr['href'];
                                         self.changeOpenedObject('folder', object.id, object.name, path);
@@ -396,7 +515,7 @@
                                         self.showToOtherModal('transfer', 'folder', 'Transfer folder', object.id, $node);
                                     }
                                 };
-                                menu.transfer = {
+                                menu.copy = {
                                     'separator_before': false,
                                     'separator_after': false,
                                     'label': 'Copy to Others',
@@ -411,14 +530,14 @@
                     //menu items for 'tables'
                     if (type === 'table') {
                         menu = {
-                            /*'edit': {
+                            'open': {
                                 'separator_before': false,
                                 'separator_after': false,
-                                'label': 'Settings',
+                                'label': 'Open in New Tab',
                                 'action': function (obj) {
-                                    self.showTablePopup('edit', $node);
+                                    window.open($node.a_attr['href'], '_blank');
                                 }
-                            },*/
+                            },
                             'link': {
                                 'separator_before': false,
                                 'separator_after': false,
@@ -426,6 +545,14 @@
                                 'action': function (obj) {
                                     self.$emit('update-selected-link', object);
                                     Swal('Create a Link to the Table', 'Select a Tab in the menutree and then a folder in the Tab (folder "UNCATEGORIZED" only in Tab "Public").');
+                                }
+                            },
+                            'table_rename': {
+                                'separator_before': false,
+                                'separator_after': false,
+                                'label': 'Rename',
+                                'action': function (obj) {
+                                    self.showTablePopup('edit', $node);
                                 }
                             },
                             'transfer': {
@@ -450,14 +577,6 @@
                                 'label': 'Remove',
                                 'action': function (obj) {
                                     self.deleteTable(object, $node);
-                                }
-                            },
-                            'open': {
-                                'separator_before': false,
-                                'separator_after': false,
-                                'label': 'Open in New Tab',
-                                'action': function (obj) {
-                                    window.open($node.a_attr['href'], '_blank');
                                 }
                             },
                             'favorite': {
@@ -494,16 +613,22 @@
                             }
                         };
                     }
-                    /*if (object._shared_edit_tb) {
-                        menu.edit = {
+                    if (object._permis_can_public_copy) {
+                        menu.public_copy = {
                             'separator_before': false,
                             'separator_after': false,
-                            'label': 'Settings',
-                            'action': function (obj) {
-                                self.showTablePopup('edit', $node);
+                            'label': 'Make a Copy',
+                            'action': (obj) => {
+                                $.LoadingOverlay('show');
+                                self.copyObject('table', object.id, this.$root.user.id, [], 'overwrite', null, 'visitor').then(({ data }) => {
+                                    this.info_message = 'The table has been copied to folder "Private/Transferred"';
+                                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
+                                }).finally(() => {
+                                    $.LoadingOverlay('hide');
+                                });
                             }
                         };
-                    }*/
+                    }
                     menu.open = {
                         'separator_before': false,
                         'separator_after': false,
@@ -527,6 +652,7 @@
             },
             treeCheckCallback(jstree, operation, node, node_parent) {
                 if (operation === 'move_node' || operation === 'copy_node') {
+                    let is_admin = this.$root.user.is_admin;
                     let node_li = node.li_attr || {};
                     let node_object = node_li['data-object'] || {};
                     let parent_li = node_parent.li_attr || {};
@@ -539,6 +665,11 @@
                             tables_count++;
                         }
                     });
+
+                    //cannot move 'folder link'
+                    if ((!is_admin && node_object.is_folder_link) || (node_object.link && node_object.link.is_folder_link)) {
+                        return false;
+                    }
 
                     //cannot change system objects
                     if (node_object.is_system || parent_object.is_system) {
@@ -568,7 +699,7 @@
                     table_id: object.id,
                     favorite: true
                 }).then(({ data }) => {
-                    this.$emit('reload-menu-tree');
+                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
@@ -578,7 +709,7 @@
                     folder_id: object.id,
                     favorite: true
                 }).then(({ data }) => {
-                    this.$emit('reload-menu-tree');
+                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 });
@@ -599,33 +730,38 @@
             transferObject() {
                 let user_id = $(this.$refs.search_user).val();
                 let node_name = this.toOtherModal.node.li_attr['data-object'].name;
-                if (user_id) {
-                    $.LoadingOverlay('show');
+                if (this.toOtherModal.user_select || user_id) {
                     axios.post('/ajax/'+this.toOtherModal.object_type+'/transfer', {
                         id: this.toOtherModal.object_id,
-                        new_user_id: user_id,
+                        new_user_or_group: this.toOtherModal.user_select || user_id,
+                        table_with: [],
                     }).then(({ data }) => {
                         //if name of the object is present in the URL path
                         if ( window.location.href.indexOf(node_name) > -1 ) {
-                            window.location.reload();
+                            this.changeOpenedObject('table', 0, '', '/data/');
+                            //window.location.reload();
                         }
-                        $(this.$refs.jstree).jstree('delete_node', this.toOtherModal.node);
                         this.sync_tables();
-                        this.toOtherModal.show = false;
                     }).catch(errors => {
                         Swal('', getErrors(errors));
-                    }).finally(() => {
-                        $.LoadingOverlay('hide');
                     });
+
+                    $.LoadingOverlay('show');
+                    setTimeout(() => {
+                        $(this.$refs.jstree).jstree('delete_node', this.toOtherModal.node);
+                        this.toOtherModal.show = false;
+                        $.LoadingOverlay('hide');
+                    }, 500);
                 }
             },
-            copyObject(object_type, object_id, user_id, $with, proceed_type, new_name) {
+            copyObject(object_type, object_id, user_id, $with, proceed_type, new_name, visitor) {
                 //Folder Copy
                 if (object_type === 'folder') {
                     return new Promise((resolve) => {
                         axios.get('/ajax/folder', {
                             params: {
                                 folder_id: object_id,
+                                structure: this.tab,
                             }
                         }).then(({ data }) => {
                             let subtree = data.folder._sub_tree;
@@ -636,6 +772,7 @@
                                 folder_json: subtree,
                                 overwrite: proceed_type === 'overwrite',
                                 new_name: new_name,
+                                with_links: visitor,
                             }).then(({ data }) => {
                                 resolve({data: data});
                             });
@@ -657,10 +794,11 @@
                     };
                     return axios.post('/ajax/table/copy', {
                         id: object_id,
-                        new_user_id: user_id,
+                        new_user_or_group: String(user_id),
                         table_with: $with,
                         overwrite: proceed_type === 'overwrite',
                         new_name: new_name,
+                        visitor: visitor,
                     });
                 }
             },
@@ -679,8 +817,15 @@
                             nmo.$node.a_attr['href'] = data.path;
                         }
                     }
+
+                    //update URL
+                    if ( window.location.href.indexOf(nmo.object.name) > -1 ) {
+                        let path = data.path || nmo.$node.a_attr['href'];
+                        this.changeOpenedObject(nmo.sel_type, nmo.object.id, nmo.object.name, path);
+                    }
+
                     this.sync_tables();
-                    this.$emit('reload-menu-tree');
+                    this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -689,39 +834,41 @@
             },
             popupCopyObject() {
                 let user_id = $(this.$refs.search_user).val();
-                if (user_id) {
-                    $.LoadingOverlay('show');
+                if (this.toOtherModal.user_select || user_id) {
                     this.copyObject(
                         this.toOtherModal.object_type,
                         this.toOtherModal.object_id,
-                        user_id,
+                        this.toOtherModal.user_select || user_id,
                         this.toOtherModal._with,
                         this.toOtherModal.proceed_type,
                         this.toOtherModal.new_name
                     ).then(({ data }) => {
-                        this.toOtherModal.show = false;
                         if (data.error && data.msg.length) {
                             if (data.already_copied) {
                                 this.already_copied_popup_show = this.toOtherModal.object_type;
                             } else {
-                                Swal('', data.msg);
+                                this.info_message = data.msg;
                             }
                         } else {
                             if (this.toOtherModal.proceed_type === 'overwrite') {
-                                Swal('', 'Table copied and overwrote existing.');
+                                this.info_message = 'Table copied and overwrote existing.';
                             }
                             if (this.toOtherModal.proceed_type === 'rename' && this.toOtherModal.new_name) {
-                                Swal('', 'Table copied and renamed as '+this.toOtherModal.new_name+'.');
+                                this.info_message = 'Table copied and renamed as '+this.toOtherModal.new_name+'.';
                             }
                             if (this.$root.user.id == user_id) {
-                                eventBus.$emit('event-reload-menu-tree');
+                                this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
                             }
                         }
                     }).catch(errors => {
                         Swal('', getErrors(errors));
-                    }).finally(() => {
-                        $.LoadingOverlay('hide');
                     });
+
+                    $.LoadingOverlay('show');
+                    setTimeout(() => {
+                        this.toOtherModal.show = false;
+                        $.LoadingOverlay('hide');
+                    }, 500);
                 }
             },
             popupCopyObjectProceed(type, name) {
@@ -741,7 +888,7 @@
                 if ($node) {
                     $(this.$refs.jstree).jstree().open_node($node);
                 }
-                this.changeOpenedObject('table', data.table_id, data.table_object.name, data.path, true);
+                this.changeOpenedObject('table', data.table_id, data.table_object.name, data.path);
                 this.sync_tables();
                 this.tablePopup.type = null;
             },
@@ -769,7 +916,8 @@
                             }
                         }).then(({ data }) => {
                             if (object.id === this.table_id) {
-                                window.location.reload();
+                                this.changeOpenedObject('table', 0, '', '/data/');
+                                //window.location.reload();
                             }
                             $(this.$refs.jstree).jstree('delete_node', $node);
                             this.sync_tables();
@@ -838,7 +986,7 @@
                         $.LoadingOverlay('hide');
                     });
                 } else {
-                    Swal('You need to write something!');
+                    this.info_message = 'You need to write something!';
                 }
                 this.folderPopup.active = false;
             },
@@ -861,7 +1009,8 @@
                         }).then(({ data }) => {
                             //if name of the object is present in the URL path
                             if ( new RegExp(node_name, 'gi').test( window.location.href ) ) {
-                                window.location.reload();
+                                this.changeOpenedObject('table', 0, '', '/data/');
+                                //window.location.reload();
                             }
                             $(this.$refs.jstree).jstree('delete_node', $node);
                             this.sync_tables();
@@ -880,23 +1029,31 @@
                         is_opened: status
                     },
                 }).then(({ data }) => {
+                    if (data.memutree_hash) {
+                        this.$root.user.memutree_hash = data.memutree_hash;
+                    }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {});
             },
 
             //Menu functions for 'links' -------------------------------------------------------------------------------
-            createLink(table_id, object, $node) {
+            createLink(object_id, object, $node, type) {
                 $.LoadingOverlay('show');
-                axios.post('/ajax/table/link', {
-                    table_id: table_id,
+                axios.post('/ajax/'+type+'/link', {
+                    object_id: object_id,
                     folder_id: object.id,
                     type: 'link',
                     structure: this.tab,
                     path: $node.a_attr['href'],
                 }).then(({ data }) => {
-                    $(this.$refs.jstree).jstree().create_node($node, data, 'last', false, false);
-                    $(this.$refs.jstree).jstree().open_node($node);
+                    if (type === 'folder') {
+                        this.$root.user.memutree_hash = null;
+                        eventBus.$emit('event-reload-menu-tree');
+                    } else {
+                        $(this.$refs.jstree).jstree().create_node($node, data, 'last', false, false);
+                        $(this.$refs.jstree).jstree().open_node($node);
+                    }
                 }).catch(errors => {
                     Swal('', getErrors(errors));
                 }).finally(() => {
@@ -966,18 +1123,23 @@
                     }
                 }
             },
+            clearSearchIndex(e) {
+                this.search_index = 0;
+            },
+            searchKey(e) {
+                if (e.keyCode == 13) {
+                    this.searchInTab();
+                }
+            },
             searchInTab() {
                 $(this.$refs.jstree).jstree().search( this.searchVal );
             },
             sync_tables() {
-                $.LoadingOverlay('show');
                 axios.get('/ajax/table-data/available-tables', {
                 }).then(({ data }) => {
                     this.settingsMeta.available_tables = data;
                 }).catch(errors => {
                     Swal('', getErrors(errors));
-                }).finally(() => {
-                    $.LoadingOverlay('hide');
                 });
             },
             sync_menu_tree($node) {
@@ -1005,6 +1167,28 @@
             showCopyFolderToOthers(folder) {
                 eventBus.$emit('show-copy-folder-to-others', folder.id);
             },
+            highligtSelectedNode() {
+                let jstre = $(this.$refs.jstree).jstree();
+                if (!jstre) {
+                    return;
+                }
+                if (jstre.deselect_all) {
+                    jstre.deselect_all(true);
+                }
+
+                let node_id = '';
+                let hrefs = [window.location.href];
+                jstre.get_json(null, { 'flat': true }).forEach(function (node) {
+                    if ($.inArray(node.a_attr['href'], hrefs) > -1) {
+                        node_id = node.id;
+                    }
+                });
+
+                this.prevent_recusrion = !!node_id;
+                if (node_id) {
+                    jstre.select_node('#' + node_id, true);
+                }
+            },
         },
         mounted() {
             if (this.tab_tree && (this.$root.user.id || this.$root.user._is_folder_view || this.tab === 'public')) {
@@ -1017,7 +1201,7 @@
                     dataType: 'json',
                     delay: 250
                 },
-                minimumInputLength: 1,
+                minimumInputLength: {val:3},
                 width: '100%',
                 height: '100%'
             });
@@ -1027,8 +1211,11 @@
                 let $nn = SpecialFuncs.findInTree(this.tab_tree, this.table_id, 'table');
                 window.location.hash = $nn ? $nn['a_attr']['href'] : '';
             }
+
+            eventBus.$on('re-highlight-menu-tree', this.highligtSelectedNode);
         },
         beforeDestroy() {
+            eventBus.$off('re-highlight-menu-tree', this.highligtSelectedNode);
         }
     }
 </script>

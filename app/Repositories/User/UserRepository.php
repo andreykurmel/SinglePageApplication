@@ -177,4 +177,14 @@ interface UserRepository
      * @return mixed
      */
     public function findByConfirmationToken($token);
+
+    /**
+     * @param $invite
+     * @param $mail
+     */
+    public function storeInvites($invite, $mail);
+
+    /**
+     */
+    public function awardInvites();
 }

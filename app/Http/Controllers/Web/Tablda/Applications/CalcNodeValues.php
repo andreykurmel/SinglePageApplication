@@ -10,6 +10,7 @@ use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallInput;
 use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallOut;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Modules\Settinger;
+use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableRepository;
 
@@ -18,7 +19,7 @@ class CalcNodeValues extends Controller implements AppControllerInterface
     protected $settings = [];
     protected $param_links = [];
     /**
-     * @var ExpressionLanguage
+     * @var FormulaEvaluatorRepository
      */
     protected $evaluator;
 
@@ -92,7 +93,7 @@ class CalcNodeValues extends Controller implements AppControllerInterface
             $key = $this->l_name($param[$param_maps['name']]);
             $this->param_links[$key] = $param_maps['value'];
         }
-        $this->evaluator = new ExpressionLanguage();
+        $this->evaluator = new FormulaEvaluatorRepository($params_table, null, true);
     }
 
     /**
@@ -190,7 +191,7 @@ class CalcNodeValues extends Controller implements AppControllerInterface
     {
         if ($formula && !is_numeric($formula)) {
             $formula = $this->formulaReplaceVars((string)$formula);
-            $formula = $this->evaluator->evaluate($formula);
+            $formula = $this->evaluator->justCalc($formula);
         }
         return $formula;
     }

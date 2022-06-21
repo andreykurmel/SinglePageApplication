@@ -4,25 +4,33 @@
             <button class="btn btn-primary btn-sm blue-gradient"
                     :style="$root.themeButtonStyle"
                     :title="$root.user.__google_table_api ? '' : 'Please Add API Key in Settings'"
-                    @click="recalcAddressCenter()"
+                    @click="searchOnMap()"
             >Find</button>
         </div>
         <div class="map_radius_elem">
             <label>Items within: </label>
         </div>
         <div class="map_radius_elem">
-            <input class="form-control input-sm small-input" type="text" placeholder="Radius, miles" v-model="radiusObject.distance"/>
+            <input class="form-control input-sm small-input" type="text" placeholder="Radius" v-model="radiusObject.distance" @keydown="enterToFind"/>
+            <span class="miles-label">miles</span>
         </div>
         <div class="map_radius_elem">
             <label>From</label>
         </div>
         <div class="map_radius_elem" ref="search_button">
-            <input class="form-control input-sm"
+            <input class="form-control input-sm d-inline-block w-150"
                    type="text"
                    placeholder="Entered address"
-                   :value="entered_address"
+                   :value="radiusObject.entered_address"
                    @focus="openMenu()"
             />
+            <button v-if="radiusObject.entered_address"
+                    class="btn btn-danger btn-sm btn-deletable flex flex--center d-inline-block"
+                    style="top: -1px; position: relative;padding: 0 5px;"
+                    @click="clearSearch()">
+                <span style="font-size: 2.2em;line-height: 1em;">×</span>
+            </button>
+
             <div v-show="menu_opened" class="map_radius_menu">
                 <div class="menu-header">
                     <button class="btn btn-default btn-sm" :class="{active : activeTab === 'address'}" @click="activeTab = 'address'">
@@ -37,61 +45,25 @@
                 </div>
                 <div class="menu-body">
 
-                    <div v-show="activeTab === 'address'">
+                    <div v-show="activeTab === 'address'" style="white-space: nowrap;">
                         <div class="row form-group">
-                            <div class="col-xs-2">
-                                <label>Street</label>
-                            </div>
-                            <div class="col-xs-10">
-                                <input v-model="radiusObject.address.street"
-                                       name="address"
+                            <!--<div class="col-xs-2">-->
+                                <!--<label>Full</label>-->
+                            <!--</div>-->
+                            <div class="col-xs-12" style="position: relative">
+                                <input ref="addr_wrapper"
                                        class="full-width"
-                                       :disabled="!$root.user.__google_table_api"
-                                       @change="filledObject('address')"/>
-                            </div>
-                        </div>
-                        <div class="row form-group">
-                            <div class="col-xs-2">
-                                <label>City</label>
-                            </div>
-                            <div class="col-xs-5">
-                                <input v-model="radiusObject.address.city"
-                                       name="city"
-                                       class="full-width"
-                                       :disabled="!$root.user.__google_table_api"
-                                       @change="filledObject('address')"/>
-                            </div>
-                            <div class="col-xs-2">
-                                <label>State</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <input v-model="radiusObject.address.state"
-                                       name="state"
-                                       class="full-width"
-                                       :disabled="!$root.user.__google_table_api"
-                                       @change="filledObject('address')"/>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-2">
-                                <label>County</label>
-                            </div>
-                            <div class="col-xs-5">
-                                <input v-model="radiusObject.address.county"
-                                       name="county"
-                                       class="full-width"
-                                       :disabled="!$root.user.__google_table_api"
-                                       @change="filledObject('address')"/>
-                            </div>
-                            <div class="col-xs-2">
-                                <label>ZIP Code</label>
-                            </div>
-                            <div class="col-xs-3">
-                                <input v-model="radiusObject.address.zip"
-                                       name="zip"
-                                       class="full-width"
-                                       :disabled="!$root.user.__google_table_api"
-                                       @change="filledObject('address')"/>
+                                       @focus="show_google_address = true"
+                                       v-model="radiusObject.address.full"/>
+                                <div v-if="show_google_address" class="google_addr">
+                                    <google-address-viewer
+                                            :table-meta="googleTableMeta"
+                                            :table-row="radiusObject.address"
+                                            :table-header="googleTbHeader"
+                                            @update-row="googleSelectDone"
+                                            @hide-elem="googleHideInput"
+                                    ></google-address-viewer>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -153,10 +125,10 @@
                             <div class="col-xs-1" ref="col_menu">
                                 <i class="glyphicon glyphicon-cog" @click="col_menu_opened  = !col_menu_opened"></i>
                                 <fields-checker
-                                        v-if="tableMeta"
+                                        v-if="metaData"
                                         v-show="col_menu_opened"
                                         class="map-data-tab__search_menu"
-                                        :table-meta="tableMeta"
+                                        :table-meta="metaData"
                                         :all-checked="allChecked"
                                         :check-func="checkFunc"
                                         @toggle-all="toggleAll"
@@ -175,45 +147,88 @@
 <script>
     import {eventBus} from './../../app';
 
+    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+
     import FieldsChecker from "../CommonBlocks/FieldsChecker.vue";
+    import GoogleAddressViewer from "../CustomCell/InCell/GoogleAddressViewer";
 
     export default {
         components: {
-            FieldsChecker
+            GoogleAddressViewer,
+            FieldsChecker,
         },
         name: "SearchButton",
         mixins: [
         ],
         data: function () {
             return {
-                entered_address: null,
-                search_columns: _.map(this.tableMeta._fields, 'field'),
+                metaData: null,
+                search_columns: [],
                 search_results: [],
 
                 menu_opened: false,
                 col_menu_opened: false,
-                activeTab: 'address'
+                activeTab: 'address',
+
+                show_google_address: false,
+                googleTableMeta: {
+                    address_fld__source_id: 1,
+                    address_fld__street_address: 10,
+                    address_fld__street: 11,
+                    address_fld__city: 12,
+                    address_fld__state: 13,
+                    address_fld__countyarea: 14,
+                    address_fld__zipcode: 15,
+                    address_fld__lat: 16,
+                    address_fld__long: 17,
+                    _fields: [
+                        { id:10, field: '_number' },
+                        { id:11, field: 'street' },
+                        { id:12, field: 'city' },
+                        { id:13, field: 'state' },
+                        { id:14, field: 'county' },
+                        { id:15, field: 'zip' },
+                        { id:16, field: 'lat' },
+                        { id:17, field: 'long' },
+                    ],
+                },
+                googleTbHeader: { id:1, field: 'full' },
             }
         },
         props:{
             radiusObject: Object,
-            table_id: Number,
             tableMeta: Object,
-        },
-        watch: {
-            table_id: function(val) {
-                this.entered_address = null;
-            }
         },
         computed: {
             allChecked() {
-                return this.tableMeta
-                    && this.search_columns.length === this.tableMeta._fields.length
+                return this.metaData
+                    && this.search_columns.length === this.metaData._fields.length
                     ? 2
-                    : this.tableMeta && this.search_columns.length > 0 ? 1 : 0;
+                    : this.metaData && this.search_columns.length > 0 ? 1 : 0;
             }
         },
         methods: {
+            enterToFind() {
+                if (window.event.keyCode === 13 && !window.event.shiftKey) {
+                    this.$nextTick(() => {
+                        this.searchOnMap();
+                    });
+                }
+            },
+            showPopup() {
+                let selected = _.find(this.search_results, {id: Number($(this.$refs.search_data).val())});
+                if (selected) {
+                    eventBus.$emit('show-popup', selected.row);
+                }
+            },
+            clearSearch() {
+                this.radiusObject.entered_address = null;
+                this.$emit('clear-radius');
+                $(this.$refs.search_data).val(null).trigger('change');
+                this.$nextTick(() => {
+                    this.searchOnMap();
+                });
+            },
             checkFunc(header) {
                 return $.inArray(header.field, this.search_columns) > -1;
             },
@@ -230,14 +245,15 @@
                 if (this.allChecked) {
                     this.search_columns = [];
                 } else {
-                    this.search_columns = _.map(this.tableMeta._fields, 'field');
+                    this.search_columns = _.map(this.metaData._fields, 'field');
                 }
             },
-            
+
+            //show functions
             openMenu() {
                 this.menu_opened = !this.menu_opened;
             },
-            toggleRadius() {
+            hideAll() {
                 this.menu_opened = false;
                 this.sub_menu_opened = false;
                 this.address_menu = false;
@@ -245,7 +261,7 @@
             hideMenu(e) {
                 let container = $(this.$refs.search_button);
                 if (container.has(e.target).length === 0 && this.menu_opened){
-                    this.toggleRadius();
+                    this.hideAll();
                 }
 
                 container = $(this.$refs.col_menu);
@@ -253,6 +269,8 @@
                     this.col_menu_opened = !this.col_menu_opened;
                 }
             },
+
+            //Searching: fill RadiusObject
             filledObject(name, from_search) {
 
                 if (!from_search) {
@@ -262,37 +280,16 @@
                 this.radiusObject.type = name;
                 switch (name) {
                     case 'address':
-                        this.radiusObject.dms = {
-                            lat_d: null,
-                            lat_m: null,
-                            lat_s: null,
-                            long_d: null,
-                            long_m: null,
-                            long_s: null,
-                        };
-                        this.radiusObject.decimal = {
-                            lat: null,
-                            long: null,
-                        };
-                        this.entered_address = [];
-                        (this.radiusObject.address.street ? this.entered_address.push( String(this.radiusObject.address.street) ) : null);
-                        (this.radiusObject.address.city ? this.entered_address.push( String(this.radiusObject.address.city) ) : null);
-                        (this.radiusObject.address.state ? this.entered_address.push( String(this.radiusObject.address.state) ) : null);
-                        (this.radiusObject.address.county ? this.entered_address.push( String(this.radiusObject.address.county) ) : null);
-                        (this.radiusObject.address.zip ? this.entered_address.push( String(this.radiusObject.address.zip) ) : null);
-                        this.entered_address = this.entered_address.join(', ');
+                        this.radiusObject.decimal.lat = this.radiusObject.address.lat;
+                        this.radiusObject.decimal.long = this.radiusObject.address.long;
+                        this.radiusObject.entered_address = this.getFullAddr();
+                        this.radiusObject.address.full = this.radiusObject.entered_address;
+                        this.calcDMS();
                         break;
 
                     case 'dms':
-                        this.radiusObject.address = {
-                            street: null,
-                            city: null,
-                            state: null,
-                            county: null,
-                            zip: null,
-                        };
                         //calc entered value
-                        this.entered_address = this.$root.getFloat(this.radiusObject.dms.lat_d) + '°'
+                        this.radiusObject.entered_address = this.$root.getFloat(this.radiusObject.dms.lat_d) + '°'
                             + this.$root.getFloat(this.radiusObject.dms.lat_m) + '"'
                             + this.$root.getFloat(this.radiusObject.dms.lat_s) + '\''
                             + ', '
@@ -309,107 +306,78 @@
                         break;
 
                     case 'decimal':
-                        this.radiusObject.address = {
-                            street: null,
-                            city: null,
-                            state: null,
-                            county: null,
-                            zip: null,
-                        };
                         //calc entered value
-                        this.entered_address = this.$root.getFloat(this.radiusObject.decimal.lat)
+                        this.radiusObject.entered_address = this.$root.getFloat(this.radiusObject.decimal.lat)
                             + ', ' + this.$root.getFloat(this.radiusObject.decimal.long);
-                        //auto-calc near values
-                        let lat = this.$root.getFloat(this.radiusObject.decimal.lat);
-                        let long = this.$root.getFloat(this.radiusObject.decimal.long);
-                        this.radiusObject.dms.lat_d = parseInt(lat);
-                        this.radiusObject.dms.lat_m = parseInt((lat - this.radiusObject.dms.lat_d) * 60);
-                        this.radiusObject.dms.lat_s = parseInt((lat*60 - (this.radiusObject.dms.lat_d*60 + this.radiusObject.dms.lat_m)) * 60);
-                        this.radiusObject.dms.long_d = parseInt(long);
-                        this.radiusObject.dms.long_m = parseInt((long - this.radiusObject.dms.long_d) * 60);
-                        this.radiusObject.dms.long_s = parseInt((long*60 - (this.radiusObject.dms.long_d*60 + this.radiusObject.dms.long_m)) * 60);
+                        this.calcDMS();
                         break;
                 }
             },
-            recalcAddressCenter() {
+            calcDMS() {
+                let lat = this.$root.getFloat(this.radiusObject.decimal.lat);
+                let long = this.$root.getFloat(this.radiusObject.decimal.long);
+                this.radiusObject.dms.lat_d = parseInt(lat);
+                this.radiusObject.dms.lat_m = parseInt((lat - this.radiusObject.dms.lat_d) * 60);
+                this.radiusObject.dms.lat_s = parseInt((lat*60 - (this.radiusObject.dms.lat_d*60 + this.radiusObject.dms.lat_m)) * 60);
+                this.radiusObject.dms.long_d = parseInt(long);
+                this.radiusObject.dms.long_m = parseInt((long - this.radiusObject.dms.long_d) * 60);
+                this.radiusObject.dms.long_s = parseInt((long*60 - (this.radiusObject.dms.long_d*60 + this.radiusObject.dms.long_m)) * 60);
+            },
+            getFullAddr() {
+                let full_addr = [];
+                (this.radiusObject.address.street ? full_addr.push( String(this.radiusObject.address.street) ) : null);
+                (this.radiusObject.address.city ? full_addr.push( String(this.radiusObject.address.city) ) : null);
+                (this.radiusObject.address.state ? full_addr.push( String(this.radiusObject.address.state) ) : null);
+                (this.radiusObject.address.county ? full_addr.push( String(this.radiusObject.address.county) ) : null);
+                (this.radiusObject.address.zip ? full_addr.push( String(this.radiusObject.address.zip) ) : null);
+                return full_addr.join(', ');
+            },
+
+            //Run Search Process
+            searchOnMap() {
+                this.hideAll();
                 this.radiusObject.distance = this.radiusObject.distance || 1;
-                eventBus.$emit('recalc-address-center');
-            },
-            showPopup() {
-                let selected = _.find(this.search_results, {id: Number($(this.$refs.search_data).val())});
-                if (selected) {
-                    eventBus.$emit('show-popup', selected.row);
-                }
-            },
-            fillAddress(selectedRow) {
-                this.fillField(selectedRow, 'street');
-                this.fillField(selectedRow, 'city');
-                this.fillField(selectedRow, 'state');
-                this.fillField(selectedRow, 'county');
-                this.fillField(selectedRow, 'zip');
-            },
-            fillField(selectedRow, col) {
-                let fill_field = null;
-                switch (col) {
-                    case 'street': fill_field = _.find(this.tableMeta._fields, {map_find_street_field: 1}); break;
-                    case 'city': fill_field = _.find(this.tableMeta._fields, {map_find_city_field: 1}); break;
-                    case 'state': fill_field = _.find(this.tableMeta._fields, {map_find_state_field: 1}); break;
-                    case 'county': fill_field = _.find(this.tableMeta._fields, {map_find_county_field: 1}); break;
-                    case 'zip': fill_field = _.find(this.tableMeta._fields, {map_find_zip_field: 1}); break;
-                }
-
-                if (!fill_field) {
-                    _.each(this.tableMeta._fields, (fld) => {
-                        if (RegExp(col,'i').test(fld.name)) {
-                            fill_field = fld;
-                        }
-                    });
-                }
-
-                if (fill_field) {
-                    this.radiusObject.address[col] = selectedRow[fill_field.field];
-                }
+                eventBus.$emit('run-search-on-map');
             },
 
-            newAddressCenterHandler(location) {
-                let lat = 0, long = 0, radius_search = {km: 0};
-                if (location) {
-                    lat = location.lat();
-                    long = location.lng();
-
-                    this.radiusObject.decimal.lat = lat;
-                    this.radiusObject.decimal.long = long;
-                    this.radiusObject.dms.lat_d = parseInt(lat);
-                    this.radiusObject.dms.lat_m = parseInt((lat - this.radiusObject.dms.lat_d) * 60);
-                    this.radiusObject.dms.lat_s = parseInt((lat*60 - (this.radiusObject.dms.lat_d*60 + this.radiusObject.dms.lat_m)) * 60);
-                    this.radiusObject.dms.long_d = parseInt(long);
-                    this.radiusObject.dms.long_m = parseInt((long - this.radiusObject.dms.long_d) * 60);
-                    this.radiusObject.dms.long_s = parseInt((long*60 - (this.radiusObject.dms.long_d*60 + this.radiusObject.dms.long_m)) * 60);
-
-                    radius_search = {
-                        km: this.radiusObject.distance*1.6,
-                        center_lat: lat,
-                        center_long: long,
-                    };
+            //Google search tab
+            googleSelectDone(row) {
+                if (this.radiusObject.address._number) {
+                    this.radiusObject.address.street = this.radiusObject.address._number + ', ' + this.radiusObject.address.street;
                 }
-                eventBus.$emit('new-search-circle', radius_search);
-            }
+                this.filledObject('address');
+                this.show_google_address = false;
+            },
+            googleHideInput() {
+                this.show_google_address = false;
+            },
         },
         mounted() {
+            /*if (this.tableMeta.map_position_refid) {
+                let rc = _.find(this.tableMeta._ref_conditions, {id: Number(this.tableMeta.map_position_refid)}) || {};
+                this.metaData = _.find(this.$root.settingsMeta.available_tables, {id: Number(rc.ref_table_id || 0)})
+                    || this.tableMeta;
+            } else {
+                this.metaData = this.tableMeta;
+            }*/
+            this.metaData = this.tableMeta;
+            this.search_columns = _.map( _.filter(this.metaData._fields, {is_search_autocomplete_display: 1}) , 'field');
+
             $(this.$refs.search_data).select2({
                 ajax: {
                     type: 'POST',
                     params: {
                         contentType: "application/json; charset=utf-8",
                     },
-                    url: '/ajax/table-data/search',
+                    url: '/ajax/table-data/search-on-map',
                     dataType: 'json',
                     delay: 250,
                     data: (params) => {
                         return {
-                            table_id: this.table_id,
+                            table_id: this.metaData.id,
                             term: params.term,
-                            columns: this.search_columns || []
+                            columns: this.search_columns || [],
+                            special_params: SpecialFuncs.specialParams(),
                         };
                     },
                     processResults: (data) => {
@@ -417,7 +385,7 @@
                         return data;
                     }
                 },
-                minimumInputLength: 3,
+                minimumInputLength: {val:3, msg:'Please enter 3 or more characters.'},
                 width: '100%',
                 height: '100%',
                 closeOnSelect: true,
@@ -427,18 +395,14 @@
                     this.radiusObject.decimal.lat = selected.lat || 0;
                     this.radiusObject.decimal.long = selected.long || 0;
                     this.filledObject('decimal', true);
-                    //this.menu_opened = false;
-                    this.fillAddress(selected.row);
                 }
             });
             $(this.$refs.search_data).next().css('height', '28px');
 
             eventBus.$on('global-click', this.hideMenu);
-            eventBus.$on('new-address-center', this.newAddressCenterHandler);
         },
         beforeDestroy() {
             eventBus.$off('global-click', this.hideMenu);
-            eventBus.$off('new-address-center', this.newAddressCenterHandler);
         }
     }
 </script>
@@ -546,6 +510,20 @@
                     font-size: 1.7em;
                 }
             }
+
+            .miles-label {
+                position: absolute;
+                right: 7px;
+                top: 5px;
+                font-weight: bold;
+            }
         }
+    }
+    .google_addr {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
     }
 </style>

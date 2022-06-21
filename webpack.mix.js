@@ -44,6 +44,7 @@ mix.babel([
     'resources/assets/js/Applications/StimWid/3D/lib/threejs/loaders/OBJLoader.js',
     'resources/assets/js/Applications/StimWid/3D/lib/threejs/loaders/MTLLoader.js',
     'resources/assets/js/Applications/StimWid/3D/lib/threejs/loaders/TGALoader.js',
+    //'resources/assets/js/Applications/StimWid/3D/lib/threejs/THREE.MeshLine.js',//////////
     'resources/assets/js/Applications/StimWid/3D/customized/functions4drawMembers.js',
     'resources/assets/js/Applications/StimWid/3D/customized/setMaterial.js',
     'resources/assets/js/Applications/StimWid/3D/customized/dictionary.js',

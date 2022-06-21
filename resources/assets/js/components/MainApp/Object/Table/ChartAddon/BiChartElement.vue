@@ -1,5 +1,9 @@
 <template>
     <div class="full-height chart-wrapper">
+        <div class="left-elements no-gs-drag" v-if="chart.chart_settings.wait_for_update">
+            <i class="fas fa-sync" aria-hidden="true" @click="saveOrDelChart('__update_cache')"></i>
+        </div>
+
         <div class="right-elements no-gs-drag" v-if="!bi_setts.hide_settings">
             <chart-dimensions-button
                     :all_settings="chart.chart_settings"
@@ -8,6 +12,7 @@
                     @clone-vertical="cloneVertical"
                     @delete-chart="saveOrDelChart('', true)"
                     @open-settings="opnSettings()"
+                    @refresh-chart="saveOrDelChart('__update_cache')"
             >
                 <template v-slot:dwn_button>
                     <chart-export-button :can_action="activeTab === 'table'" :chart_uuid="chart_uuid" :export_name="export_name"></chart-export-button>
@@ -66,9 +71,11 @@
 
 <script>
     import {ChartFunctions} from './ChartFunctions';
-    import {SpecialFuncs} from './../../../../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
 
     import {eventBus} from '../../../../../app';
+
+    import BiRequestMixin from "./BiRequestMixin.vue";
 
     import BiPivotTable from './BiPivotTable';
     import ChartDimensionsButton from './ChartDimensionsButton.vue';
@@ -87,6 +94,9 @@
             BiPivotTable,
             ChartDimensionsButton,
         },
+        mixins: [
+            BiRequestMixin,
+        ],
         data: function () {
             return {
                 bi_setts: ChartFunctions.settsFromMeta(this.tableMeta, this),
@@ -100,6 +110,7 @@
                 activeTab: 'settings',
                 should_update_cache: true,
                 showLoadingWhenChange: [],
+                first_view: this.isVisible,
             }
         },
         props:{
@@ -119,7 +130,7 @@
                 return this.isVisible && !this.should_update_cache;
             },
             shouldUpdateCache() {
-                return this.isVisible && this.should_update_cache;
+                return this.first_view && this.should_update_cache;
             },
             //Y axis col is not Number
             yColNotNumber() {
@@ -143,18 +154,16 @@
                     this.saveOrDelChart('__update_cache');
                 }
             },
-            request_params: {
-                handler(val) {
-                    this.should_update_cache = true;
-                },
-                deep: true,
-            },
             row_state_hash(val) {
-                this.should_update_cache = true;
+                if (!this.chart.chart_settings.no_auto_update) {
+                    this.should_update_cache = true;
+                } else {
+                    this.chart.chart_settings.wait_for_update = true;
+                }
             },
             isVisible(val) {
-                if (val && this.visibleData && this.activeTab !== 'settings') {
-                    this.saveOrDelChart('__update_cache');//update chart if user opens BI 2nd+ time
+                if (val) {
+                    this.first_view = true;
                 }
             },
         },
@@ -185,14 +194,18 @@
                     case 'table': title = this.chart.chart_settings.pivot_table.labels.general; break;
                 }
 
+                this.chart.name = this.chart.chart_settings.name || '';
+                this.chart.chart_settings.wait_for_update = false;
+
                 let input_data = {
                     id: this.chart.id,
                     table_id: this.tableMeta.id,
                     row_idx: this.chart.row_idx,
                     col_idx: this.chart.col_idx,
+                    name: this.chart.name,
                     title: title,
                     all_settings: this.chart.chart_settings,
-                    request_params: this.getRequestParams(),
+                    request_params: this.getRequestParams(this.chart.chart_settings, this.tableMeta, this.request_params),
                     changed_param: paramName || '__update_cache',
                 };
                 if (should_del) {
@@ -245,27 +258,6 @@
                     this.$emit('del-chart', this.chart);
                 }
             },
-            //requests
-            getRequestParams() {
-                let request_opt;
-                switch (this.chart.chart_settings.dataset.type)
-                {
-                    case 'all_table':
-                        request_opt = {
-                            table_id: this.table_id,
-                            page: 1,
-                            rows_per_page: 0,
-                        };
-                        break;
-
-                    default:
-                        request_opt = _.cloneDeep(this.request_params);
-                        request_opt.page = 1;
-                        request_opt.rows_per_page = 0;
-                        break;
-                }
-                return request_opt;
-            },
             copySetts() {
                 return _.cloneDeep(this.chart.chart_settings);
             },
@@ -289,7 +281,7 @@
             checkStringVals(about, data) {
                 if (about.calc_val > 0 && data && data.length) {
                     let is_string = _.find(data, (row) => {
-                        return isNaN(String(row.y));
+                        return isNaN(String(row.y || 0));
                     });
                     if (is_string) {
                         about.calc_val = 0;
@@ -341,8 +333,10 @@
                         ...this.chart.chart_settings,
                         ...all_settings
                     };
-                    this.predictType();
-                    this.saveOrDelChart(param_name);
+                    if (param_name) {
+                        this.predictType();
+                        this.saveOrDelChart(param_name);
+                    }
                 }
             },
 
@@ -451,6 +445,11 @@
                         || String('$'+el.name).toLowerCase() === String(vriable).toLowerCase();
                 });
             },
+            biViewUpdateAll() {
+                if (this.chart.chart_settings.wait_for_update) {
+                    this.saveOrDelChart('__update_cache');
+                }
+            },
         },
         created() {
         },
@@ -461,10 +460,12 @@
                     this.checkCache();
                 }
             });
+            eventBus.$on('bi-view-update-all', this.biViewUpdateAll);
             eventBus.$on('recalc-bi-height', this.recalcBiHe);
             eventBus.$on('save-settings-chart', this.svSettings);
         },
         beforeDestroy() {
+            eventBus.$off('bi-view-update-all', this.biViewUpdateAll);
             eventBus.$off('recalc-bi-height', this.recalcBiHe);
             eventBus.$off('save-settings-chart', this.svSettings);
         }
@@ -473,4 +474,12 @@
 
 <style lang="scss" scoped>
     @import "BiModule";
+
+    .left-elements {
+        position: absolute;
+        left: 0;
+        top: 0;
+        z-index: 100;
+        cursor: pointer;
+    }
 </style>

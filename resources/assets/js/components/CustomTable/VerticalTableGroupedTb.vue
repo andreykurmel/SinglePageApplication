@@ -10,7 +10,7 @@
                 @mouseenter="(e) => { $root.showHoverTooltip(e, tableHeader) }"
                 @mouseleave="$root.leaveHoverTooltip"
             >
-                <div class="full-height flex flex--center flex--wrap" :style="textStyle">
+                <div v-if="nameNotHidden(tableHeader)" class="full-height flex flex--center flex--wrap" :style="textStyle">
                     <span class="head-content">{{ getMultiName(tableHeader, curHeaderRow) }}</span>
 
                     <template v-if="tableHeader.f_required && lastRow(tableHeader, curHeaderRow)">
@@ -24,17 +24,23 @@
                 ></header-resizer>
             </th>
         </tr>
+        <!--Unit row in headers-->
         <tr>
             <th v-for="tableHeader in vertTableFieldObject.group"
+                :key="tableHeader.id"
                 v-if="tableHeader.unit || tableHeader.unit_display"
-                @mouseenter="(e) => { $root.showHoverTooltip(e, tableHeader) }"
-                @mouseleave="$root.leaveHoverTooltip"
-            >
-                <span>{{ tableHeader.unit_display || tableHeader.unit }}</span>
-            </th>
+                :is="'custom-head-cell-table-data'"
+                :table-meta="tableMeta"
+                :table-header="tableHeader"
+                :max-cell-rows="maxCellRows"
+                :user="user"
+                @updated-cell="updatedCell"
+            ></th>
         </tr>
+        <!--DATA-->
         <tr>
             <td v-for="tableHeader in vertTableFieldObject.group"
+                v-if="valueNotHidden(tableHeader)"
                 :key="tableHeader.id"
                 :is="td"
                 :global-meta="globalMeta"
@@ -62,48 +68,64 @@
                 @updated-cell="updatedCell"
                 @show-add-ddl-option="showAddDDLOption"
                 @show-def-val-popup="showDefValPopup"
+                @cell-menu="showRowMenu"
             ></td>
+            <td v-else></td>
         </tr>
+
+        <div v-if="row_menu_show && row_menu.row && row_menu.hdr"
+             ref="row_menu"
+             class="float-rom-menu"
+             :style="rowMenuStyle"
+        >
+            <a @click="copyCell(row_menu.row, row_menu.hdr);row_menu_show = false;">Copy Cell</a>
+        </div>
     </table>
 </template>
 
 <script>
-    import {SelectedCells} from './../../classes/SelectedCells';
-    import {VerticalTableFldObject} from './VerticalTableFldObject';
+import {eventBus} from "../../app";
 
-    import HeaderResizer from "./Header/HeaderResizer";
+import {SelectedCells} from '../../classes/SelectedCells';
+import {VerticalTableFldObject} from './VerticalTableFldObject';
 
-    import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
-    import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
-    import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
-    import CustomCellCorrespTableData from "../CustomCell/CustomCellCorrespTableData.vue";
-    import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
-    import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
-    import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
-    import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
-    import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
-    import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
-    import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
-    import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
-    import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
-    import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
-    import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
-    import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
-    import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
-    import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
-    import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
+import HeaderResizer from "./Header/HeaderResizer";
 
-    import HeaderRowColSpanMixin from './../_Mixins/HeaderRowColSpanMixin.vue';
-    import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import CustomHeadCellTableData from '../CustomCell/CustomHeadCellTableData.vue';
+import CustomCellTableData from '../CustomCell/CustomCellTableData.vue';
+import CustomCellSystemTableData from '../CustomCell/CustomCellSystemTableData.vue';
+import CustomCellCorrespTableData from "../CustomCell/CustomCellCorrespTableData.vue";
+import CustomCellSettingsDisplay from '../CustomCell/CustomCellSettingsDisplay.vue';
+import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
+import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
+import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
+import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
+import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
+import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
+import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
+import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
+import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
+import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
+import CustomCellStimAppView from '../CustomCell/CustomCellStimAppView.vue';
+import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
 
-    export default {
+import HeaderRowColSpanMixin from './../_Mixins/HeaderRowColSpanMixin.vue';
+import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
+import CellMenuMixin from "../_Mixins/CellMenuMixin";
+
+export default {
         name: "VerticalTableGroupedTb",
         mixins: [
             HeaderRowColSpanMixin,
             CellStyleMixin,
+            CellMenuMixin,
         ],
         components: {
             HeaderResizer,
+            CustomHeadCellTableData,
             CustomCellTableData,
             CustomCellSystemTableData,
             CustomCellCorrespTableData,
@@ -111,6 +133,7 @@
             CustomCellDisplayLinks,
             CustomCellSettingsDdl,
             CustomCellSettingsPermission,
+            CustomCellSettingsDcr,
             CustomCellColRowGroup,
             CustomCellKanbanSett,
             CustomCellRefConds,
@@ -126,12 +149,6 @@
         data: function () {
             return {
             };
-        },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
         },
         props:{
             vertTableFieldObject: VerticalTableFldObject,
@@ -161,6 +178,7 @@
                 type: Boolean,
                 default: true
             },
+            hideNames: Array,
         },
         computed: {
             sub_remover() {
@@ -185,6 +203,14 @@
             }
         },
         methods: {
+            nameNotHidden(tableHeader) {
+                return tableHeader.fld_display_name
+                    &&
+                    (!this.hideNames || this.hideNames.indexOf(tableHeader.field) > -1);
+            },
+            valueNotHidden(tableHeader) {
+                return !!tableHeader.fld_display_value;
+            },
             //proxies
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow);
@@ -207,8 +233,10 @@
             },
         },
         mounted() {
+            eventBus.$on('global-click', this.clickHandler);
         },
         beforeDestroy() {
+            eventBus.$off('global-click', this.clickHandler);
         }
     }
 </script>
@@ -217,5 +245,24 @@
     @import './../CommonBlocks/TabldaLike';
     .tablda-like {
         width: 100%;
+    }
+
+    .float-rom-menu {
+        position: fixed;
+        z-index: 5000;
+        text-align: left;
+        background-color: #333;
+
+        a {
+            display: block;
+            color: #FFF;
+            padding: 1px 5px;
+            cursor: pointer;
+            text-decoration: none;
+
+            &:hover {
+                background-color: #555;
+            }
+        }
     }
 </style>

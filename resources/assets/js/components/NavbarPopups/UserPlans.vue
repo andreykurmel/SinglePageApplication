@@ -1,17 +1,39 @@
 <template>
     <div class="popup-wrapper" @click.self="$emit('popup-close')">
-        <div class="popup">
+        <div class="popup" :style="getPopupStyle()">
             <div class="flex flex--col">
                 <div class="popup-header full-width">
-                    Subscription
-                    <span class="glyphicon glyphicon-remove pull-right close-btn" @click="$emit('popup-close')"></span>
+                    <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
+                    <div class="flex">
+                        <div class="flex__elem-remain">Subscription</div>
+                        <div class="" style="position: relative">
+                            <span class="glyphicon glyphicon-remove pull-right close-btn" @click="$emit('popup-close')"></span>
+                        </div>
+                    </div>
                 </div>
-                <div class="popup-content flex__elem-remain full-width">
-
-                    <div class="flex__elem__inner">
+                <div class="popup-content flex__elem-remain full-width" :style="textSysStyle">
+                    <div class="flex__elem__inner" style="padding: 5px;">
                         <div class="flex flex--col">
-                            <div class="flex__elem-remain full-width">
-                                <div class="flex__elem__inner popup-main">
+                            <div class="popup-menu" style="align-self: start;">
+                                <button class="btn btn-default"
+                                        :class="{active: activeTab === 'summ'}"
+                                        :style="textSysStyle"
+                                        @click="activeTab = 'summ'"
+                                >
+                                    <span>Summary</span>
+                                </button>
+                                <button class="btn btn-default"
+                                        :class="{active: activeTab === 'pay'}"
+                                        :style="textSysStyle"
+                                        @click="activeTab = 'pay'"
+                                >
+                                    <span>Payment</span>
+                                </button>
+                            </div>
+
+                            <!--SUMMARY-->
+                            <div class="flex__elem-remain popup-tab full-width" v-if="activeTab === 'summ'">
+                                <div class="flex__elem__inner" style="padding: 5px 0;">
                                     <div class="popup-overflow">
                                         <div class="container-fluid cost-block">
                                             <div class="row row-margin full-width row-container">
@@ -19,7 +41,7 @@
                                                     <label>Contract Cycle:</label>
                                                 </div>
                                                 <div class="col-xs-3">
-                                                    <select class="form-control" v-model="$root.user.renew">
+                                                    <select class="form-control" :style="textSysStyle" v-model="$root.user.renew">
                                                         <option>Monthly</option>
                                                         <option>Yearly</option>
                                                     </select>
@@ -31,7 +53,8 @@
                                             <div class="plan-block">
                                                 <div>
                                                     <label>
-                                                        Your current subscription plan:
+                                                        <span>Your current subscription plan</span>
+                                                        <span v-if="comparis_link">(<a :href="comparis_link" target="_blank">comparision</a>)</span>:
                                                         <span v-if="selectedPlanCost !== ($root.user._next_subscription ? $root.user._next_subscription.cost : $root.user._subscription.cost)" class="red">(Unsaved)</span>
                                                     </label>
                                                 </div>
@@ -40,18 +63,18 @@
                                                         <input name="plan" :disabled="pln.code === 'enterprise'" type="radio" v-model="tmp_plan_code" :value="pln.code"/>
                                                         <span>{{ pln.name }}</span>
                                                         <span v-if="pln.code !== 'enterprise'">(${{ $root.user.renew === 'Monthly' ? pln.per_month : pln.per_year }})</span>
-                                                        <span v-else="">(<a target="_blank" :href="eprs_link">Reach out for details</a>)</span>
+                                                        <span v-else="">(<a target="_blank" :href="eprs_link">Contact us for details</a>)</span>
 
                                                         <span
-                                                            v-if="$root.user._subscription && $root.user._subscription.plan_code === pln.code"
-                                                            :class="[newRenew ? 'red' : 'green']"
+                                                                v-if="$root.user._subscription && $root.user._subscription.plan_code === pln.code"
+                                                                :class="[newRenew ? 'red' : 'green']"
                                                         >
                                                             {{ getActiveText() }}
                                                         </span>
 
                                                         <span
-                                                            v-if="$root.user._next_subscription && $root.user._next_subscription.plan_code === pln.code"
-                                                            class="red"
+                                                                v-if="$root.user._next_subscription && $root.user._next_subscription.plan_code === pln.code"
+                                                                class="red"
                                                         >
                                                             {{ getNextText() }}
                                                         </span>
@@ -63,17 +86,23 @@
                                             <div class="addon-block">
                                                 <div>
                                                     <label>
-                                                        Add-on (<span :style="{color: tmp_plan_code === 'basic' ? '#F00' : ''}">not available to Basic plan</span>):
+                                                        <span>Add-on</span>
+                                                        <span v-if="adn_not_avail" class="red">(not available)</span>
+                                                        <span v-if="adn_included" class="green">(all included)</span>:
                                                     </label>
                                                 </div>
                                                 <div v-for="group in getLocAllAddons()" class="check-container">
                                                     <div v-for="adn in group" class="cont-col-width" :class="[adn.code != 'all' ? 'check-container' : '']">
                                                         <label>
-                                                            <span v-show="tmp_plan_code === 'basic'" class="indeterm_check__wrap">
+                                                            <span v-if="adn_not_avail" class="indeterm_check__wrap">
                                                                 <span class="indeterm_check disabled"></span>
                                                             </span>
-
-                                                            <span v-show="tmp_plan_code !== 'basic'" class="indeterm_check__wrap">
+                                                            <span v-else-if="adn_included" class="indeterm_check__wrap">
+                                                                <span class="indeterm_check disabled">
+                                                                    <i class="glyphicon glyphicon-ok group__icon"></i>
+                                                                </span>
+                                                            </span>
+                                                            <span v-else="" class="indeterm_check__wrap">
                                                                 <span class="indeterm_check"
                                                                       :class="[!adn.is_special && all_adn._checked ? 'disabled' : '']"
                                                                       @click="!adn.is_special && all_adn._checked ? null : toggleAdn(adn)">
@@ -82,7 +111,8 @@
                                                             </span>
 
                                                             <span>{{ adn.name }}</span>
-                                                            <span v-if="adn.is_special || !all_adn._checked">(+${{ $root.user.renew === 'Monthly' ? adn.per_month : adn.per_year }})</span>
+                                                            <span v-if="adn_included">(+0)</span>
+                                                            <span v-else-if="adn.is_special || !all_adn._checked">(+${{ $root.user.renew === 'Monthly' ? adn.per_month : adn.per_year }})</span>
                                                             <span v-else="">(+$0)</span>
                                                         </label>
                                                     </div>
@@ -90,39 +120,66 @@
                                             </div>
                                         </div>
 
+                                        <div class="container-fluid">
+                                            <div class="row row-margin">
+                                                <div class="col-md-3">
+                                                    <label>Subscription Total:</label>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label>${{ Number(selectedPlanCost).toFixed(2) }}</label>
+                                                    <label>{{ $root.user.renew === 'Monthly' ? ' / mo' : ' / yr' }}</label>
+                                                </div>
+                                                <div class="col-md-5"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!--PAYMENT-->
+                            <div class="flex__elem-remain popup-tab full-width" v-if="activeTab === 'pay'">
+                                <div class="flex__elem__inner" style="padding: 5px;">
+                                    <div class="popup-overflow">
                                         <div class="pay-block">
-                                            <div class="container-fluid">
-                                                <div class="row row-margin">
+                                            <div class="container-fluid flex flex--col">
+                                                <div class="row row-margin full-width">
                                                     <div class="col-md-3">
                                                         <label>Subscription Total:</label>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label>${{ Number(selectedPlanCost).toFixed(2) }}</label>
+                                                        <label>{{ $root.user.renew === 'Monthly' ? ' / mo' : ' / yr' }}</label>
                                                     </div>
                                                     <div class="col-md-5"></div>
                                                 </div>
-                                                <div class="row row-margin">
+                                                <div class="row row-margin full-width">
                                                     <div class="col-md-3">
-                                                        <label>Credit:</label>
+                                                        <label>Credit Balance:</label>
                                                     </div>
                                                     <div class="col-md-4">
-                                                        <label>${{ Number($root.user.avail_credit).toFixed(2) }}</label>
+                                                        <input v-if="$root.user.id == 1"
+                                                               class="form-control input-sm"
+                                                               style="font-weight: bold;"
+                                                               :style="textSysStyle"
+                                                               v-model="$root.user.avail_credit"
+                                                               @change="editBalance"/>
+                                                        <label v-else="">${{ Number($root.user.avail_credit).toFixed(2) }}</label>
                                                     </div>
                                                     <div class="col-md-5">
                                                         <button class="btn btn-sm"
                                                                 :class="[pay_target === 'avail_credit' ? 'btn-success' : 'btn-primary']"
                                                                 @click.prevent="pay_target === 'avail_credit' ? pay_target = '' : pay_target = 'avail_credit'"
-                                                        >Add</button>
+                                                        >{{ pay_target === 'avail_credit' ? 'Cancel' : 'Add' }}</button>
                                                         <button v-if="$root.user.is_admin"
                                                                 class="btn btn-sm"
                                                                 :class="[pay_target === 'transfer' ? 'btn-success' : 'btn-primary']"
                                                                 @click.prevent="pay_target === 'transfer' ? pay_target = '' : pay_target = 'transfer'"
-                                                        >Transfer</button>
+                                                        >{{ pay_target === 'transfer' ? 'Cancel' : 'Transfer' }}</button>
                                                     </div>
                                                 </div>
-                                                <div class="row row-margin">
+                                                <div class="row row-margin full-width">
                                                     <div class="col-md-3">
-                                                        <label>Account Due:</label>
+                                                        <label>Amount Due:</label>
                                                     </div>
                                                     <div class="col-md-4">
                                                         <label v-if="$root.user.use_credit && accountDue > $root.user.avail_credit">${{ Number(accountDueWithCredit).toFixed(2) }}</label>
@@ -137,9 +194,9 @@
                                                                 :class="[pay_target === 'balance' ? 'btn-success' : 'btn-primary']"
                                                                 v-else=""
                                                                 :disabled="($root.user.selected_card && $root.user.recurrent_pay)
-                                                                    || (planUpdateStatus === 'same' && $root.user._subscription.left_days >= periodNotifDays)"
+                                                                            || (planUpdateStatus === 'same' && $root.user._subscription.left_days >= periodNotifDays)"
                                                                 @click.prevent="pay_target === 'balance' ? pay_target = '' : pay_target = 'balance'"
-                                                        >Pay</button>
+                                                        >{{ pay_target === 'balance' ? 'Cancel' : 'Pay' }}</button>
                                                         <span>
                                                             <span class="indeterm_check__wrap">
                                                                 <span class="indeterm_check"
@@ -153,7 +210,7 @@
                                                         </span>
                                                     </div>
                                                 </div>
-                                                <div class="row row-margin">
+                                                <div class="row row-margin full-width">
                                                     <div class="col-md-6 renew-chk">
                                                         <label v-if="$root.user.use_credit">
                                                             <span class="indeterm_check__wrap">
@@ -164,7 +221,8 @@
                                                                     <i v-if="$root.user.recurrent_pay" class="glyphicon glyphicon-ok group__icon"></i>
                                                                 </span>
                                                             </span>
-                                                            Auto Renew <span v-if="selectedPlanCost > $root.user.avail_credit" class="red">Credit balance not adequate.</span>
+                                                            <span>Auto Renew</span>
+                                                            <span v-if="selectedPlanCost > $root.user.avail_credit" class="red">Credit balance not adequate.</span>
                                                         </label>
                                                         <label v-else="">
                                                             <span class="indeterm_check__wrap">
@@ -172,104 +230,117 @@
                                                                     <i v-if="$root.user.recurrent_pay" class="glyphicon glyphicon-ok group__icon"></i>
                                                                 </span>
                                                             </span>
-                                                            Auto Renew <span v-if="!$root.user.selected_card" class="red">No valid credit card.</span>
+                                                            <span>Auto Renew</span>
+                                                            <span v-if="!$root.user.selected_card" class="red">No valid credit card.</span>
                                                         </label>
                                                     </div>
                                                 </div>
-                                                <div class="row row-margin" v-if="$root.user.recurrent_pay && selectedPlanCost > 0">
+                                                <div class="row row-margin full-width" v-if="$root.user.recurrent_pay && selectedPlanCost > 0">
                                                     <div class="col-md-12">
-                                                        Your next charge of ${{ Number(selectedPlanCost).toFixed(2) }} will be on {{ getNextCycleDate() }} from
+                                                        <span>Next charge of ${{ Number(selectedPlanCost).toFixed(2) }} will be applied on {{ getNextCycleDate() }} to</span>
                                                         <span v-if="$root.user.use_credit">
-                                                            credit.
+                                                            credit balance.
                                                         </span>
                                                         <span v-else="">
-                                                            selected payment method.
-                                                            <button class="btn btn-sm little_input"
+                                                            <span>selected/saved payment method.</span>
+                                                            <button
+                                                                    class="btn btn-sm little_input"
                                                                     :class="[pay_target === 'change' ? 'btn-success' : 'btn-primary']"
                                                                     @click.prevent="pay_target === 'change' ? pay_target = '' : pay_target = 'change'"
-                                                            >Change</button>
+                                                            >{{ pay_target === 'change' ? 'Cancel' : 'Change' }}</button>
                                                         </span>
                                                     </div>
                                                 </div>
 
                                                 <!-- PAYMENT BLOCK -->
-                                                <div class="row" v-show="pay_target === 'transfer'">
-                                                    <hr class="divider">
+                                                <hr class="divider full-width" v-show="!!pay_target">
+                                                <div class="flex__elem-remain full-width" v-show="pay_target === 'transfer'">
                                                     <transfer-credit :user="$root.user"></transfer-credit>
                                                 </div>
-                                                <div class="row" v-show="pay_target === 'change' || pay_target === 'balance' || pay_target === 'avail_credit'">
-                                                    <hr class="divider">
-                                                    <div class="col-12">
-                                                        <div class="notices" v-show="pay_target === 'change' || accountDueWithCredit > 0 || pay_target === 'avail_credit'">
-                                                            <label>Select a pay method: </label>
-                                                            <div class="inline-radio">
-                                                                <label>
-                                                                    <input type="radio" value="stripe" v-model="$root.user.pay_method" @change="updateData()"/>
-                                                                    Credit Card
-                                                                </label>
-                                                            </div>
-                                                            <div class="inline-radio">
-                                                                <label>
-                                                                    <input type="radio" value="paypal" v-model="$root.user.pay_method" @change="updateData()"/>
-                                                                    PayPal Account
-                                                                    <!--<img src="/assets/img/paypal.svg" height="20"/>-->
-                                                                </label>
-                                                            </div>
+                                                <div class="flex__elem-remain full-width" v-show="pay_target === 'change' || pay_target === 'balance' || pay_target === 'avail_credit'">
+                                                    <div class="notices" v-show="pay_target === 'change' || accountDueWithCredit > 0 || pay_target === 'avail_credit'">
+                                                        <label>Select a payment method: </label>
+                                                        <div class="inline-radio">
+                                                            <label>
+                                                                <!--<input type="radio" value="stripe" v-model="$root.user.pay_method" @change="updateData()"/>-->
+                                                                <input type="radio" value="stripe" v-model="u_pay_method" @change="updateData()"/>
+                                                                Credit Card
+                                                            </label>
+                                                        </div>
+                                                        <!--<div class="inline-radio">-->
+                                                            <!--<label>-->
+                                                                <!--<input type="radio" value="paypal" v-model="$root.user.pay_method" @change="updateData()"/>-->
+                                                                <!--PayPal Account-->
+                                                            <!--</label>-->
+                                                        <!--</div>-->
 
-                                                            <div class="pull-right" v-show="pay_target === 'avail_credit'">
-                                                                <label>Credit to Add: </label>
-                                                                <input v-model="wrap_credit" class="form-control little_input" placeholder="$" @keyup="addToCreditKey()"/>
-                                                            </div>
+                                                        <div class="pull-right" v-show="pay_target === 'avail_credit'">
+                                                            <label>Credit to Add: </label>
+                                                            <input v-model="wrap_credit" class="form-control little_input" :style="textSysStyle" placeholder="$" @keyup="addToCreditKey()"/>
+                                                        </div>
+                                                    </div>
+
+                                                    <template v-if="pay_target === 'balance'">
+                                                        <div class="notices">
+                                                            You
+                                                            <span v-if="$root.user.use_credit">chosed</span>
+                                                            <span v-else="">did not choose</span>
+                                                            to use account credit for making payment.
                                                         </div>
 
-                                                        <template v-if="pay_target === 'balance'">
-                                                            <div class="notices">
-                                                                You
-                                                                <span v-if="$root.user.use_credit">chosed</span>
-                                                                <span v-else="">did not choose</span>
-                                                                to use account credit for making payment.
-                                                            </div>
+                                                        <div class="notices" v-show="$root.user.use_credit">
+                                                            <span>You are currently paying with your account credit.</span>
+                                                            <span v-show="accountDueWithCredit === 0">
+                                                                <span>But you can switch to using a PayPal account or credit card at any time by unchecking “Use Credit”).</span><br>
+                                                                <button class="btn btn-primary" @click="sendPaying('AvailCredit', 0)">Confirm</button>
+                                                            </span>
+                                                        </div>
+                                                    </template>
 
-                                                            <div class="notices" v-show="$root.user.use_credit">
-                                                                You are currently paying with your account credit.
-                                                                <span v-show="accountDueWithCredit === 0">
-                                                                    But you can switch to using a PayPal account or credit card at any time by unchecking “Use Credit”).<br>
-                                                                    <button class="btn btn-primary" @click="sendPaying('AvailCredit', 0)">Confirm</button>
-                                                                </span>
-                                                            </div>
-                                                        </template>
-
+                                                    <div v-show="u_pay_method === 'stripe'">
                                                         <stripe-block
-                                                                v-show="$root.user.pay_method === 'stripe'"
+                                                                v-show="pay_target === 'change' || (accountDueWithCredit > 0 || add_to_credit > 0)"
                                                                 :stripe_key="stripe_key"
                                                                 :confirm_pay="pay_target !== 'change' && (accountDueWithCredit > 0 || add_to_credit > 0)"
                                                                 @payment-confirmed="prepareStripe()"
                                                         ></stripe-block>
+                                                    </div>
 
-                                                        <div class="notices" v-show="pay_target === 'change' && $root.user.pay_method === 'paypal'">
+                                                    <div v-show="u_pay_method === 'paypal'">
+                                                        <paypal-block
+                                                                v-show="pay_target !== 'change' && (accountDueWithCredit > 0 || add_to_credit > 0)"
+                                                                :paypal_amount="paypalAmount"
+                                                                @payment-confirmed="payByPal"
+                                                        ></paypal-block>
+                                                        <div class="notices" v-show="pay_target === 'change'">
                                                             <div v-show="!$root.user.paypal_card_id">
                                                                 <label>Add Credit Card:</label>
                                                                 <table>
                                                                     <tr>
-                                                                        <td width="165">
-                                                                            <label>Card Number</label>
-                                                                            <input class="form-control" v-model="paypal_card.number" placeholder="Card Number"/>
+                                                                        <td>
+                                                                            <label>Name on Card</label><br>
+                                                                            <input class="form-control" :style="textSysStyle" v-model="paypal_card.name" placeholder="Name on Card" style="width: 175px;"/>
                                                                         </td>
-                                                                        <td width="140">
-                                                                            <label>Expiration Date</label>
-                                                                            <select class="form-control inline-select" v-model="paypal_card.expire_month" style="width: 50px;">
+                                                                        <td>
+                                                                            <label>Card Number</label><br>
+                                                                            <input class="form-control" :style="textSysStyle" v-model="paypal_card.number" placeholder="Card Number" style="width: 175px;"/>
+                                                                        </td>
+                                                                        <td>
+                                                                            <label>Expiration Date</label><br>
+                                                                            <select class="form-control inline-select" :style="textSysStyle" v-model="paypal_card.expire_month" style="width: 50px;">
                                                                                 <option v-for="i in 12">{{ i }}</option>
                                                                             </select>
                                                                             /
-                                                                            <select class="form-control inline-select" v-model="paypal_card.expire_year" style="width: 65px;">
+                                                                            <select class="form-control inline-select" :style="textSysStyle" v-model="paypal_card.expire_year" style="width: 65px;">
                                                                             <option v-for="i in 20">{{ 2020+i }}</option>
                                                                         </select>
                                                                         </td>
-                                                                        <td width="70">
-                                                                            <label>CVV</label>
-                                                                            <input class="form-control" v-model="paypal_card.cvv2" placeholder="CVV"/>
+                                                                        <td>
+                                                                            <label>CVV</label><br>
+                                                                            <input class="form-control" :style="textSysStyle" v-model="paypal_card.cvv2" placeholder="CVV" style="width: 70px;"/>
                                                                         </td>
                                                                         <td style="vertical-align: bottom;">
+                                                                            <label></label><br>
                                                                             <button class="btn btn-success" @click="sendPaying('PayPalCard')">Submit</button>
                                                                         </td>
                                                                     </tr>
@@ -281,29 +352,15 @@
                                                                 <button class="btn btn-danger btn-sm margin-left" @click="deleteCard('PayPal')">Delete</button>
                                                             </div>
                                                         </div>
-                                                        <paypal-block
-                                                                v-show="pay_target !== 'change' && $root.user.pay_method === 'paypal' && (accountDueWithCredit > 0 || add_to_credit > 0)"
-                                                                :paypal_amount="paypalAmount"
-                                                                @payment-confirmed="payByPal"
-                                                        ></paypal-block>
-
-                                                        <div class="notices" v-show="pay_target === 'balance'">
-                                                        </div>
                                                     </div>
+
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="full-width">
-                                <!--<span v-if="planUpdateStatus === 'upgrade' && leftPlanCost"
-                                      class="green bottom-text"
-                                >Price is recalculated for upgrading your subscription</span>
-                                <span v-if="planUpdateStatus === 'downgrade'"
-                                      class="red bottom-text"
-                                >(Downgrade) Your new subscription will be activated after ending of current subscription</span>-->
-                            </div>
+
                         </div>
                     </div>
 
@@ -314,9 +371,12 @@
 </template>
 
 <script>
-    import {PaymentFunctions} from './../../classes/PaymentFunctions';
+    import {PaymentFunctions} from '../../classes/PaymentFunctions';
 
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
+
+    import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
+    import CellStyleMixin from "../_Mixins/CellStyleMixin";
 
     import TransferCredit from "./TransferCredit";
     import StripeBlock from "../CommonBlocks/StripeBlock";
@@ -328,34 +388,54 @@
             StripeBlock,
             TransferCredit,
         },
+        mixins: [
+            PopupAnimationMixin,
+            CellStyleMixin,
+        ],
         name: "UserPlans",
         data: function () {
             return {
+                activeTab: 'summ',
                 tmp_plan_code: this.$root.user._next_subscription ? this.$root.user._next_subscription.plan_code : this.$root.user._subscription.plan_code,
                 loc_all_addons: [],
                 wrap_credit: null,
                 add_to_credit: null,
+                u_pay_method: 'stripe',
                 pay_target: '',
                 paypal_card: {
+                    name: '',
                     number: null,
                     expire_month: 1,
                     expire_year: 2021,
                     cvv2: null
                 },
                 periodNotifDays: 2,
+                //PopupAnimationMixin
+                getPopupWidth: 830,
+                idx: 0,
             }
         },
         props:{
             stripe_key: String,
-            is_vis: Boolean,
         },
         computed: {
+            adn_not_avail() {
+                return ['basic'].indexOf(this.tmp_plan_code) > -1;
+            },
+            adn_included() {
+                return ['advanced','enterprise'].indexOf(this.tmp_plan_code) > -1;
+            },
             all_adn() {
                 return _.find(this.loc_all_addons, {is_special: 1}) || {};
             },
             eprs_link() {
                 return this.$root.settingsMeta.app_settings && this.$root.settingsMeta.app_settings['app_enterprise_dcr'] ?
                     this.$root.settingsMeta.app_settings['app_enterprise_dcr']['val']
+                    : '';
+            },
+            comparis_link() {
+                return this.$root.settingsMeta.app_settings && this.$root.settingsMeta.app_settings['app_plan_comparison'] ?
+                    this.$root.settingsMeta.app_settings['app_plan_comparison']['val']
                     : '';
             },
             leftPlanCost() {
@@ -369,10 +449,10 @@
                 let plan = _.find(this.$root.settingsMeta.all_plans, {code: this.tmp_plan_code});
                 let sum = plan[key];
                 if (this.all_adn._checked) {
-                    sum += (this.tmp_plan_code !== 'basic' ? this.all_adn[key] : 0);//all addons are enabled
+                    sum += (!this.adn_included ? this.all_adn[key] : 0);//all addons are enabled
                 } else {
                     _.each(this.loc_all_addons, (addon) => {
-                        sum += (this.tmp_plan_code !== 'basic' && addon._checked ? addon[key] : 0);
+                        sum += (!this.adn_included && addon._checked ? addon[key] : 0);
                     });
                 }
                 return Number(sum);
@@ -458,8 +538,9 @@
             planLvL(code) {
                 switch (code) {
                     case 'basic': return 1;
-                    case 'advanced': return 2;
-                    case 'enterprise': return 3;
+                    case 'standard': return 2;
+                    case 'advanced': return 3;
+                    case 'enterprise': return 4;
                 }
             },
             presentInUserAddons(addon) {
@@ -479,6 +560,9 @@
 
                 if (this.$root.user.use_credit && this.selectedPlanCost > this.$root.user.avail_credit) {
                     this.$root.user.recurrent_pay = 0;
+                }
+                if (this.$root.user.use_credit && this.pay_target === 'change') {
+                    this.pay_target = '';
                 }
                 PaymentFunctions.updateUser(this.$root.user);
             },
@@ -623,7 +707,7 @@
                 this.wrap_credit = '$' + val;
             },
             hideMenu(e) {
-                if (this.is_vis && e.keyCode === 27 && !this.$root.e__used) {
+                if (e.keyCode === 27 && !this.$root.e__used) {
                     this.$emit('popup-close');
                     this.$root.set_e__used(this);
                 }
@@ -641,8 +725,20 @@
             payByPal(paypal) {
                 this.sendPaying('PayPalCard', paypal.orderID);
             },
+            editBalance() {
+                axios.post('/ajax/user/admin-balance', {
+                    amount: this.$root.user.avail_credit,
+                }).then(({ data }) => {
+                }).catch(errors => {
+                    Swal('', getErrors(errors));
+                });
+            },
         },
         mounted() {
+            this.$root.tablesZidx += 10;
+            this.zIdx = this.$root.tablesZidx;
+            this.runAnimation({anim_transform:'none'});
+
             eventBus.$on('global-keydown', this.hideMenu);
 
             _.each(this.$root.settingsMeta.all_addons, (addon) => {
@@ -663,10 +759,6 @@
     @import "../CustomPopup/CustomEditPopUp";
 
     .popup {
-        width: 750px;
-        height: 97%;
-        top: 1%;
-        left: calc(50% - 375px);
 
         .header-block {
             h1 {
@@ -695,9 +787,13 @@
 
         .plan-block {}
 
-        .addon-block {}
+        .addon-block {
+            padding: 0 5px;
+        }
 
         .pay-block {
+            height: 100%;
+
             .row {
                 height: 35px;
 
@@ -711,6 +807,7 @@
 
         .plans-wrapper {
             margin: 10px 0;
+            padding: 0 5px;
         }
 
         .row-container {
@@ -719,8 +816,11 @@
         }
 
         .close-btn {
-            padding: 3px;
             cursor: pointer;
+            position: absolute;
+            right: 0;
+            top: -12px;
+            z-index: 20;
         }
 
         .little_input {
@@ -829,5 +929,9 @@
         .row-margin {
             margin-left: -5px;
         }
+    }
+
+    .btn-default {
+        height: 36px;
     }
 </style>

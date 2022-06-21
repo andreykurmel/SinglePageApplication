@@ -4,10 +4,7 @@
         :class="[isEditing() ? 'fix_ddl' : '']"
         ref="cell_tb_data"
         @click.stop=""
-        @dragenter="drEnter"
-        @dragover.prevent=""
-        @dragleave="drLeave"
-        @drop.prevent.stop="attachDrop"
+        @contextmenu="rightMenu"
     >
         <div class="td-wrapper"
              :style="getTdWrappStyle"
@@ -17,12 +14,12 @@
              @mouseup.prevent="endSquareSelect()"
         >
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
-                <div class="inner-content" :style="getInnerStyle">
+            <div class="wrapper-inner" :class="td_wrap_special" :style="getWrapperStyle">
+                <div class="inner-content" :class="td_wrap_special" :style="getInnerStyle">
 
                     <span v-if="hidden_by_format"></span>
 
-                    <template v-else-if="tableHeader.f_type === 'Boolean'">
+                    <template v-else-if="tableHeader.f_type === 'Boolean' && tableHeader.input_type !== 'Formula'">
                         <template v-if="!tableHeader._links || !tableHeader._links.length" class="indeterm_check__wrap">
                             <label v-if="tableHeader.f_format === 'Slider'" class="switch_t" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
                                 <input type="checkbox"
@@ -46,15 +43,17 @@
                     </template>
 
                     <stars-elems
-                            v-else-if="tableHeader.f_type === 'Star Rating'"
+                            v-else-if="tableHeader.f_type === 'Rating' && tableHeader.input_type !== 'Formula'"
                             :cur_val="parseFloat(editValue)"
                             :can_edit="canCellEdit"
+                            :table_header="tableHeader"
                             @set-star="fromCompoSet"
+                            @remove-icon="() => { $emit('remove-icon') }"
                             :style="{height: (maxCellHGT < 25 ? maxCellHGT : 25)+'px', lineHeight: (maxCellHGT-2 < 25 ? maxCellHGT-2 : 25)+'px'}"
                     ></stars-elems>
 
                     <progress-bar
-                            v-else-if="tableHeader.f_type === 'Progress Bar'"
+                            v-else-if="tableHeader.f_type === 'Progress Bar' && tableHeader.input_type !== 'Formula'"
                             :pr_val="parseFloat(editValue)"
                             :can_edit="canCellEdit"
                             :is_selected="isSelected"
@@ -64,7 +63,7 @@
                     ></progress-bar>
 
                     <vote-element
-                            v-else-if="tableHeader.f_type === 'Vote'"
+                            v-else-if="tableHeader.f_type === 'Vote' && tableHeader.input_type !== 'Formula'"
                             :cell_val="editValue"
                             :can_edit="canCellEdit"
                             :table_header="tableHeader"
@@ -74,52 +73,44 @@
                             @set-val="fromCompoSet"
                     ></vote-element>
 
+                    <tablda-colopicker
+                            v-else-if="tableHeader.f_type === 'Color' && !tableHeader.ddl_id && tableHeader.input_type !== 'Formula'"
+                            :init_color="tableRow[tableHeader.field]"
+                            :can_edit="canCellEdit"
+                            :avail_null="true"
+                            :fixed_pos="true"
+                            @set-color="updateColor"
+                    ></tablda-colopicker>
+
                     <tablda-select-ddl
                             v-else-if="isVertTable
                                     && inArray(input_type, $root.ddlInputTypes)
                                     && tableHeader.ddl_id
-                                    && tableHeader.ddl_style === 'panel'"
+                                    && tableHeader.ddl_style === 'panel'
+                                    && tableHeader.input_type !== 'Formula'"
                             :ddl_id="tableHeader.ddl_id"
                             :ddl_type_panel="true"
                             :table-row="tableRow"
+                            :table_id="tableMeta.id"
                             :hdr_field="tableHeader.field"
                             :fld_input_type="input_type"
                             :disabled="!canCellEdit"
-                            :fixed_pos="reactive_provider.fixed_ddl_pos"
-                            :abstract_values="is_td_single"
+                            :fixed_pos="true"
                             :style="getEditStyle"
                             @selected-item="updateCheckedDDL"
                             @hide-select="hideEdit"
                     ></tablda-select-ddl>
 
-                    <div v-else-if="tableHeader.f_type === 'Attachment' && attachImages" class="absolute-frame no-wrap" :class="textAlign">
-                        <template v-if="image_carousel">
-                            <carousel-block :images="attachImages" @img-clicked="imgClick"></carousel-block>
-                        </template>
-                        <template v-else="">
-                            <template v-for="(image, idx) in attachImages">
-                                <a target="_blank" class="img_a has-deleter" @click="dwnFile(image)" :href="dwnPath(image)">
-                                    <img class="_img_preview"
-                                         :src="$root.fileUrl(image)"
-                                         @click="imgClick(attachImages, idx)">
-                                    <span class="img--deleter"
-                                          @click.stop.prevent="deleteFile(attachImages, idx, tableHeader)">&times;</span>
-                                </a>
-                                <!--<br/>-->
-                            </template>
-                        </template>
-                    </div>
-
-                    <div v-else-if="tableHeader.f_type === 'Attachment' && attachFiles" style="white-space: nowrap;">
-                        <template v-for="(file, idx) in attachFiles">
-                            <a target="_blank" class="has-deleter" @click="dwnFile(file)" :href="dwnPath(file)">
-                                <span>{{ file.filename }}</span>
-                                <span class="img--deleter"
-                                      @click.stop.prevent="deleteFile(attachFiles, idx, tableHeader)">&times;</span>
-                            </a>
-                            <br/>
-                        </template>
-                    </div>
+                    <show-attachments-block
+                        v-else-if="tableHeader.f_type === 'Attachment'"
+                        :image-fit="attachImageFit"
+                        :show-type="attachmentsShowStyle"
+                        :table-header="tableHeader"
+                        :table-meta="tableMeta"
+                        :table-row="tableRow"
+                        :can-edit="canEditHdr(tableHeader)"
+                        @update-signal="sendUpdateSignal"
+                    ></show-attachments-block>
 
                     <cell-table-content
                             v-else=""
@@ -129,15 +120,20 @@
                             :table-header="tableHeader"
                             :edit-value="editValue"
                             :max-cell-rows="$root.maxCellRows"
-                            :font-size="$root.themeTextFontSize"
+                            :font-size="themeTextFontSize"
                             :cur-width="tableHeader.width"
                             :user="user"
+                            :behavior="behavior"
+                            :is_def_fields="is_def_fields"
+                            :is_td_single="is_td_single"
+                            :no_height_limit="no_height_limit"
                             :can_edit="canCellEdit"
                             :is-vert-table="isVertTable"
                             @changed-cont-size="changedContSize"
                             @show-src-record="showSrcRecord"
                             @open-app-as-popup="openAppAsPopup"
                             @unselect-val="updateCheckedDDL"
+                            @full-size-image="imgFromEmit"
                     ></cell-table-content>
 
                 </div>
@@ -163,39 +159,32 @@
 
 
         <!-- ABSOLUTE EDITINGS -->
-        <div v-if="isEditing()" class="cell-editing">
+        <div v-if="isEditing()" class="cell-editing" :style="{backgroundColor: tableHeader.input_type === 'Formula' ? 'transparent' : ''}">
 
             <formula-helper
-                    v-if="tableHeader.input_type === 'Formula' && !is_td_single"
+                    v-if="tableHeader.input_type === 'Formula'"
                     :user="user"
                     :table-meta="tableMeta"
                     :table-row="tableRow"
                     :table-header="tableHeader"
-                    :header-key="tableHeader.field+'_formula'"
+                    :header-key="is_def_fields ? tableHeader.field : tableHeader.field+'_formula'"
                     :can-edit="canCellEdit"
                     :uuid="uuid"
+                    :fixed_pos="true"
+                    :foreign_element="$refs.cell_tb_data"
                     :pop_width="'100%'"
+                    :no_uniform="!!is_def_fields"
                     @set-formula="updateRow"
             ></formula-helper>
-
-            <tablda-colopicker
-                    v-else-if="tableHeader.f_type === 'Color' && !tableHeader.ddl_id"
-                    :init_color="tableRow[tableHeader.field]"
-                    :can_edit="canCellEdit"
-                    :saved_colors="$root.color_palette"
-                    :init_menu="true"
-                    :avail_null="true"
-                    @set-color="updateColor"
-            ></tablda-colopicker>
 
             <tablda-user-select
                     v-else-if="tableHeader.f_type === 'User'"
                     :edit_value="editValue"
                     :table_meta="tableMeta"
                     :can_empty="true"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos || !!tableHeader.is_floating"
+                    :fixed_pos="true"
                     :multiselect="$root.isMSEL(input_type)"
-                    :extra_vals="is_td_single || reactive_provider.is_def_fields"
+                    :extra_vals="is_td_single || is_def_fields ? ['user','group'] : []"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -217,16 +206,26 @@
                             && (tableHeader.ddl_style === 'ddl' || !isVertTable)"
                     :ddl_id="tableHeader.ddl_id"
                     :table-row="tableRow"
+                    :table_id="tableMeta.id"
                     :hdr_field="tableHeader.field"
                     :fld_input_type="input_type"
                     :has_embed_func="tableHeader.ddl_add_option == 1 && !no_ddl_colls"
                     :style="getEditStyle"
-                    :fixed_pos="reactive_provider.fixed_ddl_pos"
-                    :abstract_values="is_td_single"
+                    :fixed_pos="true"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
                     @embed-func="showAddDDLOption"
             ></tablda-select-ddl>
+
+            <input
+                v-else-if="inArray(tableHeader.f_type, ['Attachment'])"
+                type="text"
+                @blur="hideEdit()"
+                @paste="pasteAttachment"
+                ref="inline_input"
+                class="form-control full-height"
+                placeholder="Ctrl + V to Paste File"
+                :style="getEditStyle"/>
 
             <!--<input v-else-if="tableHeader.f_type === 'Time'"-->
                    <!--v-model="editValue"-->
@@ -246,8 +245,8 @@
 
             <input v-else-if="inArray(tableHeader.f_type, ['Date', 'Date Time', 'Time'])"
                    ref="inline_input"
-                   @blur="hideDatePicker()"
-                   class="form-control full-height"
+                   @blur="hideDatePicker"
+                   class="form-control full-height no_CF_for_date"
                    :style="getEditStyle"/>
 
             <textarea
@@ -299,36 +298,39 @@
 </template>
 
 <script>
-    import {UnitConversion} from './../../classes/UnitConversion';
-    import {SelectedCells} from './../../classes/SelectedCells';
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+import {UnitConversion} from '../../classes/UnitConversion';
+import {SelectedCells} from '../../classes/SelectedCells';
+import {SpecialFuncs} from '../../classes/SpecialFuncs';
+import {Endpoints} from "../../classes/Endpoints";
+import {FileHelper} from "../../classes/helpers/FileHelper";
 
-    import {eventBus} from './../../app';
+import {eventBus} from '../../app';
 
-    import {mask} from 'vue-the-mask';
+import {mask} from 'vue-the-mask';
 
-    import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
-    import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
-    import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin.vue';
-    import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
+import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
+import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import CellMoveKeyHandlerMixin from './../_Mixins/CellMoveKeyHandlerMixin.vue';
+import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
-    import CellTableDataExpand from './InCell/CellTableDataExpand.vue';
-    import CellTableContent from './InCell/CellTableContent.vue';
-    import TabldaColopicker from './InCell/TabldaColopicker.vue';
-    import TextareaAutosize from './InCell/TextareaAutosize.vue';
-    import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
-    import FullSizeImgBlock from './../CommonBlocks/FullSizeImgBlock.vue';
-    import FormulaHelper from "./InCell/FormulaHelper.vue";
-    import CustomApplicationPopUp from "../CustomPopup/CustomApplicationPopUp.vue";
-    import StarsElems from "./InCell/StarsElems.vue";
-    import ProgressBar from "./InCell/ProgressBar.vue";
-    import TabldaSelectDdl from "./Selects/TabldaSelectDdl.vue";
-    import TabldaUserSelect from "./Selects/TabldaUserSelect.vue";
-    import GoogleAddressViewer from "./InCell/GoogleAddressViewer";
-    import VoteElement from "./InCell/VoteElement";
-    import CarouselBlock from "../CommonBlocks/CarouselBlock";
+import CellTableDataExpand from './InCell/CellTableDataExpand.vue';
+import CellTableContent from './InCell/CellTableContent.vue';
+import TabldaColopicker from './InCell/TabldaColopicker.vue';
+import TextareaAutosize from './InCell/TextareaAutosize.vue';
+import SelectWithFolderStructure from './InCell/SelectWithFolderStructure.vue';
+import FullSizeImgBlock from './../CommonBlocks/FullSizeImgBlock.vue';
+import FormulaHelper from "./InCell/FormulaHelper.vue";
+import CustomApplicationPopUp from "../CustomPopup/CustomApplicationPopUp.vue";
+import StarsElems from "./InCell/StarsElems.vue";
+import ProgressBar from "./InCell/ProgressBar.vue";
+import TabldaSelectDdl from "./Selects/TabldaSelectDdl.vue";
+import TabldaUserSelect from "./Selects/TabldaUserSelect.vue";
+import GoogleAddressViewer from "./InCell/GoogleAddressViewer";
+import VoteElement from "./InCell/VoteElement";
+import CarouselBlock from "../CommonBlocks/CarouselBlock";
+import ShowAttachmentsBlock from "../CommonBlocks/ShowAttachmentsBlock";
 
-    export default {
+export default {
         name: "CustomCellTableData",
         mixins: [
             CanEditMixin,
@@ -337,7 +339,9 @@
             CellStyleMixin,
         ],
         components: {
-            CarouselBlock, VoteElement,
+            ShowAttachmentsBlock,
+            CarouselBlock,
+            VoteElement,
             GoogleAddressViewer,
             TabldaUserSelect,
             TabldaSelectDdl,
@@ -355,20 +359,14 @@
         directives: {
             mask
         },
-        inject: {
-            reactive_provider: {
-                from: 'reactive_provider',
-                default: () => { return {} }
-            }
-        },
         data: function () {
             return {
+                overImages: null,
+                overImageIdx: null,
                 cont_height: 0,
                 cont_width: 0,
                 cont_html: null,
 
-                overImages: null,
-                overImageIdx: null,
                 no_key_handler: false,
                 editing: false,
                 editValue: null,
@@ -380,10 +378,11 @@
                 },
                 show_field_res: null,
                 uuid: uuidv4(),
+                ddl_option: null,
 
                 iframe_tb_app: null,
                 iframe_app_link: null,
-                attach_overed: false,
+                ignore_add_behaviors: ['dcr_linked_tb'],
             }
         },
         props:{
@@ -414,6 +413,9 @@
             is_td_single: Boolean,
             no_width: Boolean,
             extraStyle: Object,
+            is_def_fields: Boolean,
+            no_height_limit: Boolean,
+            parentRow: Object,
         },
         watch: {///////////
             table_id: function (val) {
@@ -434,8 +436,17 @@
             },
         },
         computed: {
-            image_carousel() {
-                return this.behavior === 'kanban_view' && this.tableMeta.kanban_picture_style === 'slide';
+            kanbanPivot() {
+                if (this.behavior === 'kanban_view' && this.parentRow && this.parentRow._fields_pivot) {
+                    return _.find(this.parentRow._fields_pivot, {table_field_id: Number(this.tableHeader.id)});
+                }
+                return null;
+            },
+            attachmentsShowStyle() {
+                return this.kanbanPivot ? this.kanbanPivot.picture_style : '';
+            },
+            attachImageFit() {
+                return this.kanbanPivot ? this.kanbanPivot.picture_fit : '';
             },
             textAlign() {
                 switch (this.tableHeader.col_align) {
@@ -443,16 +454,6 @@
                     case 'right' : return 'txt--right';
                     default : return 'txt--center';
                 }
-            },
-            attachImages() {
-                return this.tableRow['_images_for_'+this.tableHeader.field] && this.tableRow['_images_for_'+this.tableHeader.field].length
-                    ? this.tableRow['_images_for_'+this.tableHeader.field]
-                    : null;
-            },
-            attachFiles() {
-                return this.tableRow['_files_for_'+this.tableHeader.field] && this.tableRow['_files_for_'+this.tableHeader.field].length
-                    ? this.tableRow['_files_for_'+this.tableHeader.field]
-                    : null;
             },
             input_type() {
                 //special for 'Add New Option' Popup
@@ -468,6 +469,11 @@
             headerUnitDisplay() {
                 return this.tableHeader.unit_display;
             },
+            td_wrap_special() {
+                return {
+                    'full-height': this.inArray(this.tableHeader.f_type, ['Attachment'])
+                };
+            },
 
             //OTHER/
             underlinedLink() {
@@ -475,17 +481,18 @@
             },
             canCellEdit() {
                 let res = this.with_edit
-                    && !this.inArray(this.tableHeader.f_type, ['Attachment']) //special rules and editing in another place for 'Attachments'
+                    //&& !this.inArray(this.tableHeader.f_type, ['Attachment']) //special rules and editing in another place for 'Attachments'
                     && ( //edit permissions forced
                         this.force_edit
                         || //can edit only owner OR user with available rights
                         this.canEditCell(this.tableHeader, this.tableRow)
                         || // OR user can add rows and cell is from new row
-                        this.isAddRow
+                        (this.isAddRow && !this.inArray(this.behavior, this.ignore_add_behaviors))
                     )
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields) //cannot edit system fields
                     && !this.freezed_by_format //cannot edit cells freezed by CondFormat
                     && !this.hidden_by_format //cannot edit cells hidden by CondFormat
+                    && this.tableHeader.input_type !== 'Mirror' //cannot edit 'Mirror' cells
                     && !(this.behavior === 'request_view' && this.tableRow.id); //if embed request -> can edit only newly added rows
 
                 return Boolean(res);
@@ -502,16 +509,16 @@
             isEditing() {
                 return this.editing && this.canCellEdit && !this.$root.global_no_edit;
             },
-            showEdit() {
-                if (window.event.button != 0 && this.selectedCell) {
+            showEdit(skip) {
+                if (!skip && window.event.button != 0 && this.selectedCell) {
                     this.selectedCell.single_select(this.tableHeader, this.rowIndex);
                     return;
                 }
-                if (window.event.ctrlKey && this.selectedCell) {
+                if (!skip && window.event.ctrlKey && this.selectedCell) {
                     this.selectedCell.square_select(this.tableHeader, this.rowIndex);
                     return;
                 }
-                //focus on cell (only on desctop)
+                //focus on cell (only on desktop)
                 if (
                     window.screen.width >= 768
                     && this.selectedCell
@@ -521,7 +528,7 @@
                     this.selectedCell.single_select(this.tableHeader, this.rowIndex);
                 } else {
                     let listing_pop_edit = this.isVertTable && this.inArray(this.input_type, this.$root.ddlInputTypes) && this.tableHeader.ddl_id && this.tableHeader.ddl_style === 'panel';
-                    let notedit_type = this.inArray(this.tableHeader.f_type, ['Boolean','Star Rating','Progress Bar']);
+                    let notedit_type = this.inArray(this.tableHeader.f_type, ['Boolean','Rating','Progress Bar','Vote','Color']) && this.tableHeader.input_type !== 'Formula';
                     if (!this.canCellEdit || listing_pop_edit || notedit_type || this.$root.prevent_cell_edit) {
                         return;
                     }
@@ -606,7 +613,8 @@
                     return this.editValue === item;
                 }
             },
-            updateCheckedDDL(item) {
+            updateCheckedDDL(item, opt) {
+                this.ddl_option = opt;
                 if (this.$root.isMSEL(this.tableHeader.input_type)) {
                     this.editValue = Array.isArray(this.editValue) ? this.editValue : [String(this.editValue)];
                     if (this.editValue.indexOf(item) > -1) {
@@ -623,7 +631,7 @@
                 if (!this.canCellEdit) {
                     return;
                 }
-                let val = (!isNaN(this.editValue) ? parseFloat(this.editValue) : this.editValue);
+                let val = (isNumber(this.editValue) ? parseFloat(this.editValue) : this.editValue);
                 this.sendUpdateSignal(val ? 0 : 1);
             },
             fromCompoSet(val) {
@@ -631,15 +639,15 @@
                 this.updateValue();
             },
             updateValue(ediVal) {
-                let editVal = SpecialFuncs.applySetMutator(this.tableHeader, ediVal || this.editValue);
+                let editVal = ediVal === undefined ? this.editValue : ediVal;
+                editVal = SpecialFuncs.applySetMutator(this.tableHeader, editVal);
                 if (to_standard_val(this.tableRow[this.tableHeader.field]) !== to_standard_val(editVal)) {
                     this.sendUpdateSignal(editVal);
                 }
             },
             updateColor(clr, save) {
                 if (save) {
-                    this.$root.color_palette.unshift(clr);
-                    localStorage.setItem('color_palette', this.$root.color_palette.join(','));
+                    this.$root.saveColorToPalette(clr);
                 }
                 this.sendUpdateSignal(clr);
             },
@@ -649,45 +657,25 @@
                 if (this.tableHeader.input_type === 'Formula') {
                     this.tableRow[this.tableHeader.field+'_formula'] = editVal;
                 }
-                this.$emit('updated-cell', this.tableRow, this.tableHeader);
+                this.$emit('updated-cell', this.tableRow, this.tableHeader, this.ddl_option);
             },
             updateRow() {
                 this.editing = false;
                 this.globEditingFalse();
-                this.$emit('updated-cell', this.tableRow, this.tableHeader);
+                this.$emit('updated-cell', this.tableRow, this.tableHeader, this.ddl_option);
             },
             hideDatePicker() {
                 this.hideEdit();
-                this.updateValue( $(this.$refs.inline_input).val() );
-            },
-
-            //FILES
-            deleteFile(files, idx, tableHeader) {
-                Swal({
-                    title: 'File deleted cannot be recovered!',
-                    text: 'Are you sure?',
-                    showCancelButton: true,
-                }).then((result) => {
-                    if (result.value) {
-                        let file = files[idx];
-                        this.$root.sm_msg_type = 1;
-                        axios.delete('/ajax/files', {
-                            params: {
-                                id: file.id,
-                                table_id: file.table_id,
-                                table_field_id: file.table_field_id,
-                                row_id: this.tableRow.id,
-                            }
-                        }).then(({ data }) => {
-                            files.splice(idx, 1);
-                            this.tableRow[tableHeader.field] = '';
-                        }).catch(errors => {
-                            Swal('', getErrors(errors));
-                        }).finally(() => {
-                            this.$root.sm_msg_type = 0;
-                        });
-                    }
-                });
+                let value = $(this.$refs.inline_input).val();
+                switch (this.tableHeader.f_type) {
+                    case 'Date': value = moment( value ).format('YYYY-MM-DD'); break;
+                    case 'Date Time': value = moment( value ).format('YYYY-MM-DD HH:mm:ss'); break;
+                    case 'Time': value = moment( '0001-01-01 '+value ).format('HH:mm:ss'); break;
+                }
+                if (value === 'Invalid date') {
+                    value = '';
+                }
+                this.updateValue( value );
             },
 
             //SYSTEMS
@@ -714,6 +702,10 @@
                 eventBus.$emit('reload-page', this.tableMeta.id);
                 eventBus.$emit('cell-app-has-been-closed', this.tableMeta.id, app_name);
             },
+            imgFromEmit(images, idx) {
+                this.overImages = images;
+                this.overImageIdx = idx;
+            },
 
             //KEYBOARD
             changeCol(is_next) {
@@ -735,59 +727,46 @@
                 }
             },
             globalClick(e) {
+                let excluded = this.inArray(this.tableHeader.f_type, ['Address']);
                 let container = $(this.$refs.cell_tb_data);
-                if (this.editing && container.has(e.target).length === 0) {
+                if (!excluded && this.editing && container.has(e.target).length === 0) {
                     this.hideEdit();
                 }
             },
-            //drag&drop to the cell directly
-            drEnter(e) {
-                this.attach_overed = true;
-            },
-            drLeave(e) {
-                if ($(this.$refs.cell_tb_data).has(e.fromElement).length === 0) {
-                    this.attach_overed = false;
-                }
-            },
-            attachDrop(ev) {
-                if (this.tableHeader.f_type === 'Attachment') {
-                    let file = ev.dataTransfer.items && ev.dataTransfer.items[0] && ev.dataTransfer.items[0].kind === 'file'
-                        ? ev.dataTransfer.items[0].getAsFile()
-                        : null;
-
-                    let data = new FormData();
-                    data.append('table_id', this.tableMeta.id);
-                    data.append('table_field_id', this.tableHeader.id);
-                    data.append('row_id', this.tableRow.id);
-                    data.append('file', file);
-
-                    axios.post('/ajax/files', data, {
-                        headers: {
-                            'Content-Type': 'multipart/form-data'
-                        },
-                    }).then(({ data }) => {
-                        if (data.filepath && data.filename) {
-                            this.sendUpdateSignal(data.filepath + data.filename);
+            pasteAttachment(e) {
+                let images = this.$root.getImagesFromClipboard(e);
+                if (images.length) {
+                    _.each(images, (file) => {
+                        if (!FileHelper.checkFile(file, this.tableHeader.f_format)) {
+                            return false;
                         }
+
+                        this.$root.sm_msg_type = 1;
+                        Endpoints.fileUpload({
+                            table_id: this.tableMeta.id,
+                            table_field_id: this.tableHeader.id,
+                            row_id: this.tableRow.id,
+                            file: file,
+                        }).then(({ data }) => {
+                            this.$root.attachFileToRow(this.tableRow, this.tableHeader, data);
+                            if (data.filepath && data.filename) {
+                                this.sendUpdateSignal(data.filepath + data.filename);
+                            }
+                        }).catch(errors => {
+                            Swal('', getErrors(errors));
+                        }).finally(() => {
+                            this.$root.sm_msg_type = 0;
+                        });
                     });
+                } else {
+                    Swal('', 'Images not found in the Clipboard.');
                 }
-                this.attach_overed = false;
+                this.hideEdit();
             },
-            dwnFile(file) {
-                if (window.event.ctrlKey) {
-                    window.event.preventDefault();
-                    window.location = this.dwnPath(file)+'?dwn=true';
-                }
-            },
-            dwnPath(file) {
-                return this.$root.fileUrl(file);
-            },
-            imgClick(images, idx) {
-                if (!window.event.ctrlKey) {
-                    this.overImages = images;
-                    this.overImageIdx = idx;
-                    window.event.stopPropagation();
-                    window.event.preventDefault();
+            rightMenu(e) {
+                if (this.tableHeader.f_type !== 'Attachment') {
+                    e.preventDefault();
+                    this.$emit('cell-menu', this.tableRow, this.rowIndex, this.tableHeader);
                 }
             },
         },
@@ -806,7 +785,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     @import "CustomCell.scss";
 
     .glyphicon-play {
@@ -819,5 +798,8 @@
     }
     .fix_ddl {
         z-index: 500 !important; //Fix position for DDLs in 'Sticky cells'
+    }
+    .no_CF_for_date {
+        color: initial;
     }
 </style>

@@ -26,12 +26,12 @@
                     @endif
 
                     <div class="form-group">
-                        <label for="username" class="sr-only">@lang('app.email_or_username')</label>
+                        <label for="username" class="sr-only">@lang('app.email')</label>
                         <input type="text"
                                 name="username"
                                 id="username"
                                 class="form-control"
-                                placeholder="@lang('app.email_or_username')">
+                                placeholder="@lang('app.email')">
                     </div>
 
                     <div class="form-group password-field">

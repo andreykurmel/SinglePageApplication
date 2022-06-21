@@ -17,8 +17,9 @@ class CreateTableBackupsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('user_cloud_id');
+            $table->tinyInteger('is_active')->nullable();
             $table->string('name');
-            $table->string('day', 20);
+            $table->string('day', 20)->nullable();
             $table->string('time', 20)->nullable();
             $table->tinyInteger('mysql')->nullable();
             $table->tinyInteger('csv')->nullable();

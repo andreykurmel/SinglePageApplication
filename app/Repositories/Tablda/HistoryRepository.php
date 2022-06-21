@@ -3,6 +3,7 @@
 namespace Vanguard\Repositories\Tablda;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Collection;
 use Vanguard\Models\HistoryField;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
@@ -25,7 +26,8 @@ class HistoryRepository
     /**
      * HistoryRepository constructor.
      */
-    public function __construct() {
+    public function __construct()
+    {
         $this->service = new HelperService();
     }
 
@@ -39,7 +41,8 @@ class HistoryRepository
      * @param $old_val
      * @return mixed
      */
-    public function store(Table $table, int $user_id, int $field_id, int $row_id, $old_val) {
+    public function store(Table $table, int $user_id, int $field_id, int $row_id, $old_val)
+    {
         $data = $this->newHistoryRow($table, $user_id, $field_id, $row_id, $old_val);
         return HistoryField::create($data);
     }
@@ -54,20 +57,34 @@ class HistoryRepository
      * @param $old_val
      * @return array
      */
-    public function newHistoryRow(Table $table, int $user_id = null, int $field_id, int $row_id, $old_val) {
+    public function newHistoryRow(Table $table, int $user_id = null, int $field_id, int $row_id, $old_val)
+    {
         $last = $this->getLastHistory($field_id, $row_id);
         $last = $last ? $last->toArray() : $table->toArray();
 
         $data = array_merge([
-                'user_id' => $user_id,
-                'table_id' => $table->id,
-                'table_field_id' => $field_id,
-                'row_id' => $row_id,
-                'value' => $old_val
-            ],
+            'user_id' => $user_id,
+            'table_id' => $table->id,
+            'table_field_id' => $field_id,
+            'row_id' => $row_id,
+            'value' => $old_val
+        ],
             $this->service->getModified($table)
         );
         return $this->service->setCreatedFromModif($data, $last);
+    }
+
+    /**
+     * Get Last History Record.
+     *
+     * @param int $table_field_id
+     * @param int $row_id
+     * @return mixed
+     */
+    public function getLastHistory(int $table_field_id, int $row_id)
+    {
+        return $this->historyRequest($table_field_id, $row_id)
+            ->first();
     }
 
     /**
@@ -77,9 +94,10 @@ class HistoryRepository
      * @param int $row_id
      * @return Builder
      */
-    private function historyRequest(int $table_field_id, int $row_id) {
-        return HistoryField::with('_user:'.join(',', $this->user_fields))
-            //->where('user_id', '=', $user_id)
+    private function historyRequest(int $table_field_id, int $row_id)
+    {
+        return HistoryField::with('_user:' . join(',', $this->user_fields))
+            ->whereNull('to_user_id')
             ->where('table_field_id', '=', $table_field_id)
             ->where('row_id', '=', $row_id)
             ->orderBy('id', 'desc');
@@ -90,11 +108,73 @@ class HistoryRepository
      *
      * @param int $table_field_id
      * @param int $row_id
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
-    public function getFieldHistory(int $table_field_id, int $row_id) {
+    public function getFieldHistory(int $table_field_id, int $row_id)
+    {
         return $this->historyRequest($table_field_id, $row_id)
             ->get();
+    }
+
+    /**
+     * @param Table $table
+     * @param int $row_id
+     * @return \Illuminate\Database\Eloquent\Builder|Builder|HistoryField
+     */
+    protected function allHistory(Table $table, int $row_id)
+    {
+        return HistoryField::with([
+            '_user:' . join(',', $this->user_fields),
+            '_to_user:' . join(',', $this->user_fields),
+            '_table_field:id,name,f_type',
+        ])
+            ->where('table_id', '=', $table->id)
+            ->where('row_id', '=', $row_id)
+            ->orderBy('id', 'desc');
+    }
+
+    /**
+     * @param Table $table
+     * @param int $row_id
+     * @return Collection
+     */
+    public function getAll(Table $table, int $row_id)
+    {
+        return $this->allHistory($table, $row_id)->limit(50)->get();
+    }
+
+    /**
+     * @param Table $table
+     * @param int $row_id
+     * @return int
+     */
+    public function getCount(Table $table, int $row_id)
+    {
+        return $this->allHistory($table, $row_id)->count();
+    }
+
+    /**
+     * @param Table $table
+     * @param int $row_id
+     * @param int $from_user
+     * @param int $to_user
+     * @param $comment
+     * @return HistoryField
+     */
+    public function insertComment(Table $table, int $row_id, int $from_user, int $to_user, $comment): HistoryField
+    {
+        $data = [
+            'user_id' => $from_user,
+            'table_id' => $table->id,
+            'row_id' => $row_id,
+            'to_user_id' => $to_user,
+            'comment' => $comment,
+        ];
+        return HistoryField::create(array_merge(
+            $this->service->delSystemFields($data),
+            $this->service->getModified($table),
+            $this->service->getCreated($table)
+        ));
     }
 
     /**
@@ -103,7 +183,8 @@ class HistoryRepository
      * @param int $row_id
      * @return array
      */
-    public function getCurrentHistory(Table $table, TableField $header, int $row_id) {
+    public function getCurrentHistory(Table $table, TableField $header, int $row_id)
+    {
         $field = $header ? $header->field : '';
         $row = (new TableDataRepository())->getDirectRow($table, $row_id);
         $row = $row ? $row->toArray() : [];
@@ -115,26 +196,15 @@ class HistoryRepository
     }
 
     /**
-     * Get Last History Record.
-     *
-     * @param int $table_field_id
-     * @param int $row_id
-     * @return mixed
-     */
-    public function getLastHistory(int $table_field_id, int $row_id) {
-        return $this->historyRequest($table_field_id, $row_id)
-            ->first();
-    }
-
-    /**
      * Get History User
      *
      * @param $user_id
      * @return mixed
      */
-    public function getHistoryUser($user_id) {
+    public function getHistoryUser($user_id)
+    {
         return User::where('id', '=', $user_id)
-            ->select( $this->user_fields )
+            ->select($this->user_fields)
             ->first();
     }
 
@@ -144,7 +214,8 @@ class HistoryRepository
      * @param array|int $ids
      * @return mixed
      */
-    public function getHistory($ids) {
+    public function getHistory($ids)
+    {
         return HistoryField::find($ids);
     }
 
@@ -154,7 +225,8 @@ class HistoryRepository
      * @param HistoryField $historyField
      * @return mixed
      */
-    public function delete(HistoryField $historyField) {
+    public function delete(HistoryField $historyField)
+    {
         return $historyField->delete();
     }
 }

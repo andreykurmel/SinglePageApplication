@@ -2,6 +2,7 @@
 
 namespace Vanguard\Http\Controllers\Web;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Vanguard\Events\User\ChangedAvatar;
 use Vanguard\Events\User\TwoFactorDisabled;
@@ -259,9 +260,15 @@ class ProfileController extends Controller
                 ->withErrors(trans('app.2fa_not_enabled_for_this_user'));
         }
 
-        Authy::delete($this->theUser);
-
+        $this->theUser->two_factor_options = null;
         $this->theUser->save();
+
+        try {
+            Authy::delete($this->theUser);
+        } catch (\Exception $e) {
+            Log::info('Authy Error');
+            Log::info($e->getMessage());
+        }
 
         event(new TwoFactorDisabled);
 

@@ -3,12 +3,14 @@
 namespace Vanguard\Http\Controllers\Web\Auth;
 
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Vanguard\Events\User\RequestedPasswordResetEmail;
 use Vanguard\Events\User\ResetedPasswordViaEmail;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Auth\PasswordRemindRequest;
 use Vanguard\Http\Requests\Auth\PasswordResetRequest;
+use Vanguard\Models\ResetPass;
 use Vanguard\Repositories\User\UserRepository;
 use Password;
 
@@ -45,10 +47,11 @@ class PasswordController extends Controller
         $user = $users->findByEmail($request->email);
 
         $token = Password::getRepository()->create($user);
+        ResetPass::where('email', '=', $user->email)->update(['web_token' => $token]);
 
         event(new RequestedPasswordResetEmail($user, $token));
 
-        return redirect()->to('password/remind')
+        return redirect()->to('/?login')
             ->with('success', trans('app.password_reset_email_sent'));
     }
 
@@ -61,11 +64,13 @@ class PasswordController extends Controller
      */
     public function getReset($token = null)
     {
-        if (is_null($token)) {
+        $reset_pass = ResetPass::where('web_token', '=', $token)->first();
+
+        if (is_null($reset_pass)) {
             throw new NotFoundHttpException;
         }
 
-        return view('auth.password.reset')->with('token', $token);
+        return view('auth.password.reset')->with('resetter', $reset_pass->toArray());
     }
 
     /**

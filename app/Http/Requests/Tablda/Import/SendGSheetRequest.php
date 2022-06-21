@@ -24,9 +24,9 @@ class SendGSheetRequest extends FormRequest
     public function rules()
     {
         return [
-            'g_sheet_link' => 'required|string',
-            'g_sheet_name' => 'required|string',
-            'g_sheet_settings' => 'required|array',
+            'g_sheets_file' => 'required|string',
+            'g_sheets_element' => 'required|string',
+            'g_sheets_settings' => 'required|array',
         ];
     }
 }

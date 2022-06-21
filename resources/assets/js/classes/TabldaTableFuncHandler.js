@@ -13,5 +13,6 @@ export class TabldaTableFuncHandler {
         this.copy_from_model_clicked = 0;
         this.show_cond_popup_clicked = 0;
         this.fill_attachments_clicked = 0;
+        this.rl_calculation_clicked = 0;
     }
 }

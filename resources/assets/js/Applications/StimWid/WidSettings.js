@@ -39,8 +39,11 @@ export class WidSettings {
         this.wireframeName = obj.wireframeName !== undefined ? !!obj.wireframeName : false;
         this.members = obj.members !== undefined ? !!obj.members : true;
         this.objects = obj.objects !== undefined ? !!obj.objects : true;
+        this.rl_view = obj.rl_view !== undefined ? !!obj.rl_view : true;
+        this.rl_size = obj.rl_size !== undefined ? obj.rl_size : 1;
         this.edges_members = obj.edges_members !== undefined ? !!obj.edges_members : false;
         this.edges_eqpts = obj.edges_eqpts !== undefined ? !!obj.edges_eqpts : false;
+        this.edges_color = obj.edges_color || '#ffffff';
         this.defaultAngle = obj.defaultAngle !== undefined ? !!obj.defaultAngle : false;
         this.showLabelsEqpt = obj.showLabelsEqpt !== undefined ? !!obj.showLabelsEqpt : false;
         this.fontSize = Number(obj.fontSize) || 20;
@@ -53,6 +56,7 @@ export class WidSettings {
         this.gridShrink = Number(obj.gridShrink) || 0;
         this.defEqptColor = obj.defEqptColor || '#aaaaaa';
         this.defMemberColor = obj.defMemberColor || '#aaaaaa';
+        this.defRLColor = obj.defRLColor || '#aaaaaa';
 
         if (!skip_pos) {
             this.camera_pos_x = Number(obj.camera_pos_x) || -15;

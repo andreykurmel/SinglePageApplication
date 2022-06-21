@@ -43,7 +43,6 @@ class PaymentProcessingController extends Controller implements AppControllerInt
      */
     public function __construct()
     {
-        $this->pay_serv = new PaymentService();
         $this->data_serv = new TableDataService();
         $this->conn_repo = new UserConnRepository();
         $this->bladeVariablesService = new BladeVariablesService();
@@ -107,7 +106,7 @@ class PaymentProcessingController extends Controller implements AppControllerInt
             $table = $link->_field->_table;
             $link->_paypal_user_key = (new UserConnRepository())->userPaymentDecrypt($link->_paypal_user_key ?: []);
             $link->_stripe_user_key = (new UserConnRepository())->userPaymentDecrypt($link->_stripe_user_key ?: []);
-            $link->load('_payment_amount_fld', '_payment_method_fld');
+            $link->load('_payment_amount_fld', '_payment_method_fld', '_payment_description_fld');
         } catch (\Exception $e) {
             $errors_present[] = 'Param "link" not present!';
         }
@@ -145,7 +144,7 @@ class PaymentProcessingController extends Controller implements AppControllerInt
             $update[ $link->_payment_history_amount_fld->field ] = $pay_result['amount'] ?? 0;
         }
         if ($link->_payment_history_payee_fld) {
-            $update[ $link->_payment_history_payee_fld->field ] = $pay_result['from'] ?? '';
+            $update[ $link->_payment_history_payee_fld->field ] = $pay_result['customer_id'] ?? '';
         }
         if ($link->_payment_history_date_fld) {
             $update[ $link->_payment_history_date_fld->field ] = now()->format('Y-m-d H:i:s');
@@ -154,6 +153,18 @@ class PaymentProcessingController extends Controller implements AppControllerInt
         if ($update) {
             $this->data_serv->updateRow($table, $row_id, $update, $user->id);
         }
+    }
+
+    /**
+     * @param TableFieldLink $link
+     * @param $row
+     * @return PaymentService
+     */
+    protected function makePayService(TableFieldLink $link, $row)
+    {
+        $customer = $link->_payment_customer_fld ? $row[ $link->_payment_customer_fld->field ] : '';
+        $description = $link->_payment_description_fld ? $row[ $link->_payment_description_fld->field ] : '';
+        return new PaymentService($customer?:'', $description?:'');
     }
 
     /**
@@ -166,8 +177,9 @@ class PaymentProcessingController extends Controller implements AppControllerInt
         $user = auth()->check() ? auth()->user() : new User();
         [$errors_present, $link, $row, $table] = $this->getLinkRowTable($request->link_id, $request->row_id);
         if (!$errors_present) {
+            $pay_serv = $this->makePayService($link, $row);
             $user_keys = $this->conn_repo->userPaymentDecrypt($link->_paypal_user_key);
-            $payed = $this->pay_serv->PayPal_Charge_Order($user, $request->order_id, $user_keys['public_key'], $user_keys['secret_key'], $user_keys['mode']=='live');
+            $payed = $pay_serv->PayPal_Charge_Order($user, $request->order_id, $user_keys['public_key'], $user_keys['secret_key'], $user_keys['mode']=='live');
             if (empty($payed['error'])) {
                 $this->saveResultToRow($user, $link, $table, $payed, $row['id']);
             }
@@ -186,10 +198,11 @@ class PaymentProcessingController extends Controller implements AppControllerInt
     {
         $user = auth()->check() ? auth()->user() : new User();
         [$errors_present, $link, $row, $table] = $this->getLinkRowTable($request->link_id, $request->row_id);
-        if (!$errors_present) {
+        if (!$errors_present && $request->token) {
             $amount = $row[$link->_payment_amount_fld->field];
+            $pay_serv = $this->makePayService($link, $row);
             $user_keys = $this->conn_repo->userPaymentDecrypt($link->_stripe_user_key);
-            $payed = $this->pay_serv->Stripe_Charge($user, $amount, $user_keys['secret_key']);
+            $payed = $pay_serv->Stripe_Charge($user, $amount, $user_keys['secret_key'], $request->token);
             if (empty($payed['error'])) {
                 $this->saveResultToRow($user, $link, $table, $payed, $row['id']);
             }

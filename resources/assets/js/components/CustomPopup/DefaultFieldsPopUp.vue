@@ -21,9 +21,9 @@
                                     :table-meta="tableMeta"
                                     :default-fields="defaultFields"
                                     :user="user"
-                                    :with_edit="tableMeta._is_owner"
-                                    :cell-height="$root.cellHeight"
-                                    :max-cell-rows="$root.maxCellRows"
+                                    :with_edit="!!tableMeta._is_owner"
+                                    :cell-height="1"
+                                    :max-cell-rows="0"
                             ></default-fields-table>
                         </div>
                     </div>

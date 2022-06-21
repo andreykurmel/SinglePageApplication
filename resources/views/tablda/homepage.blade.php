@@ -12,149 +12,111 @@
                 {{--<a id="contact_btn" @click.prevent="contactClick()"><img src={{url("/assets/img/icons/mail.png")}}></a>--}}
             </div>
 
-            <div class="dots-wrapper">
-                <ul class="dots">
-                    <li :class="[hash == '#About' ? 'active' : '']">
-                        <a href="#About"></a>
-                    </li>
-                    <li :class="[hash == '#MorethanExcel' ? 'active' : '']">
-                        <a href="#MorethanExcel" class="vs-anchor"></a>
-                    </li>
-                    <li :class="[hash == '#AllTogether' ? 'active' : '']">
-                        <a href="#AllTogether" class="vs-anchor"></a>
-                    </li>
-                    <li :class="[hash == '#FullControl' ? 'active' : '']">
-                        <a href="#FullControl" class="vs-anchor"></a>
-                    </li>
-                    <li :class="[hash == '#LinkingTables' ? 'active' : '']">
-                        <a href="#LinkingTables" class="vs-anchor"></a>
-                    </li>
-                    <li :class="[hash == '#MuchMore' ? 'active' : '']">
-                        <a href="#MuchMore" class="vs-anchor"></a>
-                    </li>
-                </ul>
+            <div class="mainview frst-slide">
+                <div class="mob top-warning">TablDA mobile access and App are under development. Please visit TablDA through desktop browser.</div>
+                <div class="full-height flex flex--center">
+                    <a :href="data_link" class="d-block over-hidden">
+                        <img src="/assets/img/TabDA Full HD.gif" class="vs--img">
+                    </a>
+                </div>
+            </div>
+            <div class="mainview">
+                <a :href="data_link" class="full-height flex flex--center over-hidden home-frame">
+                    <div class="home-row">
+                        <div class="home-cell home--sm">
+                            <h1>Like&nbsp;Excel<br>
+                                <span class="txt--white">More&nbsp;Than</span>&nbsp;Excel
+                            </h1>
+                            <h3>
+                                <i>Powerful functions for organizing, searching, filtering, updating, viewing, collecting and sharing tabulated data.</i>
+                            </h3>
+                        </div>
+                        <div class="home-cell home--lg">
+                            <img src="assets/img/moreexcel.png" width="100%">
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="mainview">
+                <a :href="data_link" class="full-height flex flex--center over-hidden home-frame">
+                    <div class="home-row">
+                        <div class="home-cell home--lg">
+                            <img src="assets/img/diagram.png" width="100%">
+                        </div>
+                        <div class="home-cell home--sm">
+                            <h1>
+                                <span class="txt--white">One</span> Dataset<br>
+                                <span class="txt--white">Many</span> Relational Tables<br>
+                                <span class="txt--white">Entire</span> Team<br>
+                                <span class="txt--white">All</span> Together
+                            </h1>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="mainview">
+                <a :href="data_link" class="full-height flex flex--center over-hidden home-frame">
+                    <div class="home-row">
+                        <div class="home-cell home--sm">
+                            <h1>
+                                Table-centered<br>
+                                Work&nbsp;Collaboration<br>
+                                w/ <span class="txt--white">Full</span><br>
+                                Permission Control
+                            </h1>
+                        </div>
+                        <div class="home-cell home--lg">
+                            <img src="assets/img/groups.png" width="100%">
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="mainview">
+                <a :href="data_link" class="full-height flex flex--center over-hidden home-frame">
+                    <div class="home-row">
+                        <div class="home-cell home--lg">
+                            <img src="assets/img/relations.png" width="100%">
+                        </div>
+                        <div class="home-cell home--sm">
+                            <h1>
+                                Linking Relational Tables<br>
+                                to a <span class="txt--white">Higher</span> Level
+                            </h1>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            <div class="mainview">
+                <a :href="data_link" class="full-height flex flex--center over-hidden home-frame">
+                    <div class="home-row">
+                        <div class="home-cell home--sm txt--left">
+                            <h1>
+                                <span class="txt--white">Much More</span> Than<br>
+                                Just Table and Data
+                            </h1>
+                            <h3>BI, GSI &amp; APPs</h3>
+                        </div>
+                        <div class="home-cell">
+                            <div class="img-wrapper">
+                                <!--<div class="on-img-text">Business&nbsp;Intelligence&nbsp;(BI)<br>Define&nbsp;Your&nbsp;Own&nbsp;Dashboard</div>-->
+                                <img src="assets/img/dashboard-text.png" width="100%">
+                            </div>
+                            <div class="img-wrapper">
+                                <!--<div class="on-img-text on-img-text--bottom">Customizable&nbsp;Geographic Spatial&nbsp;Information&nbsp;(GSI)</div>-->
+                                <img src="assets/img/gsi-text.png" width="100%">
+                            </div>
+                        </div>
+                    </div>
+                </a>
             </div>
 
-            <div class="mainbag">
-                <div vs-anchor="About" class="mainview">
-                    <div class="vs-center-wrap vs-center-wrap--img">
-                        <div class="vs-center home-frame vs-center--img">
-                            <a :href="data_link" class="vs-a--img">
-                                <div class="mob">TablDA mobile access and App are under development. Please visit TablDA through desktop browser.</div>
-                                <img src="/assets/img/TabDA Full HD.gif" class="vs--img">
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div vs-anchor="MorethanExcel" class="mainview">
-                    <div class="vs-center-wrap">
-                        <div class="vs-center home-frame">
-                            <a :href="data_link">
-                                <div class="home-row">
-                                    <div class="home-cell home--sm">
-                                        <h1>Like&nbsp;Excel<br>
-                                            <span class="txt--white">More&nbsp;Than</span>&nbsp;Excel
-                                        </h1>
-                                        <h3>
-                                            <i>Powerful functions for organizing, searching, filtering, updating, viewing, collecting and sharing tabulated data.</i>
-                                        </h3>
-                                    </div>
-                                    <div class="home-cell home--lg">
-                                        <img src="assets/img/moreexcel.png" width="100%">
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div vs-anchor="AllTogether" class="mainview">
-                    <div class="vs-center-wrap">
-                        <div class="vs-center home-frame">
-                            <a :href="data_link">
-                                <div class="home-row">
-                                    <div class="home-cell home--lg">
-                                        <img src="assets/img/diagram.png" width="100%">
-                                    </div>
-                                    <div class="home-cell home--sm">
-                                        <h1>
-                                            <span class="txt--white">One</span> Dataset<br>
-                                            <span class="txt--white">Many</span> Relational Tables<br>
-                                            <span class="txt--white">Entire</span> Team<br>
-                                            <span class="txt--white">All</span> Together
-                                        </h1>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div vs-anchor="FullControl" class="mainview">
-                    <div class="vs-center-wrap">
-                        <div class="vs-center home-frame">
-                            <a :href="data_link">
-                                <div class="home-row">
-                                    <div class="home-cell home--sm">
-                                        <h1>
-                                            Table-centered<br>
-                                            Work&nbsp;Collaboration<br>
-                                            w/ <span class="txt--white">Full</span><br>
-                                            Permission Control
-                                        </h1>
-                                    </div>
-                                    <div class="home-cell home--lg">
-                                        <img src="assets/img/groups.png" width="100%">
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div vs-anchor="LinkingTables" class="mainview">
-                    <div class="vs-center-wrap">
-                        <div class="vs-center home-frame">
-                            <a :href="data_link">
-                                <div class="home-row">
-                                    <div class="home-cell home--lg">
-                                        <img src="assets/img/relations.png" width="100%">
-                                    </div>
-                                    <div class="home-cell home--sm">
-                                        <h1>
-                                            Linking Relational Tables<br>
-                                            to a <span class="txt--white">Higher</span> Level
-                                        </h1>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-                <div vs-anchor="MuchMore" class="mainview">
-                    <div class="vs-center-wrap">
-                        <div class="vs-center home-frame">
-                            <a :href="data_link">
-                                <div class="home-row">
-                                    <div class="home-cell home--sm txt--left">
-                                        <h1>
-                                            <span class="txt--white">Much More</span> Than<br>
-                                            Just Table and Data
-                                        </h1>
-                                        <h3>BI, GSI &amp; APPs</h3>
-                                    </div>
-                                    <div class="home-cell">
-                                        <div class="img-wrapper">
-                                            <!--<div class="on-img-text">Business&nbsp;Intelligence&nbsp;(BI)<br>Define&nbsp;Your&nbsp;Own&nbsp;Dashboard</div>-->
-                                            <img src="assets/img/dashboard-text.png" width="100%">
-                                        </div>
-                                        <div class="img-wrapper">
-                                            <!--<div class="on-img-text on-img-text--bottom">Customizable&nbsp;Geographic Spatial&nbsp;Information&nbsp;(GSI)</div>-->
-                                            <img src="assets/img/gsi-text.png" width="100%">
-                                        </div>
-                                    </div>
-                                </div>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+            <div class="mob bottom-slogan flex--center">
+                <img src="/assets/img/Slogan.png" style="max-width: 100%; max-height: 100%;">
+            </div>
+
+            <div class="bottom-stripe">
+                <a class="btn btn-sm btn-default" href="{{ route('terms') }}" target="_blank">Terms</a>
+                <a class="btn btn-sm btn-default" href="{{ route('privacy') }}" target="_blank">Privacy</a>
             </div>
 
             <div v-show="isContact" class="modal-form-background" @click.self="isContact = false"></div>

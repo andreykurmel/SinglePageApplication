@@ -9,7 +9,6 @@ use Vanguard\Models\DataSetPermissions\TableColumnGroup;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\DataSetPermissions\TableRefConditionItem;
 use Vanguard\Models\DataSetPermissions\TableRowGroup;
-use Vanguard\Models\DataSetPermissions\TableRowGroupCondition;
 use Vanguard\Models\DataSetPermissions\TableRowGroupRegular;
 use Vanguard\Models\DDL;
 use Vanguard\Models\DDLItem;

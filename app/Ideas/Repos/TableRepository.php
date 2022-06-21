@@ -3,13 +3,10 @@
 namespace Vanguard\Ideas\Repos;
 
 
-use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Support\Collection;
 use Vanguard\Ideas\QueriesOnlyFromRepo\Table;
-use Vanguard\Ideas\QueriesOnlyFromRepo\TableElem;
-use Vanguard\Ideas\QueriesOnlyFromRepo\TableEntity;
 
-class TableRepository
+class TableRepository implements TableRepositoryInterface
 {
     /**
      * @var \Illuminate\Support\Collection
@@ -25,47 +22,49 @@ class TableRepository
     }
 
 
-
-    //TEST DIFFERENT APPROACHES
     /**
-     * @param int $id
-     * @return TableElem
-     */
-    public function getArray(int $id): TableElem
-    {
-        $table = Table::where('id', '=', $id)->first();
-
-        return $table
-            ? new TableElem($table->toArray())
-            : null;
-    }
-
-    /**
-     * @param int $id
-     * @return TableEntity
-     */
-    public function getModel(int $id): TableEntity
-    {
-        $table = Table::where('id', '=', $id)->first();
-
-        return $table
-            ? (new TableEntity())->forceFill($table->toArray())
-            : null;
-    }
-    //TEST DIFFERENT APPROACHES
-
-
-    /**
+     * Productivity: Slower at 15% than get()
+     *
      * @param array $ids
-     * @param $user_id
+     * @param int|null $user_id
      * @return Collection
      */
-    public function get(array $ids, $user_id = null): Collection
+    public function get(array $ids, int $user_id = null): Collection
     {
-        return Table::whereIn('id', $ids)
-            ->get()
-            ->map(function ($el) {
-                return new TableElem($el->toArray());
-            });
+        $sql = Table::db()->whereIn('id', $ids);
+        if ($user_id) {
+            $sql->where('user_id', '=', $user_id);
+        }
+        return $sql->get();
     }
+
+    /**
+     * @param array $data
+     * @return Table
+     */
+    public function create(array $data): Table
+    {
+        $new = Table::db()->insert($data);
+        return new Table( array_merge($data, ['id' => $new->id]) );
+    }
+
+    /**
+     * @param int $id
+     * @return bool
+     */
+    public function delete(int $id): bool
+    {
+        return Table::db()->where('id', '=', $id)->delete();
+    }
+
+    /**
+     * @param int $id
+     * @return Table
+     */
+    public function first(int $id): Table
+    {
+        return Table::db()->where('id', '=', $id)->first();
+    }
+
+
 }

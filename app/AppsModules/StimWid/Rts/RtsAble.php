@@ -14,6 +14,20 @@ trait RtsAble
     protected $fld_dz;
 
     /**
+     * @param $input
+     * @return float|int
+     */
+    public function parse_param($input)
+    {
+        if (preg_match('/\//i', $input)) {
+            $part = explode('/', $input);
+            return floatval($part[0]??1) / floatval($part[1]??1);
+        } else {
+            return floatval($input);
+        }
+    }
+
+    /**
      * @param string $app_table
      * @return string
      */

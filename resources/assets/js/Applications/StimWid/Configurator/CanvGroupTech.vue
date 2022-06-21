@@ -44,7 +44,7 @@
     }
 </script>
 
-<style lang="scss" scoped="">
+<style lang="scss" scoped>
     .tech__wrap {
         cursor: pointer;
     }
