@@ -19,6 +19,7 @@ use Vanguard\Models\Folder\Folder;
 use Vanguard\Services\Tablda\FolderService;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\ImportService;
+use Vanguard\User;
 
 class FolderController extends Controller
 {
@@ -80,9 +81,18 @@ class FolderController extends Controller
      */
     public function insert(PostFolderRequest $request)
     {
+        $structures = auth()->user()->isAdmin() ? ['public', 'private', 'favorite'] : ['private', 'favorite'];
+
         $request->parent_id = $request->parent_id ?: 0;
         $request->name = Tablda::safeName($request->name);
-        $folder = $this->folderService->insertFolder($request->parent_id, auth()->id(), $request->name, $request->structure, $request->in_shared);
+        $folder = $this->folderService->insertFolder(
+            $request->parent_id,
+            auth()->id(),
+            $request->name,
+            in_array($request->structure, $structures) ? $request->structure : 'private',
+            $request->description,
+            $request->in_shared
+        );
         if (empty($folder['error'])) {
             return $this->service->getFolderObjectForMenuTree($folder, [], $request->path);
         } else {
@@ -168,7 +178,7 @@ class FolderController extends Controller
         return $this->importService->copyFolderAndSubfolder(
             $request->folder_json,
             $request->new_user_id,
-            $sys_folder->id,
+            $request->direct_folder_id ?: $sys_folder->id,
             $request->new_name ?: '',
             !!$request->overwrite,
             !!$request->with_links
@@ -182,6 +192,9 @@ class FolderController extends Controller
      */
     public function createLink(PostLinkRequest $request)
     {
+        $folder = $this->folderService->getFolder($request->object_id) ?? new Folder();
+        $this->authorize('isOwner', [Folder::class, $folder]);
+
         return [
             'result' => $this->folderService->createLink(auth()->id(), $request->object_id, $request->folder_id, $request->type, $request->structure)
         ];

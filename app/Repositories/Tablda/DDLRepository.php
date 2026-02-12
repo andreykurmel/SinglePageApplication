@@ -5,14 +5,19 @@ namespace Vanguard\Repositories\Tablda;
 
 use Exception;
 use Illuminate\Support\Collection;
+use Ramsey\Uuid\Uuid;
 use Vanguard\Helpers\ColorHelper;
 use Vanguard\Ideas\StaticCacher;
+use Vanguard\Jobs\FillMissedDdlRefColors;
 use Vanguard\Models\DDL;
 use Vanguard\Models\DDLItem;
 use Vanguard\Models\DDLReference;
 use Vanguard\Models\DDLReferenceColor;
+use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Singletones\AuthUserSingleton;
 
 class DDLRepository
 {
@@ -30,23 +35,86 @@ class DDLRepository
     }
 
     /**
-     * @param int $table_id
-     * @param int $fld_id
-     * @return mixed
+     * @return \Illuminate\Database\Eloquent\Collection
      */
-    public function findWatchingDDLs(int $table_id, int $fld_id)
+    public function sharedDDLS()
     {
-        return DDL::where('table_id', '!=', $table_id)
-            ->whereHas('_applied_to_fields', function ($ref) {
-                $ref->where('ddl_auto_fill', '=', 1);
+        $ddls = DDL::query()
+            ->where('admin_public', '=', 1)
+            ->orWhere(function ($query) {
+                $query->where('created_by', '=', auth()->id())
+                    ->where('owner_shared', '=', 1);
             })
+            ->with(array_merge(['_table:id,name'], $this->ddlRelations()))
+            ->get();
+
+        $auth = app()->make(AuthUserSingleton::class);
+        foreach ($ddls as $ddl) {
+            $ddl->__url = $auth->getTableUrl($ddl->_table->id);
+        }
+
+        return $ddls;
+    }
+
+    /**
+     * @param Table $table
+     */
+    public function loadForTable(Table $table)
+    {
+        $table->load([
+            '_ddls' => function ($d) {
+                $d->with($this->ddlRelations());
+                $d->orderBy('row_order');
+            },
+        ]);
+    }
+
+    /**
+     * @return array
+     */
+    protected function ddlRelations(): array
+    {
+        return [
+            '_items',
+            '_references' => function ($q) {
+                $q->with(['_reference_clr_img']);
+            },
+        ];
+    }
+
+    /**
+     * @param int $ddl_id
+     * @return int
+     */
+    public function ddlIsIdShow(int $ddl_id)
+    {
+        return DDL::where('id', '=', $ddl_id)
+            ->where(function ($inner) {
+                $inner->whereHas('_references', function ($ref) {
+                    $ref->whereNotNull('show_field_id');
+                    $ref->whereRaw('(`show_field_id` != `target_field_id` OR `target_field_id` IS NULL)');
+                });
+                $inner->orWhereHas('_items', function ($ref) {
+                    $ref->whereNotNull('show_option');
+                    $ref->whereRaw('`show_option` != `option`');
+                });
+            })
+            ->count();
+    }
+
+    /**
+     * @param int $fld_id
+     * @return Collection
+     */
+    public function findWatchingDDLs(int $fld_id)
+    {
+        return DDL::query()
             ->whereHas('_references', function ($ref) use ($fld_id) {
                 $ref->where('target_field_id', '=', $fld_id);
             })
             ->with([
                 '_applied_to_fields' => function ($ref) {
-                    $ref->where('ddl_auto_fill', '=', 1)
-                        ->select(['id', 'field', 'ddl_id', 'table_id']);
+                    $ref->select(['id', 'field', 'ddl_id', 'table_id']);
                 },
                 '_references' => function ($ref) use ($fld_id) {
                     $ref->where('target_field_id', '=', $fld_id)
@@ -83,10 +151,12 @@ class DDLRepository
                     '_ref_condition' => function ($rc) use ($ref_cond_relations) {
                         $rc->with($ref_cond_relations);
                     },
-                    '_reference_colors',
+                    '_reference_clr_img',
                     '_target_field',
                     '_image_field',
+                    '_color_field',
                     '_show_field',
+                    '_max_selections_field',
                 ]);
             },
             '_items'
@@ -95,11 +165,23 @@ class DDLRepository
 
     /**
      * @param int $ddl_id
-     * @return DDL
+     * @return null|DDL
      */
-    public function getDDL(int $ddl_id): DDL
+    public function getDDL(int $ddl_id)
     {
         return DDL::where('id', '=', $ddl_id)->first();
+    }
+
+    /**
+     * @param string $name
+     * @param int $table_id
+     * @return DDL|null
+     */
+    public function getDDLbyName(string $name, int $table_id)
+    {
+        return DDL::where('name', '=', $name)
+            ->where('table_id', '=', $table_id)
+            ->first();
     }
 
     /**
@@ -149,6 +231,8 @@ class DDLRepository
      */
     public function addDDL($data)
     {
+        $data['type'] = $data['type'] ?? 'regular';
+        $data['row_order'] = DDL::query()->max('id') + 1;
         return DDL::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
     }
 
@@ -167,6 +251,15 @@ class DDLRepository
      */
     public function updateDDL($ddl_id, $data)
     {
+        $changedFld = $data['_changed_field'] ?? '';
+        if ($changedFld == 'owner_shared' || $changedFld == 'admin_public') {
+            DDLReference::query()
+                ->where('ddl_id', '=', $ddl_id)
+                ->whereHas('_ref_condition', function ($q) {
+                    $q->where('rc_static', '!=', 1);
+                })
+                ->delete();
+        }
         return DDL::where('id', $ddl_id)
             ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
     }
@@ -222,14 +315,24 @@ class DDLRepository
      *  +option: string,
      *  -notes: string,
      * ]
-     * @return mixed
+     * @return DDLItem
      */
     public function addDDLItem($data)
     {
         if ($data['option'] == null) {
             $data['option'] = '';
         }
-        return DDLItem::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
+        if (empty($data['opt_color']) && DDLItem::where('ddl_id', $data['ddl_id'])->whereNotNull('opt_color')->count()) {
+            $data['opt_color'] = ColorHelper::randomHex();
+        }
+        $item = DDLItem::create(array_merge(
+            $this->service->delSystemFields($data),
+            $this->service->getModified(),
+            $this->service->getCreated()
+        ));
+        $this->triggerFieldChangesIfNeeded($item->_ddl);
+
+        return $item;
     }
 
     /**
@@ -242,12 +345,17 @@ class DDLRepository
      *  -option: string,
      *  -notes: string,
      * ]
-     * @return array
+     * @return DDLItem
      */
     public function updateDDLItem($ddl_item_id, $data)
     {
-        return DDLItem::where('id', $ddl_item_id)
+        DDLItem::where('id', $ddl_item_id)
             ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
+
+        $item = DDLItem::where('id', $ddl_item_id)->first();
+        $this->triggerFieldChangesIfNeeded($item->_ddl);
+
+        return $item;
     }
 
     /**
@@ -282,7 +390,6 @@ class DDLRepository
 
         if ($rest) {
             $loaded = DDLReference::whereIn('ddl_id', $rest)
-                //->isTbRef()
                 ->with([
                     '_ref_condition' => function ($rc) {
                         $rc->with('_ref_table');
@@ -290,7 +397,9 @@ class DDLRepository
                     '_target_field:id,field,ddl_id',
                     '_image_field:id,field,ddl_id',
                     '_show_field:id,field,ddl_id',
-                    '_reference_colors',
+                    '_color_field:id,field,ddl_id',
+                    '_max_selections_field:id,field,ddl_id',
+                    '_reference_clr_img',
                 ])
                 ->get();
 
@@ -322,12 +431,14 @@ class DDLRepository
      *  +target_field_id: int,
      *  -notes: string,
      * ]
-     * @return mixed
+     * @return DDLReference
      */
     public function addDDLReference($data)
     {
         $data = $this->service->delNullFields($data);
-        return DDLReference::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
+        $item = DDLReference::create(array_merge($this->service->delSystemFields($data), $this->service->getModified(), $this->service->getCreated()));
+        $this->triggerFieldChangesIfNeeded($item->_ddl);
+        return $item;
     }
 
     /**
@@ -341,12 +452,16 @@ class DDLRepository
      *  -target_field_id: int,
      *  -notes: string,
      * ]
-     * @return array
+     * @return DDLReference
      */
     public function updateDDLReference($ddl_reference_id, $data)
     {
-        return DDLReference::where('id', $ddl_reference_id)
+        DDLReference::where('id', $ddl_reference_id)
             ->update(array_merge($this->service->delSystemFields($data), $this->service->getModified()));
+
+        $item = DDLReference::where('id', $ddl_reference_id)->first();
+        $this->triggerFieldChangesIfNeeded($item->_ddl);
+        return $item;
     }
 
     /**
@@ -369,6 +484,7 @@ class DDLRepository
         return DDLReference::where('table_ref_condition_id', '=', $ref_cond_id)->update([
             'target_field_id' => null,
             'image_field_id' => null,
+            'color_field_id' => null,
             'show_field_id' => null,
         ]);
     }
@@ -384,11 +500,15 @@ class DDLRepository
 
     /**
      * @param int $ddl_ref_id
+     * @param int $page
      * @return Collection
      */
-    public function allRefColors(int $ddl_ref_id): Collection
+    public function allRefColors(int $ddl_ref_id, int $page = 1): Collection
     {
-        return DDLReferenceColor::where('ddl_reference_id', '=', $ddl_ref_id)->get();
+        return DDLReferenceColor::where('ddl_reference_id', '=', $ddl_ref_id)
+            ->offset(($page - 1) * 100)
+            ->limit(100)
+            ->get();
     }
 
     /**
@@ -400,6 +520,12 @@ class DDLRepository
     {
         $data['ddl_reference_id'] = $ddl_ref_id;
         $data = $this->service->delSystemFields($data);
+        if (!strlen($data['color'] ?? '')) {
+            $data['color'] = '';
+        }
+        if (!strlen($data['ref_value'] ?? '')) {
+            $data['ref_value'] = '';
+        }
         return DDLReferenceColor::create($data);
     }
 
@@ -437,26 +563,61 @@ class DDLRepository
     /**
      * @param DDLReference $reference
      * @param array $values
-     * @param string $color
-     * @return bool
+     * @param int $page
+     * @return Collection
      */
-    public function massInsertRefColors(DDLReference $reference, array $values, string $color = ''): bool
+    public function massInsertRefColors(DDLReference $reference, array $values, int $page = 1): Collection
     {
         $datas = [];
-        $rand = rand(0, 0x101010);
         foreach ($values as $idx => $val) {
-            $brightness = floor($idx / 20) * $rand;
-            $c = $color == 'auto'
-                ? '#' . ColorHelper::autoHex($brightness)
-                : $color;
-
             $datas[] = [
                 'ddl_reference_id' => $reference->id,
-                'ref_value' => $val,
-                'color' => $c,
+                'ref_value' => $val['show'],
+                'image_ref_path' => $reference->image_field_id ? ($val['image'] ?: null) : null,
+                'color' => $reference->color_field_id ? ($val['color'] ?: '') : '',
+                'max_selections' => $reference->max_selections_field_id ? ($val['max_selections'] ?: '') : '',
             ];
         }
-        return DDLReferenceColor::insert($datas);
+        DDLReferenceColor::insert($datas);
+        return $this->allRefColors($reference->id, $page);
+    }
+
+    /**
+     * @param DDLReference $reference
+     * @param string $behavior
+     * @param int $page
+     * @return Collection
+     */
+    public function massUpdateRefColors(DDLReference $reference, string $behavior, int $page = 1): Collection
+    {
+        $rand = rand(0, 0x101010);
+        foreach ($this->allRefColors($reference->id, $page) as $idx => $refColor) {
+            $brightness = floor($idx / 20) * $rand;
+            DDLReferenceColor::where('id', '=', $refColor->id)->update([
+                'color' => $behavior == 'auto' ? '#' . ColorHelper::autoHex($brightness) : null,
+            ]);
+        }
+
+        if ($reference->get_ref_clr_img_count() > 100) {
+            dispatch(new FillMissedDdlRefColors($reference->id, $behavior != 'auto'));
+        }
+
+        return $this->allRefColors($reference->id, $page);
+    }
+
+    /**
+     * @param DDL $ddl
+     * @param string $behavior
+     * @return Collection
+     */
+    public function massUpdateItemColors(DDL $ddl, string $behavior = 'auto'): Collection
+    {
+        foreach ($ddl->_items as $item) {
+            DDLItem::where('id', '=', $item->id)->update([
+                "opt_color" => $behavior == 'auto' ? ColorHelper::randomHex() : null,
+            ]);
+        }
+        return $ddl->_items()->get();
     }
 
     /**
@@ -467,5 +628,41 @@ class DDLRepository
     public function removeAllRefColors(DDLReference $reference): bool
     {
         return DDLReferenceColor::where('ddl_reference_id', '=', $reference->id)->delete();
+    }
+
+    /**
+     * @param DDL $ddl
+     * @return void
+     * @throws Exception
+     */
+    protected function triggerFieldChangesIfNeeded(DDL $ddl): void
+    {
+        //
+    }
+
+    /**
+     * @param Table $table
+     * @param mixed $name
+     * @param array $options
+     * @param bool $isIgnored
+     * @return void
+     */
+    public function autoDdlCreation(Table $table, mixed $name, array $options, bool $isIgnored = false): void
+    {
+        if (! $isIgnored || ! $table->_ddls->where('name', '=', $name)->count()) {
+            $ddl = $this->addDDL([
+                'table_id' => $table->id,
+                'name' => $name,
+            ]);
+            foreach ($options as $option => $show) {
+                if ($option && $show) {
+                    $this->addDDLItem([
+                        'ddl_id' => $ddl->id,
+                        'option' => $option,
+                        'show_option' => $show,
+                    ]);
+                }
+            }
+        }
     }
 }

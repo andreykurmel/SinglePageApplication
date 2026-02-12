@@ -6,7 +6,7 @@
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
-                        <div class="flex__elem-remain">Copy {{ sel_tab + (sel_sub_tab ? '/'+sel_sub_tab : '')}} from</div>
+                        <div class="flex__elem-remain">Copy {{ getPath }} from</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="emit_event()"></span>
                         </div>
@@ -82,13 +82,21 @@
                     },
                 };
             },
+            getPath() {
+                return this.sel_1_tab
+                    + (this.sel_1_sub_tab ? '/'+this.sel_1_sub_tab : '')
+                    + (this.sel_2_tab ? '/'+this.sel_2_tab : '')
+                    + (this.sel_2_sub_tab ? '/'+this.sel_2_sub_tab : '');
+            },
         },
         props:{
             cur_stim_link: StimLinkParams,
             stimLink: StimLinkParams,
             foundModel: FoundModel,
-            sel_tab: String,
-            sel_sub_tab: String,
+            sel_1_tab: String,
+            sel_1_sub_tab: String,
+            sel_2_tab: String,
+            sel_2_sub_tab: String,
         },
         methods: {
             copyRows() {
@@ -101,9 +109,9 @@
                         master_table: this.stimLink.app_table,
                         child_table: this.cur_stim_link.app_table,
                     }).then(({data}) => {
-                        (data.error ? Swal('', data.error) : this.$emit('copy-model-completed'));
+                        (data.error ? Swal('Info', data.error) : this.$emit('copy-model-completed'));
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.is_process = false;
                         $.LoadingOverlay('hide');

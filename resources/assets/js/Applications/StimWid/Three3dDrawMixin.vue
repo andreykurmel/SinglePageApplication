@@ -4,6 +4,9 @@
     import {Tech} from "./Configurator/Tech";
     import {Status} from "./Configurator/Status";
     import {Secpos} from "./Configurator/Secpos";
+    import {Elev} from "./Configurator/Elev";
+    import {Azimuth} from "./Configurator/Azimuth";
+    import {ThreeHelper} from "../../classes/helpers/ThreeHelper";
 
     export default {
         data() {
@@ -14,10 +17,13 @@
                 tech_list: [],
                 status_list: [],
                 secpos_list: [],
+                elevs_list: [],
+                azimuth_list: [],
                 popup_tables: {},
                 loa_tablda: {},
                 ma_tablda: {},
                 tabldas: {},
+                tablda_hashes: {},
                 pos_to_mbrs: [],
                 $pos_to_mbr_tb: {},
                 $ma_3d: null,
@@ -119,20 +125,35 @@
                     node: [],
                     member: [],
                     eqpt: [],
-                }
+                },
+                ma_eqpt_helper_row: null,
+                ma_eqpt_old_row: null,
             }
         },
         methods: {
-            cleCache() {
-                this.cached.node = [];
-                this.cached.member = [];
-                this.cached.eqpt = [];
+            showMaEqptHelper(lc_eqpt) {
+                this.ma_eqpt_helper_row = {
+                    id: lc_eqpt.lc_id,
+                    ...lc_eqpt._lc_extra,
+                    _top_delta: 1,
+                    _bottom_delta: 5,
+                    _top_delta_unit: 'in',
+                    _bottom_delta_unit: 'deg',
+                };
+                this.ma_eqpt_old_row = _.clone(this.ma_eqpt_helper_row);
+            },
+            hideMaEqptHelper(lc_eqpt) {
+                this.ma_eqpt_helper_row = null;
             },
             setCached(array, cacher) {
                 this.cached[cacher] = _.map(array || [], '_row_hash');//
             },
 
-            tdm_draw(geometry, shrink, equipments, dc, sectionsInfo, rls) {
+            tdm_draw(geometry, shrink, equipments, dc, sectionsInfo, rls, extra) {
+                _.each(geometry.materials, (mat) => {
+                    mat.color_gr = mat.color_gr || 'null';
+                });
+
                 let objects = [];
                 let members = this.fix_row_hash(geometry.members);
                 let nodes = this.fix_row_hash(geometry.nodes);
@@ -141,11 +162,26 @@
 
                 //change link in Eqpt: pos2mbr => member
                 _.each(equipments, (elem) => {
+                    elem.lc.status = elem.lc.status || 'null';
                     elem._row_hash = elem.eq._row_hash + elem.lc._row_hash;
                     elem.eq.color = this.getMaColor(elem.lc.status);
-                    let p2m = _.find(this.pos_to_mbrs, (pos2) => { return pos2._id == elem.lc.mbr_id });
+                    let p2m = _.find(this.pos_to_mbrs, (pos2) => {
+                        return pos2._id == elem.lc.mbr_id || pos2.member == elem.lc.mbr_id;
+                    });
+                    elem.lc.mbr_id = p2m ? p2m._id : elem.lc.mbr_id;
                     elem.lc.mbr_name = p2m ? p2m.member : '';
+
+                    if (this.ma_eqpt_helper_row && this.ma_eqpt_helper_row._id === elem.lc._id) {
+                        this.$root.assignObject(elem.lc, this.ma_eqpt_helper_row);
+                    }
                 });
+                // console.log('equipments',equipments);
+
+                //set color to RLs
+                _.each(rls ? rls.rows : [], (rl) => {
+                    rl.lc_color = this.getMaColor(rl.lc_status);
+                });
+                // console.log('rls',rls);
 
                 if (members) {
                     _.each(members, (data) => {
@@ -263,7 +299,7 @@
                     equipments = equipments.slice(0, 50);
                 }*/
 
-                webgl.draw(this.cached, objects, "draw", "wid_objects", {}, shrink, equipments, dc, sectionsInfo, rls);
+                webgl.draw(this.cached, objects, "draw", "wid_objects", {}, shrink, equipments, dc, sectionsInfo, rls, extra);
             },
             fix_row_hash(array) {
                 if (array) {
@@ -284,23 +320,23 @@
                 return array;
             },
             getMaColor(status) {
-                let $clr = this.MaClrStatuses.colors[status];
+                let $clr = _.find(this.MaClrStatuses.colors, {key: String(status)});
                 return this.MaClrStatuses.view_enabled && $clr
                     ? $clr.model_val
                     : (this.viewSettings.defEqptColor || '#cccccc');//
             },
             getGeomColor(mat, materials) {
                 let found = _.find(materials, {name: mat});
-                let key = found ? found.color_gr : null;
+                let key = found ? found.color_gr : '';
 
-                let $clr = this.GeomColors.colors[key];
+                let $clr = _.find(this.GeomColors.colors, {key: String(key)});
 
                 return this.GeomColors.view_enabled && $clr
                     ? $clr.model_val
                     : null;
             },
 
-            Three3dRedraw(geometry, drawMode, eqs, data_eqs, rls) {
+            Three3dRedraw(geometry, drawMode, eqs, data_eqs, rls, extra) {
                 try {
                     let equipments = eqs ? eqs.collection : [];
                     this.drawed_geometry = geometry;
@@ -311,6 +347,8 @@
                         this.eqpt_lib = _.map(data_eqs.eqpt_lib, (eq) => { return new Eqpt(eq); });
                         this.status_list = _.map(data_eqs.status_lib, (eq) => { return new Status(eq); });
                         this.secpos_list = _.map(data_eqs.secpos_lib, (eq) => { return new Secpos(eq); });
+                        this.elevs_list = _.map(data_eqs.elevs_lib, (eq) => { return new Elev(eq); });
+                        this.azimuth_list = _.map(data_eqs.azimuth_lib, (eq) => { return new Azimuth(eq); });
                         this.tech_list = _.map(data_eqs.tech_lib, (eq) => { return new Tech(eq); });
                         this.popup_tables = data_eqs.popup_tables;
                         this.loa_tablda = data_eqs.loa_tablda;
@@ -335,7 +373,7 @@
                     this.setCached(geometry ? geometry.members : [], 'member');//
                     this.setCached(equipments || [], 'eqpt');//
 
-                    console.log('Three3dRedraw', geometry, equipments);
+                    // console.log('Three3dRedraw', geometry, equipments);
 
                     if (geometry && geometry.sections && geometry.sections.length) {
                         let sec_sizes = _.map(geometry.sections, sec => sec.size2);
@@ -349,20 +387,20 @@
                                 sizes_array: this.sectionsSizes
                             }).then(({data}) => {
                                 this.sectionsInfo = data.aisc || [];
-                                this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
+                                this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls, extra);
                             })
                         } else {
-                            this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
+                            this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls, extra);
                         }
                     } else {
-                        this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls);
+                        this.Three3dRedraw_Inner(geometry, drawMode, equipments, rls, extra);
                     }
                 } catch ($e) {
                     console.log($e);
                 }
                 this.sync_in_process = false;
             },
-            Three3dRedraw_Inner(geometry, drawMode, equipments, rls) {//
+            Three3dRedraw_Inner(geometry, drawMode, equipments, rls, extra) {//
                 let drawed = false;
                 let t1 = + new Date();
 
@@ -540,8 +578,9 @@
                 else if (geometry && drawMode === 'geometry')
                 {
                     drawed = true;
-                    this.tdm_draw(geometry, this.viewSettings.shrink, equipments, this.TR, this.sectionsInfo, rls);
+                    this.tdm_draw(geometry, this.viewSettings.shrink, equipments, this.TR, this.sectionsInfo, rls, extra);
                 }
+                ThreeHelper.watcher3d_finalized();
 
                 if (!drawed) {
                     webgl.clearAll();//

@@ -8,19 +8,18 @@
             >Find</button>
         </div>
         <div class="map_radius_elem">
-            <label>Items within: </label>
+            <label>items within: </label>
         </div>
         <div class="map_radius_elem">
             <input class="form-control input-sm small-input" type="text" placeholder="Radius" v-model="radiusObject.distance" @keydown="enterToFind"/>
-            <span class="miles-label">miles</span>
         </div>
         <div class="map_radius_elem">
-            <label>From</label>
+            <label>miles from</label>
         </div>
         <div class="map_radius_elem" ref="search_button">
             <input class="form-control input-sm d-inline-block w-150"
                    type="text"
-                   placeholder="Entered address"
+                   placeholder="a location"
                    :value="radiusObject.entered_address"
                    @focus="openMenu()"
             />
@@ -145,9 +144,9 @@
 </template>
 
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
-    import {SpecialFuncs} from './../../classes/SpecialFuncs';
+    import {SpecialFuncs} from '../../classes/SpecialFuncs';
 
     import FieldsChecker from "../CommonBlocks/FieldsChecker.vue";
     import GoogleAddressViewer from "../CustomCell/InCell/GoogleAddressViewer";
@@ -157,7 +156,7 @@
             GoogleAddressViewer,
             FieldsChecker,
         },
-        name: "SearchButton",
+        name: "MapSettings",
         mixins: [
         ],
         data: function () {
@@ -197,6 +196,7 @@
         },
         props:{
             radiusObject: Object,
+            selectedMap: Object,
             tableMeta: Object,
         },
         computed: {
@@ -353,13 +353,6 @@
             },
         },
         mounted() {
-            /*if (this.tableMeta.map_position_refid) {
-                let rc = _.find(this.tableMeta._ref_conditions, {id: Number(this.tableMeta.map_position_refid)}) || {};
-                this.metaData = _.find(this.$root.settingsMeta.available_tables, {id: Number(rc.ref_table_id || 0)})
-                    || this.tableMeta;
-            } else {
-                this.metaData = this.tableMeta;
-            }*/
             this.metaData = this.tableMeta;
             this.search_columns = _.map( _.filter(this.metaData._fields, {is_search_autocomplete_display: 1}) , 'field');
 
@@ -374,7 +367,7 @@
                     delay: 250,
                     data: (params) => {
                         return {
-                            table_id: this.metaData.id,
+                            map_id: this.selectedMap.id,
                             term: params.term,
                             columns: this.search_columns || [],
                             special_params: SpecialFuncs.specialParams(),
@@ -469,7 +462,7 @@
             }
 
             .small-input {
-                width: 95px;
+                width: 60px;
             }
 
             .map-data-tab {

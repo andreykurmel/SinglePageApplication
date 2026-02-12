@@ -2,11 +2,13 @@
 
 namespace Vanguard\Singletones;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Modules\MenuTreeModule;
+use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\User;
 
 class AuthUserModule implements AuthUserSingleton
@@ -133,14 +135,21 @@ class AuthUserModule implements AuthUserSingleton
         if (!$this->table_permission_ids_member) {
             $ug_ids = $this->getUserGroupsMember()->pluck('id');
             $this->table_permission_ids_member = TablePermission::whereHas('_user_groups', function ($ug) use ($ug_ids) {
-                $ug->where('user_groups_2_table_permissions.is_active', 1);
-                $ug->whereIn('user_groups_2_table_permissions.user_group_id', $ug_ids);
-            })
+                    $ug->where('user_groups_2_table_permissions.is_active', 1);
+                    $ug->whereIn('user_groups_2_table_permissions.user_group_id', $ug_ids);
+                })
                 ->select('id')
                 ->get()
                 ->pluck('id');
             //none of Permissions
             $this->table_permission_ids_member[] = '';
+            //permission from MRV
+            if (preg_match('/\/mrv\//i', $_SERVER['HTTP_REFERER'] ?? '')) {
+                $url_parts = parse_url($_SERVER['HTTP_REFERER']);
+                $hash = str_replace('/mrv/', '', $url_parts['path']);
+                $view = (new TableViewRepository())->getByHash($hash);
+                $this->table_permission_ids_member[] = $view ? $view->access_permission_id : '';
+            }
         }
         return $this->table_permission_ids_member;
     }
@@ -233,16 +242,36 @@ class AuthUserModule implements AuthUserSingleton
 
     /**
      * @param int $table_id
-     * @param string $table_name
      * @return string
      */
-    public function getTableUrl(int $table_id, string $table_name)
+    public function getTableUrl(int $table_id): string
+    {
+        return $this->getObjectUrl('table', $table_id);
+    }
+
+    /**
+     * @param string $type
+     * @param int $id
+     * @return string
+     */
+    public function getObjectUrl(string $type, int $id): string
     {
         $menu = $this->getMenuTree();
         foreach ($menu as $part) {
-            $tb_node = (new MenuTreeModule($this))->findInTree($part ?? [], $table_id, 'table');
-            if ($tb_node) {
-                return $tb_node['a_attr']['href'] . $table_name;
+            $folder_node = (new MenuTreeModule($this))->findInTree($part ?? [], $id, $type);
+            if ($folder_node) {
+                $url = $folder_node['a_attr']['href'];
+
+                if ($type != 'folder') {
+                    foreach ($folder_node['li_attr']['data-object']['_tables'] as $tb) {
+                        if ($tb['id'] == $id) {
+                            $url .= urlencode($tb['name']);
+                            break;
+                        }
+                    }
+                }
+
+                return $url;
             }
         }
         return '';

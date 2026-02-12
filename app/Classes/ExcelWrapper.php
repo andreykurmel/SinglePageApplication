@@ -3,57 +3,64 @@
 namespace Vanguard\Classes;
 
 
-use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class ExcelWrapper
 {
     /**
+     * Get all sheet names from the given Excel file.
+     *
      * @param string $file
      * @return array
      */
-    public static function getSheets(string $file)
+    public static function getSheets(string $file): array
     {
-        $reader = Excel::load(storage_path("app/tmp_import/" . $file));
-        return $reader->excel->getSheetNames();
+        $path = storage_path('app/tmp_import/' . ltrim($file, '/'));
+        $spreadsheet = IOFactory::load($path);
+
+        return $spreadsheet->getSheetNames();
     }
 
     /**
+     * Load a worksheet by name (or the first worksheet if none provided).
+     *
      * @param string $file
      * @param string $sheet
-     * @return \PHPExcel_Worksheet
+     * @return Worksheet
      */
-    public static function loadWorksheet(string $file, string $sheet = '')
+    public static function loadWorksheet(string $file, string $sheet = ''): Worksheet
     {
-        $reader = Excel::load(storage_path("app/tmp_import/" . $file));
-        $reader->noHeading();
-        if ($sheet) {
-            $worksheet = $reader->excel->getSheetByName($sheet);
-        } else {
-            $name = array_first($reader->excel->getSheetNames());
-            $worksheet = $reader->excel->getSheetByName($name);
+        $path = storage_path('app/tmp_import/' . ltrim($file, '/'));
+        $spreadsheet = IOFactory::load($path);
+
+        if ($sheet !== '') {
+            $worksheet = $spreadsheet->getSheetByName($sheet);
+            if ($worksheet instanceof Worksheet) {
+                return $worksheet;
+            }
         }
-        return $worksheet;
+
+        // Fallback to the first sheet
+        return $spreadsheet->getSheet(0);
     }
 
     /**
-     * @param \PHPExcel_Worksheet $worksheet
+     * Convert a worksheet to an array of rows (optionally returning only the first row).
+     *
+     * @param Worksheet $worksheet
      * @param bool $first
      * @return array
      */
-    public static function getWorkSheetRows(\PHPExcel_Worksheet $worksheet, bool $first = false)
+    public static function getWorkSheetRows(Worksheet $worksheet, bool $first = false): array
     {
-        $rows = [];
-        foreach ($worksheet->getRowIterator() as $row) {
-            $cells = [];
-            foreach ($row->getCellIterator() as $cell) {
-                $cells[] = $cell->getValue();
-            }
-            $rows[] = $cells;
+        // Use toArray to include empty cells as empty strings for consistent column counts
+        $rows = $worksheet->toArray('', false, false, false);
 
-            if ($first) {
-                return $cells;
-            }
+        if ($first) {
+            return $rows[0] ?? [];
         }
+
         return $rows;
     }
 }

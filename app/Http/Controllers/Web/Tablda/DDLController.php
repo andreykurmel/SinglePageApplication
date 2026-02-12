@@ -4,8 +4,10 @@ namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Vanguard\Http\Controllers\Controller;
+use Vanguard\Http\Requests\Tablda\DDL\AutoDdlCreationRequest;
 use Vanguard\Http\Requests\Tablda\DDL\DDLAddRequest;
 use Vanguard\Http\Requests\Tablda\DDL\DDLCopyFromtableRequest;
 use Vanguard\Http\Requests\Tablda\DDL\DDLDeleteRequest;
@@ -26,6 +28,7 @@ use Vanguard\Http\Requests\Tablda\DDL\RefColorCreateLoadRequest;
 use Vanguard\Models\DDLReferenceColor;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\CopyTableRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Services\Tablda\DDLService;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\TableService;
@@ -257,8 +260,23 @@ class DDLController extends Controller
     }
 
     /**
-     * @param DDLRefColorAddRequest $request
+     * @param AutoDdlCreationRequest $request
      * @return Collection
+     * @throws AuthorizationException
+     */
+    public function autoCreation(AutoDdlCreationRequest $request)
+    {
+        $field = (new TableFieldRepository())->getField($request->names_fld_id);
+        $this->authorize('isOwner', [TableData::class, $field->_table]);
+
+        $this->ddlService->autoDdlCreation($field->_table, $request->all(), auth()->id());
+
+        return $this->ddlService->returnDDLS($field->_table);
+    }
+
+    /**
+     * @param DDLRefColorAddRequest $request
+     * @return array
      * @throws AuthorizationException
      */
     public function addDDLReferenceColor(DDLRefColorAddRequest $request)
@@ -268,7 +286,10 @@ class DDLController extends Controller
         $table = $this->tableService->getTable($ddl->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->ddlService->addDDLReferenceColor($ddl_ref->id, $request->fields);
+        return [
+            'colors' => $this->ddlService->addDDLReferenceColor($ddl_ref->id, $request->fields, $request->page),
+            'count' => $ddl_ref->get_ref_clr_img_count(),
+        ];
     }
 
     /**
@@ -284,12 +305,12 @@ class DDLController extends Controller
         $table = $this->tableService->getTable($ddl->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->ddlService->updateDDLReferenceColor($request->ddl_ref_color_id, $request->fields);
+        return $this->ddlService->updateDDLReferenceColor($request->ddl_ref_color_id, $request->fields, $request->page);
     }
 
     /**
      * @param DDLRefColorDirectRequest $request
-     * @return Collection
+     * @return array
      * @throws AuthorizationException
      */
     public function deleteDDLReferenceColor(DDLRefColorDirectRequest $request)
@@ -300,12 +321,15 @@ class DDLController extends Controller
         $table = $this->tableService->getTable($ddl->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->ddlService->deleteDDLReferenceColor($ddl_ref->id, $request->ddl_ref_color_id);
+        return [
+            'colors' => $this->ddlService->deleteDDLReferenceColor($ddl_ref->id, $request->ddl_ref_color_id, $request->page),
+            'count' => $ddl_ref->get_ref_clr_img_count(),
+        ];
     }
 
     /**
      * @param RefColorCreateLoadRequest $request
-     * @return Collection
+     * @return array
      * @throws AuthorizationException
      */
     public function createAndLoadRefColors(RefColorCreateLoadRequest $request)
@@ -316,6 +340,24 @@ class DDLController extends Controller
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->ddlService->createAndLoadRefColors($ddl, $ddl_ref, $request->behavior);
+        return [
+            'colors' => $this->ddlService->createAndLoadRefColors($ddl, $ddl_ref, $request->behavior, $request->page),
+            'count' => $ddl_ref->get_ref_clr_img_count(),
+        ];
+    }
+
+    /**
+     * @param RefColorCreateLoadRequest $request
+     * @return Collection
+     * @throws AuthorizationException
+     */
+    public function fillDDLItemColors(Request $request)
+    {
+        $ddl = $this->ddlService->getDDL($request->ddl_id);
+        $table = $this->tableService->getTable($ddl->table_id);
+
+        $this->authorize('isOwner', [TableData::class, $table]);
+
+        return $this->ddlService->fillDDLItemColors($ddl);
     }
 }

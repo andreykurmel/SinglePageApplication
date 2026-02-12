@@ -61,7 +61,7 @@ export class WidSettings {
         if (!skip_pos) {
             this.camera_pos_x = Number(obj.camera_pos_x) || -15;
             this.camera_pos_y = Number(obj.camera_pos_y) || 20;
-            this.camera_pos_z = Number(obj.camera_pos_z) || 15;
+            this.camera_pos_z = Number(obj.camera_pos_z) || 0;
 
             this.camera_add1_x = Number(obj.camera_add1_x) || -15;
             this.camera_add1_y = Number(obj.camera_add1_y) || 20;
@@ -155,7 +155,7 @@ export class WidSettings {
                 model: this,
                 master_params: clone ? {id: ''} : '',
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         }
     }

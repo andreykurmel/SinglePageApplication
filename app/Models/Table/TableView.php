@@ -18,6 +18,7 @@ use Vanguard\User;
  * @property string|null $user_link
  * @property string $name
  * @property string $data
+ * @property string|null $custom_path
  * @property int|null $access_permission_id
  * @property int|null $created_by
  * @property string|null $created_name
@@ -43,6 +44,10 @@ use Vanguard\User;
  * @property int|null $view_filtering
  * @property int $can_filter
  * @property int $can_hide
+ * @property int|null $srv_fltrs_on_top
+ * @property string $srv_fltrs_ontop_pos
+ * @property string|null $qr_mrv_link
+ * @property int|null $mrv_qr_with_name
  * @property \Vanguard\Models\DataSetPermissions\TablePermission|null $_access_permission
  * @property \Vanguard\Models\DataSetPermissions\TableColumnGroup|null $_col_group
  * @property \Vanguard\User|null $_created_user
@@ -70,6 +75,7 @@ class TableView extends Model
         'is_system',
         'hash',
         'data',
+        'custom_path',
 
         'name',
         'parts_avail',
@@ -78,6 +84,10 @@ class TableView extends Model
         'col_group_id',
         'access_permission_id',
         'view_filtering',
+        'srv_fltrs_on_top',
+        'srv_fltrs_ontop_pos',
+        'qr_mrv_link',
+        'mrv_qr_with_name',
 
         'side_top',
         'side_left_menu',

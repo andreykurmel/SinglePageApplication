@@ -4,13 +4,16 @@ namespace Vanguard\Modules\Permissions;
 
 
 use Vanguard\Models\DataSetPermissions\TablePermission;
+use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableFieldLink;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Singletones\AuthUserSingleton;
 use Vanguard\Singletones\OtherUserModule;
 
 class PermissionObject
 {
+    public $permis_ids = [];
     public $is_owner = 0;//present 'user_id' if owner
     public $can_add = 0;
     public $can_download = "0000000";
@@ -21,22 +24,23 @@ class PermissionObject
     public $can_edit_tb = 0;
     public $can_drag_rows = 0;
     public $can_drag_columns = 0;
+    public $can_change_primaryview = 0;
     public $can_reference = 0;
-    public $referencing_shared = 0;
     public $datatab_methods = "000000";
     public $datatab_only_append = 0;
     public $enforced_theme = 0;
 
-    public $view_fields = [];//collection if 'field'
-    public $edit_fields = [];//collection if 'field'
+    public $linked_view_fields = [];//
+    public $view_fields = [];//collection of 'field'
+    public $edit_fields = [];//collection of 'field'
 
-    public $view_col_groups = [];//collection if 'id'
-    public $edit_col_groups = [];//collection if 'id'
-    public $shared_col_groups = [];//collection if 'id'
-    public $view_row_groups = [];//collection if 'id'
-    public $edit_row_groups = [];//collection if 'id'
-    public $delete_row_groups = [];//collection if 'id'
-    public $shared_row_groups = [];//collection if 'id'
+    public $view_col_groups = [];//collection of 'id'
+    public $edit_col_groups = [];//collection of 'id'
+    public $shared_col_groups = [];//collection of 'id'
+    public $view_row_groups = [];//collection of 'id'
+    public $edit_row_groups = [];//collection of 'id'
+    public $delete_row_groups = [];//collection of 'id'
+    public $shared_row_groups = [];//collection of 'id'
 
     public $default_values = [];
     public $shared_rows_ids = [];
@@ -48,6 +52,7 @@ class PermissionObject
     protected $service = null;
 
     /**
+     * @param int|null $user_id
      * @param int $is_owner
      */
     public function __construct(int $user_id = null, int $is_owner = 0)
@@ -55,6 +60,7 @@ class PermissionObject
         $this->is_owner = $is_owner;
         $this->view_fields = collect([]);
         $this->edit_fields = collect([]);
+        $this->linked_view_fields = collect([]);
 
         $this->view_col_groups = collect([]);
         $this->edit_col_groups = collect([]);
@@ -73,6 +79,45 @@ class PermissionObject
         $this->_manager_of_ugroups = (new OtherUserModule($user_id))->getManagerOfUserGroups(true);
         
         $this->service = new HelperService();
+    }
+
+    /**
+     * @param TableFieldLink $fieldLink
+     * @return void
+     */
+    public function setLinkedColumns(TableFieldLink $fieldLink): void
+    {
+        $key = $fieldLink->__inlined ? 'in_inline_display' : 'in_popup_display';
+
+        $this->linked_view_fields = collect([''])->merge(
+            $fieldLink->_columns->where($key, '=', 1)->pluck('field_db')
+        );
+    }
+
+    /**
+     * @param Table $table
+     * @param $tableRow
+     * @return bool
+     */
+    public function managerOfRow(Table $table, $tableRow): bool
+    {
+        $ugroups = $this->_manager_of_ugroups->toArray();
+        if ($ugroups) {
+            $found = false;
+            foreach($table->_fields as $header) {
+                if ($header->f_type === 'User' && $tableRow[$header->field]) {
+                    $single = in_array($tableRow[$header->field], $ugroups);
+                    $multiple = false;
+                    foreach($ugroups as $ug) {
+                        $multiple = $multiple || strpos($tableRow[$header->field], '"'.$ug.'"');
+                    };
+                    $found = $found || $single || $multiple;
+                }
+            };
+            return $found;
+        } else {
+            return false;
+        }
     }
 
     /**
@@ -111,6 +156,7 @@ class PermissionObject
      */
     protected function setBasics(TablePermission $_permission)
     {
+        $this->permis_ids[] = $_permission->id;
         $this->can_add = (int)($this->can_add || $_permission->can_add);
         $this->can_download = $this->service->mergeByteStrings($this->can_download, $_permission->can_download);
         $this->can_see_history = (int)($this->can_see_history || $_permission->can_see_history);
@@ -120,9 +166,9 @@ class PermissionObject
         $this->can_edit_tb = (int)($this->can_edit_tb || $_permission->can_edit_tb);
         $this->can_drag_rows = (int)($this->can_drag_rows || $_permission->can_drag_rows);
         $this->can_drag_columns = (int)($this->can_drag_columns || $_permission->can_drag_columns);
+        $this->can_change_primaryview = (int)($this->can_change_primaryview || $_permission->can_change_primaryview);
         $this->enforced_theme = (int)($this->enforced_theme || $_permission->enforced_theme);
         $this->can_reference = (int)($this->can_reference || $_permission->can_reference);
-        $this->referencing_shared = (int)($this->referencing_shared || $_permission->referencing_shared);
         $this->datatab_methods = $this->service->mergeByteStrings($this->datatab_methods, $_permission->datatab_methods);
         $this->datatab_only_append = (int)(
             ($this->datatab_only_append && $this->can_see_datatab)

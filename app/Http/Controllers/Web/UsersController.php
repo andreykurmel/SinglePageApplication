@@ -2,8 +2,10 @@
 
 namespace Vanguard\Http\Controllers\Web;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Events\User\Banned;
 use Vanguard\Events\User\Deleted;
@@ -138,7 +140,7 @@ class UsersController extends Controller
         // status to Active by default.
         $data = $request->all() + ['status' => UserStatus::ACTIVE];
 
-        if (! array_get($data, 'country_id')) {
+        if (! Arr::get($data, 'country_id')) {
             $data['country_id'] = null;
         }
 
@@ -168,7 +170,7 @@ class UsersController extends Controller
         $emails = [];
         $fileHandle = fopen(storage_path("app/tmp_import/".$tmp_csv), 'r');
         while (($row = fgetcsv($fileHandle)) !== FALSE) {
-            $emails[] = array_first($row);
+            $emails[] = Arr::first($row);
         }
         Storage::delete("tmp_import/".$tmp_csv);
 
@@ -222,12 +224,12 @@ class UsersController extends Controller
         foreach ($emails as $uemail) {
             if ($uemail && filter_var($uemail, FILTER_VALIDATE_EMAIL)) {
 
-                $uname = array_first( explode('@', $uemail) );
+                $uname = Arr::first( explode('@', $uemail) );
 
                 $data = [
                     'username' => preg_replace('/[^\w\d_]/i', '', $uname),
                     'email' => $uemail,
-                    'password' => str_random(12),
+                    'password' => Str::random(12),
                     'role_id' => $role->id,
                     'status' => $status
                 ];
@@ -280,7 +282,7 @@ class UsersController extends Controller
     {
         $data = $request->all();
 
-        if (! array_get($data, 'country_id')) {
+        if (! Arr::get($data, 'country_id')) {
             $data['country_id'] = null;
         }
 

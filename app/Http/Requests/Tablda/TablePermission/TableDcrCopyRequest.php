@@ -26,7 +26,7 @@ class TableDcrCopyRequest extends FormRequest
         return [
             'from_data_request_id' => 'required|integer|exists:table_data_requests,id',
             'to_data_request_id' => 'required|integer|exists:table_data_requests,id',
-            'as_template' => 'nullable',
+            'full_copy' => 'integer|nullable',
         ];
     }
 }

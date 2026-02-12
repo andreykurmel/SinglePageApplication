@@ -43,7 +43,7 @@
             }
         },
         props:{
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
             table_header: Object,
             cell_val: String,
             user_info_settings: Object,
@@ -103,7 +103,7 @@
                         this.uinfos = data;
                         this.showItemsList();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 }
             },

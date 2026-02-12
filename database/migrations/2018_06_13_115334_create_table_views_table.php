@@ -20,6 +20,11 @@ class CreateTableViewsTable extends Migration
             $table->string('hash');
             $table->string('name');
             $table->mediumText('data');
+            $table->tinyInteger('srv_fltrs_on_top')->nullable();
+            $table->string('srv_fltrs_ontop_pos', 16)->default('start');
+            $table->string('custom_path', 255)->nullable();
+            $table->string('qr_mrv_link', 255)->nullable();
+            $table->unsignedInteger('mrv_qr_with_name')->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

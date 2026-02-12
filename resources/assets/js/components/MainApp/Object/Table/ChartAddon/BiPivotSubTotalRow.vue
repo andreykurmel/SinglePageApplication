@@ -92,6 +92,16 @@
                                 <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(3, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h) }}</span>
                                 <span v-else-if="isSubTot(l1_h)" class="subtotal-clr--1">{{ subTotalCell(3, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4) }}</span>
                             </div>
+                            <div v-if="about_4 && all_settings.pivot_table.stack_about">
+                                <span v-if="isSubTot(l3_h)" class="subtotal-clr--3">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h, 'hor_l2', l2_h) }}</span>
+                                <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h) }}</span>
+                                <span v-else-if="isSubTot(l1_h)" class="subtotal-clr--1">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4) }}</span>
+                            </div>
+                            <div v-if="about_5 && all_settings.pivot_table.stack_about">
+                                <span v-if="isSubTot(l3_h)" class="subtotal-clr--3">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h, 'hor_l2', l2_h) }}</span>
+                                <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h) }}</span>
+                                <span v-else-if="isSubTot(l1_h)" class="subtotal-clr--1">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4) }}</span>
+                            </div>
                         </td>
                     </template>
 
@@ -109,6 +119,12 @@
                             </div>
                             <div v-if="about_3 && all_settings.pivot_table.stack_about">
                                 <span :class="curcolor">{{ subTotalCell(3, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h) }}</span>
+                            </div>
+                            <div v-if="about_4 && all_settings.pivot_table.stack_about">
+                                <span :class="curcolor">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h) }}</span>
+                            </div>
+                            <div v-if="about_5 && all_settings.pivot_table.stack_about">
+                                <span :class="curcolor">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h) }}</span>
                             </div>
                         </td>
                     </template>
@@ -173,6 +189,8 @@
             about_1: Array,
             about_2: Array,
             about_3: Array,
+            about_4: Array,
+            about_5: Array,
             pivot: Object,
         },
         computed: {

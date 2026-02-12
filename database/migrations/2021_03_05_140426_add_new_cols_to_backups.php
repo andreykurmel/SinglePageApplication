@@ -25,6 +25,10 @@ class AddNewColsToBackups extends Migration
             $table->string('bkp_email_subject', 255)->nullable();
             $table->string('bkp_addressee_txt', 255)->nullable();
             $table->string('bkp_email_message', 512)->nullable();
+            $table->tinyInteger('bkp_email_def')->default(0);
+            $table->tinyInteger('bkp_subject_def')->default(0);
+            $table->tinyInteger('bkp_addressee_def')->default(0);
+            $table->tinyInteger('bkp_message_def')->default(0);
 
             $table->foreign('bkp_email_field_id', 'table_backups__bkp_email_field_id')
                 ->references('id')

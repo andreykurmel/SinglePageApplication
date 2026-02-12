@@ -5,14 +5,21 @@ namespace Vanguard\Services\Tablda;
 
 
 use Carbon\Carbon;
-use Carbon\CarbonInterval;
+use Illuminate\Support\Arr;
 use Vanguard\Classes\DurationConvert;
-use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\Table\Table;
+use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
+use Vanguard\Repositories\Tablda\UserConnRepository;
+use Vanguard\Support\FileHelper;
 
 class FormulaFuncService
 {
+    /**
+     * @var array
+     */
+    public static $dcr_rows_linked = [];
     /**
      * @var array
      */
@@ -22,14 +29,22 @@ class FormulaFuncService
      */
     public static $currentRow = [];
     /**
+     * @var array
+     */
+    public static $afterUpdates = [];
+    /**
      * @var null|Table
      */
     public static $metaTable = null;
+    /**
+     * @var null|int
+     */
+    public static $userId = null;
 
     /**
      * @var array
      */
-    private static $cacher = [];
+    protected static $cacher = [];
 
     /**
      * HelperService constructor.
@@ -80,7 +95,7 @@ class FormulaFuncService
      * @param $field
      * @return null|string
      */
-    public static function sqlAgregate($type, $ref_cond_str, $field)
+    protected static function sqlAgregate($type, $ref_cond_str, $field)
     {
         /*$ref_cond_id = [];
         preg_match('/\\[(.*)\\]/i', $ref_cond_str, $ref_cond_id);
@@ -90,23 +105,11 @@ class FormulaFuncService
         if (!$ref_cond_str || !$field) {
             return null;
         }
+        $ref_cond_str = preg_replace('/\s/i', '', $ref_cond_str);
 
-        $table = null;
-        $refCondition = null;
-
-        if ($ref_cond_str == '$this') {
-            $table = self::$metaTable;
-        } else {
-            //get Ref Condtion
-            if (self::$metaTable && self::$metaTable->_ref_conditions) {
-                foreach (self::$metaTable->_ref_conditions as $ref_cond) {
-                    if ($ref_cond->name == $ref_cond_str) {
-                        $refCondition = $ref_cond;
-                    }
-                }
-            }
-            $table = $refCondition ? $refCondition->_ref_table : null;
-        }
+        $sqlData = self::getSqlTable($ref_cond_str);
+        $table = $sqlData['table'];
+        $refCondition = $sqlData['refCond'];
 
         if (!$table) {
             return null;
@@ -114,12 +117,21 @@ class FormulaFuncService
 
         //get db_name from Field
         $db_field = $table->_fields->filter(function($el) use ($field) {
-            return preg_replace('/[^\w\d]/', '', $el->name) == preg_replace('/[^\w\d]/', '', $field);
+            return preg_replace('/[^\p{L}\d]/u', '', $el->name) == preg_replace('/[^\p{L}\d]/u', '', $field);
         })->first();
         if (!$db_field) {
             return null;
         }
         //-------
+
+        //Use not-saved dcr linked rows to calculate totals before the saving in DB
+        if (self::$dcr_rows_linked) {
+            $rows = self::$dcr_rows_linked[$table->id] ?? [];
+            $rows = Arr::pluck($rows, $db_field->field) ?? [];
+            if ($rows) {
+                return self::useArrayFunc($type, $rows);
+            }
+        }
 
         //calc formula
         $res = null;
@@ -165,6 +177,55 @@ class FormulaFuncService
         }
 
         return floatval($res);
+    }
+
+    /**
+     * @param string $ref_cond_str
+     * @return array
+     */
+    protected static function getSqlTable(string $ref_cond_str): array
+    {
+        $table = null;
+        $refCondition = null;
+
+        if ($ref_cond_str == '$this') {
+            $table = self::$metaTable;
+        } else {
+            //get Ref Condtion
+            if (self::$metaTable && self::$metaTable->_ref_conditions) {
+                foreach (self::$metaTable->_ref_conditions as $ref_cond) {
+                    if (preg_replace('/\s/i', '', $ref_cond->name) == $ref_cond_str) {
+                        $refCondition = $ref_cond;
+                    }
+                }
+            }
+            $table = $refCondition ? $refCondition->_ref_table : null;
+        }
+
+        return [
+            'table' => $table,
+            'refCond' => $refCondition,
+        ];
+    }
+
+    /**
+     * @param $type
+     * @param $rows
+     * @return float|int
+     */
+    protected static function useArrayFunc($type, $rows): float|int
+    {
+        return match ($type) {
+            'sum' => self::arraySum($rows),
+            'min' => self::arrayMin($rows),
+            'max' => self::arrayMax($rows),
+            'avg' => self::arrayAvg($rows),
+            'mean' => self::arrayMean($rows),
+            'var' => self::arrayVariance($rows),
+            'std' => self::arrayStd($rows),
+            'countunique' => self::arrayCountUnique($rows),
+            default => self::arrayCount($rows),
+        };
     }
 
     /**
@@ -249,6 +310,28 @@ class FormulaFuncService
     public static function sqlStd($ref_cond_str, $field)
     {
         return self::sqlAgregate('std', $ref_cond_str, $field);
+    }
+
+    /**
+     * Get Sum of Array.
+     *
+     * @param $fields_array
+     * @return float|int
+     */
+    public static function arrayCount($fields_array)
+    {
+        return count($fields_array);
+    }
+
+    /**
+     * Get Sum of Array.
+     *
+     * @param $fields_array
+     * @return float|int
+     */
+    public static function arrayCountUnique($fields_array)
+    {
+        return count(array_unique($fields_array));
     }
 
     /**
@@ -342,8 +425,18 @@ class FormulaFuncService
     public static function isEmpty($field, $val1 = null, $val2 = null)
     {
         return !self::val($field)
-            ? ($val1 ?: true)
-            : ($val2 ?: false);
+            ? ($val1 === null ? true : $val1)
+            : ($val2 === null ? false : $val2);
+    }
+
+    /**
+     * Value already is changed, so it is just a wrapper
+     * @param $field
+     * @return mixed|string
+     */
+    public static function ddloption($field)
+    {
+        return self::val($field);
     }
 
     /**
@@ -354,22 +447,18 @@ class FormulaFuncService
      */
     public static function ifCondition($condition, $if_true, $if_false = null)
     {
-        //convert Duration
-        $string = [];
-        preg_match('/\'(.+)\'|"(.+)"/i', $condition, $string);
-        if (count($string) == 2 || count($string) == 3) {
-            $string[1] = $string[1] ?: $string[2];
-            if (count($string) >= 2 && DurationConvert::isDuration($string[1])) {
-                $string[1] = DurationConvert::duration2second($string[1]);
-                $condition = str_replace($string[0], $string[1], $condition);
-            }
-        }
-
         //Calc condition
         $avail_operators = ['==', '!=', '<=', '>=', '<>', '<', '>'];
         foreach ($avail_operators as $operator) {
             if (strpos($condition, $operator) !== false) {
                 $arr = explode($operator, $condition);
+                foreach ($arr as $i => $val) {
+                    //convert Duration
+                    if (DurationConvert::isDuration($val)) {
+                        $arr[$i] = DurationConvert::duration2second($arr[$i]);
+                    }
+                }
+
                 switch ($operator) {
                     case '<>':
                     case '!=': $condition = floatval($arr[0]) != floatval($arr[1]); break;
@@ -392,6 +481,7 @@ class FormulaFuncService
     public static function ifAnd($conditions)
     {
         $result = true;
+        $conditions = is_array($conditions) ? $conditions : [$conditions];
         foreach ($conditions as $el) {
             $result = $result && !!self::val($el);
         }
@@ -405,6 +495,7 @@ class FormulaFuncService
     public static function ifOr($conditions)
     {
         $result = false;
+        $conditions = is_array($conditions) ? $conditions : [$conditions];
         foreach ($conditions as $el) {
             $result = $result || !!self::val($el);
         }
@@ -415,16 +506,68 @@ class FormulaFuncService
      * @param $condition
      * @param array $cases
      * @param array $results
+     * @param string $default
      * @return mixed
      */
-    public static function switchCondition($condition, $cases = [], $results = [])
+    public static function switchCondition($condition, $cases = [], $results = [], $default = '')
     {
         $key = array_keys($cases, $condition)[0] ?? null;
         $var = $results[$key] ?? '';
+        if ($var == '' && strlen($default)) {
+            $var = $default;
+        }
         if ($var == '' && count($results) > count($cases)) {
             $var = array_pop($results);
         }
         return $var;
+    }
+
+    /**
+     * @param $question
+     * @param $filePath
+     * @return string
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+     */
+    public static function aiCreate($question, $filePath = null)
+    {
+        $repo = new UserConnRepository();
+        $key = $repo->getUserApi(self::$metaTable->openai_tb_key_id ?: 0, true);
+        if (! $key) {
+            $key = $repo->defaultAiAcc(self::$userId);
+        }
+
+        $api = $key?->AiInteface();
+        $response = '';
+        if ($api) {
+            if ($filePath) {
+                $content = \Storage::get('public/'.$filePath);
+                $response = $api->documentRecognition($question, $content, FileHelper::name($filePath));
+            } else {
+                $response = $api->textGeneration($question);
+            }
+        }
+
+        return $response ?: 'No API Key available.';
+    }
+
+    /**
+     * @param $promptString
+     * @param $savingField
+     * @return string
+     * @throws \Illuminate\Contracts\Filesystem\FileNotFoundException
+     */
+    public static function aiExtract($promptString, $savingField)
+    {
+        if (! $promptString) {
+            return "Prompt is empty!";
+        }
+
+        $fileField = self::$metaTable->_fields->where('name', '=', $savingField)->first();
+        $file = $fileField
+            ? (new FileRepository())->getSql(self::$metaTable->id, $fileField->id, [self::$currentRow['id']])->first()
+            : null;
+
+        return self::aiCreate($promptString, $file?->filepath . $file?->filename);
     }
 
     /**
@@ -442,27 +585,34 @@ class FormulaFuncService
             return '';
         }
 
+        $isSubstract = strtolower($type ?: 'substract') == 'substract' || $type == '-';
+
+        $durationIsDate = DurationConvert::isDuration($duration) ? null : self::checkDate($duration);
+        if ($durationIsDate) {
+            return $isSubstract ? $durationIsDate->diffForHumans($date) : $date->diffForHumans($durationIsDate);
+        }
+
+        $duration = DurationConvert::isDuration($duration)
+            ? DurationConvert::duration2second($duration)
+            : ((int)$duration ?: 0);
+
         $f_type = self::$currentField['f_type'] ?? 'String';
         $format = self::$currentField['f_format'] ?? ($f_type == 'Date Time' ? 'Y-m-d H:i:s' : 'Y-m-d');
-        if (strtolower($type ?: 'substract') == 'substract') {
-            return $date->subSeconds((int)$duration ?: 0)->format($format);
-        } else {
-            return $date->addSeconds((int)$duration ?: 0)->format($format);
-        }
+
+        return $isSubstract
+            ? $date->subSeconds($duration)->format($format)
+            : $date->addSeconds($duration)->format($format);
     }
 
     /**
      * @param null $date
      * @return Carbon|string
      */
-    private static function checkDate($date = null)
+    protected static function checkDate($date = null)
     {
         try {
             if (!$date || $date < Carbon::minValue()) {
-                $date = '0001-01-01 00:00:00';
-            }
-            if (!preg_match('/\s\d\d:\d\d:\d\d/i', $date)) {
-                $date .= ' 00:00:00';
+                return '';
             }
 
             return new Carbon($date);
@@ -480,7 +630,9 @@ class FormulaFuncService
     {
         $timefrom = self::checkDate($timefrom);
         $timeto = self::checkDate($timeto);
-        return $timeto ? $timeto->diffInSeconds( $timefrom, false ) : null;
+        return $timefrom && $timeto
+            ? $timefrom->diffInSeconds( $timeto, false )
+            : null;
     }
 
     /**
@@ -493,6 +645,32 @@ class FormulaFuncService
     public static function getToday($tz = null, $format = null)
     {
         $date = new Carbon(null, $tz ?: null);
+        return ($format ? $date->format($format) : $date->toDateString());
+    }
+
+    /**
+     * Get Tomorrow.
+     *
+     * @param null $tz
+     * @param null $format
+     * @return string
+     */
+    public static function getTomorrow($tz = null, $format = null)
+    {
+        $date = (new Carbon(null, $tz ?: null))->addDay();
+        return ($format ? $date->format($format) : $date->toDateString());
+    }
+
+    /**
+     * Get Yesterday.
+     *
+     * @param null $tz
+     * @param null $format
+     * @return string
+     */
+    public static function getYesterday($tz = null, $format = null)
+    {
+        $date = (new Carbon(null, $tz ?: null))->subDay();
         return ($format ? $date->format($format) : $date->toDateString());
     }
 
@@ -558,6 +736,32 @@ class FormulaFuncService
     {
         $date = self::checkDate($date);
         return ($date ? (new Carbon($date))->format("Y") : '');
+    }
+
+    /**
+     * Get date string
+     *
+     * @param $date
+     * @param $format
+     * @return string
+     */
+    public static function getDate($date, $format = null)
+    {
+        $date = self::checkDate($date);
+        return ($date ? (new Carbon($date))->format($format ?: "Y-m-d") : '');
+    }
+
+    /**
+     * Get time string
+     *
+     * @param $date
+     * @param $format
+     * @return string
+     */
+    public static function getTime($date, $format = null)
+    {
+        $date = self::checkDate($date);
+        return ($date ? (new Carbon($date))->format($format ?: "H:i:s") : '');
     }
 
     /**

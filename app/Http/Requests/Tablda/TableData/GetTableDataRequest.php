@@ -25,7 +25,8 @@ class GetTableDataRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
+            'ref_cond_id' => 'required_without:table_id|nullable|exists:table_ref_conditions,id',
+            'table_id' => 'required_without:ref_cond_id|nullable|exists:tables,id',
             'page' => 'required|integer|min:1',
             'rows_per_page' => 'required|integer|min:0',
             'sort' => 'array',

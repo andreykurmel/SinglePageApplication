@@ -19,6 +19,7 @@ class CreateDDLTable extends Migration
             $table->string('name');
             $table->string('type', 50)->default('regular');
             $table->string('notes')->nullable();
+            $table->integer('row_order')->default(0);
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

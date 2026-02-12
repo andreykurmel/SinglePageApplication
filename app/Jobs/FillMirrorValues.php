@@ -37,10 +37,14 @@ class FillMirrorValues implements ShouldQueue
      */
     public function handle()
     {
-        if (!$this->field || !$this->field->_mirror_rc || !$this->field->_mirror_field) {
+        if (!$this->field) {
             return;
         }
-        (new MirrorModule())->fill($this->field);
+        if (!$this->field->_mirror_rc || !$this->field->_mirror_field) {
+            (new MirrorModule())->clear($this->field);
+        } else {
+            (new MirrorModule())->fill($this->field);
+        }
     }
 
     public function failed()

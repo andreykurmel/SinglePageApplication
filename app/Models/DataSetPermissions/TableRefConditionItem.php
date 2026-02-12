@@ -13,9 +13,11 @@ use Vanguard\User;
  * @property int $table_ref_condition_id
  * @property string|null $logic_operator
  * @property int|null $table_field_id
+ * @property string $field_part
  * @property string|null $compared_operator
  * @property int|null $compared_field_id
  * @property string|null $compared_value
+ * @property string $compared_part
  * @property int|null $created_by
  * @property string $created_on
  * @property int|null $modified_by
@@ -58,12 +60,14 @@ class TableRefConditionItem extends Model
     protected $fillable = [
         'table_ref_condition_id',
         'logic_operator',
-        'table_field_id',
+        'table_field_id',//right on LC
+        'field_part', // ['value','show']
         'compared_operator',
-        'compared_field_id',
+        'compared_field_id',//left on LC
         'compared_value',
+        'compared_part', // ['value','show']
         'spec_show',
-        'item_type',
+        'item_type', // ['S2V','P2S']
         'group_clause',
         'group_logic',
         'created_by',

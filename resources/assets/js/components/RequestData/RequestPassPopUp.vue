@@ -56,17 +56,17 @@
             checkPass() {
                 axios.get('/ajax/table-data-request/check-pass', {
                     params: {
-                        table_request_id: this.table_request_id,
+                        table_dcr_id: this.table_request_id,
                         pass: this.pass
                     }
                 }).then(({ data }) => {
                     if (data.status) {
                         this.$emit('pass-popup-close', data.status ? this.pass : false);
                     } else {
-                        Swal('Password incorrect!');
+                        Swal('Info','The password is not correct.');
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

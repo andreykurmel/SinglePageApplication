@@ -3,6 +3,7 @@
 namespace Vanguard\Models\User;
 
 use Illuminate\Database\Eloquent\Model;
+use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\User;
 
 /**
@@ -10,6 +11,7 @@ use Vanguard\User;
  *
  * @property int $id
  * @property int $user_id
+ * @property string $type
  * @property string $email
  * @property string $app_pass
  * @property-read \Vanguard\User $_user
@@ -30,9 +32,19 @@ class UserEmailAccount extends Model
 
     protected $fillable = [
         'user_id',
+        'type',
         'email',
         'app_pass',
     ];
+
+
+    /**
+     * @return string
+     */
+    public function decryptedKey()
+    {
+        return TabldaEncrypter::decrypt($this->app_pass ?? '');
+    }
 
 
     public function _user() {

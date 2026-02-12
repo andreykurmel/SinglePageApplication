@@ -11,6 +11,9 @@ use Vanguard\User;
  * @property int $id
  * @property int $user_id
  * @property string $due_date
+ * @property int|null $year
+ * @property int|null $month
+ * @property int|null $week
  * @property float $amount
  * @property string|null $method
  * @property string|null $notes
@@ -63,6 +66,9 @@ class Payment extends Model
         'to',
         'amount',
         'due_date',
+        'year',
+        'month',
+        'week',
         'transaction_id',
         'notes',
         'created_by',

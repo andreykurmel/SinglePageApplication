@@ -23,6 +23,7 @@ class CreateTablePermissions2AddonsTable extends Migration
             $table->tinyInteger('hide_settings')->nullable();
             $table->tinyInteger('block_spacing')->nullable();
             $table->tinyInteger('vert_grid_step')->nullable();
+            $table->tinyInteger('crnr_radius')->nullable();
 
             $table->foreign('table_permission_id')
                 ->references('id')

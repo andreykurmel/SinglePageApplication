@@ -1,5 +1,5 @@
 <template>
-    <div class="line__wrap" v-if="draw_avail">
+    <div class="line__wrap" v-if="draw_avail && settings.use_eqpt_width()">
         <template v-if="draw_on_canvas">
             <div v-for="vec in conn_vectors">
                 <div class="line__connect" :style="vertical_conn(vec)">
@@ -332,7 +332,7 @@
             selfLDrop() {
                 if (!this.settings.drag_line || this.settings.drag_line._id !== this.line._id) {
                     window.event.stopPropagation();
-                    Swal('Not allowed!');
+                    Swal('Info','Not allowed!');
                     this.$emit('start-drag', null, null, null);
                 }
             },

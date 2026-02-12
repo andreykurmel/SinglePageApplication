@@ -23,7 +23,6 @@
                                 <tab-alert-and-notif
                                         :table_id="tableMeta.id"
                                         :table-meta="tableMeta"
-                                        :settings-meta="settingsMeta"
                                         :user="$root.user"
                                 ></tab-alert-and-notif>
                             </div>

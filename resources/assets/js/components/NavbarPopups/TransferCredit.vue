@@ -167,14 +167,18 @@
             },
             transferCredits() {
                 let total = 0;
+                let grnames = [];
                 _.each(this.groups, (el) => {
                     if (el.checked) {
                         total += el.cnt * this.$root.getFloat(el.val);
+                        grnames.push(el.name);
                     }
                 });
+                let usrnames = [];
                 _.each(this.users, (el) => {
                     if (el.checked) {
                         total += el.cnt * this.$root.getFloat(el.val);
+                        usrnames.push(el.name);
                     }
                 });
                 if (total <= this.user.avail_credit) {
@@ -184,13 +188,21 @@
                         users: _.filter(this.users, {checked: true}),
                     }).then(({ data }) => {
                         this.user.avail_credit = data.avail_credit;
+                        let swalmsg = '$' + total + ' credit has been successfully transferred to:<br>';
+                        if (grnames.length) {
+                            swalmsg += 'Groups: ' + grnames.join(', ') + '<br>';
+                        }
+                        if (usrnames.length) {
+                            swalmsg += 'Users: ' + usrnames.join(', ');
+                        }
+                        Swal('Info', swalmsg);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
                 } else {
-                    Swal('', 'You do not have sufficient credit.');
+                    Swal('Info', 'You do not have sufficient credit.');
                 }
             }
         },

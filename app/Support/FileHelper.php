@@ -33,4 +33,26 @@ class FileHelper
     {
         return pathinfo($filepath, PATHINFO_BASENAME);
     }
+
+    /**
+     * @param string $url
+     * @return bool
+     */
+    public static function check_url(string $url): bool
+    {
+        $headers = @get_headers($url);
+        return $headers && str_contains($headers[0], '200');
+    }
+
+    /**
+     * @param string $filepath
+     * @return bool
+     */
+    public static function exist(string $filepath): bool
+    {
+        if (filter_var($filepath, FILTER_VALIDATE_URL)) {
+            return self::check_url($filepath);
+        }
+        return file_exists($filepath);
+    }
 }

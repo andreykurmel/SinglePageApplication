@@ -91,7 +91,7 @@
                             _.each(this.linkTableMeta._fields, (fld) => {
                                 if (availfields.indexOf(fld.id) > -1 && this.canViewHdr(fld)) {
                                     let titl = this.link_object.link_preview_show_flds ? this.$root.uniqName(fld.name)+': ' : '';
-                                    str_arr.push(titl + SpecialFuncs.showhtml(fld, row, row[fld.field], this.linkTableMeta.unit_conv_is_active));
+                                    str_arr.push(titl + SpecialFuncs.showhtml(fld, row, row[fld.field], this.linkTableMeta));
                                 }
                             });
                             let valuestr = str_arr.length ? str_arr.join(' | ') : 'No Fields Available!';

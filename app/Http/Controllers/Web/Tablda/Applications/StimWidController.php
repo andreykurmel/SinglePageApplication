@@ -85,7 +85,7 @@ class StimWidController extends Controller implements AppControllerInterface
                     'table_id' => $table_meta->id,
                     'rows_per_page' => $table_meta->rows_per_page,
                     'link_fields' => DataReceiver::get_link_fields($appTb['_app_fields']),
-                    'avail_columns_for_app' => $this->stimRepo->getDataFields($appTb['_app_fields'], 'show:true'),
+                    'avail_cols_for_app' => $this->stimRepo->getDataFields($appTb['_app_fields'], 'show:true'),
                     'top_columns_show' => $this->stimRepo->getDataFields($appTb['_app_fields'], 'display_top:true'),
                     'in_url_elements' => $this->stimRepo->getDataFields($appTb['_app_fields'], 'in_url:true', true),
                     'name_field' => $this->stimRepo->getDataFields($appTb['_app_fields'], 'is_fld:name', false, true),
@@ -220,7 +220,7 @@ class StimWidController extends Controller implements AppControllerInterface
     protected function getInitTable(Collection $stim_tabs, string $tab, string $sel)
     {
         $group = $stim_tabs[strtolower($tab)][strtolower($sel)] ?? null;
-        return (string)($group ? $group['master_table'] : '');
+        return (string)($group ? ($group['master_table'] ?? '') : '');
     }
 
     /**

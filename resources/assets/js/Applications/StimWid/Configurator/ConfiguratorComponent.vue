@@ -1,5 +1,5 @@
 <template>
-    <div class="full-frame canvas_wrapper flex">
+    <div class="full-frame canvas_wrapper flex" ref="total_wrapp">
         <!--Filters-->
         <div v-if="eqpt_tablda_table && eqpt_tablda_table.is_loaded && EqptStatuses.eqpt_filters"
              class="filters-wrapper"
@@ -80,19 +80,45 @@
                      height="28" width="28">
             </div>
             <div class="">
-                <button class="btn btn-default full-height"
-                        @click="recalcPosOfAllLines();"
-                        style="padding: 0 2px;"
+                <select class="form-control"
+                        style="height: 30px; padding: 5px 5px;"
+                        v-model="params.draw_type"
+                        @change="() => { recalcPosOfAllLines(); }"
                 >
-                    <span :style="{color: params.is_eqpt_rev() ? '#000' : '#777', fontWeight: params.is_eqpt_rev() ? 'bold' : 'normal'}">F</span>
-                    <span>/</span>
-                    <span :style="{color: params.is_eqpt_rev() ? '#777' : '#000', fontWeight: params.is_eqpt_rev() ? 'normal' : 'bold'}">B</span>
-                </button>
+                    <option value="front">Front</option>
+                    <option value="rear">Rear</option>
+                    <option value="side">Side</option>
+                </select>
             </div>
             <div class="">
                 <button class="btn btn-default full-height" @click="alignEqpts();" style="padding: 0 5px;">
                     <i class="fa fa-align-justify" aria-hidden="true"></i>
                 </button>
+            </div>
+            <div class="">
+                <button class="btn btn-default full-height" @click="alignVerticals();" style="padding: 0 5px;">
+                    <i class="fa fa-align-justify" style="rotate: 90deg;" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="flex flex--center-v">
+                <label style="white-space: nowrap;">Elev. By:</label>
+                <select class="form-control"
+                        style="height: 30px; padding: 5px 5px;"
+                        v-model="params.elev_by"
+                        @change="() => { params.saveSettings(); redrawAll(); }"
+                >
+                    <option value="pd">PD Center</option>
+                    <option value="gc">G Center</option>
+                </select>
+            </div>
+            <div class="flex flex--center-v">
+                <label>&nbsp;</label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="() => { params.show_elev_lib_lines = !params.show_elev_lib_lines; params.saveSettings(); }">
+                        <i v-if="params.show_elev_lib_lines" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <label>&nbsp;Elev. Lines</label>
             </div>
         </div>
         <!--Settings-->
@@ -108,11 +134,17 @@
                     </colgroup>
                     <tr>
                         <td v-for="sec in param_sectors"
-                            :colspan="sec.pos_num"
+                            :colspan="sec._tot_pos_num"
                             :style="titleSty()"
                             @contextmenu.prevent="popupSector(sec._id)"
                         >
-                            <div class="full-frame sector__titles">{{ sec.sector }}</div>
+                            <div class="full-frame sector__titles flex flex--center">
+                                <span>{{ sec.sector }}</span>
+                                <template v-if="sec.face_norm">
+                                    &nbsp;<sector-azimuth :azimuth="sec.face_norm" :color="params.show_eqpt_azimuth__color"></sector-azimuth>
+                                    <span :style="showEqptAzms">&nbsp;{{ Number(sec.face_norm).toFixed(0) }}</span>
+                                </template>
+                            </div>
                         </td>
                     </tr>
                     <tr v-if="params.heVal('pos_he')">
@@ -122,9 +154,9 @@
                                 @dragover.prevent=""
                                 @dragenter="params.over_sec_pos = sec._id+'_'+pos._id"
                                 @dragend="params.over_sec_pos = null"
-                                @drop="dragFinishedDrop(sec, pos, topLvL(1))"
+                                @drop="(e) => { dragFinishedDrop(e, sec, pos, topLvL(1)); }"
                             >
-                                <span v-if="(p_i+1) * (s_i+1) == total_cols" class="td__title td__title--out _no_png">
+                                <span v-if="(s_i+1) == param_sectors.length && (p_i+1) == poss(sec).length" class="td__title td__title--out _no_png">
                                     <span v-if="!edit_show.top_elev" @click="showHeights('top_elev')">{{ params.top_elev }}</span>
                                     <input v-else=""
                                            class="form-control"
@@ -134,7 +166,7 @@
                                            @blur="edit_show.top_elev = false"
                                            @change="(e) => { heightsChaged('top_elev',e) }"/>
                                 </span>
-                                <span v-if="(p_i+1) * (s_i+1) == total_cols" class="td__title td__title--vert td__title--out _no_png">
+                                <span v-if="(s_i+1) == param_sectors.length && (p_i+1) == poss(sec).length" class="td__title td__title--vert td__title--out _no_png">
                                     <span v-if="!edit_show.he_pos" @click="showHeights('he_pos')">{{ params.heVal('pos_he') }}</span>
                                     <input v-else=""
                                            class="form-control"
@@ -147,9 +179,10 @@
                                 <span v-if="pos && EqptStatuses.show_grids.pos"
                                       class="td__title td__title--center"
                                       @contextmenu.prevent="popupPos(pos._id)"
-                                >{{ pos.name }}</span>
+                                >{{ pos.name + groupSuffix(sec, p_i) }}</span>
 
                                 <canv-group
+                                        :suffix="groupSuffix(sec, p_i)"
                                         :sector="sec"
                                         :pos="pos"
                                         :top_lvl="topLvL(1)"
@@ -161,20 +194,25 @@
                                         @right-click="showSettSelect"
                                         @save-model="changeEqpt"
                                         @modelid-changed="modelidChaged"
-                                        @empty-clicked="dragFinishedClick(sec, pos, topLvL(1))"
+                                        @empty-clicked="(e) => { dragFinishedClick(e, sec, pos, topLvL(1)); }"
                                 ></canv-group>
                             </td>
                         </template>
                     </tr>
                     <tr v-if="params.heVal('sector_he')">
                         <td v-for="(sec, s_i) in param_sectors"
-                            :colspan="sec.pos_num"
+                            :colspan="sec._tot_pos_num"
                             :style="secStyle(sec, s_i)"
                             @dragover.prevent=""
                             @dragenter="params.over_sec_pos = sec._id+'_'"
                             @dragend="params.over_sec_pos = null"
-                            @drop="dragFinishedDrop(sec, '', topLvL(2))"
+                            @drop="(e) => { dragFinishedDrop(e, sec, '', topLvL(2)); }"
                         >
+                            <span v-if="s_i == param_sectors.length-1" class="td__title td__title--out _no_png">
+                                <span v-if="!edit_show.he_sec" @click="showHeights('he_pos')">
+                                    {{ Number(params.top_elev) - Number(params.heVal('pos_he')) }}
+                                </span>
+                            </span>
                             <span v-if="s_i == param_sectors.length-1" class="td__title td__title--vert td__title--out _no_png">
                                 <span v-if="!edit_show.he_sec" @click="showHeights('he_sec')">{{ params.heVal('sector_he') }}</span>
                                 <input v-else=""
@@ -201,7 +239,7 @@
                                     @right-click="showSettSelect"
                                     @save-model="changeEqpt"
                                     @modelid-changed="modelidChaged"
-                                    @empty-clicked="dragFinishedClick(sec, '', topLvL(2))"
+                                    @empty-clicked="(e) => { dragFinishedClick(e, sec, '', topLvL(2)); }"
                             ></canv-group>
                         </td>
                     </tr>
@@ -211,8 +249,13 @@
                             @dragover.prevent=""
                             @dragenter="params.over_sec_pos = '_'"
                             @dragend="params.over_sec_pos = null"
-                            @drop="dragFinishedDrop('', '', topLvL(3))"
+                            @drop="(e) => { dragFinishedDrop(e, '', '', topLvL(3)); }"
                         >
+                            <span class="td__title td__title--out _no_png">
+                                <span v-if="!edit_show.he_rest" @click="showHeights('he_sec')">
+                                    {{ Number(params.top_elev) - Number(params.heVal('pos_he')) - Number(params.heVal('sector_he')) }}
+                                </span>
+                            </span>
                             <span class="td__title td__title--vert td__title--out _no_png">
                                 <span v-if="!edit_show.he_rest" @click="showHeights('he_rest')">{{ params.heVal('rest_he') }}</span>
                                 <input v-else=""
@@ -246,7 +289,7 @@
                                     @right-click="showSettSelect"
                                     @save-model="changeEqpt"
                                     @modelid-changed="modelidChaged"
-                                    @empty-clicked="dragFinishedClick('', '', topLvL(3))"
+                                    @empty-clicked="(e) => { dragFinishedClick(e, '', '', topLvL(3)); }"
                             ></canv-group>
                         </td>
                     </tr>
@@ -256,7 +299,7 @@
                             @dragover.prevent=""
                             @dragenter="params.over_sec_pos = '+'"
                             @dragend="params.over_sec_pos = null"
-                            @drop="dragFinishedDrop('', '', (params.drag_line ? topLvL(4) : topLvL(0)))"
+                            @drop="(e) => { dragFinishedDrop(e, '', '', (params.drag_line ? topLvL(4) : topLvL(0))); }"
                         >
                             <span class="td__title td__title--vert td__title--out _no_png">
                                 <span v-if="!edit_show.he_bot" @click="showHeights('he_bot')">{{ params.heVal('bot_he') }}</span>
@@ -278,11 +321,11 @@
                                        @blur="base_edit_show = false"
                                        @change="(e) => { changeAirNames('_base_name',e) }"/>
                             </span>
-                            <span class="td__title td__title--btm">{{ params.is_eqpt_rev() ? 'Front View' : 'Back View' }}</span>
+                            <span class="td__title td__title--btm">{{ params.draw_type_title() }}</span>
 
                             <canv-group
                                     :shared_sec_pos="all_sectors"
-                                    :top_lvl="topLvL(0)"
+                                    :top_lvl="params.drag_line ? topLvL(4) : topLvL(0)"
                                     :group_he="params.heVal('bot_he')"
                                     :settings="params"
                                     :px_in_ft="px_in_ft"
@@ -291,7 +334,7 @@
                                     @right-click="showSettSelect"
                                     @save-model="changeEqpt"
                                     @modelid-changed="modelidChaged"
-                                    @empty-clicked="dragFinishedClick('', '', (params.drag_line ? topLvL(4) : topLvL(0)))"
+                                    @empty-clicked="(e) => { dragFinishedClick(e, '', '', (params.drag_line ? topLvL(4) : topLvL(0))); }"
                             ></canv-group>
                         </td>
                     </tr>
@@ -310,6 +353,13 @@
                             @save-model="changeLine"
                     ></canv-group-line>
                 </template>
+                <template v-if="params.show_elev_lib_lines" v-for="elib in elevs_list">
+                    <canv-group-lib-elev
+                        :elev="elib"
+                        :settings="params"
+                        :px_in_ft="px_in_ft"
+                    ></canv-group-lib-elev>
+                </template>
             </div>
             <div v-if="!avail_canv" class="full-height flex flex--center" style="font-size: 4rem">Need to have Top Level >Bot Level in Settings for proper illustration.</div>
         </div>
@@ -322,6 +372,8 @@
                 :line_lib="line_lib"
                 :tech_list="tech_list"
                 :status_list="status_list"
+                :elevs_list="elevs_list"
+                :azimuth_list="azimuth_list"
                 :px_in_ft="px_in_ft"
                 :ex_height="'calc(100% - 45px)'"
                 class="float-settings right-top lib__menu"
@@ -336,7 +388,7 @@
             <button class="btn btn-default blue-gradient" :style="$root.themeButtonStyle" @click="loopOut()">-</button>
             <input class="form-control zoom__inp" :value="scale+'%'" @change="inpScale"/>
             <div class="slide__wrap">
-                <slider-block :min="100" :max="300" :cur="scale" @slide="slideScale"></slider-block>
+                <slider-block :min="50" :max="300" :cur="scale" @slide="slideScale"></slider-block>
             </div>
             <button class="btn btn-default blue-gradient" :style="$root.themeButtonStyle" @click="loopIn()">+</button>
         </div>
@@ -401,7 +453,7 @@
                 :user="$root.user"
                 :cell-height="$root.cellHeight"
                 :max-cell-rows="$root.maxCellRows"
-                :available-columns="stim_link_add.avail_columns_for_app"
+                :available-columns="stim_link_add.avail_cols_for_app"
                 @popup-insert="addPopupInsert"
                 @popup-close="closeAddPopUp"
         ></custom-edit-pop-up>
@@ -411,6 +463,7 @@
 <script>
     import { eventBus } from '../../../app';
 
+    import {Elev} from "./Elev";
     import {Settings} from "./Settings";
     import {MetaTabldaRows} from '../../../classes/MetaTabldaRows';
 
@@ -428,6 +481,8 @@
     import CustomEditPopUp from "../../../components/CustomPopup/CustomEditPopUp";
     import SliderBlock from "../../../components/CommonBlocks/SliderBlock";
     import FiltersBlock from "../../../components/CommonBlocks/FiltersBlock";
+    import CanvGroupLibElev from "./CanvGroupLibElev";
+    import SectorAzimuth from "./SectorAzimuth";
 
     export default {
         name: 'ConfiguratorComponent',
@@ -437,6 +492,8 @@
             ConfiguratorDataDragPopMixin,
         ],
         components: {
+            SectorAzimuth,
+            CanvGroupLibElev,
             FiltersBlock,
             SliderBlock,
             CustomEditPopUp,
@@ -488,6 +545,8 @@
                 all_sectors: [],
                 tech_list: [],
                 status_list: [],
+                elevs_list: [],
+                azimuth_list: [],
                 popup_tables: {},
                 eqpt_tablda_table: null,
                 eqpt_all_rows: null,
@@ -544,6 +603,13 @@
                 return this.params.top_elev > 0
                     && this.params.top_elev > this.params.bot_elev;
             },
+            showEqptAzms() {
+                return {
+                    fontFamily: this.params.show_eqpt_azimuth__font,
+                    fontSize: this.params.show_eqpt_azimuth__size+'px',
+                    color: this.params.show_eqpt_azimuth__color,
+                };
+            },
         },
         props: {
             master_row: Object,
@@ -578,7 +644,7 @@
                 });
             },
             heightsChaged(key, e) {
-                this.settings[key] = to_float(e.target.value);
+                this.settings.setHeVal(key, to_float(e.target.value));
                 this.settings.saveSettings();
                 //disabled
                 let affected = '';
@@ -590,8 +656,8 @@
                     case 'bot_he': affected = ''; key = this.settings.heVal(key, true); break;
                     case 'bot_elev': affected = 'bot'; break;
                 }
-                let diff = to_float(this.settings[key]) - to_float(e.target.value);
-                this.settings[key] = to_float(e.target.value);
+                let diff = to_float(this.settings.heVal([key])) - to_float(e.target.value);
+                this.settings.setHeVal(key, to_float(e.target.value));
                 this.settings.saveSettings();
                 this.reheightEqpts(affected, diff);
             },
@@ -613,7 +679,7 @@
 
             //convert indexes
             poss(sec) {
-                let p_idx = sec.pos_num || 1;
+                let p_idx = sec._tot_pos_num;
                 return this.params.is_eqpt_rev()
                     ? this.params._pos.slice(0,p_idx).reverse()
                     : this.params._pos.slice(0,p_idx);
@@ -645,9 +711,9 @@
 
             //draw layout
             colWidths(sec, pos) {
-                let ws = String(sec.pos_widths).split(',');
+                let el = sec._widths_array[pos._idx] || {};
                 return {
-                    width: Math.round(this.px_in_ft * ws[pos._idx])+'px',
+                    width: Math.round(this.px_in_ft * (el.wi || 0))+'px',
                 }
             },
             tbLayoutStyle() {
@@ -703,6 +769,10 @@
                     height: this.params.get_glob_top()+'px'
                 };
             },
+            groupSuffix(sector, pos_idx) {
+                let wi = sector._widths_array[pos_idx] || {};
+                return wi.spt ? '(S)' : '';
+            },
 
             //align
             reheightEqpts(affected, diff) {
@@ -716,17 +786,101 @@
                this.redrawAll();
                this.load2Dfilters();
             },
-            alignEqpts() {
+            alignVerticals() {
+                let hasSelection = this.params && this.params.mass_eqpt && this.params.mass_eqpt.length;
                 let app_tb = this.popup_tables.eqptdata_2d;
-                _.each(this.data_eqpt, (eqpt) => {
+                let eqpts = hasSelection
+                    ? this.params.mass_eqpt
+                    : this.data_eqpt;
+                _.each(eqpts, (eqpt) => {
+                    let {low, top} = this._eqtsRanges(eqpt);
+                    let avail_elevs = _.filter(Elev.filterList(this.params, this.elevs_list), (el) => {
+                        return top >= Number(el.elev) && Number(el.elev) >= low;
+                    });
+                    avail_elevs = _.orderBy(avail_elevs, 'elev');
+                    let eqpttop = eqpt.elevVal(this.params.elev_by);
+                    let needed_elev = this._verticalsCloserElev(avail_elevs, eqpttop); //set Eqpt top to closer Elev
+                    if (!needed_elev) {
+                        return;
+                    }
+
+                    if (hasSelection) { //toggle Eqpt top between Elevs
+                        let idx = _.findIndex(avail_elevs, {_id: needed_elev._id});
+                        idx = (idx + 1) % avail_elevs.length;
+                        needed_elev = avail_elevs[idx];
+                    }
+                    eqpt.putTopCoord(this.params.elev_by, Number(needed_elev.elev) + Number(eqpt.calc_dy)/2);
+                    eqpt.quickSave(app_tb);
+                });
+                this.redrawAll();
+                this.load2Dfilters();
+            },
+            _eqtsRanges(eqpt) {
+                if (eqpt.is_top()) {
+                    if (eqpt.sector) {
+                        if (eqpt.pos) {
+                            return {low: this.topLvL(2), top: this.topLvL(1)};
+                        } else {
+                            return {low: this.topLvL(3), top: this.topLvL(2)};
+                        }
+                    } else {
+                        return {low: this.topLvL(4), top: this.topLvL(3)};
+                    }
+                } else {
+                    return {low: this.params.bot_elev, top: this.params.bot_elev + this.params.heVal('bot_he')};
+                }
+            },
+            _verticalsCloserElev(avail_elevs, eqpttop) {
+                let needed_elev = null;
+                _.each(avail_elevs, (el) => {
+                    if (!needed_elev || (
+                        (Math.abs(el.elev - eqpttop)) < (Math.abs(needed_elev.elev - eqpttop))
+                    )) {
+                        needed_elev = el;
+                    }
+                });
+                return needed_elev;
+            },
+            alignEqpts() {
+                let hasSelection = this.params && this.params.mass_eqpt && this.params.mass_eqpt.length;
+                let app_tb = this.popup_tables.eqptdata_2d;
+                let eqpts = hasSelection
+                    ? this.params.mass_eqpt
+                    : this.data_eqpt;
+                _.each(eqpts, (eqpt) => {
                     let sector = _.find(this.params._sectors, {sector: eqpt.sector});
                     let pos_idx = _.findIndex(this.params._pos, {name: eqpt.pos});
-                    if (sector && pos_idx > -1) {
-                        let ws = String(sector.pos_widths).split(',');
-                        let s_wi = to_float(ws[pos_idx]);
-                        if (s_wi) {
-                            let os = Math.ceil( ((eqpt.pos_left + (eqpt.calc_dx / 2)) / s_wi) * 3 );
-                            eqpt.pos_left = (s_wi * os/4) - (eqpt.calc_dx / 2);
+                    if (sector) {
+                        let ws = sector._widths_array;
+                        if (pos_idx > -1) {
+                            //Align in POS
+                            let s_wi = ws[pos_idx] ? to_float(ws[pos_idx].wi) : 0;//sector width
+                            if (s_wi) {
+                                let os = Math.ceil(((eqpt.posLeft(this.params) + (eqpt.get_wi(this.params) / 2)) / s_wi) * 3);//position: [1,2,3]
+                                if (hasSelection) {
+                                    os = (os % 3) + 1;
+                                }
+                                let newleft = (s_wi * os / 4) - (eqpt.get_wi(this.params) / 2);
+                                eqpt.posLeft(this.params, newleft);
+                                eqpt.quickSave(app_tb);
+                            }
+                        } else {
+                            //Align in SECTOR
+                            let tot_wi = _.reduce(ws, (res, e) => { return res + to_float(e.wi); }, 0);
+                            if (hasSelection) {
+                                let offset = Math.ceil(((eqpt.posLeft(this.params) + (eqpt.get_wi(this.params) / 2)) / tot_wi) * 3);//position: [1,2,3]
+                                offset = (offset % 3) + 1;
+                                let newleft = (tot_wi * offset / 4) - (eqpt.get_wi(this.params) / 2);
+                                eqpt.posLeft(this.params, newleft);
+                            } else {
+                                let eqpts_in_sector = _.filter(eqpts, (e) => {
+                                    return e.sector == eqpt.sector && !e.pos;
+                                });
+                                let cur_eqpt_idx = _.findIndex(eqpts_in_sector, {_id: Number(eqpt._id)}) + 1;
+                                let proportion = cur_eqpt_idx / (eqpts_in_sector.length + 1);
+                                let newleft = (tot_wi * proportion) - (eqpt.get_wi(this.params) / 2);
+                                eqpt.posLeft(this.params, newleft);
+                            }
                             eqpt.quickSave(app_tb);
                         }
                     }
@@ -757,13 +911,13 @@
 
             //scale
             loopIn() {
-                this.scale = Math.min(this.scale+10, 300);
+                this.scale = Math.min(this.scale+5, 300);
                 this.setWrapSize();
             },
             inpScale(e) {
-                let val = to_float(e.target.value) || 100;
+                let val = to_float(e.target.value) || 50;
                 val = Math.min(val, 300);
-                val = Math.max(val, 100);
+                val = Math.max(val, 50);
                 this.scale = val;
                 this.setWrapSize();
             },
@@ -772,7 +926,7 @@
                 this.setWrapSize();
             },
             loopOut() {
-                this.scale = Math.max(this.scale-10, 100);
+                this.scale = Math.max(this.scale-5, 50);
                 this.setWrapSize();
             },
             setWrapSize() {
@@ -788,6 +942,9 @@
 
             //keys
             pressedKey(e) {
+                if (e.keyCode === 27) {//esc
+                    this.checkClear();
+                }
                 if (e.keyCode === 46) { //delete key
 
                     let k_control = this.params.getLineControlKey();
@@ -854,6 +1011,15 @@
                 let container = $(this.$refs.grid_button);
                 if (this.EqptStatuses.show_grids._visible && container.has(e.target).length === 0){
                     this.EqptStatuses.show_grids._visible = false;
+                }
+                container = $(this.$refs.total_wrapp);
+                if (container.has(e.target).length === 0) {
+                    this.checkClear();
+                }
+            },
+            checkClear() {
+                if (this.params && this.params.mass_eqpt && this.params.mass_eqpt.length) {
+                    this.params.clearSel();
                 }
             },
         },

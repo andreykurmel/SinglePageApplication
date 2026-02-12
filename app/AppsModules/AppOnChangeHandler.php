@@ -40,6 +40,7 @@ class AppOnChangeHandler
      */
     public function testRow(array $row, array $old_row = [])
     {
+        $applied = false;
         try {
             $app_tb = CorrespTable::where('data_table', $this->table->db_name)
                 ->isActive()
@@ -58,12 +59,13 @@ class AppOnChangeHandler
                     $this->output = $controller->direct_call($input);
                     if ($this->output && $this->output->getRow()) {
                         $row = array_merge($row, $this->output->getRow());
+                        $applied = true;
                     }
                 }
             }
         } catch (\Exception $e) {
             $row['__error_exception'] = $e->getMessage();
         }
-        return $row;
+        return [$row, $applied];
     }
 }

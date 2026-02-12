@@ -29,6 +29,7 @@ class SelectedRowsRequest extends FormRequest
             'request_params' => 'required_without:rows_ids',
             'replaces' => 'nullable|array',
             'only_columns' => 'nullable|array',
+            'no_inheritance_ids' => 'nullable|array',
         ];
     }
 }

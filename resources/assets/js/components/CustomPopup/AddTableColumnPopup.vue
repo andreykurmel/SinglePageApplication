@@ -76,11 +76,11 @@
         methods: {
             hide() {
                 this.show_popup = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
             },
             showBackupSettings(row_id) {
                 this.show_popup = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
 
@@ -93,6 +93,11 @@
                 });
             },
             saveColumns() {
+                let msg = this.theSameHeaders(this.tbHdrs);
+                if (msg) {
+                    Swal(msg);
+                    return;
+                }
                 $.LoadingOverlay('show');
                 axios.post('/ajax/import/modify-table', {
                     table_id: this.tableMeta.id,
@@ -105,7 +110,7 @@
                     eventBus.$emit('reload-meta-tb__fields');
                     this.hide();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

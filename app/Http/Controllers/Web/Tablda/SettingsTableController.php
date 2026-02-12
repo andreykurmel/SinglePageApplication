@@ -2,17 +2,26 @@
 
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Routing\ResponseFactory;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Vanguard\Http\Controllers\Controller;
-use Vanguard\Http\Requests\Request;
 use Vanguard\Http\Requests\Tablda\GetTableRequest;
 use Vanguard\Http\Requests\Tablda\ShowColumnsToggleRequest;
 use Vanguard\Http\Requests\Tablda\Table\ImportTooltipsRequest;
 use Vanguard\Http\Requests\Tablda\TableData\ChangeOrderColumnRequest;
 use Vanguard\Http\Requests\Tablda\TableData\ChangeRowOrderRequest;
+use Vanguard\Http\Requests\Tablda\TableData\ToggleKanbanRightRequest;
 use Vanguard\Http\Requests\Tablda\UpdateSettingsRowRequest;
+use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
+use Vanguard\Models\Table\TableKanbanSettings;
+use Vanguard\Repositories\Tablda\DDLRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\TableKanbanRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Services\Tablda\ImportService;
 use Vanguard\Services\Tablda\TableDataService;
 use Vanguard\Services\Tablda\TableFieldService;
 use Vanguard\Services\Tablda\TableService;
@@ -33,8 +42,8 @@ class SettingsTableController extends Controller
      * @param TableFieldService $fieldService
      */
     public function __construct(
-        TableDataService $tableDataService,
-        TableService $tableService,
+        TableDataService  $tableDataService,
+        TableService      $tableService,
         TableFieldService $fieldService
     )
     {
@@ -78,16 +87,16 @@ class SettingsTableController extends Controller
     public function updateSettingsRow(UpdateSettingsRowRequest $request)
     {
         if (auth()->id()) {
-            return ['fld' => $this->fieldService->updateSettingsRow($request->table_field_id, auth()->id(), $request->field, $request->val, $request->recalc_ids ?: [])];
+            return ['fld' => $this->fieldService->updateSettingsRow($request->table_field_id, auth()->id(), $request->field, $request->val)];
         }
         return ['fld' => null];
     }
 
     /**
-     * @param \Illuminate\Http\Request $request
+     * @param Request $request
      * @return array
      */
-    public function justUserSetts(\Illuminate\Http\Request $request)
+    public function justUserSetts(Request $request)
     {
         if (auth()->id() && $request->table_id && is_array($request->datas)) {
             return ['_cur_settings' => $this->fieldService->justUserSetts($request->table_id, $request->datas)];
@@ -98,16 +107,16 @@ class SettingsTableController extends Controller
     /**
      * Update all columns settings for user
      *
-     * @param \Illuminate\Http\Request $request
+     * @param Request $request
      * @return array
      */
-    public function updateMassSettings(\Illuminate\Http\Request $request)
+    public function updateMassSettings(Request $request)
     {
         $user = auth()->check() ? auth()->user() : new User();
         $table = $this->tableService->getTable($request->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
         if ($user->id == $table->user_id) {
-            return ['fld' => $this->fieldService->massSettingsUpdate($request->table_id, $request->field, $request->val)];
+            return ['fld' => $this->fieldService->massSettingsUpdate($request->table_id, $request->field, $request->val, $request->limit_fields ?: [])];
         }
         return ['fld' => null];
     }
@@ -134,12 +143,12 @@ class SettingsTableController extends Controller
      * Change Order Column
      *
      * @param ChangeOrderColumnRequest $request
-     * @return array|\Vanguard\Models\Table\Table
+     * @return array|Table
      */
     public function changeOrderColumn(ChangeOrderColumnRequest $request)
     {
         if (auth()->id()) {
-            $table = $this->tableService->getTable( $request->table_id );
+            $table = $this->tableService->getTable($request->table_id);
             $this->authorize('load', [TableData::class, $table]);
             $this->tableDataService->changeOrderColumn($request->all());
             return $this->tableService->getWithFields($request->table_id, auth()->id());
@@ -181,10 +190,9 @@ class SettingsTableController extends Controller
     }
 
     /**
-     * Parse string and import Tooltips to TableFields.
-     *
      * @param GetTableRequest $request
-     * @return mixed
+     * @return \Illuminate\Support\Collection|\Vanguard\Models\DataSetPermissions\CondFormat[]
+     * @throws AuthorizationException
      */
     public function loadCondFormats(GetTableRequest $request)
     {
@@ -197,10 +205,40 @@ class SettingsTableController extends Controller
     }
 
     /**
-     * @param \Illuminate\Http\Request $request
+     * @param GetTableRequest $request
+     * @return \Illuminate\Support\Collection|\Vanguard\Models\DataSetPermissions\CondFormat[]
+     * @throws AuthorizationException
+     */
+    public function loadDDLs(GetTableRequest $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+
+        $this->authorize('load', [TableData::class, $table]);
+        (new DDLRepository())->loadForTable($table);
+
+        return $table->_ddls;
+    }
+
+    /**
+     * @param GetTableRequest $request
+     * @return \Illuminate\Support\Collection|\Vanguard\Models\DataSetPermissions\CondFormat[]
+     * @throws AuthorizationException
+     */
+    public function loadRefConds(GetTableRequest $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+
+        $this->authorize('load', [TableData::class, $table]);
+        (new TableRefConditionRepository())->loadForTable($table);
+
+        return $table->_ref_conditions;
+    }
+
+    /**
+     * @param Request $request
      * @return array
      */
-    public function updateKanban(\Illuminate\Http\Request $request)
+    public function updateKanban(Request $request)
     {
         $table = $this->tableService->getTable($request->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
@@ -213,23 +251,132 @@ class SettingsTableController extends Controller
     }
 
     /**
-     * @param \Illuminate\Http\Request $request
+     * @param Request $request
      * @return array|mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
-    public function attachDetachKanbanFld(\Illuminate\Http\Request $request)
+    public function attachDetachKanbanFld(Request $request)
     {
         $table = $this->tableService->getTable($request->table_id);
         $this->authorize('isOwner', [TableData::class, $table]);
         if ($request->kanban_id && $request->field_id) {
             $repo = new TableKanbanRepository();
-            if ($request->setting == 'table_field_id') {
-                $repo->attachDetachFld($request->kanban_id, $request->field_id, !!$request->val);
-            } else {
-                $repo->changePivotFld($request->kanban_id, $request->field_id, $request->setting, $request->val);
-            }
+            $repo->attachIfNeeded($request->kanban_id, $request->field_id);
+            $repo->changePivotFld($request->kanban_id, $request->field_id, $request->setting, $request->val);
             return $repo->getKanban($request->kanban_id);
         }
         return [];
+    }
+
+    /**
+     * @param ToggleKanbanRightRequest $request
+     * @return ResponseFactory|Response|mixed
+     */
+    public function toggleKanbanRight(ToggleKanbanRightRequest $request)
+    {
+        $repo = new TableKanbanRepository();
+        $kanban = $repo->getKanban($request->kanban_id, false);
+        if ($kanban->_field->_table->user_id == auth()->id()) {
+            return $repo->toggleKanbanRight($kanban, $request->permission_id, $request->can_edit);
+        } else {
+            return response('Forbidden', 403);
+        }
+    }
+
+    /**
+     * @param ToggleKanbanRightRequest $request
+     * @return ResponseFactory|Response|mixed
+     */
+    public function delKanbanRight(ToggleKanbanRightRequest $request)
+    {
+        $repo = new TableKanbanRepository();
+        $kanban = $repo->getKanban($request->kanban_id, false);
+        if ($kanban->_field->_table->user_id == auth()->id()) {
+            return $repo->deleteKanbanRight($kanban, $request->permission_id);
+        } else {
+            return response('Forbidden', 403);
+        }
+    }
+
+    /**
+     * @param Request $request
+     * @return ResponseFactory|TableKanbanSettings
+     */
+    public function copyKanbanSett(Request $request)
+    {
+        $repo = new TableKanbanRepository();
+        $kanban = $repo->getKanban($request->to_kanban_id, false);
+        if ($kanban->_field->_table->user_id == auth()->id()) {
+            return $repo->copyKanbanSett($request->from_kanban_id, $request->to_kanban_id, !!$request->field_pivot);
+        } else {
+            return response('Forbidden', 403);
+        }
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    protected function kanbanAuth(Request $request): array
+    {
+        $repo = new TableKanbanRepository();
+        $kanban = $repo->getKanban($request->kanban_id, false);
+        if ($kanban->_field->_table->user_id != auth()->id()) {
+            abort(403, 'Forbidden');
+        }
+        return [$repo, $kanban];
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     */
+    public function addGroupParam(Request $request)
+    {
+        /** @var TableKanbanRepository $repo */
+        /** @var TableKanbanSettings $kanban */
+        [$repo, $kanban] = $this->kanbanAuth($request);
+        $repo->addGroupParam($kanban, $request->fields);
+        return $kanban->_group_params()->get();
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     */
+    public function updateGroupParam(Request $request)
+    {
+        /** @var TableKanbanRepository $repo */
+        /** @var TableKanbanSettings $kanban */
+        [$repo, $kanban] = $this->kanbanAuth($request);
+        $param = $kanban->_group_params()->where('id', $request->param_id)->first();
+        $repo->updateGroupParam($param, $request->fields);
+        return $kanban->_group_params()->get();
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     */
+    public function deleteGroupParam(Request $request)
+    {
+        /** @var TableKanbanRepository $repo */
+        /** @var TableKanbanSettings $kanban */
+        [$repo, $kanban] = $this->kanbanAuth($request);
+        $param = $kanban->_group_params()->where('id', $request->param_id)->first();
+        $repo->deleteGroupParam($param, $request->fields);
+        return $kanban->_group_params()->get();
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     * @throws AuthorizationException
+     */
+    public function copyHeaderTo(Request $request)
+    {
+        $tableTo = $this->tableService->getTable($request->to_table_id);
+        $this->authorize('isOwner', [TableData::class, $tableTo]);
+        return (new ImportService())->copyFieldTo($request->from_field_id, $tableTo);
     }
 }

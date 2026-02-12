@@ -1,84 +1,41 @@
 
 export class ChartFunctions {
-
-    /**
-     * constructor
-     */
-    constructor(tableMeta) {
-        let setts = tableMeta._collaborator_bi_settings || {};
-        this.settings = {
-            table_id: tableMeta.id || null,
-            is_owner: tableMeta._is_owner,
-
-            fix_layout: tableMeta.bi_fix_layout,
-            can_add: tableMeta.bi_can_add,
-            hide_settings: tableMeta.bi_can_settings,
-            cell_height: tableMeta.bi_cell_height || 50,
-            cell_spacing: tableMeta.bi_cell_spacing || 25,
-
-            avail_fix_layout: tableMeta._is_owner || !!setts.avail_fix_layout,
-            avail_can_add: tableMeta._is_owner || !!setts.avail_can_add,
-            avail_hide_settings: tableMeta._is_owner || !!setts.avail_hide_settings,
-            avail_cell_height: tableMeta._is_owner || !!setts.avail_cell_height,
-            avail_cell_spacing: tableMeta._is_owner || !!setts.avail_cell_spacing,
-        };
-    }
-
-    /**
-     * 
-     * @returns {{table_id, is_owner: (*|boolean), bi_fix_layout: *, bi_can_add: *, bi_can_settings: *, bi_cell_height: *, bi_cell_spacing: *}|*}
-     */
-    getSett() {
-        return this.settings;
-    }
-    
     /* HELPERS */
 
     /**
      *
-     * @param $root
+     * @returns {{bi_cell_spacing: number, bi_can_add: number, bi_corner_radius: number, bi_fix_layout: number, bi_can_settings: number, bi_cell_height: number}}
      */
-    static saveSett(tableMeta, $root) {
-        $root = $root || {};
-        let settings = tableMeta._global_bi_settings.getSett();
-        if (settings.is_owner && settings.table_id) {
-            $root.sm_msg_type = 1;
-            axios.put('/ajax/table', {
-                table_id: settings.table_id,
-                bi_fix_layout: settings.fix_layout,
-                bi_can_add: settings.can_add,
-                bi_can_settings: settings.hide_settings,
-                bi_cell_height: settings.cell_height,
-                bi_cell_spacing: settings.cell_spacing,
-            }).finally(() => {
-                $root.sm_msg_type = 0;
-            });
-        }
+    static emptyBiSett(table_id) {
+        return {
+            id: null,
+            table_id: table_id,
+            bi_fix_layout: 1,
+            bi_can_add: 1,
+            bi_can_settings: 1,
+            bi_cell_height: 50,
+            bi_cell_spacing: 25,
+            bi_corner_radius: 5,
+        };
     }
 
-    static settsFromMeta(tableMeta, vue) {
-        if (!tableMeta._global_bi_settings) {
-            let cf = new ChartFunctions(tableMeta);
-            vue.$set(tableMeta, '_global_bi_settings', cf);
-        }
-        return tableMeta._global_bi_settings.getSett();
-    }
-    
     /**
      *
+     * @param table_chart_tab_id
      * @param table_id
      * @param user_id
      * @param row_idx
      * @param col_idx
-     * @returns {*}
+     * @returns {{table_chart_tab_id, row_idx, chart_settings: *, user_id, id: null, table_id, _can_edit: boolean, cached_data: *[], __gs_hash: *, col_idx}}
      */
-    static newChart(table_id, user_id, row_idx, col_idx) {
+    static newChart(table_chart_tab_id, table_id, user_id, row_idx, col_idx) {
         return {
             id: null,
             col_idx: col_idx,
             row_idx: row_idx,
             user_id: user_id,
             table_id: table_id,
+            table_chart_tab_id: table_chart_tab_id,
             chart_settings: this.emptySettings(),
             cached_data: [],
             _can_edit: true,
@@ -152,8 +109,74 @@ export class ChartFunctions {
      *
      * @returns {number}
      */
+    static maxAbout() {
+        return 5;
+    }
+
+    /**
+     *
+     * @returns {number}
+     */
     static maxLVL() {
-        return Math.max(this.maxHor(), this.maxVert());
+        return Math.max(this.maxHor(), this.maxVert(), this.maxAbout());
+    }
+
+    /**
+     *
+     * @param {Object} chart_settings
+     * @param {Boolean} uc_first
+     * @returns {string}
+     */
+    static chElType(chart_settings, uc_first) {
+        let str = '';
+        switch (chart_settings.elem_type) {
+            case 'bi_chart': str = 'chart'; break;
+            case 'pivot_table': str = 'table'; break;
+            case 'text_data': str = 'text'; break;
+            default: str = 'text'; break;
+        }
+        if (uc_first) {
+            str = str[0].toUpperCase() + str.slice(1);
+        }
+        return str;
+    }
+
+    /**
+     *
+     * @param chart_settings
+     * @param type
+     * @param fromIndex
+     * @param toIndex
+     * @returns {*}
+     */
+    static reorderSettings(chart_settings, type, fromIndex, toIndex) {
+        if (type === 'horizontal' || type === 'vertical') {
+            let clone = _.cloneDeep(chart_settings.pivot_table);
+            let suffixes = ['_reference','_ref_link','_field','_lvl_fname','_hide_empty','_show_links','_sub_total','_split'];
+            for (let i = Math.min(fromIndex, toIndex); i <= Math.max(fromIndex, toIndex); i++) {
+                _.each(suffixes, (suffix) => {
+                    let getI = i == toIndex
+                        ? fromIndex
+                        : (fromIndex < toIndex ? i+1 : i-1);
+                    chart_settings.pivot_table[type]['l'+i+suffix] = clone[type]['l'+getI+suffix];
+                });
+            }
+        }
+        if (type === 'about') {
+            let clone = _.cloneDeep(chart_settings.pivot_table);
+            let suffixes = ['field','label_field','calc_val','group_function','show_zeros','abo_type','formula_string','lvl_fname'];
+            for (let i = Math.min(fromIndex, toIndex); i <= Math.max(fromIndex, toIndex); i++) {
+                _.each(suffixes, (suffix) => {
+                    let getI = i == toIndex
+                        ? fromIndex
+                        : (fromIndex < toIndex ? i+1 : i-1);
+                    let iKey = i > 1 ? 'about_'+i : 'about';
+                    let getIkey = getI > 1 ? 'about_'+getI : 'about';
+                    chart_settings.pivot_table[iKey][suffix] = clone[getIkey][suffix];
+                });
+            }
+        }
+        return chart_settings;
     }
 
     /**
@@ -166,6 +189,8 @@ export class ChartFunctions {
             name: '',
             elem_type: 'pivot_table',
             active_type: 'settings',
+            vert_align: 'start',
+            hor_align: 'start',
             no_auto_update: false,
             wait_for_update: false,
             table_to_export: null,
@@ -180,10 +205,7 @@ export class ChartFunctions {
                 gs_he: 4,
                 back_color: null,
             },
-            dataset: {
-                type: 'list_view',
-                rowgr_id: 0,
-            },
+            data_range: null,
             bi_chart: {
                 show_legend: true,
                 chart_type: 'basic',
@@ -215,6 +237,7 @@ export class ChartFunctions {
                 }
             },
             pivot_table: {
+                data_widths: {}, //key: {width: 80}
                 vert_widths: {
                     1: {width: 80},
                     2: {width: 80},
@@ -239,30 +262,7 @@ export class ChartFunctions {
                 len_about: 1,
                 stack_about: false,
                 referenced_tables: false,
-                about: {
-                    field: null,
-                    calc_val: 1,
-                    group_function: 'sum',
-                    show_zeros: false,
-                    abo_type: 'field',
-                    formula_string: '',
-                },
-                about_2: {
-                    field: null,
-                    calc_val: 1,
-                    group_function: 'sum',
-                    show_zeros: false,
-                    abo_type: 'field',
-                    formula_string: '',
-                },
-                about_3: {
-                    field: null,
-                    calc_val: 1,
-                    group_function: 'sum',
-                    show_zeros: false,
-                    abo_type: 'field',
-                    formula_string: '',
-                },
+                activness_visible: true,
             },
             text_data: {
                 content: '',
@@ -274,17 +274,31 @@ export class ChartFunctions {
             obj.pivot_table.horizontal['l'+i+'_reference'] = null;//'field' -> the same table, 'id' -> another table
             obj.pivot_table.horizontal['l'+i+'_ref_link'] = null;//'id' just for '_reference'
             obj.pivot_table.horizontal['l'+i+'_field'] = null;
+            obj.pivot_table.horizontal['l'+i+'_lvl_fname'] = null;
             obj.pivot_table.horizontal['l'+i+'_hide_empty'] = false;
             obj.pivot_table.horizontal['l'+i+'_show_links'] = false;
             obj.pivot_table.horizontal['l'+i+'_sub_total'] = false;
             obj.pivot_table.horizontal['l'+i+'_split'] = false;
+
             obj.pivot_table.vertical['l'+i+'_reference'] = null;//'field' -> the same table, 'id' -> another table
             obj.pivot_table.vertical['l'+i+'_ref_link'] = null;//'id' just for '_reference'
             obj.pivot_table.vertical['l'+i+'_field'] = null;
+            obj.pivot_table.vertical['l'+i+'_lvl_fname'] = null;
             obj.pivot_table.vertical['l'+i+'_hide_empty'] = false;
             obj.pivot_table.vertical['l'+i+'_show_links'] = false;
             obj.pivot_table.vertical['l'+i+'_sub_total'] = false;
             obj.pivot_table.vertical['l'+i+'_split'] = false;
+
+            let akey = i > 1 ? 'about_'+i : 'about';
+            obj.pivot_table[akey] = {};
+            obj.pivot_table[akey].field = null;
+            obj.pivot_table[akey].label_field = null;
+            obj.pivot_table[akey].calc_val = 1;
+            obj.pivot_table[akey].group_function = 'sum';
+            obj.pivot_table[akey].show_zeros = false;
+            obj.pivot_table[akey].abo_type = 'field';
+            obj.pivot_table[akey].formula_string = '';
+            obj.pivot_table[akey].lvl_fname = '';
         }
         return obj;
     }

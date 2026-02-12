@@ -1,454 +1,473 @@
 <template>
-    <div class="container-fluid full-height">
-        <div v-if="!$root.AddonAvailableToUser(tableMeta, 'request')" class="row full-frame flex flex--center">
+    <div class="full-height" :style="sysStyleWiBg">
+        <div v-if="!$root.AddonAvailableToUser(tableMeta, 'request')" class="full-frame flex flex--center">
             <label>Addon is unavailable!</label>
         </div>
-        <div v-else="" class="row full-height permissions-tab">
-            <!--LEFT SIDE-->
-            <div class="col-xs-5 full-height" style="padding-right: 0;">
-                <div class="top-text" :style="textSysStyle">
-                    <span>Data Collection & Request (DCR)</span>
-                </div>
-                <div class="permissions-panel no-padding">
-                    <custom-table
-                        v-if="isVisible"
-                        :cell_component_name="'custom-cell-settings-dcr'"
-                        :global-meta="tableMeta"
-                        :table-meta="$root.settingsMeta['table_data_requests']"
-                        :all-rows="tableMeta._table_requests"
-                        :rows-count="tableMeta._table_requests.length"
-                        :cell-height="1"
-                        :max-cell-rows="0"
-                        :is-full-width="true"
-                        :with_edit="tableMeta._is_owner"
-                        :behavior="'table_permission_group'"
-                        :user="user"
-                        :adding-row="addingRow"
-                        :selected-row="selectedGroup"
-                        :available-columns="requestAvailable"
-                        @added-row="addGroup"
-                        @updated-row="updateGroup"
-                        @delete-row="deleteGroup"
-                        @row-index-clicked="rowIndexClickedGroup"
-                    ></custom-table>
-                </div>
-            </div>
-            <!--RIGHT SIDE-->
-            <div class="col-xs-7 full-height">
-                <div class="top-text" :style="textSysStyle">
-                    <span>Specifications of Current DCR ( <span>{{ (tableMeta._table_requests[selectedGroup] ? tableMeta._table_requests[selectedGroup].name : '') }}</span> )</span>
-                </div>
-                <div class="permissions-panel" :style="{height: activeRightTab === 'columns' ? 'calc(40% - 35px)' : 'calc(100% - 35px)'}">
-                    <div class="permissions-menu-header">
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'design'}" @click="activeRightTab = 'design'">
-                            Design
-                        </button>
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'columns'}" @click="activeRightTab = 'columns'">
-                            Columns
-                        </button>
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'defaults'}" @click="activeRightTab = 'defaults'">
-                            Defaults
-                        </button>
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'actions'}" @click="activeRightTab = 'actions'">
-                            Action & Status
-                        </button>
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
-                            Notifications
-                        </button>
-                        <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'access'}" @click="activeRightTab = 'access'">
-                            Access
-                        </button>
-                    </div>
-                    <div class="permissions-menu-body">
+        <div v-else="" class="full-height permissions-tab">
+            <div class="permissions-panel" :style="$root.themeMainBgStyle">
+                <div class="permissions-menu-header">
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'list'}" @click="activeRightTab = 'list'">
+                        List
+                    </button>
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'design'}" @click="activeRightTab = 'design'">
+                        Design
+                    </button>
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'columns'}" @click="activeRightTab = 'columns'">
+                        Fields
+                    </button>
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'actions'}" @click="activeRightTab = 'actions'">
+                        Action & Status
+                    </button>
+                    <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'notifs'}" @click="activeRightTab = 'notifs'">
+                        Notifications
+                    </button>
 
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'design'" style="padding: 0">
-                            <tab-settings-requests-row
-                                    v-if="tableMeta._table_requests[selectedGroup]"
-                                    :table_id="tableMeta.id"
-                                    :table-meta="tableMeta"
-                                    :cell-height="1"
-                                    :max-cell-rows="0"
-                                    :table-request="$root.settingsMeta['table_data_requests']"
-                                    :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
-                                    :with_edit="tableMeta._is_owner"
-                                    @updated-cell="updateGroup"
-                                    @upload-file="uploadGroupFile"
-                                    @del-file="delGroupFile"
-                            ></tab-settings-requests-row>
+                    <div v-if="selected_req" class="flex flex--center-v flex--end" style="position: absolute; top: 2px; right: 0; height: 30px; width: calc(100% - 510px);">
+
+                        <div class="flex flex--center ml10 mr0" style="white-space: nowrap;font-weight: bold;margin-bottom: 5px;" :style="textSysStyleSmart">
+                            <button class="btn btn-default btn-sm blue-gradient full-height"
+                                    :style="$root.themeButtonStyle"
+                                    @click="copyPopup = true"
+                            >Copy</button>
                         </div>
+                        
+                        <label class="flex flex--center ml10 mr0" style="white-space: nowrap;" :style="textSysStyleSmart">
+                            DCR Loaded:&nbsp;
+                            <select-block
+                                :options="dcrOpts(true)"
+                                :sel_value="selected_req.id"
+                                :style="{ maxWidth:'250px', height:'32px', minWidth: '100px', }"
+                                :link_path="getLinkHash()"
+                                @option-select="seleChange"
+                            ></select-block>
+                        </label>
 
-                        <div class="full-frame no-padding defaults-tab" v-show="activeRightTab === 'columns'">
+
+                        <info-sign-link v-show="activeRightTab === 'list'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab'" :hgt="30" :txt="'for DCR/List'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'design' && actDes === 'overall'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_design_all'" :hgt="30" :txt="'for DCR/Design/Overall'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'design' && actDes === 'title'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_design_title'" :hgt="30" :txt="'for DCR/Design/Title'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'design' && actDes === 'form'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_design_form'" :hgt="30" :txt="'for DCR/Design/Form'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'design' && actDes === 'top_msg'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_design_top_msg'" :hgt="30" :txt="'for DCR/Design/Top Message'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'columns' && activeColTab === 'this_tb' && activeColThisTbTab === 'col_group'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_columns_group'" :hgt="30" :txt="'for DCR/Columns/Groups'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'columns' && activeColTab === 'this_tb' && activeColThisTbTab === 'tb_display'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_columns_tb_display'" :hgt="30" :txt="'for DCR/Columns/Display'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'columns' && activeColTab === 'this_tb' && activeColThisTbTab === 'default'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_columns_default'" :hgt="30" :txt="'for DCR/Columns/Default'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'columns' && activeColTab === 'embed'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_columns_embed'" :hgt="30" :txt="'for DCR/Columns/Embed'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'actions'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_actions'" :hgt="30" :txt="'for DCR/Actions'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'notifs' && actNots === 'sav'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_notifs_sav'" :hgt="30" :txt="'for DCR/Notifications/Saving'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'notifs' && actNots === 'submis'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_notifs_submit'" :hgt="30" :txt="'for for DCR/Notifications/Submitting'"></info-sign-link>
+                        <info-sign-link v-show="activeRightTab === 'notifs' && actNots === 'updat'" class="ml5 mr5 ilnk" :app_sett_key="'help_link_dcr_tab_notifs_updat'" :hgt="30" :txt="'for DCR/Notifications/Updating'"></info-sign-link>
+                    </div>
+                </div>
+                <div class="permissions-menu-body">
+
+                    <div class="full-frame defaults-tab flex flex--col" v-show="activeRightTab === 'list'" :style="$root.themeMainBgStyle">
+                        <div style="height: 30%;">
                             <custom-table
-                                v-if="tableMeta._table_requests[selectedGroup]"
+                                v-if="isVisible"
                                 :cell_component_name="'custom-cell-settings-dcr'"
                                 :global-meta="tableMeta"
-                                :table-meta="$root.settingsMeta['table_data_requests_2_table_column_groups']"
-                                :all-rows="tableMeta._table_requests[selectedGroup]._data_request_columns"
-                                :rows-count="tableMeta._table_requests[selectedGroup]._data_request_columns.length"
-                                :cell-height="1"
+                                :table-meta="$root.settingsMeta['table_data_requests']"
+                                :all-rows="tableMeta._table_requests"
+                                :rows-count="tableMeta._table_requests.length"
+                                :cell-height="1.2"
                                 :max-cell-rows="0"
                                 :is-full-width="true"
-                                :with_edit="tableMeta._is_owner"
-                                :adding-row="selectedGroup > -1 ? addingRow : {active: false}"
-                                :user="user"
-                                :show-info-key="'add_notes'"
-                                :behavior="'dcr_group'"
-                                :forbidden-columns="$root.systemFields"
-                                :excluded_row_values="[{ field: 'view', excluded: [0] }]"
-                                @added-row="addGroupColumnPermis"
-                                @updated-row="updateGroupColumnPermis"
-                                @delete-row="deleteGroupColumnPermis"
+                                :with_edit="canAddonEdit()"
+                                :behavior="'table_permission_group'"
+                                :user="$root.user"
+                                :adding-row="addingRow"
+                                :selected-row="selectedGroup"
+                                :available-columns="requestAvailable"
+                                @added-row="addGroup"
+                                @updated-row="updateGroup"
+                                @delete-row="deleteGroup"
+                                @row-index-clicked="rowIndexClickedGroup"
                             ></custom-table>
                         </div>
-
-                        <div class="full-frame defaults-tab" v-if="activeRightTab === 'defaults'">
-                            <default-fields-table
-                                    v-if="tableMeta._table_requests[selectedGroup]"
-                                    :table-dcr-id="tableMeta._table_requests[selectedGroup].id"
-                                    :user-group-id="null"
-                                    :table-meta="tableMeta"
-                                    :default-fields="tableMeta._table_requests[selectedGroup]._default_fields"
-                                    :user="user"
-                                    :with_edit="tableMeta._is_owner"
-                                    :cell-height="1"
-                                    :max-cell-rows="0"
-                            ></default-fields-table>
+                        <div class="top-text" style="background: linear-gradient(rgb(255, 255, 255), rgb(209, 209, 209) 50%, rgb(199, 199, 199) 50%, rgb(230, 230, 230));">
+                            <span style="color: #444; font-weight: bold; font-size: 18px; line-height: 18px; padding-left: 5px;">Access</span>
                         </div>
-
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'actions'">
-                            <tab-settings-submission-row
-                                    v-if="tableMeta._table_requests[selectedGroup]"
-                                    :table-meta="tableMeta"
-                                    :table_id="tableMeta.id"
-                                    :cell-height="1"
-                                    :max-cell-rows="0"
-                                    :table-request="$root.settingsMeta['table_data_requests']"
-                                    :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
-                                    :with_edit="tableMeta._is_owner"
-                                    @updated-cell="updateGroup"
-                            ></tab-settings-submission-row>
-                        </div>
-
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'notifs'" style="padding: 0;">
-                            <tab-settings-request-notifs
-                                    v-if="tableMeta._table_requests[selectedGroup]"
-                                    :table-meta="tableMeta"
-                                    :table_id="tableMeta.id"
-                                    :cell-height="1"
-                                    :max-cell-rows="0"
-                                    :table-request="$root.settingsMeta['table_data_requests']"
-                                    :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
-                                    :with_edit="tableMeta._is_owner"
-                                    @updated-cell="updateGroup"
-                            ></tab-settings-request-notifs>
-                        </div>
-
-                        <div class="full-frame defaults-tab" v-show="activeRightTab === 'access'">
+                        <div style="height: 70%; padding: 5px; overflow: auto;">
                             <tab-settings-access-row
-                                    v-if="tableMeta._table_requests[selectedGroup]"
-                                    :table-meta="tableMeta"
-                                    :cell-height="1"
-                                    :max-cell-rows="0"
-                                    :table-request="$root.settingsMeta['table_data_requests']"
-                                    :request-row="selectedGroup > -1 ? tableMeta._table_requests[selectedGroup] : {}"
-                                    :with_edit="tableMeta._is_owner"
-                                    @updated-cell="updateGroup"
+                                v-if="selected_req"
+                                :table-meta="tableMeta"
+                                :cell-height="1"
+                                :max-cell-rows="0"
+                                :table-request="$root.settingsMeta['table_data_requests']"
+                                :request-row="selectedGroup > -1 ? selected_req : {}"
+                                :with_edit="canPermisEdit()"
+                                @updated-cell="updateGroup"
                             ></tab-settings-access-row>
                         </div>
-
                     </div>
+
+                    <div class="full-frame defaults-tab" v-show="activeRightTab === 'design'" :style="$root.themeMainBgStyle">
+                        <tab-settings-requests-row
+                                v-if="selected_req"
+                                :table_id="tableMeta.id"
+                                :table-meta="tableMeta"
+                                :cell-height="1"
+                                :max-cell-rows="0"
+                                :table-request="$root.settingsMeta['table_data_requests']"
+                                :request-row="selected_req"
+                                :with_edit="canPermisEdit()"
+                                @updated-cell="updateGroup"
+                                @upload-file="uploadGroupFile"
+                                @del-file="delGroupFile"
+                                @set-sub-tab="(key) => { actDes = key; }"
+                        ></tab-settings-requests-row>
+                    </div>
+
+                    <div class="full-frame defaults-tab flex flex--col" v-show="activeRightTab === 'columns'" :style="$root.themeMainBgStyle">
+                        <div class="permissions-menu-header" :style="$root.themeMainBgStyle" style="padding: 0 0 0 5px;">
+                            <button class="btn btn-default btn-sm" :class="{active : activeColTab === 'this_tb'}" :style="textSysStyle" @click="activeColTab = 'this_tb'">
+                                This Table
+                            </button>
+                            <button class="btn btn-default btn-sm" :class="{active : activeColTab === 'embed'}" :style="textSysStyle" @click="activeColTab = 'embed'">
+                                Embedded Tables
+                            </button>
+
+                            <div v-if="activeColTab === 'this_tb'" class="flex flex--center-v flex--end" style="position: absolute; top: 2px; right: 5px; height: 30px; width: 250px;">
+                                <label class="flex flex--center" style="line-height: 20px;">
+                                    <a @click="showSettingsPoPopup" style="cursor: pointer; text-decoration: underline;" :style="textSysStyleSmart">Settings</a>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="permissions-menu-body" style="border: 1px solid #CCC; overflow: auto;">
+                            <tab-settings-requests-this-table
+                                v-if="tableMeta && selected_req"
+                                v-show="activeColTab === 'this_tb'"
+                                :table_id="tableMeta.id"
+                                :table-meta="tableMeta"
+                                :dcr-object="selected_req"
+                                :with-edit="canPermisEdit()"
+                                :can-adding-row="selectedGroup > -1"
+                                @check-row="dcrSettCheck"
+                                @subtab-change="(key) => { activeColThisTbTab = key; }"
+                            ></tab-settings-requests-this-table>
+
+                            <tab-settings-requests-linked-tables
+                                v-if="tableMeta && selected_req"
+                                v-show="activeColTab === 'embed'"
+                                :table-meta="tableMeta"
+                                :dcr-object="selected_req"
+                            ></tab-settings-requests-linked-tables>
+                        </div>
+                    </div>
+
+                    <div class="full-frame defaults-tab" v-show="activeRightTab === 'actions'" :style="$root.themeMainBgStyle">
+                        <tab-settings-submission-row
+                                v-if="selected_req"
+                                :table-meta="tableMeta"
+                                :table_id="tableMeta.id"
+                                :cell-height="1"
+                                :max-cell-rows="0"
+                                :table-request="$root.settingsMeta['table_data_requests']"
+                                :request-row="selectedGroup > -1 ? selected_req : {}"
+                                :with_edit="canPermisEdit()"
+                                @updated-cell="updateGroup"
+                        ></tab-settings-submission-row>
+                    </div>
+
+                    <div class="full-frame defaults-tab" v-show="activeRightTab === 'notifs'" :style="$root.themeMainBgStyle">
+                        <tab-settings-request-notifs
+                                v-if="selected_req"
+                                :table-meta="tableMeta"
+                                :table_id="tableMeta.id"
+                                :cell-height="1"
+                                :max-cell-rows="0"
+                                :table-request="$root.settingsMeta['table_data_requests']"
+                                :request-row="selectedGroup > -1 ? selected_req : {}"
+                                :with_edit="canPermisEdit()"
+                                @updated-cell="updateGroup"
+                                @set-sub-tab="(key) => { actNots = key; }"
+                        ></tab-settings-request-notifs>
+                    </div>
+
                 </div>
-
-                <template v-if="tableMeta._table_requests[selectedGroup] && activeRightTab === 'columns'">
-                    <div class="top-text" :style="textSysStyle">Embed Linked Tables</div>
-                    <div class="permissions-panel" style="height: calc(60% - 30px)">
-                        <tab-settings-requests-linked-tables
-                            :table-meta="tableMeta"
-                            :dcr-object="tableMeta._table_requests[selectedGroup]"
-                        ></tab-settings-requests-linked-tables>
-                    </div>
-                </template>
             </div>
         </div>
+
+        <slot-popup
+            v-if="copyPopup"
+            :popup_width="400"
+            :popup_height="175"
+            @popup-close="copyPopup = false"
+        >
+            <template v-slot:title>
+                <span>Copy Settings From</span>
+            </template>
+            <template v-slot:body>
+                <div class="p10">
+                    <div class="flex flex--center-v" style="margin: 15px 0;">
+                        <label class="no-margin no-wrap">Select source DCR:&nbsp;</label>
+                        <select-block
+                            :options="dcrOpts()"
+                            :sel_value="copy_from_dcr_id"
+                            :fixed_pos="true"
+                            style="height: 32px"
+                            @option-select="(opt) => { copy_from_dcr_id = opt.val; }"
+                        ></select-block>
+                    </div>
+                    <button class="btn btn-default btn-sm blue-gradient pull-right"
+                            :style="$root.themeButtonStyle"
+                            @click="copyFullDcr()"
+                    >Copy</button>
+                </div>
+            </template>
+        </slot-popup>
     </div>
 </template>
 
 <script>
+import {eventBus} from "../../../../../app";
+
+import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
+import {DcrEndpoints} from "../../../../../classes/DcrEndpoints";
+
+import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
 import CustomTable from '../../../../CustomTable/CustomTable';
-import DefaultFieldsTable from '../../../../CustomPopup/DefaultFieldsTable';
-import VerticalTable from "../../../../CustomTable/VerticalTable";
 import TabSettingsRequestsRow from "./TabSettingsRequestsRow";
 import TabSettingsSubmissionRow from "./TabSettingsSubmissionRow";
 import VerticalRowsTable from "../../../../CustomTable/VerticalRowsTable";
 import TabSettingsRequestNotifs from "./TabSettingsRequestNotifs";
 import TabSettingsRequestsLinkedTables from "./TabSettingsRequestsLinkedTables";
 import TabSettingsAccessRow from "./TabSettingsAccessRow";
-
-import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink";
+import TabSettingsRequestsThisTable from "./TabSettingsRequestsThisTable.vue";
 
 export default {
-        name: "TabSettingsRequests",
-        components: {
-            TabSettingsAccessRow,
-            TabSettingsRequestsLinkedTables,
-            TabSettingsRequestNotifs,
-            VerticalRowsTable,
-            TabSettingsSubmissionRow,
-            TabSettingsRequestsRow,
-            VerticalTable,
-            CustomTable,
-            DefaultFieldsTable,
-        },
-        mixins: [
-            CellStyleMixin
-        ],
-        data: function () {
-            return {
-                activeRightTab: 'design',
-                selectedGroup: 0,
-                addingRow: {
-                    active: true,
-                    position: 'bottom'
-                },
-                requestAvailable: [
-                    'name',
-                    'pass',
-                    'active',
-                ],
-            }
-        },
-        props:{
-            tableMeta: Object,
-            table_id: Number|null,
-            user:  Object,
-            isVisible: Boolean,
-        },
-        watch: {
-            table_id: function(val) {
-                this.selectedGroup = 0;
-                this.activeRightTab = 'design';
-            }
-        },
-        methods: {
-            rowIndexClickedGroup(index) {
-                this.activeRightTab = 'design';
-                this.selectedGroup = index;
-            },
-            //Table Permissions Functions
-            addGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
-
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-                fields.active = fields.active ? 1 : 0;
-
-                axios.post('/ajax/table-data-request', {
-                    table_id: this.tableMeta.id,
-                    fields: fields,
-                }).then(({ data }) => {
-                    this.tableMeta._table_requests.push(data);
-                    this.selectedGroup = -1;
-                }).catch(errors => {
-                    Swal({
-                        title: '',
-                        text: getErrors(errors),
-                        customClass: 'no-wrap'
-                    });
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            updateGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
-
-                let group_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.put('/ajax/table-data-request', {
-                    table_data_request_id: group_id,
-                    fields: fields
-                }).then(({ data }) => {
-                }).catch(errors => {
-                    Swal({
-                        title: '',
-                        text: getErrors(errors),
-                        customClass: 'no-wrap'
-                    });
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            deleteGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
-                axios.delete('/ajax/table-data-request', {
-                    params: {
-                        table_dcr_id: tableRow.id
-                    }
-                }).then(({ data }) => {
-                    let idx = _.findIndex(this.tableMeta._table_requests, {id: Number(tableRow.id)});
-                    if (idx > -1) {
-                        this.selectedGroup = -1;
-                        this.tableMeta._table_requests.splice(idx, 1);
-                    }
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            uploadGroupFile(tableRow, field, file) {
-                this.$root.sm_msg_type = 1;
-                let group_id = tableRow.id;
-                let formData = new FormData();
-                formData.append('table_data_request_id', group_id);
-                formData.append('field', field);
-                formData.append('u_file', file);
-                axios.post('/ajax/table-data-request/dcr-file', formData, {
-                    headers: {
-                        'Content-Type': 'multipart/form-data'
-                    }
-                }).then(({ data }) => {
-                    tableRow[field] = data.filepath;
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            delGroupFile(tableRow, field) {
-                this.$root.sm_msg_type = 1;
-                let group_id = tableRow.id;
-                axios.delete('/ajax/table-data-request/dcr-file', {
-                    params: {
-                        table_data_request_id: group_id,
-                        field: field,
-                        u_file: 'delete',
-                    }
-                }).then(({ data }) => {
-                    tableRow[field] = null;
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-
-            //User Group Columns Functions
-            addGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, 1, 0);
-            },
-            updateGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, tableColumn.view, tableColumn.edit);
-            },
-            deleteGroupColumnPermis(tableColumn) {
-                this.updateGroupColumn(tableColumn.table_column_group_id, 0, 0);
-            },
-            updateGroupColumn(tb_column_group_id, viewed, edited) {
-
-                let req_columns = this.tableMeta._table_requests[this.selectedGroup]._data_request_columns;
-                let columnGr = _.find(req_columns, {table_column_group_id: Number(tb_column_group_id)});
-
-                if (columnGr) {
-                    viewed = viewed === undefined ? columnGr.view : viewed;
-                    edited = edited === undefined ? columnGr.edit : edited;
-                }
-
-                this.$root.sm_msg_type = 1;
-                axios.post('/ajax/table-data-request/column', {
-                    table_data_request_id: this.tableMeta._table_requests[this.selectedGroup].id,
-                    table_column_group_id: tb_column_group_id,
-                    view: viewed ? 1 : 0,
-                    edit: edited ? 1 : 0,
-                }).then(({ data }) => {
-                    let idx = _.findIndex(req_columns, (el) => {
-                        return el.table_column_group_id == tb_column_group_id;
-                    });
-                    if (idx > -1) {
-                        req_columns.splice(idx, 1 ,data);
-                    } else {
-                        req_columns.push( data );
-                    }
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-
-            //Linked Tables for DCR
-            addLinkedDcr(tableRow) {
-                Swal('', 'Unavailable');return;
-                this.$root.sm_msg_type = 1;
-
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-                fields.active = fields.active ? 1 : 0;
-
-                axios.post('/ajax/table-data-request/linked-dcr', {
-                    table_id: this.tableMeta.id,
-                    fields: fields,
-                }).then(({ data }) => {
-                    //
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            updateLinkedDcr(tableRow) {
-                Swal('', 'Unavailable');return;
-                this.$root.sm_msg_type = 1;
-
-                let group_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.put('/ajax/table-data-request/linked-dcr', {
-                    table_data_request_id: group_id,
-                    fields: fields
-                }).then(({ data }) => {
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            deleteLinkedDcr(tableRow) {
-                Swal('', 'Unavailable');return;
-                this.$root.sm_msg_type = 1;
-                axios.delete('/ajax/table-data-request/linked-dcr', {
-                    params: {
-                        table_data_request_id: tableRow.id
-                    }
-                }).then(({ data }) => {
-                    //
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-        },
-        mounted() {
-        },
-        beforeDestroy() {
+    name: "TabSettingsRequests",
+    components: {
+        TabSettingsRequestsThisTable,
+        InfoSignLink,
+        SelectBlock,
+        TabSettingsAccessRow,
+        TabSettingsRequestsLinkedTables,
+        TabSettingsRequestNotifs,
+        VerticalRowsTable,
+        TabSettingsSubmissionRow,
+        TabSettingsRequestsRow,
+        CustomTable,
+    },
+    mixins: [
+        CellStyleMixin,
+    ],
+    data: function () {
+        return {
+            copyPopup: false,
+            copy_from_dcr_id: null,
+            withEdit: true,
+            actDes: 'overall',
+            actNots: 'submis',
+            activeColTab: 'this_tb',
+            activeColThisTbTab: 'col_group',
+            activeRightTab: 'list',
+            selectedGroup: 0,
+            requestAvailable: [
+                'name',
+                'custom_url',
+                'description',
+                'pass',
+                'one_per_submission',
+                'permission_dcr_id',
+                'active',
+            ],
         }
+    },
+    props:{
+        tableMeta: Object,
+        table_id: Number|null,
+        isVisible: Boolean,
+    },
+    computed: {
+        addingRow() {
+            return {
+                active: this.canAddonEdit(),
+                position: 'bottom',
+            };
+        },
+        selected_req() {
+            return this.tableMeta._table_requests[this.selectedGroup];
+        },
+        sysStyleWiBg() {
+            return {
+                ...this.textSysStyle,
+                ...this.$root.themeMainBgStyle,
+            };
+        },
+    },
+    watch: {
+        table_id: function(val) {
+            this.selectedGroup = 0;
+            this.activeRightTab = 'list';
+        }
+    },
+    methods: {
+        canPermisEdit() {
+            return this.withEdit && this.$root.addonCanPermisEdit(this.tableMeta, this.selected_req, '_dcr_rights');
+        },
+        canAddonEdit() {
+            return this.$root.addonCanEditGeneral(this.tableMeta, 'request');
+        },
+        //top select
+        dcrOpts(filter) {
+            let dcrs = _.filter(this.tableMeta._table_requests, (dcr) => {
+                return !filter || !this.selected_req || dcr.id != this.selected_req.id;
+            });
+            return _.map(dcrs, (dcr) => {
+                return { val:dcr.id, show:dcr.name };
+            });
+        },
+        seleChange(opt) {
+            this.selectedGroup = _.findIndex(this.tableMeta._table_requests, {id: Number(opt.val)});
+        },
+        getLinkHash() {
+            let domain = this.$root.clear_url + '/dcr/';
+            return this.selected_req && this.selected_req.link_hash
+                ? domain+this.selected_req.link_hash
+                : '#';
+        },
+        copyFullDcr(asd) {
+            this.$root.sm_msg_type = 1;
+            axios.post('/ajax/table-data-request/copy', {
+                from_data_request_id: this.copy_from_dcr_id,
+                to_data_request_id: this.selected_req.id,
+                full_copy: 1,
+            }).then(({ data }) => {
+                if (data && _.first(data)) {
+                    SpecialFuncs.assignProps(this.selected_req, _.first(data));
+                    this.copy_from_dcr_id = null;
+                }
+            }).catch(errors => {
+                Swal('Info', getErrors(errors));
+            }).finally(() => {
+                this.$root.sm_msg_type = 0;
+            });
+        },
+        //
+        rowIndexClickedGroup(index) {
+            this.activeRightTab = 'list';
+            this.selectedGroup = index;
+        },
+        //Table Permissions Functions
+        addGroup(tableRow) {
+            this.$root.sm_msg_type = 1;
+
+            let fields = _.cloneDeep(tableRow);//copy object
+            this.$root.deleteSystemFields(fields);
+            fields.active = fields.active ? 1 : 0;
+
+            axios.post('/ajax/table-data-request', {
+                table_id: this.tableMeta.id,
+                fields: fields,
+            }).then(({ data }) => {
+                this.tableMeta._table_requests.push(data);
+                this.selectedGroup = -1;
+            }).catch(errors => {
+                Swal({
+                    title: 'Info',
+                    text: getErrors(errors),
+                    customClass: 'no-wrap'
+                });
+            }).finally(() => {
+                this.$root.sm_msg_type = 0;
+            });
+        },
+        updateGroup(tableRow, changedKey) {
+            DcrEndpoints.update(tableRow)
+                .then(({ data }) => {
+                    if (changedKey === 'dcr_record_url_field_id') {
+                        this.fillDcrUrl(group_id);
+                    }
+                    if (changedKey === 'dcr_record_status_id') {
+                        eventBus.$emit('reload-meta-table');
+                    }
+                    tableRow.qr_link = data.qr_link + '?v=' + uuidv4();
+                });
+        },
+        fillDcrUrl(dcr_id) {
+            axios.post('/ajax/table-data-request/dcr-url-record', {
+                table_data_request_id: dcr_id,
+            }).then(({ data }) => {
+                eventBus.$emit('reload-page');
+            });
+        },
+        deleteGroup(tableRow) {
+            this.$root.sm_msg_type = 1;
+            axios.delete('/ajax/table-data-request', {
+                params: {
+                    table_dcr_id: tableRow.id
+                }
+            }).then(({ data }) => {
+                let idx = _.findIndex(this.tableMeta._table_requests, {id: Number(tableRow.id)});
+                if (idx > -1) {
+                    this.selectedGroup = -1;
+                    this.tableMeta._table_requests.splice(idx, 1);
+                }
+            }).catch(errors => {
+                Swal('Info', getErrors(errors));
+            }).finally(() => {
+                this.$root.sm_msg_type = 0;
+            });
+        },
+        uploadGroupFile(tableRow, field, file) {
+            DcrEndpoints.uploadFile(tableRow, field, file);
+        },
+        delGroupFile(tableRow, field) {
+            DcrEndpoints.delFile(tableRow, field);
+        },
+
+        //Fields settings
+        dcrSettCheck(field, val) {
+            this.withEdit = false;
+            DcrEndpoints.checkColumn(this.selected_req, field, val)
+                .then(({ data }) => {
+                    this.withEdit = true;
+                });
+        },
+
+        //events
+        showSettingsPoPopup() {
+            eventBus.$emit('show-table-settings-all-popup', {tab:'bas_popup'});
+        },
+    },
+    mounted() {
+    },
+    beforeDestroy() {
     }
+}
 </script>
 
 <style lang="scss" scoped>
     @import "./TabSettingsPermissions";
 
-    .part-panel-sm {
-        height: calc(30% - 8px);
-        background-color: #FFF;
+    .permissions-tab {
+        padding: 5px;
+        height: 100%;
+
+        .permissions-panel {
+            height: 100%;
+        }
     }
-    .part-panel-lg {
-        height: calc(70% - 8px);
-        background-color: #FFF;
-    }
-    .btn-default {
-        height: 30px;
+    .vertical-buttons {
+        transform: rotate(-90deg);
+        transform-origin: top right;
+        right: calc(100% - 5px);
+        position: absolute;
+        white-space: nowrap;
+        top: 5px;
+        display: flex;
+        flex-direction: row-reverse;
+
+        .btn {
+            outline: none;
+            background-color: #CCC;
+        }
+        .btn.active {
+            background-color: #FFF;
+        }
     }
 </style>

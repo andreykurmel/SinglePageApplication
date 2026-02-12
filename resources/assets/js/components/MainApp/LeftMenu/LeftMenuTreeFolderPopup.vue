@@ -16,6 +16,13 @@
                                    @change="fixName()"
                                    :style="textStyle">
                         </div>
+                        <div>
+                            <label class="l-inl-label" :style="{width: (themeTextFontSize*7.5)+'px', color: themeTextFontColor}">Description:</label>
+                            <textarea class="form-control form-group l-inl-control"
+                                      rows="7"
+                                      v-model="f_description"
+                                      :style="textStyle"/>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-success" @click="addFolder()">OK</button>
@@ -40,6 +47,7 @@
         data() {
             return {
                 f_name: '',
+                f_description: '',
             }
         },
         props: {
@@ -47,7 +55,7 @@
         },
         methods: {
             addFolder() {
-                this.$emit('store-folder', this.f_name, this.folderPopup);
+                this.$emit('store-folder', this.f_name, this.f_description, this.folderPopup);
             },
             fixName() {
                 this.f_name = SpecialFuncs.safeTableName(this.f_name);

@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallInput;
 use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallOut;
-use Vanguard\Ideas\Repos\TableRepository;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableFieldLink;
@@ -55,11 +54,13 @@ class PaymentProcessingController extends Controller implements AppControllerInt
      */
     public function get(Request $request, CorrespApp $correspApp)
     {
-        [$errors_present, $link, $row, $table] = $this->getLinkRowTable($request->link, $request->row);
+        [$errors_present, $link, $row, $table] = $this->getLinkRowTable($request->l, $request->r);
 
         $lightweight = $correspApp->open_as_popup;
         $stripe_keys = !$errors_present ? $this->conn_repo->userPaymentDecrypt($link->_stripe_user_key) : [];
         $paypal_keys = !$errors_present ? $this->conn_repo->userPaymentDecrypt($link->_paypal_user_key) : [];
+        $papp = CorrespApp::where('code', '=', 'payment_processing')->first();
+        $no_settings = $papp && $link && $papp->id == $link->table_app_id;
         return view('tablda.applications.payment-processing', array_merge(
             $this->bladeVariablesService->getVariables(null, 0, $lightweight),
             [
@@ -70,6 +71,7 @@ class PaymentProcessingController extends Controller implements AppControllerInt
                 'stripe_key' => $stripe_keys['public_key']??'',
                 'paypal_client' => $paypal_keys['public_key']??'',
                 'route_group' => 'payment_processing',
+                'no_settings' => $no_settings,
             ]
         ));
     }

@@ -74,19 +74,19 @@
                 this.ocr_file = null;
                 this.preparsed_datas = null;
                 if (!this.import_action) {
-                    Swal('Please select an option.');
+                    Swal('Info','Please select an option.');
                     return;
                 }
                 axios.post('/ajax/import/ocr/check-key', {
                     key: this.ocr_api_key,
                 }).then(({ data }) => {
                     if (data.usage && data.usage.credits <= data.usage.used) {
-                        Swal('All credits are used for this Key.');
+                        Swal('Info','All credits are used for this Key.');
                         this.ocr_api_key = null;
                     }
                     this.emitProps();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                     this.ocr_api_key = null;
                 });
             },
@@ -104,7 +104,7 @@
 
             startOcrParsing() {
                 if (!this.import_action) {
-                    Swal('Please select an option.');
+                    Swal('Info','Please select an option.');
                     return;
                 }
                 this.ocr_processing = true;
@@ -116,7 +116,7 @@
                     this.emitProps();
                     this.fillResultsAndEmit(data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.ocr_processing = false;
                 });

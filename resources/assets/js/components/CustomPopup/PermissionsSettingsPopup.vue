@@ -57,14 +57,14 @@
         methods: {
             hide() {
                 this.show_popup = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('hidden-form');
             },
             showPermissionSettings(db_name, row_id) {
                 if (!db_name || db_name === this.tableMeta.db_name) {
                     this.init_ddl_idx = _.findIndex(this.tableMeta._table_permissions, {id: Number(row_id)});
                     this.show_popup = true;
-                    this.$root.tablesZidx += 10;
+                    this.$root.tablesZidxIncrease();
                     this.zIdx = this.$root.tablesZidx;
                     this.runAnimation();
                 }

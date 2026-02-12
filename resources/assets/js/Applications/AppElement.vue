@@ -33,7 +33,7 @@
                     status: this.subscribed ? 1 : 0,
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

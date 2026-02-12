@@ -17,7 +17,7 @@
 
     <p>
         <ul>
-            <li>A Space for Creating, Managing and Sharing Tabulated Data. </li>
+            <li>A Space for Creating, Managing and Sharing Structured Data. </li>
           <li>A Foundation for Creating Apps Based on Relational Tables.</li>
           <li>A Platform Facilitating Table-centered Work Collaboration.</li>
       </ul>  

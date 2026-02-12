@@ -1,10 +1,13 @@
 <?php
 
+namespace Database\Factories;
+
 use Faker\Generator as Faker;
+use Illuminate\Support\Str;
 
 $factory->define(\Vanguard\Services\Auth\Api\Token::class, function (Faker $faker) {
     return [
-        'id' => str_random(40),
+        'id' => Str::random(40),
         'user_id' => function () {
             return factory(\Vanguard\User::class)->create()->id;
         },

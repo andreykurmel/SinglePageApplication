@@ -12,7 +12,7 @@
                 :user="$root.user"
                 :cell-height="$root.cellHeight"
                 :max-cell-rows="$root.maxCellRows"
-                :available-columns="avail_columns_for_app"
+                :available-columns="avail_cols_for_app"
                 :shift-object="shiftObject"
                 :no_clicks="no_clicks"
                 @popup-insert="insertRow"
@@ -26,21 +26,33 @@
 
         <!--Link Popups from ListView and MapView.-->
         <template v-for="(linkObj, idx) in linkPopups">
+            <header-history-pop-up
+                v-if="linkObj.key === 'show' && linkObj.link.link_type === 'History'"
+                :idx="linkObj.index"
+                :table-meta="tableMeta"
+                :table-row="linkObj.row"
+                :history-header="linkObj.header"
+                :link="linkObj.link"
+                :popup-key="idx"
+                :is-visible="true"
+                @popup-close="closeLinkPopup"
+            ></header-history-pop-up>
             <link-pop-up
-                    v-if="linkObj.key === 'show'"
-                    :idx="linkObj.index"
-                    :settings-meta="$root.settingsMeta"
-                    :user="$root.user"
-                    :link="linkObj.link"
-                    :meta-header="linkObj.header"
-                    :meta-row="linkObj.row"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
-                    :popup-key="idx"
-                    :no_animation="linkObj.behavior === 'map'"
-                    :shift-object="shiftObject"
-                    @show-src-record="showSrcRecord"
-                    @link-popup-close="closeLinkPopup"
+                v-else-if="linkObj.key === 'show'"
+                :source-meta="metaTable"
+                :idx="linkObj.index"
+                :link="linkObj.link"
+                :meta-header="linkObj.header"
+                :meta-row="linkObj.row"
+                :popup-key="idx"
+                :shift-object="shiftObject"
+                :view_authorizer="{
+                    mrv_marker: $root.is_mrv_page,
+                    srv_marker: $root.is_srv_page,
+                    dcr_marker: $root.is_dcr_page,
+                }"
+                @show-src-record="showSrcRecord"
+                @link-popup-close="closeLinkPopup"
             ></link-pop-up>
         </template>
     </div>
@@ -50,22 +62,25 @@
     import {MetaTabldaTable} from '../../../classes/MetaTabldaTable';
     import {MetaTabldaRows} from '../../../classes/MetaTabldaRows';
     import {StimLinkParams} from '../../../classes/StimLinkParams';
+    import {ThreeHelper} from "../../../classes/helpers/ThreeHelper";
+
+    import {mapMutations} from "vuex";
 
     import CustomEditPopUp from "../../../components/CustomPopup/CustomEditPopUp";
-    import LinkPopUp from "../../../components/CustomPopup/LinkPopUp";
+    import HeaderHistoryPopUp from "../../../components/CustomPopup/HeaderHistoryPopUp";
 
     export default {
         name: 'TabldaDirectPopup',
         mixins: [
         ],
         components: {
-            LinkPopUp,
+            HeaderHistoryPopUp,
             CustomEditPopUp,
         },
         data() {
             return {
                 no_clicks: false,
-                avail_columns_for_app: [],
+                avail_cols_for_app: [],
                 allRows: null,
                 editPopUpRow: null,
                 cannot_close: false,
@@ -88,16 +103,19 @@
             },
         },
         methods: {
+            ...mapMutations([
+                'REDRAW_3D',
+            ]),
             //CHANGE ROWS
             copyRow(tableRow) {
-                this.insertRow(tableRow);
+                this.insertRow(tableRow, true);
             },
-            insertRow(tableRow) {
+            insertRow(tableRow, copy) {
                 if (this.$root.setCheckRequired(this.metaTable.params, tableRow)) {
                     this.$root.sm_msg_type = 1;
                     this.cannot_close = true;
                     this.$emit('pre-insert', this.startHash, tableRow);
-                    this.allRows.insertRow(tableRow, true).then((data) => {
+                    this.allRows.insertRow(tableRow, true, copy).then((data) => {
                         this.$emit('row-inserted', data);
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
@@ -112,7 +130,12 @@
                     this.cannot_close = true;
                     this.$emit('pre-update', this.startHash, tableRow);
                     this.allRows.updateRow(this.metaTable.params, tableRow, true).then((data) => {
-                        this.$emit('row-updated', data);
+                        let is3dLC = ThreeHelper.watched3d_is_needed_action(this.stim_link_params.app_fields, [tableRow]);
+                        if (is3dLC) {
+                            this.REDRAW_3D('soft');
+                        } else {
+                            this.$emit('row-updated', data);
+                        }
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                         this.$root.prevent_cell_edit = false;
@@ -141,7 +164,7 @@
             //LOAD DATA
             loadData() {
                 this.no_clicks = true;
-                this.avail_columns_for_app = this.stim_link_params.avail_columns_for_app;
+                this.avail_cols_for_app = this.stim_link_params.avail_cols_for_app;
 
                 this.allRows = new MetaTabldaRows(this.stim_link_params, this.$root.app_stim_uh);
 
@@ -152,9 +175,9 @@
                 this.allRows.setDirectId(this.rowId);
 
                 this.$root.sm_msg_type = 2;
-                this.allRows.loadRows().then((data) => {
+                this.allRows.loadRows(this.metaTable.params).then((data) => {
                     this.editPopUpRow = this.allRows.master_row;
-                    this.startHash = this.editPopUpRow.row_hash;
+                    this.startHash = this.editPopUpRow ? this.editPopUpRow.row_hash : '';
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                     this.no_clicks = false;
@@ -191,6 +214,9 @@
                         if (this.metaTable.params.version_hash !== data.version_hash) {
                             this.metaTable.params.version_hash = data.version_hash;
                             this.loadData();
+                        }
+                        if (data.job_msg) {
+                            Swal('Info', data.job_msg);
                         }
                     });
                 }

@@ -6,11 +6,14 @@
             :fixed_pos="true"
             :can_search="true"
             :hidden_name="name"
+            :is_disabled="is_disabled"
             @option-select="tzChanged"
     ></select-block>
 </template>
 
 <script>
+    import {MomentTzHelper} from "../classes/helpers/MomentTzHelper";
+
     import SelectBlock from "./CommonBlocks/SelectBlock";
 
     export default {
@@ -27,6 +30,7 @@
         props:{
             name: String,
             cur_tz: String,
+            is_disabled: Boolean,
         },
         methods: {
             tzChanged(opt) {
@@ -35,12 +39,7 @@
             },
         },
         mounted() {
-            this.timezones = _.map(moment.tz.names(), (tz) => {
-                return {
-                    val: tz,
-                    show: tz,
-                };
-            });
+            this.timezones = MomentTzHelper.timezones();
         }
     }
 </script>

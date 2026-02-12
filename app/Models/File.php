@@ -18,6 +18,8 @@ use Vanguard\User;
  * @property string $filename
  * @property int|null $filesize
  * @property int $is_img
+ * @property int $is_video
+ * @property int $is_audio
  * @property string|null $notes
  * @property string|null $filehash
  * @property int|null $created_by
@@ -46,6 +48,8 @@ class File extends Model
         'filename',
         'filesize',
         'is_img',
+        'is_video',
+        'is_audio',
         'notes',
         'created_by',
         'created_on',

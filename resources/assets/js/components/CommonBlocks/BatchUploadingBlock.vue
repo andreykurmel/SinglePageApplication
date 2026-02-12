@@ -106,7 +106,7 @@
                         this.image_progress_id = data.job_id;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
         },

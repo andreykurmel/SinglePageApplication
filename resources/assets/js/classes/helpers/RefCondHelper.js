@@ -3,7 +3,20 @@ import {SpecialFuncs} from "../SpecialFuncs";
 export class RefCondHelper {
 
     /**
-     *
+     * @param row
+     */
+    static initUses(row) {
+        row._create_reverse = 0;
+        row._out_uses = 0;
+        row._uses_rows = [];
+        row._uses_links = [];
+        row._uses_ddls = [];
+        row._uses_mirrors = [];
+        row._uses_formulas = [];
+        return row;
+    }
+
+    /**
      * @param {object} tableMeta
      */
     static setUses(tableMeta)
@@ -40,10 +53,55 @@ export class RefCondHelper {
                 return {id: ddl.id, name: ddl.name};
             });
         });
+
+        this.setMirrorsAndFormulas(tableMeta);
     }
 
     /**
      *
+     * @param tableMeta
+     */
+    static setMirrorsAndFormulas(tableMeta)
+    {
+        _.each(tableMeta._ref_conditions, (rc) => {
+
+            rc._uses_mirrors = [];
+            rc._uses_formulas = [];
+
+            //Mirrors
+            let rMirs = _.filter(tableMeta._fields, (fld) => {
+                return fld.mirror_rc_id == rc.id;
+            });
+            rc._uses_mirrors = _.map(rMirs, (mr) => {
+                return {id: mr.id, name: mr.name};
+            });
+
+            //Formulas
+            let rFrmls = _.filter(tableMeta._fields, (fld) => {
+                return String(fld.f_formula || '').indexOf(rc.name) > -1;
+            });
+            rc._uses_formulas = _.map(rFrmls, (mr) => {
+                return {id: mr.id, name: mr.name};
+            });
+
+        });
+    }
+
+    /**
+     *
+     * @param rc
+     * @returns {number}
+     */
+    static getUsesCount(rc)
+    {
+        return Number( (rc._uses_rows || []).length )
+            + Number( (rc._uses_links || []).length )
+            + Number( (rc._uses_ddls || []).length )
+            + Number( (rc._uses_mirrors || []).length )
+            + Number( (rc._uses_formulas || []).length );
+    }
+
+    /**
      * @param tableMeta
      * @param updatedRow
      */
@@ -68,7 +126,6 @@ export class RefCondHelper {
     }
 
     /**
-     *
      * @param tableMeta
      * @param rg
      * @param row
@@ -86,7 +143,6 @@ export class RefCondHelper {
     }
 
     /**
-     *
      * @param ref_cond
      * @param row
      * @returns {boolean}
@@ -95,7 +151,7 @@ export class RefCondHelper {
     static _checkRefCond(ref_cond, row)
     {
         let found = null;
-        if (ref_cond.table_id == ref_cond.ref_table_id) {
+        if (row && ref_cond && ref_cond.table_id == ref_cond.ref_table_id) {
 
             if (ref_cond._items && ref_cond._items.length) {
                 let grouped_conditions = _.groupBy(ref_cond._items, 'group_clause');
@@ -116,12 +172,15 @@ export class RefCondHelper {
                             switch (cond_item.compared_operator) {
                                 case '=': comparison = left_part == right_part; break;
                                 case '!=': comparison = left_part != right_part; break;
-                                case '>': comparison = left_part < right_part; break;
-                                case '<': comparison = left_part > right_part; break;
-                                case 'like': comparison = String(left_part).indexOf(right_part) > -1; break;
-                                case 'not like': comparison = String(left_part).indexOf(right_part) === -1; break;
+                                case '>': comparison = left_part > right_part; break;
+                                case '>=': comparison = left_part >= right_part; break;
+                                case '<': comparison = left_part < right_part; break;
+                                case '<=': comparison = left_part <= right_part; break;
+                                case 'Include': comparison = String(left_part).indexOf(right_part) > -1; break;
+                                case 'NotInclude': comparison = String(left_part).indexOf(right_part) === -1; break;
+                                case 'IsEmpty': comparison = !left_part; break;
+                                case 'NotEmpty': comparison = !!left_part; break;
                             }
-                            //console.log('"'+ref_cond.name+'" -> ', left_part, cond_item.compared_operator, right_part, comparison);
 
                             sub_found = sub_found === null ? comparison : sub_found;
                             sub_found = cond_item.logic_operator === 'OR' ? (sub_found || comparison) : (sub_found && comparison);
@@ -143,7 +202,6 @@ export class RefCondHelper {
     }
 
     /**
-     *
      * @param cond_item
      * @returns {*|boolean}
      * @private

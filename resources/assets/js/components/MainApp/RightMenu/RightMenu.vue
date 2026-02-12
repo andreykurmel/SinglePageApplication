@@ -1,11 +1,40 @@
 <template>
-    <div class="right-menu">
+    <div class="right-menu" :style="rightMenuStyle">
+        <header-resizer
+            :table-header="right_menu_sizes"
+            :reversed="true"
+            :style="{zIndex: 100}"
+            @resize-finished="saveSizes"
+        ></header-resizer>
+
         <div class="menu-header">
-            <label>Communications</label>
-            <info-sign-link :app_sett_key="'help_link_communication'" :hgt="24" class="flo-right"></info-sign-link>
+            <button class="btn btn-default btn-he"
+                    :class="{active : rightType !== 'comm'}"
+                    :style="textSysStyle"
+                    @click="rightType = 'comm'"
+            >Comm.</button>
+            <button v-if="hasAI"
+                    class="btn btn-default btn-he"
+                    :class="{active : rightType !== 'ai_assist'}"
+                    :style="textSysStyle"
+                    @click="rightType = 'ai_assist'"
+            >AI Assist</button>
+
+            <info-sign-link v-if="$root.settingsMeta.is_loaded && rightType === 'comm'"
+                            :app_sett_key="'help_link_communication'"
+                            :hgt="24"
+                            class="flo-right"
+                            :txt="'for Communications'"
+            ></info-sign-link>
+            <info-sign-link v-if="$root.settingsMeta.is_loaded && rightType === 'ai_assist'"
+                            :app_sett_key="'help_link_ai_assistance'"
+                            :hgt="24"
+                            class="flo-right"
+                            :txt="'for AI Assist'"
+            ></info-sign-link>
         </div>
         <div class="menu-body" ref="menu_body" :style="textSysStyle">
-            <template v-if="table_id && $root.tableMeta">
+            <template v-if="table_id && $root.tableMeta && rightType === 'comm'">
                 <div :style="{height: calcSubHeight('about')}">
                     <a @click.prevent="showSub('about')" class="btn-sub" :style="textSysStyle">
                         About
@@ -64,6 +93,17 @@
                     </div>
                 </div>
             </template>
+            <template v-if="table_id && $root.tableMeta && rightType === 'ai_assist'">
+                <div class="full-frame flex flex--col"
+                     v-if="selAi"
+                     :style="aiModuleStyle()"
+                >
+                    <ai-module :selected-ai="selAi" :request_params="$root.request_params" @remove-msg="removeMessage"></ai-module>
+                </div>
+                <div v-else>
+                    <label>You can choose an AI at "AI/List/Right Side Panel"</label>
+                </div>
+            </template>
         </div>
 
         <!--Upload form-->
@@ -81,7 +121,7 @@
                                     v-if="table_id && $root.tableMeta"
                                     class="form-group upload-group"
                                     :header-index="0"
-                                    :table_id="$root.tableMeta.id"
+                                    :table_id="table_id"
                                     :field_id="0"
                                     :row_id="0"
                                     @uploaded-file="insertedFile"
@@ -97,16 +137,21 @@
 </template>
 
 <script>
-    import CellStyleMixin from "../../_Mixins/CellStyleMixin";
+    import CellStyleMixin from "../../_Mixins/CellStyleMixin.vue";
+    import ModuleViewMixin from "../../MainApp/Object/Table/AiAddon/ModuleViewMixin.vue";
 
-    import RightMenuCell from './RightMenuCell';
-    import RightMenuMessages from './RightMenuMessages';
-    import FileUploaderBlock from '../../CommonBlocks/FileUploaderBlock';
-    import InfoSignLink from "../../CustomTable/Specials/InfoSignLink";
+    import RightMenuCell from './RightMenuCell.vue';
+    import RightMenuMessages from './RightMenuMessages.vue';
+    import FileUploaderBlock from '../../CommonBlocks/FileUploaderBlock.vue';
+    import InfoSignLink from "../../CustomTable/Specials/InfoSignLink.vue";
+    import HeaderResizer from "../../CustomTable/Header/HeaderResizer.vue";
+    import AiModule from "../Object/Table/AiAddon/AiModule.vue";
 
     export default {
         name: "RightMenu",
         components: {
+            AiModule,
+            HeaderResizer,
             InfoSignLink,
             RightMenuCell,
             RightMenuMessages,
@@ -114,6 +159,7 @@
         },
         mixins: [
             CellStyleMixin,
+            ModuleViewMixin,
         ],
         data: function () {
             return {
@@ -122,12 +168,54 @@
                 subBtnHeight: 42,
                 uploadForm: false,
                 uploadStyle: 'file',
+                right_menu_sizes:{
+                    width: Number(readLocalStorage('local_right_menu_width')) || 250,
+                    max_width: 400,
+                    min_width: 250,
+                },
+                rightType: 'comm',
             }
+        },
+        computed: {
+            rightMenuStyle() {
+                return {
+                    flexShrink: 0,
+                    flexGrow: 0,
+                    flexBasis: this.right_menu_sizes.width+'px',
+                    width: this.right_menu_sizes.width+'px',
+                };
+            },
+            hasAI() {
+                return this.$root.settingsMeta.is_loaded
+                    && this.$root.tableMeta
+                    && this.$root.tableMeta.add_ai
+                    && this.$root.AddonAvailableToUser(this.$root.tableMeta, 'ai')
+            },
+            selAi() {
+                return this.hasAI
+                    ? _.find(this.$root.tableMeta._table_ais, {is_right_panel: 1})
+                    : null;
+            },
+        },
+        watch: {
+            "$root.tableMeta.id": { //watch for root to be sure that tableMeta is loaded
+                handler(val) {
+                    if (this.$root.tableMeta && this.$root.tableMeta._cur_settings) {
+                        this.right_menu_sizes.width = Number(this.$root.tableMeta._cur_settings.right_menu_width)
+                            || Number(readLocalStorage('local_right_menu_width'))
+                            || 250;
+                    }
+                },
+                immediate: true,
+            },
         },
         props: {
             table_id: Number,
         },
         methods: {
+            saveSizes() {
+                this.$root.changeRightMenuWi(this.right_menu_sizes.width, this.$root.tableMeta);
+            },
             showSub(field) {
                 this.currentSub = field !== this.currentSub ? field : null;
                 setLocalStorage('right_sub', this.currentSub);
@@ -157,7 +245,7 @@
                 }).then(({ data }) => {
                     this.$root.tableMeta._attached_files.splice(idx, 1);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -169,6 +257,9 @@
 </script>
 
 <style lang="scss" scoped>
+    .btn-he {
+        height: 36px;
+    }
     .right-menu {
         min-width: 250px;
         border: 1px solid #d3e0e9;
@@ -180,7 +271,7 @@
 
         .menu-header {
             text-align: left;
-            padding: 10px 4px 0 10px;
+            padding: 10px 4px 0 5px;
             background-color: #575c62;
             height: 43px;
 
@@ -192,7 +283,7 @@
 
             .flo-right {
                 float: right;
-                margin-right: 10px;
+                margin-right: 5px;
             }
         }
 
@@ -239,7 +330,7 @@
                     height: 30%;
                     position: relative;
                     display: flex;
-                    align-items: flex-end;
+                    align-items: flex-start;
                     padding: 5px;
                     border-top: 1px solid #CCC;
 

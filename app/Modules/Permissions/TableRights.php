@@ -9,6 +9,7 @@ use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableDataRequestRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Services\Tablda\HelperService;
 
@@ -33,33 +34,51 @@ class TableRights
 
     /**
      * @param Table $table
-     * @return PermissionObject
+     * @param array $specials
+     * @return PermissionDcr|PermissionLinkedDcr|PermissionObject
      */
-    public static function permissions(Table $table)
+    public static function permissions(Table $table, array $specials = [])
     {
-        return Cache::store('array')->rememberForever(self::key($table->id), function () use ($table) {
-            return self::loadPermis($table);
+        return Cache::store('array')->rememberForever(self::key($table->id), function () use ($table, $specials) {
+            return self::loadPermis($table, $specials);
         });
     }
 
     /**
      * @param Table $table
-     * @return PermissionObject
+     * @param array $specials
+     * @return PermissionDcr|PermissionLinkedDcr|PermissionObject
      */
-    protected static function loadPermis(Table $table)
+    protected static function loadPermis(Table $table, array $specials = [])
     {
         $service = new HelperService();
         $user_id = auth()->id();
+        if ($user_id === null) {
+            $user_id = $specials['auth_id'] ?? null;
+        }
         $user_id = $service->forceGuestForPublic($user_id);
+        $dcr = null;
+        $link = null;
 
-        $specials = request('special_params') ?? [];
+        if (!$specials) {
+            $specials = request('special_params') ?? [];
+        }
+        if ($specials['dcr_hash'] ?? '') {
+            $dcr = (new TableDataRequestRepository())->getByHash($specials['dcr_hash']);
+        }
+        if ($linkid = request('linked_object_id')) {
+            $link = (new TableFieldLinkRepository())->getLink($linkid);
+            if ($link) {
+                $link->__inlined = request('linked_object_inlined');
+            }
+        }
 
         //Linked Table in Data Request
         if ($specials['dcr_linked_id'] ?? '') {
-            return self::dcrLinkedPermission($table, $specials['dcr_linked_id'], $user_id);
-        } //Data Request
-        elseif ($specials['dcr_hash'] ?? '') {
-            return self::dcrPermission($table, $specials['dcr_hash'], $user_id);
+            $permis = self::dcrLinkedPermission($table, $specials['dcr_linked_id'], $user_id);
+        } //Data Request (Not LinkPopup)
+        elseif ($dcr && $dcr->table_id == $table->id && !$link) {
+            $permis = self::dcrPermission($table, $dcr->dcr_hash, $user_id);
         } //Collaborator or View
         else {
             //loaded from Folder View
@@ -79,9 +98,28 @@ class TableRights
                 $view_permission_id = $table->single_view_permission_id;
             }
 
+            //Is LinkPopup from DCR
+            if ($link && $specials['dcr_marker']) {
+                $view_permission_id = $link->lnk_dcr_permission_id;
+            }
+            //Is LinkPopup from SRV
+            if ($link && $specials['srv_marker']) {
+                $view_permission_id = $link->lnk_srv_permission_id;
+            }
+            //Is LinkPopup from MRV
+            if ($link && $specials['mrv_marker']) {
+                $view_permission_id = $link->lnk_mrv_permission_id;
+            }
+
             $user_id = $view_permission_id ? null : $user_id;
-            return self::tablePermission($table, $user_id, $view_permission_id);
+            $permis = self::tablePermission($table, $user_id, $view_permission_id);
         }
+
+        if ($link) {
+            $permis->setLinkedColumns($link);
+        }
+
+        return $permis;
     }
 
     /**
@@ -92,11 +130,12 @@ class TableRights
      */
     protected static function dcrPermission(Table $table, string $dcr_hash, int $user_id = null)
     {
+        $dcr = (new TableDataRequestRepository())->dcrRelation($dcr_hash);
+
         $result = new PermissionDcr($user_id);
-        self::loadVisitorPermissions($result, $table->id);
+        self::loadDcrOrVisitorPermissions($result, $table->id, $dcr->permission_dcr_id);
 
         //set DCR permission
-        $dcr = (new TableDataRequestRepository())->dcrRelation($dcr_hash);
         $result->setTableDcr($dcr);
         $result->clearNotUniques();
 
@@ -107,10 +146,10 @@ class TableRights
      * @param PermissionObject $permissionObject
      * @param int $table_id
      */
-    protected static function loadVisitorPermissions(PermissionObject $permissionObject, int $table_id)
+    protected static function loadDcrOrVisitorPermissions(PermissionObject $permissionObject, int $table_id, int $permission_dcr_id = null)
     {
         //get Visitor permissions
-        $_table_permissions = (new TablePermissionRepository())->tablePermissions($table_id, null, null, true);
+        $_table_permissions = (new TablePermissionRepository())->tablePermissions($table_id, null, $permission_dcr_id, true);
         foreach ($_table_permissions as $_permission) {
             $permissionObject->setTablePermis($_permission);
         }
@@ -149,13 +188,11 @@ class TableRights
 
         $result = new PermissionObject($user_id, $table->user_id == $user_id ? $user_id : 0);
 
-        if (!$result->is_owner) {
-            $_table_permissions = (new TablePermissionRepository())->tablePermissions($table->id, $user_id, $permission_id, true);
-            foreach ($_table_permissions as $_permission) {
-                $result->setTablePermis($_permission);
-            }
-            $result->clearNotUniques();
+        $_table_permissions = (new TablePermissionRepository())->tablePermissions($table->id, $user_id, $permission_id, true);
+        foreach ($_table_permissions as $_permission) {
+            $result->setTablePermis($_permission);
         }
+        $result->clearNotUniques();
         return $result;
     }
 }

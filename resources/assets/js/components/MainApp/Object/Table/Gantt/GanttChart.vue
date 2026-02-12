@@ -2,6 +2,8 @@
     <div class="full-height" style="padding: 5px;">
         <div class="full-frame" ref="wrapper">
             <div ref="chart" @contextmenu.prevent="showRow"></div>
+
+            <div v-if="warnMessage" class="full-height white bold flex flex--center" v-html="warnMessage"></div>
         </div>
 
         <custom-edit-pop-up
@@ -27,40 +29,49 @@
 </template>
 
 <script>
-    import {eventBus} from './../../../../../app';
+    import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
+    import {Endpoints} from "../../../../../classes/Endpoints";
 
+    import {eventBus} from '../../../../../app';
+
+    import CellStyleMixin from "./../../../../_Mixins/CellStyleMixin.vue";
+    import MixinForAddons from "./../MixinForAddons";
+    
     import CustomEditPopUp from "../../../../CustomPopup/CustomEditPopUp";
 
     export default {
         name: "GanttChart",
+        mixins: [
+            CellStyleMixin,
+            MixinForAddons,
+        ],
         components: {
             CustomEditPopUp
         },
         data: function () {
             return {
+                warnMessage: '',
                 highchart: null,
-                editPopupRow: null,
-                editPopupRole: 'add',
                 curSelRow: null,
                 defColors: [
                     '#7cb5ec','#434348','#90ed7d','#f7a35c','#8085e9',
                     '#f15c80','#e4d354','#2b908f','#f45b5b','#91e8e1'
                 ],
                 defIdx: 0,
+                redrawOnEdit: true,
             }
         },
-        props:{
+        props: {
             tableMeta: Object,
-            allRows: Array,
+            requestParams: Object,//MixinForAddon
+            currentPageRows: Array,//MixinForAddon
+            selectedGantt: Object,
+            selectedState: Object,
             add_click: Number,
         },
         computed: {
         },
         watch: {
-            add_click() {
-                this.editPopupRow = this.$root.emptyObject(this.tableMeta);
-                this.editPopupRole = 'add';
-            },
         },
         methods: {
             getClr() {
@@ -109,27 +120,63 @@
             getFldObj() {
                 //Fields settings
                 return {
-                    main_group_fld: ( _.find(this.tableMeta._fields, {is_gantt_main_group: 1}) || {} ).field,
-                    parent_group_fld: ( _.find(this.tableMeta._fields, {is_gantt_parent_group: 1}) || {} ).field,
-                    group_fld: ( _.find(this.tableMeta._fields, {is_gantt_group: 1}) || {} ).field,
-                    name_fld: ( _.find(this.tableMeta._fields, {is_gantt_name: 1}) || {} ).field,
-                    start_fld: ( _.find(this.tableMeta._fields, {is_gantt_start: 1}) || {} ).field,
-                    end_fld: ( _.find(this.tableMeta._fields, {is_gantt_end: 1}) || {} ).field,
-                    color_fld: ( _.find(this.tableMeta._fields, {is_gantt_color: 1}) || {} ).field,
-                    parent_fld: ( _.find(this.tableMeta._fields, {is_gantt_parent: 1}) || {} ).field,
-                    progress_fld: ( _.find(this.tableMeta._fields, {is_gantt_progress: 1}) || {} ).field,
-                    symbol_fld: ( _.find(this.tableMeta._fields, {is_gantt_label_symbol: 1}) || {} ).field,
-                    milestone_fld: ( _.find(this.tableMeta._fields, {is_gantt_milestone: 1}) || {} ).field,
+                    main_group_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_main_group: 1});
+                        }) || {} ).field,
+
+                    parent_group_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_parent_group: 1});
+                        }) || {} ).field,
+
+                    group_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_group: 1});
+                        }) || {} ).field,
+
+                    name_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_name: 1});
+                        }) || {} ).field,
+
+                    start_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_start: 1});
+                        }) || {} ).field,
+
+                    end_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_end: 1});
+                        }) || {} ).field,
+
+                    color_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_color: 1});
+                        }) || {} ).field,
+
+                    parent_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_parent: 1});
+                        }) || {} ).field,
+
+                    progress_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_progress: 1});
+                        }) || {} ).field,
+
+                    symbol_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_label_symbol: 1});
+                        }) || {} ).field,
+
+                    milestone_fld: ( _.find(this.tableMeta._fields, (fld) => {
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), is_gantt_milestone: 1});
+                        }) || {} ).field,
+
                     xTable: _.filter(this.tableMeta._fields, (fld) => {
-                        return fld.is_gantt_left_header;
-                    }),
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), gantt_left_header: 1});
+                        }),
+
                     xTooltip: _.filter(this.tableMeta._fields, (fld) => {
-                        return fld.is_gantt_tooltip;
-                    }),
+                            return _.find(this.selectedGantt._specifics, {table_field_id: Number(fld.id), gantt_tooltip: 1});
+                        }),
                 };
             },
             getCategories(obj) {
-                let cats = _.map(this.allRows, (row) => { return this.$root.rcShow(row, obj.group_fld); });
+                let cats = _.map(this.tableRows, (row) => { return this.$root.rcShow(row, obj.group_fld); });
+                //let parents = _.map(this.tableRows, (row) => { return this.$root.rcShow(row, obj.parent_group_fld); });
+                //let mains = _.map(this.tableRows, (row) => { return this.$root.rcShow(row, obj.main_group_fld); });
                 return ( _.uniq(cats) ).sort();
             },
             recursiveGroup(cats, obj, dataRows, groupFlds, parentRow) {
@@ -176,7 +223,7 @@
                 if (obj.main_group_fld) {
                     groups.push(obj.main_group_fld);//Lvl2
                 }
-                return this.recursiveGroup(cats, obj, this.allRows, groups);
+                return this.recursiveGroup(cats, obj, this.tableRows, groups);
             },
 
             //Build chart
@@ -187,6 +234,12 @@
 
                     //Required fields
                     if (!obj.name_fld || !obj.start_fld || !obj.end_fld || !obj.group_fld) {
+                        this.warnMessage = [];
+                        (!obj.name_fld ? this.warnMessage.push('"Bars,Items" is empty!') : '');
+                        (!obj.start_fld ? this.warnMessage.push('"Bars,Start" is empty!') : '');
+                        (!obj.end_fld ? this.warnMessage.push('"Bars,End" is empty!') : '');
+                        (!obj.group_fld ? this.warnMessage.push('"Header,Rows" is empty!') : '');
+                        this.warnMessage = this.warnMessage.join('<br>');
                         return;
                     }
 
@@ -208,12 +261,12 @@
                                 dragDrop: {
                                     draggableX: true,
                                     draggableY: true,
-                                    dragMinY: 0,
-                                    dragMaxY: cats.length-1,
+                                    //dragMinY: 0,
+                                    //dragMaxY: cats.length-1,
                                     dragPrecisionX: day, // Snap to 1day
                                 },
                                 dataLabels: {
-                                    enabled: !!this.tableMeta.gantt_show_names,
+                                    enabled: !!this.selectedGantt.gantt_show_names,
                                     formatter: function() {
                                         return obj.progress_fld ? (this.point.completed*100)+'%' : this.point.label;
                                     },
@@ -241,20 +294,24 @@
 
                     };
 
+                    param.series = [{
+                        name: '',
+                        data: seris,
+                    }];
                     //Highlight elem only for 'GROUP' functions
-                    if (obj.parent_group_fld && !!this.tableMeta.gantt_highlight) {
-                        param.series = _.map(seris, (elem) => {
-                            return {
-                                name: elem.name,
-                                data: [elem],
-                            };
-                        });
-                    } else {
-                        param.series = [{
-                            name: '',
-                            data: seris,
-                        }];
-                    }
+                    // if (obj.parent_group_fld && !!this.selectedGantt.gantt_highlight) {
+                    //     param.series = _.map(seris, (elem) => {
+                    //         return {
+                    //             name: elem.name,
+                    //             data: [elem],
+                    //         };
+                    //     });
+                    // } else {
+                    //     param.series = [{
+                    //         name: '',
+                    //         data: seris,
+                    //     }];
+                    // }
 
                     //Tooltip settings
                     if (obj.xTooltip.length) {
@@ -290,8 +347,8 @@
                     } else {
                         //Use Names
                         param.yAxis.categories = cats;
-                        param.yAxis.min = 0;
-                        param.yAxis.max = cats.length-1;
+                        //param.yAxis.min = 0;
+                        //param.yAxis.max = cats.length-1;
                     }
 
                     //Data Label
@@ -303,7 +360,7 @@
                             useHTML: true,
                             align: 'left'
                         }, {
-                            enabled: !!this.tableMeta.gantt_show_names,
+                            enabled: !!this.selectedGantt.gantt_show_names,
                             formatter: function() {
                                 return obj.progress_fld ? (this.point.completed*100)+'%' : this.point.label;
                             },
@@ -311,7 +368,12 @@
                     }
 
                     //Navigation
-                    if (this.tableMeta.gantt_navigation) {
+                    if (this.selectedGantt.gantt_navigation) {
+                        param.rangeSelector = {
+                            enabled: true,
+                        };
+                    }
+                    if (this.selectedGantt.gantt_navigator_bottom) {
                         param.navigator = {
                             enabled: true,
                             liveRedraw: true,
@@ -321,36 +383,16 @@
                                 pointPadding: 0.25,
                             },
                             yAxis: {
-                                min: 0,
-                                max: cats.length-1,
+                                //min: 0,
+                                //max: cats.length-1,
                                 reversed: true,
                                 categories: cats,
                             },
+                            height: to_float(this.selectedGantt.gantt_navigator_height),
                         };
                         param.scrollbar = {
                             enabled: true,
                         };
-                        param.rangeSelector = {
-                            enabled: true,
-                        };
-                    }
-
-                    //Tick Interval
-                    if (this.tableMeta.gantt_info_type) {
-                        let tick = null;
-                        switch (this.tableMeta.gantt_info_type) {
-                            case 'day': tick = 1*day; break;
-                            case 'week': tick = 7*day; break;
-                            case 'month': tick = 30*day; break;
-                            case 'year': tick = 365*day; break;
-                        }
-                        if (tick) {
-                            param.xAxis = {
-                                currentDateIndicator: true,
-                                tickInterval: tick,
-                                gridLineWidth: 1,
-                            };
-                        }
                     }
 
                     //DateTime format for xAxis
@@ -364,14 +406,41 @@
                         month: '%b',
                         year: '%Y'
                     };
-                    if (this.tableMeta.gantt_day_format === 'part') {
+                    if (this.selectedGantt.gantt_day_format === 'part') {
                         param.xAxis.dateTimeLabelFormats.day = '%a';
                     }
-                    if (this.tableMeta.gantt_day_format === 'full') {
+                    if (this.selectedGantt.gantt_day_format === 'full') {
                         param.xAxis.dateTimeLabelFormats.day = '%A';
                     }
-                    if (this.tableMeta.gantt_day_format === 'extend') {
+                    if (this.selectedGantt.gantt_day_format === 'extend') {
                         param.xAxis.dateTimeLabelFormats.day = '%A, %m/%d/%Y';
+                    }
+
+                    //set RowHeight
+                    param.yAxis.staticScale = to_float(this.selectedGantt.gantt_row_height);
+                    param.xAxis.grid = {
+                        cellHeight: to_float(this.selectedGantt.gantt_row_height)
+                    };
+                    param.xAxis = [param.xAxis, param.xAxis];//set to both top xAxis
+
+                    //Tick Interval
+                    switch (this.selectedGantt.gantt_info_type) {
+                        case 'day':
+                            param.xAxis[1].tickInterval = day/24;
+                            param.xAxis[0].tickInterval = 1*day;
+                            break;
+                        case 'week':
+                            param.xAxis[1].tickInterval = 1*day;
+                            param.xAxis[0].tickInterval = 7*day;
+                            break;
+                        case 'month':
+                            param.xAxis[1].tickInterval = 7*day;
+                            param.xAxis[0].tickInterval = 30*day;
+                            break;
+                        case 'year':
+                            param.xAxis[1].tickInterval = 30*day;
+                            param.xAxis[0].tickInterval = 365*day;
+                            break;
                     }
 
                     //Draw Chart
@@ -381,7 +450,7 @@
                             $(this.$refs.wrapper).scrollTop(scrollTop);
                         });
                     } catch (e) {
-                        Swal('Incorrect Data or Settings!');
+                        Swal('Info','Incorrect Data or Settings!');
                     }
 
                     //clear colors index
@@ -389,7 +458,7 @@
                 });
             },
             dropListener(e) {
-                let tableRow = _.find(this.allRows, {id: to_float(e.target ? e.target.id : null)});
+                let tableRow = _.find(this.tableRows, {id: to_float(e.target ? e.target.id : null)});
                 let obj = this.getFldObj();
 
                 if (tableRow && obj.name_fld && obj.start_fld && obj.end_fld && obj.group_fld) {
@@ -399,54 +468,35 @@
                     }
                     tableRow[obj.start_fld] = moment.utc( e.target.start ).format('YYYY-MM-DD');
                     tableRow[obj.end_fld] = moment.utc(e.target.end).format('YYYY-MM-DD');
-                    eventBus.$emit('list-view-update-row', tableRow);
+                    this.updateRow(tableRow);
                 }
 
                 return true;
             },
             selectListener(e) {
-                this.curSelRow = _.find(this.allRows, {id: to_float(e.target ? e.target.id : null)});
+                this.curSelRow = _.find(this.tableRows, {id: to_float(e.target ? e.target.id : null)});
             },
             showRow() {
                 if (this.curSelRow) {
-                    this.editPopupRow = this.curSelRow;
-                    this.editPopupRole = 'update';
+                    this.popupClick(this.curSelRow.id);
                 }
             },
 
-            //External sync
-            rowsLoaded(type) {
+            drawAddon() {
                 this.drawChart();
             },
-
-            //Popup
-            insertRow(tableRow) {
-                eventBus.$emit('list-view-insert-row', tableRow);
-            },
-            copyRow(tableRow) {
-                eventBus.$emit('list-view-copy-row', tableRow);
-            },
-            updateRow(tableRow) {
-                eventBus.$emit('list-view-update-row', tableRow);
-            },
-            deleteRow(tableRow) {
-                eventBus.$emit('list-view-delete-row', tableRow);
-            },
-            showSrcRecord(lnk, header, tableRow) {
-                this.$emit('show-src-record', lnk, header, tableRow);
-            },
-            closePopUp() {
-                this.editPopupRow = null;
+            mountedFunc() {
+                this.getRows(this.selectedGantt.gantt_data_range, 'gantt', this.selectedGantt.id);
             },
         },
         mounted() {
-            this.drawChart();
-            eventBus.$on('new-request-params', this.rowsLoaded);
-            eventBus.$on('redraw-gannt', this.rowsLoaded);
+            this.mountedFunc();
+            eventBus.$on('new-request-params', this.mountedFunc);
+            eventBus.$on('redraw-gannt', this.mountedFunc);
         },
         beforeDestroy() {
-            eventBus.$off('new-request-params', this.rowsLoaded);
-            eventBus.$off('redraw-gannt', this.rowsLoaded);
+            eventBus.$off('new-request-params', this.mountedFunc);
+            eventBus.$off('redraw-gannt', this.mountedFunc);
         }
     }
 </script>

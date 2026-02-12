@@ -151,13 +151,13 @@ class ProfileController extends Controller
     public function updateAvatar(Request $request, UserAvatarManager $avatarManager)
     {
         $this->validate($request, [
-            'avatar' => 'image'
+            'avatar' => 'file|mimes:jpeg,png,jpg,gif,svg|max:10240',
         ]);
 
         $name = $avatarManager->uploadAndCropAvatar(
             $this->theUser,
-            $request->file('avatar'),
-            $request->get('points')
+            $request->file('avatar')
+            //$request->get('points')
         );
 
         if ($name) {
@@ -260,15 +260,10 @@ class ProfileController extends Controller
                 ->withErrors(trans('app.2fa_not_enabled_for_this_user'));
         }
 
+        Authy::delete($this->theUser);
+
         $this->theUser->two_factor_options = null;
         $this->theUser->save();
-
-        try {
-            Authy::delete($this->theUser);
-        } catch (\Exception $e) {
-            Log::info('Authy Error');
-            Log::info($e->getMessage());
-        }
 
         event(new TwoFactorDisabled);
 

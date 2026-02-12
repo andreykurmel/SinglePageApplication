@@ -2,13 +2,13 @@
 
 namespace Vanguard\Jobs;
 
+use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Vanguard\Models\Table\TableBackup;
 use Vanguard\Modules\CloudBackup\CloudBackuper;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\UserCloudRepository;
@@ -37,7 +37,7 @@ class UsersBackups implements ShouldQueue
      */
     public function handle()
     {
-        set_time_limit(300);
+        set_time_limit(1200);
 
         (new FileRepository())->fixDDLfiles();
 
@@ -57,10 +57,12 @@ class UsersBackups implements ShouldQueue
             if ($backup->_cloud->gettoken() && $backup->_table) {
                 try {
                     if ($backup->is_active) {
-                        (new CloudBackuper($backup))->sendToCloud();
                         $this->bkpService->notifyUser($backup);
+                        (new CloudBackuper($backup))->sendToCloud();
                     }
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
+                    Log::channel('jobs')->info('UserBackup Error!');
+                    Log::channel('jobs')->info($e->getMessage());
                 }
             }
         }

@@ -14,8 +14,12 @@
      * about_1: Array,
      * about_2: Array,
      * about_3: Array,
+     * about_4: Array,
+     * about_5: Array,
      */
     import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
+    import {ChartFunctions} from "./ChartFunctions";
+    import {UnitConversion} from "../../../../../classes/UnitConversion";
 
     export default {
         data: function () {
@@ -50,15 +54,14 @@
             pivot_hor() {
                 return this.all_settings.pivot_table.horizontal;
             },
-            //always ON
-            pivot_hor_l1_sub_total() {
-                return true;//this.pivot_hor.l1_sub_total;
+            pivot_activness() {
+                return this.all_settings.pivot_table.activness_visible;
             },
-            pivot_vert_l1_sub_total() {
-                return true;//this.pivot_vert.l1_sub_total;
+            pivot_t() {
+                return this.all_settings.pivot_table;
             },
             //always ON ^^^^^^^
-            colWidth() {
+            colWidthNum() {
                 let w = null;
                 switch (this.pivot_hor.hor_fields_width) {
                     case 'min': w = 5;
@@ -68,9 +71,7 @@
                     default: w = 5;
                         break;
                 }
-                return {
-                    width: w+'px'
-                };
+                return w;
             },
             h_l1_fld() {
                 return !!this.pivot_hor.l1_field;
@@ -100,7 +101,7 @@
                 let rs = (this.pivot_hor.l1_field ? 2 : 1);
                 rs += (this.pivot_hor.l2_field ? 1 : 0);
                 rs += (this.pivot_hor.l3_field ? 1 : 0);
-                return rs + (this.multi_about > 1 ? 1 : 0);
+                return rs + (this.multi_about > 1 ? 1 : 0) + (this.hasAboutUnits() ? 1 : 0);
             },
             c_s() {
                 let cs = 1;
@@ -115,6 +116,8 @@
                 if (!this.all_settings.pivot_table.stack_about) {
                     multi_about += (this.about_2 ? 1 : 0);
                     multi_about += (this.about_3 ? 1 : 0);
+                    multi_about += (this.about_4 ? 1 : 0);
+                    multi_about += (this.about_5 ? 1 : 0);
                 }
                 return multi_about;
             },
@@ -164,6 +167,11 @@
             },
 
             //SPANS
+            titleColSpan() {
+                return this.c_s
+                    + this.spanLen()
+                    + (this.pivot_spanned && this.pivot_activness ? 1 : 0);
+            },
             lenForSpan(type, l1, l2, l3, l4, l5) {
                 let el = this.getmatrix(type, l1, l2, l3, l4, l5);
                 return el && el.__span_len;
@@ -180,16 +188,50 @@
                         : this.lenForSpan('hor', l1, l2);
                 return this.spanned ? 1 : sys_len*this.multi_about;
             },
+            hasRowNames(reverse) {
+                let present = 0;
+                for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
+                    present += this.all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] ? 1 : 0;
+                }
+                if (reverse) {
+                    present = !present;
+                }
+                return present ? 1 : 0;
+            },
 
             //VALUES DRAWING
             findValue(about, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h) {
-                return this.subTotalCell(about, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h);
+                let abo = about > 1 ? 'about_'+about : 'about';
+                abo = this.all_settings.pivot_table[abo] || {};
+                if (abo.label_field) {
+                    return this.labeledData(about, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h);
+                } else {
+                    return this.subTotalCell(about, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h, 'hor_l2', l2_h, 'hor_l3', l3_h);
+                }
             },
-            convertCell(about, val) {
+            aboFld(about, fldkey) {
+                fldkey = fldkey || 'field';
                 about = about > 1 ? 'about_'+about : 'about';
                 let abo = this.all_settings.pivot_table[about] || {};
-                let y_axis_col = _.find(this.table_meta._fields, {field: abo.field});
+                return _.find(this.table_meta._fields, {field: abo[fldkey]}) || {};
+            },
+            convertCell(about, val) {
+                let y_axis_col = this.aboFld(about);
                 return SpecialFuncs.showhtml(y_axis_col, {__no_html:true}, val);
+            },
+            dataStyle(about) {
+                let y_axis_col = this.aboFld(about, 'label_field');
+                return {
+                    textAlign: y_axis_col.col_align,
+                };
+            },
+            hasAboutUnits() {
+                let has = false;
+                for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
+                    let fld = this.aboFld(i);
+                    has = has || (fld && (fld.unit || fld.unit_display));
+                }
+                return has;
             },
 
             //SUM CALCS
@@ -203,21 +245,59 @@
                 let sum = 0;
                 let data = about ? this['about_'+about] || this.about_1 : this.about_1;
                 _.each(data, (el) => {
-                    if (
-                        this.cellIsActive(el)
-                        && (!type1 || key1 === undefined || this.isSubTot(key1) || el[type1] == key1)
-                        && (!type2 || key2 === undefined || this.isSubTot(key2) || el[type2] == key2)
-                        && (!type3 || key3 === undefined || this.isSubTot(key3) || el[type3] == key3)
-                        && (!type4 || key4 === undefined || this.isSubTot(key4) || el[type4] == key4)
-                        && (!type5 || key5 === undefined || this.isSubTot(key5) || el[type5] == key5)
-                        && (!type6 || key6 === undefined || this.isSubTot(key6) || el[type6] == key6)
-                        && (!type7 || key7 === undefined || this.isSubTot(key7) || el[type7] == key7)
-                        && (!type8 || key8 === undefined || this.isSubTot(key8) || el[type8] == key8)
-                    ) {
+                    if (this.finder(el, type1, key1, type2, key2, type3, key3, type4, key4, type5, key5, type6, key6, type7, key7, type8, key8)) {
                         sum += to_float(el.y);
                     }
                 });
                 return sum;
+            },
+            finder(el, type1, key1, type2, key2, type3, key3, type4, key4, type5, key5, type6, key6, type7, key7, type8, key8) {
+                return this.cellIsActive(el)
+                    && (!type1 || key1 === undefined || this.isSubTot(key1) || el[type1] == key1)
+                    && (!type2 || key2 === undefined || this.isSubTot(key2) || el[type2] == key2)
+                    && (!type3 || key3 === undefined || this.isSubTot(key3) || el[type3] == key3)
+                    && (!type4 || key4 === undefined || this.isSubTot(key4) || el[type4] == key4)
+                    && (!type5 || key5 === undefined || this.isSubTot(key5) || el[type5] == key5)
+                    && (!type6 || key6 === undefined || this.isSubTot(key6) || el[type6] == key6)
+                    && (!type7 || key7 === undefined || this.isSubTot(key7) || el[type7] == key7)
+                    && (!type8 || key8 === undefined || this.isSubTot(key8) || el[type8] == key8);
+            },
+            labeledData(about, type1, key1, type2, key2, type3, key3, type4, key4, type5, key5, type6, key6, type7, key7, type8, key8) {
+                let data = about ? this['about_'+about] || this.about_1 : this.about_1;
+                let result = {};
+                _.each(data, (el) => {
+                    if (this.finder(el, type1, key1, type2, key2, type3, key3, type4, key4, type5, key5, type6, key6, type7, key7, type8, key8)) {
+                        result[el.lbl] = Number(result[el.lbl] || 0) + Number(el.y);
+                    }
+                });
+                let string = [];
+                _.each(result, (y, lbl) => {
+                    string.push('(' + y + ') ' + lbl);
+                });
+                return string.join('<br>');
+            },
+            dataWidths(l1_h, l2_h, l3_h) {
+                if ((this.h_l3_fld && !l3_h) || (this.h_l2_fld && !l2_h)) {
+                    return undefined;
+                }
+                let hdr = this.getDataWiKey(l1_h, l2_h, l3_h);
+                return this.pivot_t.data_widths[hdr];
+            },
+            getDataWiKey(l1_h, l2_h, l3_h) {
+                let key = [
+                    this.showHead('hor', l1_h).join('.').replace(newRegexp('[^\\p{L}\\d_,.]'), '')
+                ];
+                if (l2_h) {
+                    key.push(
+                        this.showHead('hor', l1_h, l2_h).join('.').replace(newRegexp('[^\\p{L}\\d_,.]'), '')
+                    );
+                }
+                if (l2_h && l3_h) {
+                    key.push(
+                        this.showHead('hor', l1_h, l2_h, l3_h).join('.').replace(newRegexp('[^\\p{L}\\d_,.]'), '')
+                    );
+                }
+                return key.join(',');
             },
 
             //EXCLUDE FUNCTIONS
@@ -293,6 +373,14 @@
                 };
             },
             showHead(type, l1, l2, l3, l4, l5) {
+                let i = (l5 !== undefined ? 5
+                    : (l4 !== undefined ? 4
+                        : (l3 !== undefined ? 3
+                            : (l2 !== undefined ? 2
+                                : 1))));
+                let fName = this.all_settings.pivot_table.horizontal['l'+i+'_lvl_fname'];
+                let resArray = fName ? [fName+':'] : [];
+
                 let key = type +
                     (l5 !== undefined ? '_l5'
                         : (l4 !== undefined ? '_l4'
@@ -306,9 +394,10 @@
                                 : l1))));
                 str = String(str);
 
-                return _.map(this.$root.parseMsel(str), (el) => {
+                let resValues = _.map(this.$root.parseMsel(str), (el) => {
                     return this.headElConv(key, _.trim(el));
                 });
+                return _.concat(resArray, resValues);
             },
             headElConv(key, val) {
                 let str_val = String(val);

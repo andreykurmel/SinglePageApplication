@@ -29,7 +29,7 @@
                                                   v-show="permis[tbkey(tb)].has_halfmoon"
                                                   :table-meta="vuex_fm[tb.table].meta.params"
                                                   :user="$root.user"
-                                                  :only_columns="vuex_links[tb.table].avail_columns_for_app"
+                                                  :only_columns="vuex_links[tb.table].avail_cols_for_app"
                                                   @show-changed="redrawTb"
                                 ></show-hide-button>
                                 <download-button v-if="vuex_fm[tb.table] && vuex_fm[tb.table].meta.params"
@@ -124,15 +124,14 @@
                                 ></string-replace-button>
                                 <search-button v-if="tb.type_tablda === 'table' && permis[tbkey(tb)].has_search_block && vuex_fm[tb.table].meta.params"
                                                :table-meta="vuex_fm[tb.table].meta.params"
-                                               :search-object="vuex_fm[tb.table].rows.for_search_block"
-                                               :limit-columns="vuex_links[tb.table].avail_columns_for_app"
-                                               @search-word-changed="emitSearchWordChanged(vuex_fm[tb.table].meta)"
+                                               :limit-columns="vuex_links[tb.table].avail_cols_for_app"
+                                               @search-word-changed="(so) => { emitSearchWordChanged(vuex_fm[tb.table].meta, so); }"
                                 ></search-button>
                                 <show-hide-button v-if="vuex_fm[tb.table] && vuex_fm[tb.table].meta.params"
                                                   v-show="permis[tbkey(tb)].has_halfmoon"
                                                   :table-meta="vuex_fm[tb.table].meta.params"
                                                   :user="$root.user"
-                                                  :only_columns="vuex_links[tb.table].avail_columns_for_app"
+                                                  :only_columns="vuex_links[tb.table].avail_cols_for_app"
                                 ></show-hide-button>
                                 <download-button v-if="vuex_fm[tb.table] && vuex_fm[tb.table].meta.params"
                                                  v-show="tb.type_tablda === 'table' && permis[tbkey(tb)].has_download"
@@ -178,7 +177,7 @@
                             </template>
                             <!--BUTTONS-->
 
-                            <info-sign-link :app_sett_key="'stim_3d__'+tab_object.master_table+'_tab'"></info-sign-link>
+                            <info-sign-link :app_sett_key="'stim_3d__'+tab_object.master_table+'_tab'" :txt="'for Stim/'+tab_object.master_table"></info-sign-link>
                         </div>
                     </div>
 
@@ -220,7 +219,7 @@
                             @row-updated="(data) => { tb.table === tab_object.master_table ? updatedMaster(data) : afterUpdateRow(data) }"
                             @row-deleted="(data) => { tb.table === tab_object.master_table ? afterDeleteRow(data) : afterDeleteRow(data) }"
                             @new-row-changed="(row) => { REDRAW_3D() }"
-                            @reload-3d="(row) => { REDRAW_3D() }"
+                            @reload-3d="(soft) => { REDRAW_3D(soft) }"
                             @meta-permissions="(p) => { setMetaPermis(p,tb) }"
                     ></tablda-table>
                     <attachments-block
@@ -246,13 +245,23 @@
             </div>
         </div>
 
-        <pre-delete-popup
-                v-if="pre_delete_master_popup"
-                :add_tables="del_additional_tbls"
-                :master_str="tab_object.init_select || tab_object.init_top"
-                @popup-delete="deleteMaster()"
-                @popup-close="pre_delete_master_popup = false"
-        ></pre-delete-popup>
+        <deletew-children-popup
+            v-if="pre_delete_master_popup && found_model.meta && found_model.rows"
+            :master_table="found_model.meta.params"
+            :request_params="found_model.rows.rowsRequest()"
+            :direct_row="found_model.rows.master_row"
+            @popup-close="pre_delete_master_popup = false"
+            @after-delete="afterDeleteMaster"
+        ></deletew-children-popup>
+
+        <copyw-children-popup
+            v-if="copy_master_popup && found_model.meta && found_model.rows"
+            :master_table="found_model.meta.params"
+            :request_params="found_model.rows.rowsRequest()"
+            :direct_row="found_model.rows.master_row"
+            @popup-close="copy_master_popup = false"
+            @after-copy="copyMasterAfter"
+        ></copyw-children-popup>
     </div>
 </template>
 
@@ -273,9 +282,10 @@
     import ShowHideButton from "../../../components/Buttons/ShowHideButton";
     import ConfiguratorComponent from "../Configurator/ConfiguratorComponent";
     import SearchButton from "../../../components/Buttons/SearchButton";
-    import PreDeletePopup from "./PreDeletePopup";
     import CellHeightButton from "../../../components/Buttons/CellHeightButton";
     import StringReplaceButton from "../../../components/Buttons/StringReplaceButton";
+    import DeletewChildrenPopup from "../../../components/CustomPopup/Inheritance/DeletewChildrenPopup";
+    import CopywChildrenPopup from "../../../components/CustomPopup/Inheritance/CopywChildrenPopup";
 
     export default {
         name: 'AccordionTab',
@@ -284,10 +294,11 @@
             TabFuncMixin,
         ],
         components: {
+            CopywChildrenPopup,
+            DeletewChildrenPopup,
             StringReplaceButton,
             CellHeightButton,
             SearchButton,
-            PreDeletePopup,
             ConfiguratorComponent,
             ShowHideButton,
             DownloadButton,
@@ -312,6 +323,11 @@
             tab_object: TabObject,
         },
         watch: {
+            'found_model._id': {
+                handler(val) {
+                    this.handleHideShowTables();
+                },
+            }
         },
         methods: {
             getAccordName(a_key) {
@@ -321,14 +337,16 @@
             accordClick(a_key) {
                 this.sel_tab = this.sel_tab === a_key ? '' : a_key;
             },
+            buildTabGroups() {
+                let shown_tbls = this.getVisibleTables();
+                this.accordions = _.groupBy(shown_tbls, 'accordion_low');
+                this.elements_length = _.keys(this.accordions).length;
+            },
         },
         mounted() {
-            let filtered_tbls = _.filter(this.tab_object.tables, (tb) => {
-                return this.is_visible(tb) && this.no_hidden(tb);
-            });
-            this.accordions = _.groupBy(filtered_tbls, 'accordion_low');
-
+            this.fillHideShowTables();
             this.prepareTab();
+            this.handleHideShowTables();
         },
         beforeDestroy() {
         }

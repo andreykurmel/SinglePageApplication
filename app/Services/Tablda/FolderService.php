@@ -5,6 +5,7 @@ namespace Vanguard\Services\Tablda;
 
 use Illuminate\Support\Facades\Storage;
 use Vanguard\Models\Folder\Folder;
+use Vanguard\Models\User\UserGroup;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Singletones\AuthUserSingleton;
@@ -14,6 +15,7 @@ class FolderService
     private $tableService;
     private $folderRepository;
     private $importService;
+    protected $available_link_tables = [];
 
     /**
      * FolderService constructor.
@@ -73,6 +75,31 @@ class FolderService
     }
 
     /**
+     * @return void
+     * @throws \Exception
+     */
+    public function syncPrivateWithPublicShared(): void
+    {
+        $user_id = auth()->id();
+
+        $folders = Folder::where('is_folder_link', $user_id)
+            ->whereNotNull('shared_from_id')
+            ->joinFolderStructure()
+            ->get();
+
+        if (Folder::where('is_folder_link', $user_id)->count() > 20) {
+            \Log::warning('User: ' . $user_id . ' - has a lot shared folders.');
+            return;
+        }
+
+        foreach ($folders as $folder) {
+            if ($this->deleteFolderWithSubs($folder->id, $user_id)) {
+                $this->createLink($user_id, $folder->shared_from_id, $folder->parent_id, 'link', 'public');
+            }
+        }
+    }
+
+    /**
      * @param $user_id
      * @param $object_id
      * @param $parent_id
@@ -87,7 +114,13 @@ class FolderService
 
         if ($folder) {
             $folder_tree = $this->folderRepository->buildSubTree($folder);
-            $this->linkSubfolders($folder_tree, $user_id, $parent_id, $type, $structure);
+            $arr = [ 'is_folder_link' => $user_id, 'is_opened' => 1, 'inside_folder_link' => $user_id, 'shared_from_id' => $folder->id ];
+
+            /** @var UserGroup $visitorsGroup */
+            $visitorsGroup = auth()->user()->_sys_user_groups()->first();
+            $this->available_link_tables = $visitorsGroup->_tables_shared()->pluck('table_id')->toArray();
+
+            $this->linkSubfolders($folder_tree, $user_id, $parent_id, $type, $structure, $arr);
 
             //menutree is changed
             (new UserRepository())->newMenutreeHash($user_id);
@@ -102,17 +135,21 @@ class FolderService
      * @param int $parent_id
      * @param string $type
      * @param string $structure
+     * @param array $arr
      * @throws \Exception
      */
-    protected function linkSubfolders($folder_tree, $user_id, $parent_id = 0, $type = 'link', $structure = 'private')
+    protected function linkSubfolders($folder_tree, $user_id, $parent_id = 0, $type = 'link', $structure = 'private', $arr = [])
     {
         foreach ($folder_tree as $obj) {
-            if ($obj['li_attr']['data-type'] == 'folder') {
-                $arr = [ 'is_folder_link' => $user_id, 'is_opened' => 1 ];
+            if ($obj['li_attr']['data-type'] == 'folder')
+            {
                 $new_folder = $this->folderRepository->insertFolder($parent_id, $user_id, $obj['init_name'], $structure, $arr);
-                $this->linkSubfolders($obj['children'], $user_id, $new_folder->id, $type, $structure);
-            } else {
-                $arr = ['is_folder_link' => $user_id];
+                $this->linkSubfolders($obj['children'], $user_id, $new_folder->id, $type, $structure, ['inside_folder_link' => $user_id]);
+            }
+            elseif (
+                ! $this->available_link_tables
+                || in_array($obj['li_attr']['data-id'], $this->available_link_tables)
+            ) {
                 $this->folderRepository->linkTable($obj['li_attr']['data-id'], $parent_id, $user_id, $type, $structure, $arr);
             }
         }
@@ -197,9 +234,11 @@ class FolderService
      * @param $user_id
      * @param $name
      * @param $structure
+     * @param $description
+     * @param $in_shared
      * @return array|Folder
      */
-    public function insertFolder($parent_id, $user_id, $name, $structure, $in_shared)
+    public function insertFolder($parent_id, $user_id, $name, $structure, $description, $in_shared)
     {
         if (
             $name
@@ -211,7 +250,10 @@ class FolderService
             return ['error' => true, 'msg' => 'Node Name Taken. Enter a Different Name.'];
         }
 
-        return $this->folderRepository->insertFolder($parent_id, $user_id, $name, $structure, ['in_shared' => $in_shared]);
+        return $this->folderRepository->insertFolder($parent_id, $user_id, $name, $structure, [
+            'description' => $description,
+            'in_shared' => $in_shared,
+        ]);
     }
 
     /**
@@ -228,7 +270,9 @@ class FolderService
      */
     public function updateFolder($folder_id, array $data, $user_id)
     {
-        return $this->folderRepository->updateFolder($folder_id, $data, $user_id);
+        $folder = $this->folderRepository->updateFolder($folder_id, $data, $user_id);
+        $this->syncPrivateWithPublicShared();
+        return $folder;
     }
 
     /**
@@ -261,7 +305,10 @@ class FolderService
         $this->tableService->syncStructureOfShared($table_ids, $user_id);
         $this->folderRepository->updatePosition($folder, $user_id, $new_parent_id, $position);
 
-        return $this->folderRepository->moveFolder($folder->id, $new_parent_id, $user_id);
+        $folder = $this->folderRepository->moveFolder($folder->id, $new_parent_id, $user_id);
+        $this->syncPrivateWithPublicShared();
+
+        return $folder;
     }
 
     /**
@@ -281,6 +328,7 @@ class FolderService
             }
             $this->folderRepository->transferFolder($sub_folder, $new_user_id);
         }
+        $this->syncPrivateWithPublicShared();
 
         return 1;
     }

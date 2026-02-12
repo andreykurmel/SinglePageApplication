@@ -23,7 +23,7 @@ class CreateUfvTablesForAutmoatins extends Migration
             $table->unsignedInteger('table_alert_id');
             $table->string('name', 64)->nullable();
             $table->unsignedInteger('table_id')->nullable();
-            $table->unsignedInteger('table_ref_cond_id')->nullable();
+            $table->string('table_ref_cond_id', 24)->nullable();
             $table->tinyInteger('is_active')->default(1);
 
             $table->foreign('table_alert_id', 'alert_ufv__table_alert_id')
@@ -34,11 +34,6 @@ class CreateUfvTablesForAutmoatins extends Migration
             $table->foreign('table_id', 'alert_ufv__table_id')
                 ->references('id')
                 ->on('tables')
-                ->onDelete('cascade');
-
-            $table->foreign('table_ref_cond_id', 'alert_ufv__table_ref_cond_id')
-                ->references('id')
-                ->on('table_ref_conditions')
                 ->onDelete('cascade');
         });
 

@@ -18,6 +18,7 @@ class CreateTableEmailAddonSettingsTable extends Migration
             $table->unsignedInteger('table_id');
             $table->string('name', 128);
             $table->string('description', 255)->nullable();
+            $table->unsignedInteger('email_active')->default(0);
             $table->string('server_type', 32)->default('google');
             $table->string('smtp_key_mode', 32)->default('account');
             $table->string('google_email', 255)->nullable();
@@ -25,6 +26,7 @@ class CreateTableEmailAddonSettingsTable extends Migration
             $table->string('sendgrid_api_key', 512)->nullable();
             $table->unsignedInteger('acc_sendgrid_key_id')->nullable();
             $table->unsignedInteger('acc_google_key_id')->nullable();
+            $table->unsignedInteger('preview_listing_id')->nullable();
             $table->string('sender_name', 255)->nullable();
             $table->string('sender_email', 255)->nullable();
             $table->tinyInteger('sender_email_isdif')->nullable();
@@ -41,12 +43,12 @@ class CreateTableEmailAddonSettingsTable extends Migration
             $table->string('email_subject', 255)->nullable();
             $table->text('email_body')->nullable();
             $table->string('email_send_time', 16)->default('now');
-            $table->tinyInteger('email_delay_by_rec')->nullable();
             $table->dateTime('email_delay_time')->nullable();
             $table->unsignedInteger('email_delay_record_fld_id')->nullable();
             $table->string('email_link_width_type', 32)->default('full');
             $table->unsignedInteger('email_link_width_size')->default(100);
             $table->string('email_link_align', 32)->default('left');
+            $table->string('email_link_viewtype', 32)->default('table');
             $table->string('hash', 64)->nullable();
             $table->string('email_background_header', 32)->nullable();
             $table->string('email_background_body', 32)->nullable();
@@ -94,6 +96,25 @@ class CreateTableEmailAddonSettingsTable extends Migration
             $table->foreign('limit_row_group_id', 'teas__limit_row_group_id')
                 ->references('id')
                 ->on('table_row_groups')
+                ->onDelete('set null');
+        });
+
+        Schema::table('table_alerts', function (Blueprint $table) {
+            $table->foreign('on_added_row_group_id', 'table_alerts__on_added_row_group_id')
+                ->references('id')
+                ->on('table_row_groups')
+                ->onDelete('cascade');
+            $table->foreign('on_updated_row_group_id', 'table_alerts__on_updated_row_group_id')
+                ->references('id')
+                ->on('table_row_groups')
+                ->onDelete('cascade');
+            $table->foreign('on_deleted_row_group_id', 'table_alerts__on_deleted_row_group_id')
+                ->references('id')
+                ->on('table_row_groups')
+                ->onDelete('cascade');
+            $table->foreign('automation_email_addon_id', 'table_alerts__automation_email_addon_id')
+                ->references('id')
+                ->on('table_email_addon_settings')
                 ->onDelete('set null');
         });
     }

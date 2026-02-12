@@ -28,10 +28,18 @@
             <tr>
                 @foreach($pt_fields_arr as $fld)
                     @if(isset($type) && $type == 'updated' && in_array($fld['field'], $changed_fields))
-                        <td style="{{ $styles['table--td-changed'] }}">{{ ($row_arr[$fld['field']] ?? '') }}</td>
+                    <td style="{{ $styles['table--td-changed'] }}" align="{{ $fld['col_align'] }}">
                     @else
-                        <td style="{{ $styles['table--td'] }}">{{ ($row_arr[$fld['field']] ?? '') }}</td>
+                    <td style="{{ $styles['table--td'] }}" align="{{ $fld['col_align'] }}">
                     @endif
+                        @if(Vanguard\Services\Tablda\HelperService::hasWebLinkUrl($row_arr, $fld))
+                            <a href="{{ Vanguard\Services\Tablda\HelperService::hasWebLinkUrl($row_arr, $fld) }}" target="_blank">
+                                {{ Vanguard\Services\Tablda\HelperService::cellForEmail($row_arr, $fld) }}
+                            </a>
+                        @else
+                            <span>{{ Vanguard\Services\Tablda\HelperService::cellForEmail($row_arr, $fld) }}</span>
+                        @endif
+                    </td>
                 @endforeach
             </tr>
         @endforeach
@@ -49,10 +57,18 @@
                     </td>
 
                     @if(isset($type) && $type == 'updated' && in_array($fld['field'], $changed_fields))
-                        <td style="{{ $styles['table--td-changed'] }}">{{ ($row_arr[$fld['field']] ?? '') }}</td>
+                    <td style="{{ $styles['table--td-changed'] }}" align="{{ $fld['col_align'] }}">
                     @else
-                        <td style="{{ $styles['table--td'] }}">{{ ($row_arr[$fld['field']] ?? '') }}</td>
+                    <td style="{{ $styles['table--td'] }}" align="{{ $fld['col_align'] }}">
                     @endif
+                        @if(Vanguard\Services\Tablda\HelperService::hasWebLinkUrl($row_arr, $fld))
+                            <a href="{{ Vanguard\Services\Tablda\HelperService::hasWebLinkUrl($row_arr, $fld) }}" target="_blank">
+                                {{ Vanguard\Services\Tablda\HelperService::cellForEmail($row_arr, $fld) }}
+                            </a>
+                        @else
+                            <span>{{ Vanguard\Services\Tablda\HelperService::cellForEmail($row_arr, $fld) }}</span>
+                        @endif
+                    </td>
 
                     @if($pt_has_unit)
                         <td style="{{ $styles['table--td-noborder'] }}">
@@ -74,18 +90,18 @@
             @foreach($pt_fields_arr as $fld)
                 <li>
                     <span style="{{ $styles['list--head'] }}">{{ ($fld['name'] ?? '') }}:</span>
-
                     @if(isset($type) && $type == 'updated' && in_array($fld['field'], $changed_fields))
                         <span style="{{ $styles['list--data-changed'] }}">
                     @else
                         <span style="{{ $styles['list--data'] }}">
                     @endif
-                        <span>{{ ($row_arr[$fld['field']] ?? '') }}</span>
+
+                        <span>{{ Vanguard\Services\Tablda\HelperService::cellForEmail($row_arr, $fld) }}</span>
                         @if($pt_has_unit && ($fld['unit'] ?? '') || ($fld['unit_display'] ?? ''))
                             <span>({{ ($fld['unit_display'] ?? '') ?: ($fld['unit'] ?? '') }})</span>
                         @endif
-                    </span>
 
+                    </span>
                 </li>
             @endforeach
         </ul>

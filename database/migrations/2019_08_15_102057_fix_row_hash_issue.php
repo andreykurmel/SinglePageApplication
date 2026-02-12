@@ -13,21 +13,6 @@ class FixRowHashIssue extends Migration
      */
     public function up()
     {
-        Schema::connection('mysql_correspondence')
-            ->table('correspondence_apps', function (Blueprint $table) {
-                $table->string('row_hash', 32)->nullable();
-            });
-
-        Schema::connection('mysql_correspondence')
-            ->table('correspondence_tables', function (Blueprint $table) {
-                $table->string('row_hash', 32)->nullable();
-            });
-
-        Schema::connection('mysql_correspondence')
-            ->table('correspondence_fields', function (Blueprint $table) {
-                $table->string('row_hash', 32)->nullable();
-            });
-
         Schema::table('unit_conversion', function (Blueprint $table) {
             $table->string('row_hash', 32)->nullable();
         });

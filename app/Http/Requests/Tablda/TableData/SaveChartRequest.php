@@ -25,6 +25,7 @@ class SaveChartRequest extends FormRequest
     {
         return [
             'id' => 'present|integer|nullable|exists:table_charts,id',
+            'table_chart_tab_id' => 'nullable|integer|exists:table_chart_tabs,id',
             'table_id' => 'required|integer|exists:tables,id',
             'row_idx' => 'required|integer|min:0',
             'col_idx' => 'required|integer|min:0',

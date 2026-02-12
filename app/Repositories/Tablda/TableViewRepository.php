@@ -7,6 +7,7 @@ use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableView;
 use Vanguard\Models\Table\TableViewFiltering;
 use Vanguard\Models\Table\TableViewRight;
+use Vanguard\Modules\QRGenerator;
 use Vanguard\Repositories\Tablda\Permissions\TableColGroupRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Services\Tablda\HelperService;
@@ -45,6 +46,16 @@ class TableViewRepository
     }
 
     /**
+     * @param $param
+     * @return mixed
+     */
+    public function getByCustomUrl($param) {
+        return TableView::where('custom_path', '=', $param)->whereHas('_user', function ($q) {
+            $q->where('subdomain', '=', $this->service->cur_subdomain);
+        })->first();
+    }
+
+    /**
      * Get by Table name and Users link.
      *
      * @param array $param : [
@@ -78,17 +89,13 @@ class TableViewRepository
     }
 
     /**
-     * Check availability of link address.
-     *
-     * @param $table_id
      * @param $link
      * @param $id
-     * @return mixed
+     * @return int
      */
-    public function checkAddress($table_id, $link, $id = 0) {
+    public function checkAddress($link, $id = 0) {
         return TableView::where('id', '!=', $id)
-            ->where('table_id', $table_id)
-            ->where('user_link', $link)
+            ->where('custom_path', $link)
             ->count();
     }
 
@@ -152,18 +159,20 @@ class TableViewRepository
      * @return \Vanguard\Models\Table\TableView
      */
     public function insertView(Table $table, Array $data) {
-        $data['name'] = preg_replace('/[^\w\d_\s]/i', '', $data['name']);
+        //$data['name'] = preg_replace('/[^\w\d_\s]/i', '', $data['name']);
         $data['hash'] = Uuid::uuid4();
         $data['user_id'] = $data['user_id'] ?? null;
-        $data['side_top'] = $data['side_top'] ?? 'show';
-        $data['side_left_menu'] = $data['side_left_menu'] ?? 'show';
+        $data['side_top'] = $data['side_top'] ?? 'na';
+        $data['side_left_menu'] = $data['side_left_menu'] ?? 'na';
         $data['side_left_filter'] = $data['side_left_filter'] ?? 'show';
-        $data['side_right'] = $data['side_right'] ?? 'show';
+        $data['side_right'] = $data['side_right'] ?? 'na';
+        $data['srv_fltrs_ontop_pos'] = $data['srv_fltrs_ontop_pos'] ?? 'start';
         $data['is_active'] = 1;
         if (empty($data['col_group_id'])) {
             $visitor_columns = (new TableColGroupRepository())->getSys($table->id);
             $data['col_group_id'] = $visitor_columns->id;
         }
+        $data['qr_mrv_link'] = (new QRGenerator())->forMRV($data['hash'])->asPNG();
         $view = TableView::create( array_merge(
             $this->service->delSystemFields($data),
             $this->service->getModified(),
@@ -189,18 +198,30 @@ class TableViewRepository
      * @return \Vanguard\Models\Table\TableView
      */
     public function updateView($view_id, Array $data) {
-        if (!empty($data['name'])) {
+        /*if (!empty($data['name'])) {
             $data['name'] = preg_replace('/[^\w\d_\s]/i', '', $data['name']);
-        }
+        }*/
         $data['side_top'] = $data['side_top'] ?? 'na';
         $data['side_left_menu'] = $data['side_left_menu'] ?? 'na';
         $data['side_left_filter'] = $data['side_left_filter'] ?? 'na';
         $data['side_right'] = $data['side_right'] ?? 'na';
-        return TableView::where('id', '=', $view_id)->update( array_merge(
+        $data = array_merge(
             $this->service->delSystemFields($data),
             $this->service->getModified(),
             $this->service->getCreated()
-        ) );
+        );
+
+        $old = TableView::where('id', '=', $view_id)->first();
+        $data['name'] = $data['name'] ?? $old->name;
+        $data['mrv_qr_with_name'] = $data['mrv_qr_with_name'] ?? $old->mrv_qr_with_name;
+
+        if ($old->name != $data['name'] || $old->mrv_qr_with_name != $data['mrv_qr_with_name']) {
+            $label = $data['mrv_qr_with_name'] ? $data['name'] : '';
+            $data['qr_mrv_link'] = (new QRGenerator())->forMRV($old->hash, $label)->asPNG();
+        }
+        TableView::where('id', '=', $view_id)->update($data);
+
+        return TableView::where('id', '=', $view_id)->first();
     }
 
     /**
@@ -285,7 +306,6 @@ class TableViewRepository
      *      +name: string,
      *      +f_type: string,
      *      +f_size: float,
-     *      +f_default: string,
      *      +f_required: int(0|1),
      *  ],
      *  ...

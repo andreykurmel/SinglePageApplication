@@ -3,6 +3,7 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
+use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\UserGroup\UserGroupAddConditionRequest;
 use Vanguard\Http\Requests\Tablda\UserGroup\UserGroupAddRequest;
@@ -12,7 +13,6 @@ use Vanguard\Http\Requests\Tablda\UserGroup\UserGroupDeleteRequest;
 use Vanguard\Http\Requests\Tablda\UserGroup\UserGroups2UsersRequest;
 use Vanguard\Http\Requests\Tablda\UserGroup\UserGroupUpdateConditionRequest;
 use Vanguard\Models\User\UserGroup;
-use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
@@ -196,5 +196,51 @@ class UserGroupController extends Controller
         $this->authorize('isOwner', [UserGroup::class, $user_group]);
 
         return $this->userGroupService->changeCondToUsers($user_group);
+    }
+
+    /**
+     * @param UserGroupAddConditionRequest $request
+     * @return \Illuminate\Database\Eloquent\Collection
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function insertUserSubGroup(UserGroupAddConditionRequest $request)
+    {
+        $user_group = $this->userGroupRepository->getGroup($request->user_group_id);
+        $this->authorize('isOwner', [UserGroup::class, $user_group]);
+
+        return $this->userGroupService->addSubgroup(
+            $user_group,
+            array_merge($request->fields, ['usergroup_id' => $request->user_group_id])
+        );
+    }
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Database\Eloquent\Collection
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function updateUserSubGroup(Request $request)
+    {
+        $user_group = $this->userGroupRepository->getGroupSubgroup($request->model_id);
+        $this->authorize('isOwner', [UserGroup::class, $user_group]);
+
+        return $this->userGroupService->updateSubgroup(
+            $user_group,
+            $request->model_id,
+            array_merge($request->fields, ['usergroup_id' => $user_group->id])
+        );
+    }
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Database\Eloquent\Collection
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function deleteUserSubGroup(Request $request)
+    {
+        $user_group = $this->userGroupRepository->getGroupSubgroup($request->model_id);
+        $this->authorize('isOwner', [UserGroup::class, $user_group]);
+
+        return $this->userGroupService->deleteSubgroup($user_group, $request->model_id);
     }
 }

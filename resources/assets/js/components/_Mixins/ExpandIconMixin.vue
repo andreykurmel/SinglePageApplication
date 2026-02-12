@@ -3,7 +3,7 @@
      * Should be present:
      *  - showField() Function
      *  - updateValue() Function
-     *  - tableRow - Object
+     *  - editValue - String
      *  - tableHeader - Object
      *  - is_visible - Boolean
      */
@@ -42,7 +42,7 @@
             },
             tableDataStringUpdateHandler(uniq_id, val) {
                 if (uniq_id === this.getuniqid()) {
-                    this.tableRow[this.tableHeader.field] = val;
+                    this.editValue = val;
                     this.updateValue();
                 }
             },

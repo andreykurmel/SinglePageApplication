@@ -7,7 +7,7 @@
  *  this.tableRow: Object
  *  this.cellHeight: Number
  *
- *  also are needed:
+ *  also can be used:
  *
  *  this.isVertTable: Boolean
  *  this.isSelected: Boolean
@@ -15,6 +15,8 @@
  *  */
 import TestRowColMixin from './TestRowColMixin.vue';
 import ThemeStyleMixin from "../../global_mixins/ThemeStyleMixin.vue";
+
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
 export default {
         mixins: [
@@ -63,55 +65,6 @@ export default {
                 return (this.lineHeight * maxCell)/* + this.cell_top_padding*/;
             },
 
-            //cell style
-            getCellStyle() {
-                let nostyle = this.editing && ['Date Time', 'Date', 'Time'].indexOf(this.tableHeader.f_type) > -1;
-                return nostyle
-                    ? { color:'initial', fontWeight: 'initial' }
-                    : this.getCellStyleMethod(this.tableRow, this.tableHeader);
-            },
-
-            //inner cell styles
-            getTdWrappStyle() {
-                if (!this.tableHeader) {
-                    return {};
-                }
-
-                let bord = (this.isSelected ? '2px solid #8A8' : '2px solid rgba(0,0,0,0)');
-                if (this.selectedCell && this.selectedCell.copy_mode) {
-                    bord = (this.selectedCell.is_sel_copy(this.tableMeta, this.tableHeader, this.rowIndex) ? '2px dashed #8A8' : bord);
-                }
-                let styl = { border: bord };
-                if (this.tableHeader.f_type === 'Attachment' && this.attach_overed) {
-                    styl.border = '4px dashed #F77';
-                }
-                return styl;
-            },
-
-            getWrapperStyle() {
-                if (this.no_height_limit) {
-                    return {
-                        maxHeight: 'auto',
-                        overflow: 'hidden',//this.isVertTable ? 'auto' : 'hidden',
-                    };
-                } else {
-                    return {
-                        maxHeight: this.maxCellHGT ? this.maxCellHGT+'px' : null,
-                        overflow: 'hidden',//this.isVertTable ? 'auto' : 'hidden',
-                    };
-                }
-            },
-            getInnerStyle() {
-                if (!this.tableHeader) {
-                    return {};
-                }
-
-                return {
-                    maxHeight: this.maxCellHGT ? this.maxCellHGT+'px' : null,
-                    textAlign: this.no_align ? 'left' : this.tableHeader.col_align,
-                };
-            },
-
             getEditStyle() {
                 let style = _.cloneDeep(this.textStyle);
                 style.padding = this.cell_top_padding/4+'px';
@@ -141,6 +94,15 @@ export default {
                 }
                 return style;
             },
+            textSysStyleSmart() {
+                let style = _.clone(this.textSysStyle);
+                style.color = style.color || this.smartTextColor;
+                return style;
+            },
+            smartTextColor() {
+                let bg = this.themeMainBgStyle.backgroundColor;
+                return SpecialFuncs.smartTextColorOnBg(bg);
+            },
             textSysContentSt() {
                 return {
                     lineHeight: (Number(this.themeSysContentSize) + 2)+'px',
@@ -156,8 +118,68 @@ export default {
                     color: this.themeSysColor,
                 }
             },
+            checkBoxStyleWithLimits() {
+                return {
+                    width: Math.min(this.themeTextFontSize, 20)+'px',
+                    height: Math.min(this.themeTextFontSize, 20)+'px',
+                    color: this.themeTextFontColor,
+                    maxHeight: this.maxCellHGT ? this.maxCellHGT+'px' : null,
+                    maxWidth: this.maxCellHGT ? this.maxCellHGT+'px' : null,
+                };
+            },
         },
         methods: {
+            //inner cell styles
+            getTdWrappStyle() {
+                if (!this.tableHeader) {
+                    return {};
+                }
+
+                let bord = (this.isSelected ? '2px solid #8A8' : '2px solid rgba(0,0,0,0)');
+                if (this.selectedCell && this.selectedCell.copy_mode) {
+                    bord = (this.selectedCell.is_sel_copy(this.tableMeta, this.tableHeader, this.rowIndex) ? '2px dashed #8A8' : bord);
+                }
+                let styl = { border: bord };
+                if (this.tableHeader.f_type === 'Attachment' && this.attach_overed) {
+                    styl.border = '4px dashed #F77';
+                }
+                if (this.fixedWidth) {
+                    styl.width = this.extraStyle ? this.extraStyle.width : this.tdCellWidth(this.tableHeader)+'px';
+                }
+                return styl;
+            },
+
+            getWrapperStyle() {
+                if (this.no_height_limit) {
+                    return {
+                        maxHeight: 'auto',
+                        overflow: 'hidden',//this.isVertTable ? 'auto' : 'hidden',
+                    };
+                } else {
+                    return {
+                        maxHeight: this.maxCellHGT ? this.maxCellHGT+'px' : null,
+                        overflow: 'hidden',//this.isVertTable ? 'auto' : 'hidden',
+                    };
+                }
+            },
+            getInnerStyle() {
+                if (!this.tableHeader) {
+                    return {};
+                }
+
+                return {
+                    maxHeight: this.maxCellHGT ? this.maxCellHGT+'px' : null,
+                    textAlign: this.no_align ? 'left' : this.tableHeader.col_align,
+                };
+            },
+            //cell style
+            getCellStyle() {
+                let nostyle = ! this.tableHeader
+                    || (this.editing && ['Date Time', 'Date', 'Time'].indexOf(this.tableHeader.f_type) > -1);
+                return nostyle
+                    ? { color:'initial', fontWeight: 'initial' }
+                    : this.getCellStyleMethod(this.tableRow, this.tableHeader);
+            },
             tdCellWidth(tableHeader) {
                 if (this.no_width) {
                     return null;
@@ -191,11 +213,14 @@ export default {
                     backgroundColor: this.isVertTable ? '#FFF' : 'inherit',
                     textAlign: (tableHeader.f_type === 'Boolean' ? 'center' : ''),
                     freezed_by_format: false,
-                    hidden_by_format: this.isVertTable ? !(tableHeader.is_default_show_in_popup) : false,
+                    hidden_by_format: this.isVertTable
+                        ? !SpecialFuncs.defaultVisibility(tableHeader)
+                        : false,
                     color: null,
                     fontStyle: null,
                     fontWeight: null,
                     textDecoration: null,
+                    fontFamily: this.themeTextFontFamily,
                 };
 
                 //just for adding watcher by Vue and update style after RowUpdate.
@@ -208,7 +233,9 @@ export default {
                 }
                 else
                 if (this.tableMeta) {
-                    _.each(this.tableMeta._cond_formats, (format) => {
+                    let condFormats = this.tableMeta._cond_formats || [];
+                    for (let i = condFormats.length-1; i >= 0; i--) {
+                        let format = condFormats[i] || {};
 
                         //check that Format is applied to this Cell
                         if (
@@ -235,7 +262,7 @@ export default {
                             res.freezed_by_format = (res.freezed_by_format || format.activity === 'Freezed');
                             res.hidden_by_format = this.isVertTable ? !format.show_form_data : !format.show_table_data;
                         }
-                    });
+                    }
                 }
 
                 res.backgroundColor = (this.isSelected ? '#CFC' : (res.hidden_by_format ? '#CCC' : res.backgroundColor));
@@ -248,6 +275,10 @@ export default {
                 if (!res.fontSize || !res.lineHeight) {
                     res.lineHeight = this.lineHeight+'px';
                     res.fontSize = Number(this.themeTextFontSize)+'px';
+                }
+
+                if (tableHeader.input_type === 'Mirror') {
+                    res.lineHeight = (parseInt(res.fontSize) + 4) + 'px';
                 }
 
                 this.freezed_by_format = res.freezed_by_format;

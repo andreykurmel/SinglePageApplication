@@ -1,8 +1,9 @@
 <script>
-    import {eventBus} from './../../app';
+    import {eventBus} from '../../app';
 
     import Tables from './Object/Table/Tables';
     import Folders from './Object/Folder/Folders';
+    import Pages from './Object/Page/Pages';
     import LeftMenu from './LeftMenu/LeftMenu';
     import RightMenu from './RightMenu/RightMenu';
     import TosChecker from './../TosChecker';
@@ -11,6 +12,7 @@
         components: {
             Tables,
             Folders,
+            Pages,
             LeftMenu,
             RightMenu,
             TosChecker,
@@ -19,8 +21,8 @@
             return {
                 filters: null,
                 isPagination: true,
-                object_id:  this.init_object_id,
-                object_type:  this.init_object_type,
+                object_id: this.init_object_id,
+                object_type: this.init_object_type,
                 auto_logout: null,
             }
         },
@@ -39,7 +41,8 @@
             globalKeyHandler(e) {
                 if (['INPUT', 'TEXTAREA'].indexOf(e.target.nodeName) === -1) {//target not in Input
 
-                    if (e.ctrlKey) {
+                    let cmdOrCtrl = e.metaKey || e.ctrlKey;
+                    if (cmdOrCtrl) {
                         if (e.keyCode === 37) {//ctrl + left arrow
                             this.$root.toggleLeftMenu();
                         }

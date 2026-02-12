@@ -16,6 +16,7 @@ use Vanguard\Http\Requests\Tablda\UsersSearchGroupsRequest;
 use Vanguard\Http\Requests\Tablda\UsersSearchRequest;
 use Vanguard\Http\Requests\Tablda\UsersUpdateRequest;
 use Vanguard\Repositories\Tablda\PlanRepository;
+use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\PaymentService;
 use Vanguard\Services\Tablda\UserService;
@@ -80,7 +81,11 @@ class UserController extends Controller
      */
     public function searchUsers(UsersSearchRequest $request)
     {
-        return ['results' => $this->users->searchUsers($request->q, $request->table_id, $request->request_field)];
+        if ($request->table_db) {
+            $table = (new TableRepository())->getTableByDB($request->table_db);
+            $request->table_id = $table ? $table->id : null;
+        }
+        return ['results' => $this->users->searchUsers($request->q, $request->table_id, $request->request_field, $request->extras)];
     }
 
     /**
@@ -108,7 +113,7 @@ class UserController extends Controller
      */
     public function searchUsersInUserGroups(UsersSearchGroupsRequest $request)
     {
-        return $this->users->searchUsersInUserGroups($request->q ?: '', $request->table_id);
+        return $this->users->searchUsersInUserGroups($request->q ?: '', $request->table_id, $request->ddl_id);
     }
 
     /**

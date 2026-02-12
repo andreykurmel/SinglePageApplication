@@ -3,6 +3,7 @@
 namespace Vanguard\Repositories\Tablda;
 
 
+use Illuminate\Support\Collection;
 use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\Models\User\UserApiKey;
 use Vanguard\Models\User\UserConnection;
@@ -127,16 +128,52 @@ class UserConnRepository
     /**
      * Get UserApi
      *
-     * @param int $cloud_id
+     * @param int $api_d
      * @return UserApiKey
      */
-    public function getUserApi(int $cloud_id, bool $force = false)
+    public function getUserApi(int $api_d, bool $force = false)
     {
-        $q = UserApiKey::where('id', '=', $cloud_id);
+        $q = UserApiKey::where('id', '=', $api_d);
         if (!$force) {
             $q->where('user_id', '=', auth()->id());
         }
         return $q->first();
+    }
+
+    /**
+     * @param string[] $twiml_acc_id
+     * @return Collection<UserApiKey>
+     */
+    public function getTwilioAcc(array $twiml_acc_id)
+    {
+        return UserApiKey::where('type', '=', 'twilio')
+            ->whereIn('search_key', $twiml_acc_id)
+            ->where('is_active', '=', 1)
+            ->get();
+    }
+
+    /**
+     * @param int $user_id
+     * @return UserApiKey|null
+     */
+    public function defaultTwilioAcc(int $user_id)
+    {
+        return UserApiKey::where('type', '=', 'twilio')
+            ->where('user_id', '=', $user_id)
+            ->where('is_active', '=', 1)
+            ->first();
+    }
+
+    /**
+     * @param int $user_id
+     * @return \Illuminate\Database\Eloquent\Model|object|UserApiKey|null
+     */
+    public function defaultAiAcc(int $user_id)
+    {
+        return UserApiKey::whereIn('type', ['gemini', 'openai'])
+            ->where('user_id', '=', $user_id)
+            ->where('is_active', '=', 1)
+            ->first();
     }
 
     /**
@@ -155,13 +192,18 @@ class UserConnRepository
      */
     protected function setDef(array $data)
     {
+        $app_key = $data['key'] ?? '';
         $data['name'] = $data['name'] ?? '';
         $data['notes'] = $data['notes'] ?? '';
         $data['is_active'] = $data['is_active'] ? 1 : 0;
         $data['type'] = $data['type'] ?? 'google';
-        $data['key'] = $data['key'] ?? '' ? TabldaEncrypter::encrypt($data['key']) : '';
+        $data['key'] = ($data['key'] ?? '') ? TabldaEncrypter::encrypt($data['key']) : '';
+        $data['auth_token'] = ($data['auth_token'] ?? '') ? TabldaEncrypter::encrypt($data['auth_token']) : '';
         if ($data['type'] == 'airtable') {
             $data['air_type'] = $data['air_type'] ?? 'public_rest';
+        }
+        if ($data['type'] == 'twilio') {
+            $data['search_key'] = $app_key;
         }
         return $this->service->delSystemFields($data);
     }
@@ -271,7 +313,7 @@ class UserConnRepository
      * Get UserApi
      *
      * @param int $cloud_id
-     * @return mixed
+     * @return UserEmailAccount
      */
     public function getUserEmailAcc(int $cloud_id)
     {

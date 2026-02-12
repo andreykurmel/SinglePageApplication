@@ -1,30 +1,28 @@
 <template>
     <div style="height: 30px;">
-        <button v-if="hasHistory"
-                class="btn btn-primary btn-sm blue-gradient pull-right"
-                :style="$root.themeButtonStyle"
-                @click="clearHistory()"
-        >Clear History</button>
-
         <div class="form-group flex flex--center pull-right" style="height: 30px;">
 
             <select v-show="selected_addon.email_send_time"
-                    class="form-control input-sm w-sm"
-                    @change="updateAdn(selected_addon, 'email_delay_record_fld_id')"
+                    class="form-control input-sm w-md"
+                    @change="updateAdn(selected_addon, 'email_send_time')"
                     v-model="selected_addon.email_send_time"
+                    :disabled="!can_edit"
                     style="margin-right: 5px;">
                 <option value="now">Now</option>
                 <option value="at_time">At Time</option>
+                <option value="field_specific">Record Specific</option>
             </select>
 
             <div v-show="selected_addon.email_send_time !== 'now'" class="flex flex--center-v">
-                <input v-show="!selected_addon.email_delay_by_rec"
+                <input v-show="selected_addon.email_send_time === 'at_time'"
                        ref="email_time_delay_inp"
                        @blur="hidePicker()"
+                       :disabled="!can_edit"
                        class="form-control input-sm w-md"/>
-                <select v-show="selected_addon.email_delay_by_rec"
+                <select v-show="selected_addon.email_send_time === 'field_specific'"
                         class="form-control input-sm w-md"
                         @change="updateAdn(selected_addon, 'email_delay_record_fld_id')"
+                        :disabled="!can_edit"
                         v-model="selected_addon.email_delay_record_fld_id">
                     <option :value="null"></option>
                     <option v-for="fld in tableMeta._fields"
@@ -32,20 +30,13 @@
                             :value="fld.id"
                     >{{ fld.name }}</option>
                 </select>
-                <span>&nbsp;&nbsp;</span>
-                <span class="indeterm_check__wrap">
-                    <span class="indeterm_check" @click="updCheck('email_delay_by_rec')">
-                        <i v-if="selected_addon.email_delay_by_rec" class="glyphicon glyphicon-ok group__icon"></i>
-                    </span>
-                </span>
-                <label class="no-wrap no-margin">&nbsp;by record.&nbsp;</label>
             </div>
 
         </div>
 
         <button class="btn btn-primary btn-sm blue-gradient pull-right"
                 :style="$root.themeButtonStyle"
-                :disabled="!!send_status || !!cannot_all_resend"
+                :disabled="!!send_status || !!cannot_all_resend || !can_edit"
                 @click="sendEmail()"
         >Send</button>
         <div v-show="send_status" class="pull-right flex flex--center email_status">{{ send_status }}</div>
@@ -68,6 +59,7 @@
         data: function () {
             return {
                 error_present: 0,
+                interval: null,
             }
         },
         props:{
@@ -76,6 +68,7 @@
             total_emails: Number,
             email_row_id: Number,
             hasHistory: Boolean,
+            can_edit: Boolean|Number,
         },
         computed: {
             send_status() {
@@ -118,7 +111,7 @@
                         this.error_present = 0;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             cancelEmail() {
@@ -130,19 +123,7 @@
                     this.error_present = 0;
                     this.$emit('load-history');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
-                });
-            },
-            clearHistory() {
-                axios.delete('/ajax/addon-email-sett/history', {
-                    params: {
-                        email_add_id: this.selected_addon.id,
-                        row_id: this.email_row_id,
-                    },
-                }).then(({data}) => {
-                    this.$emit('load-history');
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             checkStatus() {
@@ -194,13 +175,16 @@
         },
         mounted() {
             this.showDelayTimepicker();
-            setInterval(() => {
+            this.interval = setInterval(() => {
                 if (this.selected_addon.prepared_emails) {
                     this.checkStatus();
                 }
             }, 1000);
         },
         beforeDestroy() {
+            if (this.interval) {
+                clearInterval(this.interval);
+            }
         }
     }
 </script>

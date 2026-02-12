@@ -1,24 +1,49 @@
 <template>
-    <table class="spaced-table">
-        <tbody v-if="requestFields">
+    <table class="spaced-table" :style="$root.themeMainBgStyle">
+        <tbody v-if="requestFields" :style="textSysStyleSmart">
 
             <tr>
                 <td :style="getTdStyle" class="flex flex--center">
-                    <div class="td td--100 h-32 flex flex--center-v" :style="getTdStyle">
+                    <div class="td td--50 h-32 flex flex--center-v" ref="embd_wrapper" :style="getTdStyle">
+                        <label>Embed:&nbsp;</label>
+                        <embed-button class="embed_button btn btn-default embed__btn"
+                                      :is-disabled="!requestRow.active"
+                                      :is-dcr="true"
+                                      :popup-style="customEmbdStyle"
+                                      :hash="requestRow.link_hash || '#'"
+                                      :style="textStyle"
+                        ></embed-button>
+                    </div>
+                    <div class="td td--50 h-32" :style="getTdStyle"></div>
+                </td>
+            </tr>
+
+            <tr>
+                <td :style="getTdStyle" class="flex flex--center">
+                    <div class="td td--50 h-32 flex flex--center-v" :style="getTdStyle">
                         <label class="switch_t" style="display: inline-block;margin-right: 5px;">
-                            <input type="checkbox" v-model="requestRow['stored_row_protection']" :disabled="!with_edit" @change="updatedCell">
+                            <input type="checkbox" v-model="requestRow.stored_row_protection" :disabled="!with_edit" @change="updatedCell">
                             <span class="toggler round" :class="[!with_edit ? 'disabled' : '']"></span>
                         </label>
-                        <label>{{ $root.uniqName(requestFields['stored_row_protection'].name) }}:&nbsp;</label>
+                        <label>Password protection for retrieving a saved or submitted form</label>
+                    </div>
+                    <div class="td td--50 h-32 flex flex--center-h" :style="getTdStyle">
+                        <label>QR Code:&nbsp;</label>
+                        <label class="switch_t" style="display: inline-block;margin-right: 5px;">
+                            <input type="checkbox" v-model="requestRow.dcr_qr_with_name" :disabled="!with_edit" @change="updatedCell">
+                            <span class="toggler round" :class="[!with_edit ? 'disabled' : '']"></span>
+                        </label>
+                        <label>Name:</label>
                     </div>
                 </td>
             </tr>
-            <tr v-if="requestRow['stored_row_protection']">
-                <td :style="getTdStyle">
+
+            <tr>
+                <td class="flex">
                     <div class="td td--50 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['stored_row_pass_id'].name) }}:&nbsp;</label>
-                            <select v-model="requestRow['stored_row_pass_id']"
+                        <div v-show="requestRow.stored_row_protection" class="flex flex--center-v">
+                            <label>Fields saving password:&nbsp;</label>
+                            <select v-model="requestRow.stored_row_pass_id"
                                     :disabled="!with_edit"
                                     @change="updatedCell"
                                     class="form-control"
@@ -32,43 +57,7 @@
                             </select>
                         </div>
                     </div>
-                </td>
-            </tr>
-
-            <tr>
-                <td>
-                    <div style="border: 1px solid #ccc; margin: 10px 0;"></div>
-                </td>
-            </tr>
-
-            <tr>
-                <td :style="getTdStyle" class="flex flex--center">
-                    <div class="td td--25 h-32 flex flex--center-v" :style="getTdStyle">
-                        <label>Embed:</label>
-                    </div>
-                    <div class="td td--75 h-32 flex flex--center" :style="getTdStyle">
-                        <embed-button class="embed_button btn btn-default embed__btn"
-                                      :is-disabled="!requestRow.active"
-                                      :is-dcr="true"
-                                      :hash="getLinkHash(true)"
-                                      :style="textStyle"
-                        ></embed-button>
-                    </div>
-                </td>
-            </tr>
-
-            <tr>
-                <td>
-                    <div style="border: 1px solid #ccc; margin: 10px 0;"></div>
-                </td>
-            </tr>
-
-            <tr>
-                <td class="flex flex--center">
-                    <div class="td td--25 flex flex--center-v" :style="getTdStyle">
-                        <label>QR Code:</label>
-                    </div>
-                    <div class="td td--75 flex flex--center-h">
+                    <div class="td td--50 flex flex--center">
                         <img v-if="requestRow.qr_link" :src="requestRow.qr_link" width="300" height="300">
                         <span v-else>Construction...</span>
                     </div>
@@ -83,11 +72,11 @@
     import CellStyleMixin from "../../../../_Mixins/CellStyleMixin.vue";
     import ReqRowMixin from "./ReqRowMixin.vue";
 
-    import EmbedButton from "../../../../Buttons/EmbedButton";
+    import EmbedButton from "../../../../Buttons/EmbedButton.vue";
 
     export default {
         components: {
-            EmbedButton,
+            EmbedButton
         },
         mixins: [
             CellStyleMixin,
@@ -100,6 +89,7 @@
                     active: true,
                     position: 'bottom'
                 },
+                embdWi: 500,
             };
         },
         props:{
@@ -118,14 +108,24 @@
                     ...this.textSysStyle,
                 };
             },
+            customEmbdStyle() {
+                return {
+                    left: '35px',
+                    top: '-1px',
+                    width: this.embdWi + 'px',
+                };
+            },
         },
         methods: {
-            getLinkHash() {
-                return this.requestRow.link_hash || '#';
-            },
         },
         mounted() {
             this.setAvailFields();
+            setInterval(() => {
+                if (this.$refs.embd_wrapper) {
+                    let rect = this.$refs.embd_wrapper.getBoundingClientRect();
+                    this.embdWi = rect && rect.width ? (rect.width - 105) : 500;
+                }
+            }, 2000);
         }
     }
 </script>

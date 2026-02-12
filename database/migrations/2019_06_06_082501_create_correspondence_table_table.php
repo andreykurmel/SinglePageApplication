@@ -13,20 +13,23 @@ class CreateCorrespondenceTableTable extends Migration
      */
     public function up()
     {
-        Schema::connection('mysql_correspondence')
-            ->create('correspondence_tables', function (Blueprint $table) {
-                $table->increments('id');
-                $table->unsignedInteger('user_id')->nullable();
-                $table->unsignedInteger('correspondence_app_id')->nullable();
-                $table->string('app_table')->nullable();
-                $table->string('data_table')->nullable();
-                $table->string('notes', 512)->nullable();
+        if (! Schema::connection('mysql_correspondence')->hasTable('correspondence_tables')) {
+            Schema::connection('mysql_correspondence')
+                ->create('correspondence_tables', function (Blueprint $table) {
+                    $table->increments('id');
+                    $table->unsignedInteger('user_id')->nullable();
+                    $table->unsignedInteger('correspondence_app_id')->nullable();
+                    $table->string('app_table')->nullable();
+                    $table->string('data_table')->nullable();
+                    $table->string('notes', 512)->nullable();
+                    $table->string('row_hash', 32)->nullable();
 
-                $table->foreign('correspondence_app_id', 'corr_table__correspondence_app_id')
-                    ->references('id')
-                    ->on('correspondence_apps')
-                    ->onDelete('cascade');
-            });
+                    $table->foreign('correspondence_app_id', 'corr_table__correspondence_app_id')
+                        ->references('id')
+                        ->on('correspondence_apps')
+                        ->onDelete('cascade');
+                });
+        }
     }
 
     /**

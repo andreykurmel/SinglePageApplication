@@ -6,7 +6,7 @@
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
-                        <div class="flex__elem-remain">Copy RC/DDL</div>
+                        <div class="flex__elem-remain">Copy DDL</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="closeP()"></span>
                         </div>
@@ -40,6 +40,7 @@
                                                 :cur_val="ref_table_id"
                                                 :available_tables="$root.settingsMeta.available_tables"
                                                 :user="$root.user"
+                                                :only_item="'user'"
                                                 @sel-changed="selTB"
                                                 class="form-control">
                                         </select-with-folder-structure>
@@ -72,6 +73,8 @@
 <script>
     import {eventBus} from './../../app';
 
+    import {DDLHelper} from "../../classes/helpers/DDLHelper";
+
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
     import SelectWithFolderStructure from "../CustomCell/InCell/SelectWithFolderStructure";
@@ -94,7 +97,7 @@
                 ref_ddl_id: null,
                 //PopupAnimationMixin
                 getPopupWidth: 400,
-                getPopupHeight: '377px',
+                getPopupHeight: 'auto',
                 idx: 0,
             };
         },
@@ -102,12 +105,14 @@
             all_ddls() {
                 let allddls = [];
                 _.each(this.$root.settingsMeta.available_tables, (tb) => {
-                    _.each(tb._ddls, (ddl) => {
-                        allddls.push({
-                            val: tb.id+'_'+ddl.id,
-                            show:tb.name+'/'+ddl.name,
+                    if (tb.user_id == this.$root.user.id) {
+                        _.each(tb._ddls, (ddl) => {
+                            allddls.push({
+                                val: tb.id + '_' + ddl.id,
+                                show: tb.name + '/' + ddl.name,
+                            });
                         });
-                    });
+                    }
                 });
                 return allddls;
             },
@@ -130,14 +135,15 @@
                         ref_table_id: this.ref_table_id,
                         ref_ddl_id: this.ref_ddl_id,
                     }).then(({data}) => {
+                        DDLHelper.setUses(this.tableMeta, data);
                         this.tableMeta._ddls = data;
                         eventBus.$emit('reload-meta-table');
                         this.closeP();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => $.LoadingOverlay('hide'));
                 } else {
-                    Swal('No DDL selected!');
+                    Swal('Info','No DDL selected!');
                 }
             },
             closeP() {

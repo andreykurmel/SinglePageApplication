@@ -9,11 +9,15 @@ export class VerticalTableFldObject {
         this.single = null; // {TableField}->php
         //OR
         this.group = null; // {Array} of {TableField}->php
+        this.group_lnk = null; // {TableField}->php
 
         this.level = 0;
         this.base_subs_lvl = 0;
         this.sub_headers = []; // {Array} of {string}
+        this.global_subs = []; // {Array} of {string}
         this.dcr_linked = null; // {DcrLinkedTable}->php
+        this.is_hlior = false;
+        this.table_full_wi = true;
     }
 
     /**
@@ -24,6 +28,7 @@ export class VerticalTableFldObject {
         this.sub_header_name = this._getHeadName(header.name);
         this.single = header;
         this.group = null;
+        this.group_lnk = null;
     }
 
     /**
@@ -33,6 +38,7 @@ export class VerticalTableFldObject {
      setGroup(header) {
         this.sub_header_name = this._getHeadName(header.name);
         this.group = [header];
+        this.group_lnk = header.__inlined_link ? header : null;
         this.single = null;
     }
 
@@ -43,6 +49,7 @@ export class VerticalTableFldObject {
      addToGroup(header) {
         if (this.group && this.group.length) {
             this.group.push(header);
+            this.group_lnk = header.__inlined_link ? header : this.group_lnk;
             this.sub_header_name = this._minGroupName();
         } else {
             this.setGroup(header);
@@ -111,10 +118,12 @@ export class VerticalTableFldObject {
      * buildSubHeaders
      * @param fields {Array} of {TableField}
      * @param all_is_single {Boolean}
+     * @param extraPivotFields {Array|null}
+     * @param behavior {String|null}
      * @returns {Array} of {VerticalTableFldObject}
      */
-     static buildSubHeaders(fields, all_is_single) {
-        let fld_objects = this._groupTableFields(fields, all_is_single);
+     static buildSubHeaders(fields, all_is_single, extraPivotFields, behavior) {
+        let fld_objects = this._groupTableFields(fields, all_is_single, extraPivotFields, behavior);
         let sub_headers_obj = {
             global_subs: [],
             header_subs: [],
@@ -124,26 +133,41 @@ export class VerticalTableFldObject {
             vertTableFieldObject.level = sub_headers_obj.global_subs.length;
             vertTableFieldObject.base_subs_lvl = sub_headers_obj.global_subs.length - sub_headers_obj.header_subs.length;
             vertTableFieldObject.sub_headers = sub_headers_obj.header_subs;
+            vertTableFieldObject.global_subs = sub_headers_obj.global_subs;
+            if (vertTableFieldObject.single) {
+                vertTableFieldObject.is_hlior = !!this.fieldSetting('is_hdr_lvl_one_row', vertTableFieldObject.single, extraPivotFields, behavior);
+            }
+            if (vertTableFieldObject.group && vertTableFieldObject.group.length) {
+                let first = _.first(vertTableFieldObject.group);
+                vertTableFieldObject.table_full_wi = this.fieldSetting('width_of_table_popup', first, extraPivotFields, behavior) === 'full';
+                vertTableFieldObject.is_hlior = true;
+                _.each(vertTableFieldObject.group, (hdr) => {
+                    vertTableFieldObject.is_hlior = vertTableFieldObject.is_hlior
+                        && !!this.fieldSetting('is_hdr_lvl_one_row', hdr, extraPivotFields, behavior);
+                });
+            }
         });
         return fld_objects;
     }
 
     /**
      * _groupTableFields
-     * @param fields
-     * @param all_is_single
+     * @param fields {Array} of {TableField}
+     * @param all_is_single {Boolean}
+     * @param extraPivotFields {Array|null}
+     * @param behavior {String|null}
      * @returns {Array} of {VerticalTableFldObject}
      */
-     static _groupTableFields(fields, all_is_single) {
+     static _groupTableFields(fields, all_is_single, extraPivotFields, behavior) {
         //group Fields which are 'Tables in Form'
         let fld_objects = [];
         let idx = 0;
         _.each(fields, (header) => {
-            if (header.is_table_field_in_popup && !all_is_single) {
+            if (this.fieldSetting('is_table_field_in_popup', header, extraPivotFields, behavior) && !all_is_single) {
                 //add
                 if (fld_objects[idx]) {
                     if (
-                        !header.is_start_table_popup
+                        !this.fieldSetting('is_start_table_popup', header, extraPivotFields, behavior)
                         &&
                         (
                             this._noSubs(header.name, fld_objects[idx].sub_header_name)
@@ -200,5 +224,37 @@ export class VerticalTableFldObject {
             sho.global_subs = [];
         }
         return sho;
+    }
+
+    /**
+     *
+     * @param key
+     * @param tableHeader
+     * @param extraPivotFields
+     * @param behavior
+     * @returns {*}
+     */
+    static fieldSetting(key, tableHeader, extraPivotFields, behavior)
+    {
+        let pivotKeys = ['table_show_name','table_show_value','cell_border','picture_style','picture_fit','width_of_table_popup',
+            'is_start_table_popup','is_table_field_in_popup','is_hdr_lvl_one_row','is_dcr_section','dcr_section_name'];
+
+        let ignoredBehavior = ['link_popup', 'dcr_linked_tb'].indexOf(behavior) > -1;
+        if (window.vueRootApp.is_dcr_page && ! ignoredBehavior) { //Is DCR
+            pivotKeys = _.concat(
+                pivotKeys,
+                ['fld_popup_shown','fld_display_name','fld_display_value','fld_display_border','fld_display_header_type','is_topbot_in_popup']
+            );
+            if (! extraPivotFields) {
+                extraPivotFields = window.vueRootApp.dcrPivotFields;
+            }
+        }
+
+        if (extraPivotFields && pivotKeys.indexOf(key) > -1) {
+            let pivotHeader = _.find(extraPivotFields || [], {table_field_id: Number(tableHeader.id)}) || {};
+            return pivotHeader[key];
+        }
+
+        return tableHeader[key];
     }
 }

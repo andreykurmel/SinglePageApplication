@@ -17,6 +17,9 @@ class CreatePaymentsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('user_id');
             $table->dateTime('due_date');
+            $table->integer('year')->nullable();
+            $table->integer('month')->nullable();
+            $table->integer('week')->nullable();
             $table->float('amount');
             $table->string('status', 50)->nullable();
             $table->string('method', 50)->nullable();

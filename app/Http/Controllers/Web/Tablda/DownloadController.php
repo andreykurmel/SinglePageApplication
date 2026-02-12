@@ -72,13 +72,13 @@ class DownloadController extends Controller
         $time = $request->time_zone ?: date("Y-m-d H:i:s");
         $tableHeaders = json_decode($request->chart_headers, 1);
         $tableRows = json_decode($request->chart_rows, 1);
-        $filename = $request->file_name ?? "chart";
+        $filename = $request->file_name ?? ("chart ".$time);
 
         if (count($tableHeaders) && count($tableRows)) {
             switch (strtolower($request->format_type)) {
-                case 'pdf': $this->downloadService->pdfChart($tableHeaders, $tableRows, $filename." ".$time.".pdf");
+                case 'pdf': $this->downloadService->pdfChart($tableHeaders, $tableRows, preg_replace('/.pdf$/i', '', $filename).".pdf");
                     break;
-                case 'csv': $this->downloadService->csvChart($tableHeaders, $tableRows, $filename." ".$time.".csv");
+                case 'csv': $this->downloadService->csvChart($tableHeaders, $tableRows, preg_replace('/.csv$/i', '', $filename).".csv");
                     break;
                 default: return '<h1>Incorrect request file type</h1>';
                     break;

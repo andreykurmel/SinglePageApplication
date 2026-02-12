@@ -11,18 +11,17 @@
             :cell-height="cellHeight"
             :max-cell-rows="maxCellRows"
             :forbidden-columns="$root.systemFields"
+            :available-columns="availDefaults()"
+            :extra-pivot-fields="extraPivotFields"
             :widths="{name: '35%', col: '65%', history: 0}"
             @updated-cell="changeDefFields"
     ></vertical-table>
 </template>
 
 <script>
-    import VerticalTable from '../CustomTable/VerticalTable';
-
     export default {
         name: "DefaultFieldsTable",
         components: {
-            VerticalTable,
         },
         data: function () {
             return {
@@ -34,7 +33,7 @@
             };
         },
         props:{
-            tableDcrId: Number,
+            tableDcr: Object,
             tablePermissionId: Number,
             UserGroupId: Number,
             tableMeta: Object,
@@ -43,6 +42,7 @@
             cellHeight: Number,
             maxCellRows: Number,
             with_edit: Boolean,
+            extraPivotFields: Array,
         },
         computed: {
             tableRow() {
@@ -50,15 +50,36 @@
             },
         },
         methods: {
+            availDefaults() {
+                let fields = undefined;
+                if (this.tableDcr && this.tableDcr.id) {
+                    let colgr = _.map(
+                        _.filter(this.tableDcr._data_request_columns, {view: 1}),
+                        'table_column_group_id'
+                    );
+
+                    let metaColGroups = this.tableMeta._column_groups && this.tableMeta._column_groups.length > 0
+                        ? this.tableMeta._column_groups
+                        : this.tableMeta._gen_col_groups;
+
+                    fields = [];
+                    _.each(metaColGroups, (colGroup) => {
+                        if (this.$root.inArray(colGroup.id, colgr)) {
+                            fields = fields.concat( _.map(colGroup._fields, 'field') );
+                        }
+                    })
+                }
+                return fields;
+            },
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
             },
             changeDefFields(row, hdr) {
                 this.$root.sm_msg_type = 1;
                 this.defaultFieldsObj[hdr.field] = row[hdr.field];
-                let path = this.tableDcrId ? 'table-data-request' : 'table-permission';
+                let path = this.tableDcr.id ? 'table-data-request' : 'table-permission';
                 axios.put('/ajax/'+path+'/default-field', {
-                    table_data_request_id: this.tableDcrId,
+                    table_data_request_id: this.tableDcr.id,
                     table_permission_id: this.tablePermissionId,
                     user_group_id: this.UserGroupId,
                     table_field_id: hdr.id,
@@ -72,7 +93,7 @@
                     }
                     this.getInfoRow();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });

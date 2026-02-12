@@ -1,7 +1,7 @@
 <template>
     <div class="flex full-height">
         <div class="flex__elem-remain">
-            <div class="flex__elem__inner">
+            <div class="flex__elem__inner" style="padding-right: 5px;">
                 <vertical-table
                     :td="td"
                     :global-meta="globalMeta"
@@ -16,11 +16,17 @@
                     :available-columns="availableColumns"
                     :can-see-history="canSeeHistory && !tableMeta.enabled_activities"
                     :is-add-row="isAddRow"
-                    :is_small_spacing="is_small_spacing"
+                    :with_edit="with_edit"
+                    :active-height-watcher="activeHeightWatcher"
+                    :is-link="isLink"
+                    :visible="visible"
+                    :can-redefine-width="canRedefineWidth"
                     @updated-cell="updatedCell"
                     @toggle-history="toggleHistory"
                     @show-add-ddl-option="showAddDDLOption"
                     @show-src-record="showSrcRecord"
+                    @hist-updated="histUpdated"
+                    @total-tb-height-changed="totalTbHeightChanged"
                 ></vertical-table>
             </div>
         </div>
@@ -30,9 +36,10 @@
             class="history-tab"
             :user="user"
             :table-meta="tableMeta"
-            :table_field="history_header"
-            :row_id="tableRow.id"
+            :history-header="history_header"
+            :table-row="tableRow"
             :redraw_history="redraw_history"
+            :can-del="true"
         ></history-elem>
 
         <table-activities
@@ -47,7 +54,6 @@
 </template>
 
 <script>
-import VerticalTable from "./VerticalTable";
 import HistoryElem from "../CommonBlocks/HistoryElem";
 import TableActivities from "../CommonBlocks/TableActivities";
 
@@ -58,7 +64,6 @@ export default {
         components: {
             TableActivities,
             HistoryElem,
-            VerticalTable,
         },
         data: function () {
             return {
@@ -84,11 +89,21 @@ export default {
             behavior: String,
             forbiddenColumns: Array,
             availableColumns: Array,
-            canSeeHistory: Boolean,
+            canSeeHistory: Boolean|Number,
             isAddRow: Boolean,
-            is_small_spacing: String,
+            activeHeightWatcher: Boolean,
+            with_edit: {
+                type: Boolean,
+                default: true
+            },
+            isLink: Object,
+            canRedefineWidth: Boolean,
+            visible: Boolean,
         },
         methods: {
+            totalTbHeightChanged(height) {
+                this.$emit('total-tb-height-changed', height);
+            },
             //proxies
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow);
@@ -109,6 +124,9 @@ export default {
                 }
                 this.$emit('toggle-history', !!this.open_history);
             },
+            histUpdated() {
+                this.redraw_history++;
+            },
         },
         mounted() {
             if (this.tableMeta.enabled_activities) {
@@ -128,5 +146,7 @@ export default {
         background-color: #fff;
         border-radius: 4px;
         padding: 5px;//needed for 'Edit Popup Attachments'
+        flex-basis: 300px;
+        margin-left: 5px;
     }
 </style>

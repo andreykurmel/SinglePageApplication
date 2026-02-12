@@ -1,4 +1,4 @@
-FROM php:7.2-fpm
+FROM php:8.3-fpm
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     vim \
     git \
     curl \
+    wget \
     cron \
     libpng-dev \
     libonig-dev \
@@ -18,38 +19,57 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
-RUN docker-php-ext-install bcmath ctype exif gd json mbstring pdo_mysql pcntl
+RUN docker-php-ext-install gd bcmath ctype exif mbstring pdo_mysql pcntl
 
 #Install ext-zip
-RUN set -xe; \
-    apt-get update -yqq && \
-    pecl channel-update pecl.php.net && \
-    apt-get install -yqq \
-      apt-utils \
-      gnupg2 \
-      git \
-    libzip-dev zip unzip && \
-    docker-php-ext-configure zip --with-libzip; \
-    docker-php-ext-install zip && \
-    php -m | grep -q 'zip'
-
-# Install Python 3.7
-RUN apt-get -y install python3 python3-dev build-essential  \
-  && curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py  \
-  && python3 get-pip.py  \
-  && rm get-pip.py  \
-  && python3 -m pip install --upgrade --force-reinstall pip  \
-  && python3 -m pip install --upgrade virtualenv
+RUN apt-get update && \
+     apt-get install -y \
+         libzip-dev \
+         && docker-php-ext-install zip
 
 # Install Redis
 RUN pecl install redis && docker-php-ext-enable redis
 
 # Get Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer --version=1.10.21
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer --version=2.8.10
+
+#PHP 8.4 GD ext Config
+RUN apt-get update && apt-get install -y \
+        libjpeg-dev \
+    	libjpeg62-turbo-dev \
+    	libpng-dev \
+    	libfreetype6-dev \
+    && docker-php-ext-install -j$(nproc) iconv \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) gd
+
+#Python modules and pip
+RUN apt-get install -y python3-pip python3-fitz python3-pandas python3-venv
+
+#GMP for sendgrid
+RUN apt-get install -y libgmp-dev -y && docker-php-ext-install gmp
 
 # Install Node.js
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash -
+RUN curl -sL https://deb.nodesource.com/setup_22.x | bash -
 RUN apt-get install -y nodejs
+RUN export NODE_OPTIONS=--openssl-legacy-provider
+
+#PHP Imagick
+RUN apt-get update && apt-get install -y \
+    imagemagick \
+    libmagickwand-dev \
+    && git clone https://github.com/Imagick/imagick --depth 1 /tmp/imagick \
+    && cd /tmp/imagick \
+    && phpize && ./configure \
+    && make \
+    && make install \
+    && apt-get clean
+
+RUN docker-php-ext-enable imagick
+
+#Python global packages
+RUN pip install --break-system-packages pdfplumber
+RUN pip install --break-system-packages mkdocs
 
 #Php Settings
 ADD php.ini /usr/local/etc/php/conf.d/40-custom.ini

@@ -36,7 +36,7 @@
                             :cell-height="cellHeight"
                             :max-cell-rows="maxCellRows"
                             :selected-cell="selectedCell"
-                            :is-selected="selectedCell.is_selected(tableMeta, tableHeader, index)"
+                            :is-selected-ext="selectedCell.is_selected(tableMeta, tableHeader, index)"
                             :behavior="behavior"
                             :user="user"
                             :condition-array="conditionArray"
@@ -87,7 +87,7 @@
                         <button v-if="inArray(behavior, actionDelArray)
                                     && (!tableRow.is_system || inArray(behavior, actionDelSystem))
                                     && (behavior != 'cond_format' || tableRow.user_id == user.id)
-                                    && !delRestricted"
+                                    && canDelete"
                                 class="blue-gradient"
                                 :style="(use_theme ? $root.themeButtonStyle : null)"
                                 :disabled="!with_edit"
@@ -127,13 +127,18 @@
         import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
         import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
         import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
+        import CustomCellPivotField from '../CustomCell/CustomCellPivotField.vue';
         import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
         import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+        import CustomCellSimplemapSett from '../CustomCell/CustomCellSimplemapSett.vue';
         import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
         import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
         import CustomCellAlertNotif from '../CustomCell/CustomCellAlertNotif.vue';
+        import CustomCellAddon from '../CustomCell/CustomCellAddon.vue';
         import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+        import CustomCellTwilio from '../CustomCell/CustomCellTwilio.vue';
         import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+        import CustomCellPages from '../CustomCell/CustomCellPages.vue';
         import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
         import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
         import CustomCellFolderView from '../CustomCell/CustomCellFolderView.vue';
@@ -144,7 +149,6 @@
         import HeaderResizer from './Header/HeaderResizer.vue';
 
         import IsShowFieldMixin from '../_Mixins/IsShowFieldMixin.vue';
-        import TestRowColMixin from './../_Mixins/TestRowColMixin.vue';
         import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
         import CheckRowBackendMixin from './../_Mixins/CheckRowBackendMixin.vue';
         import CellStyleMixin from './../_Mixins/CellStyleMixin.vue';
@@ -154,7 +158,6 @@
             name: "VerticalRowsTable",
             mixins: [
                 IsShowFieldMixin,
-                TestRowColMixin,
                 CanEditMixin,
                 CheckRowBackendMixin,
                 CellStyleMixin,
@@ -169,14 +172,19 @@
                 CustomCellSettingsDdl,
                 CustomCellSettingsPermission,
                 CustomCellSettingsDcr,
+                CustomCellPivotField,
                 CustomHeadCellTableData,
                 CustomCellColRowGroup,
                 CustomCellKanbanSett,
+                CustomCellSimplemapSett,
                 CustomCellRefConds,
                 CustomCellCondFormat,
                 CustomCellAlertNotif,
+                CustomCellAddon,
                 CustomCellPlans,
+                CustomCellTwilio,
                 CustomCellConnection,
+                CustomCellPages,
                 CustomCellUserGroups,
                 CustomCellInvitations,
                 CustomCellFolderView,
@@ -220,7 +228,6 @@
                 ref_tb_from_refcond: Object|null,
                 with_edit: Boolean,
                 table_id: Number,
-                delRestricted: Boolean,
                 parentRow: Object,
                 link_popup_conditions: Object|Array,
                 use_theme: Boolean,
@@ -288,7 +295,8 @@
 
                 //sorting
                 sortByField(tableHeader, $dir) {
-                    let spec_key = window.event.ctrlKey || window.event.altKey || window.event.shiftKey;
+                    let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+                    let spec_key = cmdOrCtrl || window.event.altKey || window.event.shiftKey;
                     this.$emit(spec_key ? 'sub-sort-by-field' : 'sort-by-field', tableHeader, $dir);
                 },
                 getSortLvl(tableHeader) {
@@ -303,8 +311,8 @@
                 showAddRefCond(refId) {
                     this.$emit('show-add-ref-cond', refId);
                 },
-                showDefValPopup(tableRow) {
-                    this.$emit('show-def-val-popup', tableRow);
+                showDefValPopup(tableRow, moreParam) {
+                    this.$emit('show-def-val-popup', tableRow, moreParam);
                 },
 
                 //backend autocomplete
@@ -330,7 +338,9 @@
                     if (this.tableMeta.id == table_id) {
                         let refs = this.$refs['cttr_'+table_id+'_'+row_id];
                         let rrow = _.first(refs);
-                        rrow ? rrow.scrollIntoView({block: 'center'}) : null;
+                        if (!!window.chrome && rrow) {
+                            rrow.scrollIntoView({block: 'center'});
+                        }
                     }
                 },
             },

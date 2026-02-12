@@ -14,13 +14,19 @@ class GoogleStrategy implements BackupStrategy
     protected $access_token;
 
     /**
+     * @var GoogleApiModule
+     */
+    protected $api;
+
+    /**
      * GoogleStrategy constructor.
      * @param UserCloud $cloud
      * @throws \Exception
      */
     public function __construct(UserCloud $cloud)
     {
-        $this->access_token = (new GoogleApiModule())->accessToken($cloud->gettoken(), $cloud->id);
+        $this->api = new GoogleApiModule($cloud->cloud);
+        $this->access_token = $this->api->accessToken($cloud->gettoken(), $cloud->id);
 
         if (!$this->access_token) {
             (new UserCloudRepository())->setInactiveCloud($cloud);
@@ -31,12 +37,12 @@ class GoogleStrategy implements BackupStrategy
     /**
      * @param string $source_filepath
      * @param string $target_filepath
-     * @return string
+     * @return \Google_Service_Drive_DriveFile|null
      */
     public function upload(string $source_filepath, string $target_filepath)
     {
         $source_file = preg_replace('#\/+#i','/', $source_filepath);
         $target_folder = preg_replace('#\/+#i','/', $target_filepath);
-        return (new GoogleApiModule())->saveFileToDisk($this->access_token, $target_folder, $source_file);
+        return $this->api->saveFileToDisk($this->access_token, $target_folder, $source_file);
     }
 }

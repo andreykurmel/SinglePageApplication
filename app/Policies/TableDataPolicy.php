@@ -43,12 +43,10 @@ class TableDataPolicy
      */
     protected function availViaHash(Table $table, array $request = [])
     {
-        $spec_param = $request['special_params'] ?? [];
+        $spec_param = $request['get_query']['special_params'] ?? $request['special_params'] ?? [];
         return $spec_param && (
-            //table used in TableView (MultipleRecordView)
-            TableView::where('hash', '=', $spec_param['view_hash']??'')->where('is_active', '=', 1)->count()
             //table used in FolderView
-            || FolderView::where('hash', '=', $spec_param['is_folder_view']??'')->where('is_active', '=', 1)->count()
+            FolderView::where('hash', '=', $spec_param['is_folder_view']??'')->where('is_active', '=', 1)->count()
             //avail from DCR
             || TableDataRequest::where('dcr_hash', '=', $spec_param['dcr_hash']??'')->where('active', 1)->count()
             //avail from DCR Linked Table
@@ -130,7 +128,7 @@ class TableDataPolicy
      */
     public function insert(User $user, Table $table, array $request = [])
     {
-        if (in_array($table->db_name, ['uploading_file_formats']) && $user->id == 1) {
+        if (in_array($table->db_name, ['uploading_file_formats','promo_codes']) && $user->id == 1) {
             return true;
         }
         if ($table->is_system == 1 && !in_array($table->db_name, $this->service->support_tables)) {
@@ -161,7 +159,10 @@ class TableDataPolicy
      */
     public function update(User $user, Table $table, array $request = [])
     {
-        if (in_array($table->db_name, ['table_fields__for_tooltips','email_settings','uploading_file_formats']) && $user->id == 1) {
+        if (in_array($table->db_name, ['formula_helpers']) && in_array($user->role_id, [1,3])) {
+            return true;
+        }
+        if (in_array($table->db_name, ['table_fields__for_tooltips','email_settings','uploading_file_formats','promo_codes']) && $user->id == 1) {
             return true;
         }
         if ($table->is_system && !in_array($table->db_name, $this->service->system_tables_for_all)) {
@@ -192,7 +193,7 @@ class TableDataPolicy
      */
     public function delete(User $user, Table $table, array $request = [])
     {
-        if (in_array($table->db_name, ['uploading_file_formats']) && $user->id == 1) {
+        if (in_array($table->db_name, ['uploading_file_formats','promo_codes']) && $user->id == 1) {
             return true;
         }
         if ($table->is_system == 1 && !in_array($table->db_name, $this->service->support_tables)) {

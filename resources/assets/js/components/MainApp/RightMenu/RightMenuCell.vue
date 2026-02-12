@@ -82,7 +82,7 @@
                         notes: this.localString
                     }).then(({ data }) => {
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 })
             },
@@ -92,7 +92,7 @@
                     notes: this.localString
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             hideSelect(e) {

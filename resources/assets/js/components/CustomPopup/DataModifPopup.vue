@@ -11,6 +11,13 @@
                         </div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close', false)"></span>
+                            <div style="position: absolute; right: 25px; z-index: 100;">
+                                <info-sign-link v-if="$root.settingsMeta.is_loaded"
+                                                :app_sett_key="'help_link_cond_format_pop'"
+                                                :hgt="24"
+                                                :txt="'for Data Modifications'"
+                                ></info-sign-link>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -36,6 +43,12 @@
                                 >
                                     <span>Batch Upload</span>
                                 </button>
+<!--                                <button class="btn btn-default"-->
+<!--                                        :class="{active: activeTab === 'auto_select'}"-->
+<!--                                        @click="activeTab = 'auto_select'"-->
+<!--                                >-->
+<!--                                    <span>Auto Select</span>-->
+<!--                                </button>-->
                             </div>
                             <div class="flex__elem-remain popup-tab">
 
@@ -58,6 +71,12 @@
                                     ></batch-uploading-block>
                                 </div>
 
+                                <div class="flex__elem__inner" v-if="activeTab === 'auto_select'">
+                                    <auto-select-block
+                                        :table-meta="tableMeta"
+                                    ></auto-select-block>
+                                </div>
+
                             </div>
                         </div>
                     </div>
@@ -76,6 +95,8 @@
     import ReplaceBlock from "../CommonBlocks/ReplaceBlock";
     import RemoveDuplicatesBlock from "../CommonBlocks/RemoveDuplicatesBlock";
     import BatchUploadingBlock from "../CommonBlocks/BatchUploadingBlock";
+    import AutoSelectBlock from "../CommonBlocks/AutoSelectBlock";
+    import InfoSignLink from "../CustomTable/Specials/InfoSignLink.vue";
 
     export default {
         name: "DataModifPopup",
@@ -83,6 +104,8 @@
             PopupAnimationMixin,
         ],
         components: {
+            InfoSignLink,
+            AutoSelectBlock,
             BatchUploadingBlock,
             RemoveDuplicatesBlock,
             ReplaceBlock

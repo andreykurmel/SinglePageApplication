@@ -36,7 +36,7 @@
                     let timeOut = last_act_time - Date.now();
                     if (last_act_time > 0 && timeOut < 0) {
                         SpecialFuncs.set_cookie('sync_page_autologout', 1);
-                        Swal('logout');
+                        Swal('Info','logout');
                         window.location = '/logout';
                     }
                 }

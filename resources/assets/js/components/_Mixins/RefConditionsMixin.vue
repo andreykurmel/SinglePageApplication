@@ -2,15 +2,22 @@
 
     import {eventBus} from '../../app';
 
+    import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
+    import {RefCondEndpoints} from "../../classes/RefCondEndpoints";
+
     /**
      *  should be present:
      *
      *  this.$root.tableMeta: Object 0668835535
+     *  this.is_incoming: Boolean
+     *  this.filter_id: Number
      *  */
     export default {
         name: "RefConditionsMixin",
         data: function () {
             return {
+                draw_table: true,
+                activeTab: 'list',
                 rc_for_copy: null,
                 selectedRefGroup: 0,
                 selectedRefItem: 0,
@@ -30,29 +37,24 @@
                     return this.$root.tableMeta;
                 }
             },
+            tbm_rc_key() {
+                return this.is_incoming
+                    ? '__incoming_refconds'
+                    : '_ref_conditions';
+            },
+            tbm_refconds() {
+                return this.filter_id
+                    ? _.filter(this.rcm_tableMeta[this.tbm_rc_key], {id: Number(this.filter_id)})
+                    : this.rcm_tableMeta[this.tbm_rc_key];
+            },
+            sel_refcond() {
+                return this.tbm_refconds[this.selectedRefGroup];
+            },
             addingRowRC() {
                 return {
                     active: this.selectedRefGroup > -1,
                     position: 'bottom'
                 }
-            },
-            forbiddenRefItemColumns() {
-                let arr = ['item_type','logic_operator','table_field_id',
-                    'compared_operator','compared_field_id','compared_value',
-                    'group_clause','group_logic'];
-                if (
-                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]
-                    &&
-                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items[this.selectedRefItem]
-                ) {
-                    switch (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items[this.selectedRefItem].item_type) {
-                        case 'P2S': arr = ['item_type','logic_operator','compared_value','group_clause','group_logic'];
-                            break;
-                        case 'S2V': arr = ['item_type','logic_operator','table_field_id','group_clause','group_logic'];
-                            break;
-                    }
-                }
-                return _.concat(arr, this.$root.systemFields);
             },
             refRow() {
                 let res = {};
@@ -62,37 +64,58 @@
                 return res;
             },
             ref_tb_from_refcond() {
-                if (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
-                    return this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._ref_table;
+                if (this.sel_refcond) {
+                    return this.is_incoming
+                        ? this.sel_refcond._table
+                        : this.sel_refcond._ref_table;
                 } else {
                     return {_fields: []};
                 }
             },
             selectedRefCondItems() {
                 let sel_items = [];
-                if (this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
-                    sel_items = _.orderBy(this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]._items, ['group_clause']);
+                if (this.sel_refcond) {
+                    sel_items = _.orderBy(this.sel_refcond._items, ['group_clause']);
                 }
                 return sel_items;
             },
         },
         methods: {
+            changeTab(key) {
+                this.activeTab = key;
+                this.$emit('set-sub-tab', key);
+            },
+            refcondOpts(filter) {
+                let refconds = this.tbm_refconds;
+                if (this.sel_refcond && filter) {
+                    refconds = _.filter(refconds, (refc) => {
+                        return refc.id != this.sel_refcond.id && refc.ref_table_id == this.sel_refcond.ref_table_id;
+                    });
+                }
+                return _.map(refconds, (refc) => {
+                    return { val:refc.id, show:refc.name };
+                });
+            },
+            refcondChange(opt) {
+                let idx = _.findIndex(this.tbm_refconds, {id: Number(opt.val)});
+                this.rowIndexClickedRefGroup(idx);
+            },
+            baseRefChange(opt) {
+                this.sel_refcond.base_refcond_id = opt.val;
+                this.updateRefGroup(this.sel_refcond);
+            },
             copyLCs() {
-                if (this.rc_for_copy && this.rcm_tableMeta._ref_conditions[this.selectedRefGroup]) {
+                if (this.rc_for_copy && this.sel_refcond) {
                     this.$root.sm_msg_type = 2;
                     axios.post('/ajax/ref-condition/copy', {
                         from_rc_id: this.rc_for_copy,
-                        to_rc_id: this.rcm_tableMeta._ref_conditions[this.selectedRefGroup].id,
+                        to_rc_id: this.sel_refcond.id,
                     }).then(({ data }) => {
-                        this.rcm_tableMeta._ref_conditions[this.selectedRefGroup] = data;
+                        this.tbm_refconds[this.selectedRefGroup] = data;
                         //redraw
-                        let tmp_sel = this.selectedRefGroup;
-                        this.selectedRefGroup = null;
-                        this.$nextTick(() => {
-                            this.selectedRefGroup = tmp_sel;
-                        });
+                        this.chngRefGr(this.selectedRefGroup);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -100,79 +123,79 @@
             },
 
             //row clicked functions
-            rowIndexClickedRefGroup(index) {
-                this.selectedRefGroup = index;
+            updRefFormulas(old, changed) {
+                _.each(this.rcm_tableMeta._fields, (fld) => {
+                    if (fld.f_formula) {
+                        fld.f_formula = String(fld.f_formula).replace('"'+old+'"', '"'+changed+'"');
+                    }
+                });
+            },
+            chngRefGr(idx) {
+                if (this.tbm_refconds[this.selectedRefGroup] && this.tbm_refconds[idx]) {
+                    this.tbm_refconds[idx]._out_uses = this.tbm_refconds[this.selectedRefGroup]._out_uses;
+                }
+                this.selectedRefGroup = null;
+                this.$nextTick(() => {
+                    this.selectedRefGroup = idx;
+                });
+            },
+            rowIndexClickedRefGroup(index, row, noChange) {
+                this.chngRefGr(index);
                 this.selectedRefItem = -1;
+                this.activeTab = noChange ? this.activeTab : 'lcs';
             },
             rowIndexClickedRefItem(index) {
                 this.selectedRefItem = index;
+            },
+            closeDetails() {
+                this.sel_refcond._out_uses = 0;
+                this.rowIndexClickedRefGroup(this.selectedRefGroup, null, true);
             },
 
 
             //Table Ref Condition Functions
             addRefGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
-
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.post('/ajax/ref-condition', {
-                    table_id: this.rcm_tableMeta.id,
-                    fields: fields,
-                }).then(({ data }) => {
-                    let present_rows = _.cloneDeep(this.rcm_tableMeta._ref_conditions);
-                    present_rows.push( data );
-                    this.rcm_tableMeta._ref_conditions = present_rows;
-                    this.selectedRefGroup = this.rcm_tableMeta._ref_conditions.length-1;
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
+                RefCondEndpoints.addRefGroup(this.rcm_tableMeta, tableRow)
+                    .then(() => {
+                        this.chngRefGr(this.tbm_refconds.length-1);
+                    });
             },
             updateRefGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
+                if (tableRow._changed_field === '_out_uses') {
+                    let idx = _.findIndex(this.tbm_refconds, {id: Number(tableRow.id)});
+                    if (idx !== this.selectedRefGroup) {
+                        tableRow._out_uses = 1;
+                    }
+                    this.rowIndexClickedRefGroup(idx > -1 ? idx : this.selectedRefGroup, null, true);
+                    return;
+                }
 
-                let group_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
+                if (tableRow._changed_field === 'rc_static' && _.find(tableRow._items || [], {item_type: 'P2S'})) {
+                    Swal('Info', 'Note: by turning on "STATIC" for the RC, all existing "P2S" type LCs defined for the RC will be removed.');
+                }
 
-                axios.put('/ajax/ref-condition', {
-                    table_ref_condition_id: group_id,
-                    fields: fields
-                }).then(({ data }) => {
-                    let idx = _.findIndex(this.rcm_tableMeta._ref_conditions, {id: Number(group_id)});
-                    if (idx > -1) {
-                        if (tableRow._changed_field === 'ref_table_id') {
+                RefCondEndpoints.updateRefGroup(this.rcm_tableMeta, tableRow)
+                    .then(({ data }) => {
+                        let idx = _.findIndex(this.tbm_refconds, {id: Number(tableRow.id)});
+                        if (idx > -1 && tableRow._changed_field === 'ref_table_id') {
                             eventBus.$emit('reload-meta-table');
                         }
-                        this.rcm_tableMeta._ref_conditions[idx] = data;
-                    }
-                    eventBus.$emit('reload-page');
-                    let tmp = this.selectedRefGroup;
-                    this.selectedRefGroup = -1;
-                    this.$nextTick(() => {
-                        this.selectedRefGroup = tmp;
+                        eventBus.$emit('reload-page');
+                        this.chngRefGr(this.selectedRefGroup);
+                        if (tableRow._changed_field === 'name') {
+                            this.updRefFormulas(tableRow._old_val, tableRow.name);
+                        }
                     });
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
             },
             deleteRefGroup(tableRow) {
-                this.$root.sm_msg_type = 1;
-                axios.delete('/ajax/ref-condition', {
-                    params: {
-                        table_ref_condition_id: tableRow.id
-                    }
-                }).then(({ data }) => {
-                    let idx = _.findIndex(this.rcm_tableMeta._ref_conditions, {id: Number(tableRow.id)});
+                RefCondEndpoints.deleteRefGroup(this.rcm_tableMeta, tableRow).then(() => {
+                    let idx = _.findIndex(this.tbm_refconds, {id: Number(tableRow.id)});
                     if (idx > -1) {
-                        let present_rows = _.cloneDeep(this.rcm_tableMeta._ref_conditions);
-                        present_rows.splice(idx, 1);
-                        this.rcm_tableMeta._ref_conditions = present_rows;
-                        this.selectedRefGroup = -1;
+                        let selectedId = this.tbm_refconds[this.selectedRefGroup];
+                        selectedId = selectedId ? selectedId.id : null;
+
+                        let newIdx = _.findIndex(this.tbm_refconds, {id: Number(selectedId)});
+                        this.chngRefGr(newIdx);
                         this.selectedRefItem = -1;
 
                         _.each(this.rcm_tableMeta._fields, (fld) => {
@@ -196,78 +219,50 @@
 
                         eventBus.$emit('empty-sel', '_row_groups');
                     }
+                });
+            },
+            rowsReordered() {
+                this.$root.sm_msg_type = 2;
+                axios.get('/ajax/settings/load/ref-conds', {
+                    params: { table_id: this.tableMeta.id }
+                }).then(({ data }) => {
+                    this.rcm_tableMeta._ref_conditions = data;
+                    this.redrawTb();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
+                });
+            },
+            redrawTb() {
+                this.draw_table = false;
+                this.$nextTick(() => {
+                    this.draw_table = true;
                 });
             },
 
             //Table Ref Condition Item Functions
             addRefGroupItem(tableRow) {
-                this.$root.sm_msg_type = 1;
-
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.post('/ajax/ref-condition/item', {
-                    table_ref_condition_id: this.rcm_tableMeta._ref_conditions[this.selectedRefGroup].id,
-                    fields: fields,
-                }).then(({ data }) => {
-                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup] = data;
-                    this.rcm_reload();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
+                RefCondEndpoints.addRefGroupItem(this.sel_refcond, tableRow)
+                    .then(() => {
+                        this.chngRefGr(this.selectedRefGroup);
+                    });
             },
             updateRefGroupItem(tableRow) {
-                this.$root.sm_msg_type = 1;
-
-                let group_id = tableRow.id;
-                let fields = _.cloneDeep(tableRow);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.put('/ajax/ref-condition/item', {
-                    table_ref_condition_item_id: group_id,
-                    fields: fields
-                }).then(({ data }) => {
-                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup] = data;
-                    if (_.find(this.rcm_tableMeta._cond_formats, {status: 1})) {
-                        eventBus.$emit('reload-page');
-                    }
-                    this.rcm_reload();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
+                RefCondEndpoints.updateRefGroupItem(this.sel_refcond, tableRow)
+                    .then(() => {
+                        if (_.find(this.rcm_tableMeta._cond_formats, {status: 1})) {
+                            eventBus.$emit('reload-page');
+                        }
+                        this.chngRefGr(this.selectedRefGroup);
+                    });
             },
             deleteRefGroupItem(tableRow) {
-                this.$root.sm_msg_type = 1;
-                axios.delete('/ajax/ref-condition/item', {
-                    params: {
-                        table_ref_condition_item_id: tableRow.id
-                    }
-                }).then(({ data }) => {
-                    this.rcm_tableMeta._ref_conditions[this.selectedRefGroup] = data;
-                    this.selectedRefItem = -1;
-                    this.rcm_reload();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-
-            //redraw
-            rcm_reload() {
-                let tmp = this.selectedRefGroup;
-                this.selectedRefGroup = null;
-                this.$nextTick(() => {
-                    this.selectedRefGroup = tmp;
-                });
+                RefCondEndpoints.deleteRefGroupItem(this.sel_refcond, tableRow)
+                    .then(() => {
+                        this.selectedRefItem = -1;
+                        this.chngRefGr(this.selectedRefGroup);
+                    });
             },
         },
     }

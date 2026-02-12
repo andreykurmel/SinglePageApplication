@@ -21,7 +21,9 @@ use Vanguard\User;
  * @property string|null $unit
  * @property int|null $unit_ddl_id
  * @property int $header_unit_ddl
+ * @property string $prev_input_type
  * @property string $input_type
+ * @property int|null $prev_ddl_id
  * @property int|null $ddl_id
  * @property int $ddl_add_option
  * @property int $ddl_auto_fill
@@ -38,11 +40,7 @@ use Vanguard\User;
  * @property string|null $row_hash
  * @property string|null $formula
  * @property string|null $formula_symbol
- * @property int|null $is_lat_field
- * @property int|null $is_long_field
  * @property int|null $map_find_street_field
- * @property int|null $info_box
- * @property int|null $is_info_header_field
  * @property int $active_links
  * @property int $tooltip_show
  * @property string|null $header_background
@@ -50,6 +48,9 @@ use Vanguard\User;
  * @property int|null $mirror_rc_id
  * @property int|null $mirror_field_id
  * @property string $mirror_part
+ * @property int $mirror_one_value
+ * @property int $mirror_editable
+ * @property string $mirror_edit_component
  * @property string|null $default_stats
  * @property int|null $map_find_city_field
  * @property int|null $map_find_state_field
@@ -57,7 +58,10 @@ use Vanguard\User;
  * @property int|null $map_find_zip_field
  * @property string|null $unit_display
  * @property string $filter_type
+ * @property int $filter_search
  * @property string $col_align
+ * @property string $image_fitting
+ * @property int $fill_by_asterisk
  * @property string|null $notes
  * @property int $width
  * @property int $min_width
@@ -66,20 +70,32 @@ use Vanguard\User;
  * @property int $is_showed
  * @property int $filter
  * @property int $popup_header
+ * @property int $popup_header_val
  * @property int $is_floating
  * @property int $show_zeros
  * @property int $is_show_on_board
- * @property int|null $is_image_on_board
  * @property int $is_search_autocomplete_display
  * @property int $is_unique_collection
+ * @property string|null $validation_rules
+ * @property int $header_triangle
  * @property int $is_table_field_in_popup
+ * @property int $is_hdr_lvl_one_row
  * @property int $is_start_table_popup
  * @property int $is_topbot_in_popup
+ * @property int $fld_popup_shown
  * @property int $fld_display_name
  * @property int $fld_display_value
  * @property int $fld_display_border
- * @property string $image_display_view
- * @property string $image_display_fit
+ * @property string $fld_display_header_type
+ * @property int $markerjs_annotations
+ * @property int $markerjs_cropro
+ * @property int|null $twilio_google_acc_id
+ * @property int|null $twilio_sendgrid_acc_id
+ * @property int|null $twilio_sms_acc_id
+ * @property int|null $twilio_voice_acc_id
+ * @property string|null $twilio_sender_name
+ * @property string|null $twilio_sender_email
+ * @property string $markerjs_savetype
  * @property int $is_default_show_in_popup
  * @property string|null $placeholder_content
  * @property int $placeholder_only_form
@@ -87,38 +103,39 @@ use Vanguard\User;
  * @property string|null $f_format
  * @property string|null $f_formula
  * @property int|null $fetch_source_id
- * @property int $kanban_group
- * @property int|null $is_gantt_group
- * @property int|null $is_gantt_parent_group
- * @property int|null $is_gantt_name
- * @property int|null $is_gantt_parent
- * @property int|null $is_gantt_start
- * @property int|null $is_gantt_end
- * @property int|null $is_gantt_progress
- * @property int|null $is_gantt_color
- * @property int|null $is_gantt_tooltip
- * @property int|null $is_gantt_left_header
- * @property int|null $is_gantt_label_symbol
- * @property int|null $is_gantt_milestone
- * @property int|null $is_gantt_main_group
+ * @property int|null $fetch_by_row_cloud_id
+ * @property int|null $fetch_one_cloud_id
+ * @property int $fetch_uploading
  * @property int $verttb_he_auto
  * @property int $verttb_row_height
  * @property int $verttb_cell_height
- * @property int $is_dcr_section
- * @property int|null $is_calendar_start
- * @property int|null $is_calendar_end
- * @property int|null $is_calendar_title
- * @property int|null $is_calendar_cond_format
- * @property string|null $kanban_field_name
+ * @property int|null $form_row_spacing
+ * @property string|null $pop_tab_name
+ * @property int|null $pop_tab_order
+ * @property string|null $section_header
+ * @property string|null $section_font
+ * @property int|null $section_size
+ * @property string|null $section_align_h
+ * @property string|null $section_align_v
+ * @property int|null $section_height
  * @property string|null $rating_icon
+ * @property int $is_inherited_tree
+ * @property int $has_copy_prefix
+ * @property string|null $copy_prefix_value
+ * @property int $has_copy_suffix
+ * @property string|null $copy_suffix_value
+ * @property int $has_datetime_suffix
+ * @property array|null $shared_ddlref_ids
  * @property-read \Vanguard\User|null $_created_user
  * @property-read \Vanguard\Models\DDL|null $_ddl
+ * @property-read \Vanguard\Models\DDL|null $_prev_ddl
  * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\File[] $_files
  * @property-read int|null $_files_count
- * @property-read \Vanguard\Models\Table\TableKanbanSettings|null $_kanban_setting
  * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableFieldLink[] $_links
  * @property-read int|null $_links_count
  * @property-read \Vanguard\Models\Table\TableField|null $_listing_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_fetch_field
+ * @property-read \Vanguard\Models\Table\TableField|null $_fetch_cloud_field
  * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\TableMapIcon[] $_map_icons
  * @property-read int|null $_map_icons_count
  * @property-read \Vanguard\User|null $_modified_user
@@ -148,8 +165,10 @@ class TableField extends Model
         'unit_ddl_id',
         'header_unit_ddl',
         'header_background',
+        'prev_input_type',
         'input_type',
         'is_uniform_formula',
+        'prev_ddl_id',
         'ddl_id',
         'ddl_add_option',
         'ddl_auto_fill',
@@ -157,6 +176,9 @@ class TableField extends Model
         'mirror_rc_id',
         'mirror_field_id',
         'mirror_part', // ['id','value','show']
+        'mirror_one_value',
+        'mirror_editable',
+        'mirror_edit_component',
         'tooltip',
         'tooltip_show',
         'placeholder_content',
@@ -170,64 +192,72 @@ class TableField extends Model
         'f_format',
         'f_formula',
         'fetch_source_id',
+        'fetch_by_row_cloud_id',
+        'fetch_one_cloud_id',
+        'fetch_uploading',
         'rating_icon',
         'verttb_he_auto',
         'verttb_cell_height',
         'verttb_row_height',
+        'form_row_spacing',
+        'pop_tab_name',
+        'pop_tab_order',
+        'section_header',
+        'section_font',
+        'section_size',
+        'section_align_h',
+        'section_align_v',
+        'section_height',
         'formula',
         'formula_symbol',
-        'is_lat_field', // Type is 'Radio'
-        'is_long_field', // Type is 'Radio'
         'map_find_street_field', // Type is 'Radio'
         'map_find_city_field', // Type is 'Radio'
         'map_find_state_field', // Type is 'Radio'
         'map_find_county_field', // Type is 'Radio'
         'map_find_zip_field', // Type is 'Radio'
-        'info_box',
-        'is_info_header_field', // Type is 'Radio'
         'active_links',
-        'kanban_group',
-        'kanban_field_name',
         'is_show_on_board',
-        'is_image_on_board',
         'is_search_autocomplete_display',
         'is_unique_collection',
+        'header_triangle',
+        'validation_rules',
         'is_default_show_in_popup',
         'is_table_field_in_popup',
+        'is_hdr_lvl_one_row',
+        'width_of_table_popup',
         'is_start_table_popup',
         'is_topbot_in_popup',
-        'is_dcr_section',
+        'fld_popup_shown',
         'fld_display_name',
         'fld_display_value',
         'fld_display_border',
-        'image_display_view',
-        'image_display_fit',
+        'fld_display_header_type',
+        'shared_ddlref_ids',
+        //for copying
+        'is_inherited_tree',
+        'has_copy_prefix',
+        'copy_prefix_value',
+        'has_copy_suffix',
+        'copy_suffix_value',
+        'has_datetime_suffix',
 
-        //gantt settings
-        'is_gantt_group', // Type is 'Radio'
-        'is_gantt_parent_group', // Type is 'Radio'
-        'is_gantt_main_group', // Type is 'Radio'
-        'is_gantt_name', // Type is 'Radio'
-        'is_gantt_parent', // Type is 'Radio'
-        'is_gantt_start', // Type is 'Radio'
-        'is_gantt_end', // Type is 'Radio'
-        'is_gantt_progress', // Type is 'Radio'
-        'is_gantt_color', // Type is 'Radio'
-        'is_gantt_tooltip',
-        'is_gantt_left_header',
-        'is_gantt_label_symbol', // Type is 'Radio'
-        'is_gantt_milestone', // Type is 'Radio'
-
-        //Calendar
-        'is_calendar_start', // Type is 'Radio'
-        'is_calendar_end', // Type is 'Radio'
-        'is_calendar_title', // Type is 'Radio'
-        'is_calendar_cond_format', // Type is 'Radio'
+        //others
+        'markerjs_annotations',
+        'markerjs_cropro',
+        'markerjs_savetype', // ['replace','savecopy']
+        'twilio_google_acc_id',
+        'twilio_sendgrid_acc_id',
+        'twilio_sms_acc_id',
+        'twilio_voice_acc_id',
+        'twilio_sender_name',
+        'twilio_sender_email',
 
         //shared with UserHeaders
         'filter',
         'filter_type', // ['value', 'range']
+        'filter_search',
         'popup_header',
+        'popup_header_val',
         'is_floating',
         'unit_display',
         'min_width',
@@ -236,6 +266,8 @@ class TableField extends Model
         'notes',
         'col_align',
         'show_zeros',
+        'image_fitting',
+        'fill_by_asterisk',
         //hidden
         'is_showed',
         'order',
@@ -249,30 +281,11 @@ class TableField extends Model
     ];
 
     public static $radioFields = [
-        'is_image_on_board',
-        'is_lat_field',
-        'is_long_field',
-        'is_info_header_field',
         'map_find_street_field',
         'map_find_city_field',
         'map_find_state_field',
         'map_find_county_field',
         'map_find_zip_field',
-        'is_gantt_group',
-        'is_gantt_parent_group',
-        'is_gantt_main_group',
-        'is_gantt_name',
-        'is_gantt_parent',
-        'is_gantt_start',
-        'is_gantt_end',
-        'is_gantt_progress',
-        'is_gantt_color',
-        'is_gantt_label_symbol',
-        'is_gantt_milestone',
-        'is_calendar_start',
-        'is_calendar_end',
-        'is_calendar_title',
-        'is_calendar_cond_format',
     ];
 
 
@@ -293,9 +306,10 @@ class TableField extends Model
      * @param $q
      * @param int|null $user_id
      * @param Table|null $table
+     * @param bool $floating
      * @return mixed
      */
-    public function scopeJoinHeader($q, int $user_id = null, Table $table = null)
+    public function scopeJoinHeader($q, int $user_id = null, Table $table = null, bool $floating = false)
     {
         $user_id = $table && $table->user_id != $user_id
             ? $user_id
@@ -303,7 +317,7 @@ class TableField extends Model
 
         if ($user_id && $table)
         { // NOT OWNER
-            return $this->joinNotOwnerSettings($q, $table, $user_id);
+            return $this->joinNotOwnerSettings($q, $table, $user_id, $floating);
         }
         else
         { // OWNER
@@ -328,9 +342,10 @@ class TableField extends Model
      * @param $q
      * @param Table $table
      * @param int $user_id
+     * @param bool $floating
      * @return mixed
      */
-    private function joinNotOwnerSettings($q, Table $table, int $user_id)
+    private function joinNotOwnerSettings($q, Table $table, int $user_id, bool $floating = false)
     {
         //load current user's right
         if (!$table->_current_right) {
@@ -360,12 +375,16 @@ class TableField extends Model
         $order_by = $can_order ? 'user_headers.order' : 'table_fields.order';
 
         //result
-        return $q->leftJoin('user_headers', function ($header_q) use ($user_id) {
-                $header_q->whereRaw('user_headers.table_field_id = table_fields.id');
-                $header_q->where('user_headers.user_id', '=', $user_id);
-            })
-            ->orderBy($order_by)
-            ->select($select_fields);
+        $q->leftJoin('user_headers', function ($header_q) use ($user_id) {
+            $header_q->whereRaw('user_headers.table_field_id = table_fields.id');
+            $header_q->where('user_headers.user_id', '=', $user_id);
+        });
+
+        if ($floating) {
+            $q->orderBy('user_headers.is_floating', 'desc');
+        }
+
+        return $q->orderBy($order_by)->select($select_fields);
     }
 
     /**
@@ -405,6 +424,11 @@ class TableField extends Model
         return $this->hasOne(DDL::class, 'id', 'ddl_id');
     }
 
+    public function _prev_ddl()
+    {
+        return $this->hasOne(DDL::class, 'id', 'prev_ddl_id');
+    }
+
     public function _listing_field()
     {
         return $this->hasOne(TableField::class, 'id', 'listing_field_id');
@@ -413,6 +437,11 @@ class TableField extends Model
     public function _fetch_field()
     {
         return $this->hasOne(TableField::class, 'id', 'fetch_source_id');
+    }
+
+    public function _fetch_cloud_field()
+    {
+        return $this->hasOne(TableField::class, 'id', 'fetch_by_row_cloud_id');
     }
 
     public function _map_icons()
@@ -428,11 +457,6 @@ class TableField extends Model
     public function _table_column_groups()
     {
         return $this->belongsToMany(TableColumnGroup::class, 'table_column_groups_2_table_fields', 'table_field_id', 'table_column_group_id');
-    }
-
-    public function _kanban_setting()
-    {
-        return $this->hasOne(TableKanbanSettings::class, 'table_field_id', 'id');
     }
 
     public function _mirror_rc()

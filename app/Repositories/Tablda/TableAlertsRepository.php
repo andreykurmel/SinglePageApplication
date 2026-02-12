@@ -2,14 +2,17 @@
 
 namespace Vanguard\Repositories\Tablda;
 
+use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Vanguard\Models\Table\AlertAnrTable;
 use Vanguard\Models\Table\AlertAnrTableField;
+use Vanguard\Models\Table\AlertClickUpdate;
 use Vanguard\Models\Table\AlertUfvTable;
 use Vanguard\Models\Table\AlertUfvTableField;
 use Vanguard\Models\Table\TableAlert;
 use Vanguard\Models\Table\TableAlertCondition;
 use Vanguard\Models\Table\TableAlertRight;
+use Vanguard\Models\Table\TableAlertSnapshotField;
 use Vanguard\Services\Tablda\HelperService;
 
 class TableAlertsRepository
@@ -69,7 +72,7 @@ class TableAlertsRepository
                 $q->with([
                     '_temp_table',
                     '_anr_fields' => function ($q) {
-                        $q->with('_temp_field:id,field', '_temp_inherit_field:id,field');
+                        $q->with('_temp_field:id,field,input_type', '_temp_inherit_field:id,field,input_type');
                     },
                 ]);
             },
@@ -77,7 +80,7 @@ class TableAlertsRepository
                 $q->with([
                     '_ref_cond',
                     '_ufv_fields' => function ($q) {
-                        $q->with('_field:id,field', '_inherit_field:id,field');
+                        $q->with('_field:id,field,input_type', '_inherit_field:id,field,input_type');
                     },
                 ]);
             },
@@ -106,12 +109,16 @@ class TableAlertsRepository
                 '_anr_tables' => function ($q) {
                     $q->with('_anr_fields');
                 },
+                '_row_sms_field',
                 '_row_mail_field',
                 '_cc_row_mail_field',
                 '_bcc_row_mail_field',
-                '_added_ref_cond',
-                '_updated_ref_cond',
-                '_deleted_ref_cond',
+                '_added_row_group',
+                '_updated_row_group',
+                '_deleted_row_group',
+                '_click_updates' => function ($q) {
+                    $q->with('_field');
+                },
             ])
             ->get();
     }
@@ -137,6 +144,9 @@ class TableAlertsRepository
         }
         $data['user_id'] = auth()->id();
         $data['ask_anr_confirmation'] = 0;
+        $data['notif_email_add_tabledata'] = 1;
+        $data['notif_email_add_clicklink'] = 1;
+        $data['click_introduction'] = 'Click the following link to update (confirm, etc.):';
 
         $saved = TableAlert::create($this->service->delSystemFields($data));
         return $this->getAlert($saved->id);
@@ -160,16 +170,29 @@ class TableAlertsRepository
     public function getAlert($table_alert_id)
     {
         return TableAlert::where('id', '=', $table_alert_id)
-            ->with([
-                '_conditions',
-                '_ufv_tables' => function($q) {
-                    $q->with('_ufv_fields');
-                },
-                '_anr_tables' => function ($q) {
-                    $q->with('_anr_fields');
-                },
-            ])
+            ->with(self::relations())
             ->first();
+    }
+
+    /**
+     * @return array
+     */
+    public static function relations(): array
+    {
+        return [
+            '_alert_rights',
+            '_conditions',
+            '_snapshot_fields',
+            '_ufv_tables' => function($q) {
+                $q->with('_ufv_fields');
+            },
+            '_anr_tables' => function ($q) {
+                $q->with('_anr_fields');
+            },
+            '_click_updates' => function ($q) {
+                $q->with('_field');
+            },
+        ];
     }
 
     /**
@@ -197,6 +220,9 @@ class TableAlertsRepository
         $data['mail_delay_hour'] = !empty($data['mail_delay_hour']) ? intval($data['mail_delay_hour']) : '';
         $data['mail_delay_min'] = !empty($data['mail_delay_min']) ? intval($data['mail_delay_min']) : '';
         $data['mail_delay_sec'] = !empty($data['mail_delay_sec']) ? intval($data['mail_delay_sec']) : '';
+        if (isset($data['snapshot_day_freq'])) {
+            $data['snapshot_day_freq'] = json_encode($data['snapshot_day_freq'] ?: []);
+        }
 
         TableAlert::where('id', '=', $alert_id)
             ->update($this->service->delSystemFields($data));
@@ -420,6 +446,105 @@ class TableAlertsRepository
     }
 
     /**
+     * @param $table_id
+     * @param $alert_id
+     * @param array $data
+     * @return TableAlert
+     */
+    public function insertSnpFieldTable($table_id, $alert_id, array $data)
+    {
+        $data['table_alert_id'] = $alert_id;
+        TableAlertSnapshotField::create($this->service->delSystemFields($data));
+        return $this->getAlert($alert_id);
+    }
+
+    /**
+     * @param $alert_id
+     * @param $id
+     * @param array $data
+     * @return TableAlert
+     */
+    public function updateSnpFieldTable($alert_id, $id, array $data)
+    {
+        $data['table_alert_id'] = $alert_id;
+
+        TableAlertSnapshotField::where('table_alert_id', '=', $alert_id)
+            ->where('id', '=', $id)
+            ->update($this->service->delSystemFields($data));
+
+        return $this->getAlert($alert_id);
+    }
+
+    /**
+     * @param $alert_id
+     * @param $id
+     * @return TableAlert
+     */
+    public function deleteSnpFieldTable($alert_id, $id)
+    {
+        TableAlertSnapshotField::where('table_alert_id', '=', $alert_id)
+            ->where('id', '=', $id)
+            ->delete();
+        return $this->getAlert($alert_id);
+    }
+
+    public function activeSnapshots()
+    {
+        $now = now();
+        return TableAlert::where('on_snapshot', '=', 1)
+            ->where('is_active', '=', 1)
+            ->where(function ($a) use ($now) {
+                $a->where(function ($o1) use ($now) {
+                    $o1->where('snapshot_type', '=', 'one_time');
+                    $o1->where('snapshot_onetime_datetime', 'like', $now->format('Y-m-d H:i').'%');
+                });
+                $a->orWhere(function ($a1) use ($now) {
+                    $a1->where('snapshot_type', '=', 'recurring');
+                    $a1->where('snapshot_frequency', '=', 'hourly');
+                    $a1->where('snapshot_hourly_freq', '=', abs($now->format('i')));
+                });
+                $a->orWhere(function ($b1) use ($now) {
+                    $b1->where('snapshot_type', '=', 'recurring');
+                    $b1->where('snapshot_time', 'like', $now->format('H:i').'%');
+                    $b1->where(function ($b2) use ($now) {
+                        $b2->where('snapshot_frequency', '=', 'daily');
+                        $b2->orWhere(function ($b3) use ($now) {
+                            $b3->where('snapshot_frequency', '=', 'weekly');
+                            $b3->where('snapshot_day_freq', 'like', '%'.$now->format('l').'%');
+                        });
+                        $b2->orWhere(function ($c3) use ($now) {
+                            $c3->where('snapshot_frequency', '=', 'monthly');
+                            $c3->where(function ($c4) use ($now) {
+                                if ($now->format('d') == '01') {
+                                    $c4->orWhere('snapshot_month_freq', '=', 'first');
+                                }
+                                if ($now->format('d') == now()->lastOfMonth()->format('d')) {
+                                    $c4->orWhere('snapshot_month_freq', '=', 'last');
+                                }
+                                $c4->orWhere(function ($c5) use ($now) {
+                                    $c5->where('snapshot_month_freq', '=', 'day');
+                                    $c5->where('snapshot_month_day', '=', $now->format('j'));
+                                });
+                                $c4->orWhere(function ($d5) use ($now) {
+                                    $d5->where('snapshot_month_freq', '=', 'date');
+                                    $d5->where('snapshot_month_date', '=', $now->format('Y-m-d'));
+                                });
+                            });
+                        });
+                    });
+                });
+            })
+            ->with([
+                '_table',
+                '_snp_source_table',
+                '_snapshot_fields' => function ($sf) {
+                    $sf->with(['_cur_field', '_source_field']);
+                },
+            ])
+            ->get();
+    }
+
+    /**
      * @param int $table_id
      * @return mixed
      */
@@ -635,6 +760,54 @@ class TableAlertsRepository
             ->where('id', '=', $id)
             ->delete();
         return $this->getUfvTable($ufv_id);
+    }
+
+    /**
+     * @param $alert_id
+     * @param array $data
+     * @return AlertClickUpdate[]
+     */
+    public function insertClickUpdate($alert_id, array $data)
+    {
+        \Cache::store('redis')->forget('table.alert_anr_ufv.'.$alert_id);
+
+        $data['table_alert_id'] = $alert_id;
+        AlertClickUpdate::create($this->service->delSystemFields($data));
+
+        return AlertClickUpdate::where('table_alert_id', $alert_id)->get();
+    }
+
+    /**
+     * @param $alert_id
+     * @param $id
+     * @param array $data
+     * @return AlertClickUpdate[]
+     */
+    public function updateClickUpdate($alert_id, $id, array $data)
+    {
+        \Cache::store('redis')->forget('table.alert_anr_ufv.'.$alert_id);
+
+        $data['table_alert_id'] = $alert_id;
+        AlertClickUpdate::where('table_alert_id', '=', $alert_id)
+            ->where('id', '=', $id)
+            ->update($this->service->delSystemFields($data));
+
+        return AlertClickUpdate::where('table_alert_id', $alert_id)->get();
+    }
+
+    /**
+     * @param $alert_id
+     * @param $id
+     * @return AlertClickUpdate[]
+     */
+    public function deleteClickUpdate($alert_id, $id)
+    {
+        \Cache::store('redis')->forget('table.alert_anr_ufv.'.$alert_id);
+
+        AlertClickUpdate::where('table_alert_id', '=', $alert_id)
+            ->where('id', '=', $id)
+            ->delete();
+        return AlertClickUpdate::where('table_alert_id', $alert_id)->get();
     }
 
     /**

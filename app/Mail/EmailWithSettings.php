@@ -3,6 +3,7 @@
 namespace Vanguard\Mail;
 
 use Illuminate\Mail\PendingMail;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Mail;
 use Vanguard\Jobs\SendgridBackground;
@@ -50,8 +51,10 @@ class EmailWithSettings
     {
         $this->service = new HelperService();
 
-        $this->emailSettings = EmailSettings::where('email_code', '=', $code)->first()
-            ?: (new EmailSettings());
+        $this->emailSettings = EmailSettings::where('email_code', '=', $code)->first();
+        if (!$this->emailSettings) {
+            Log::error('EmailWithSettings.php error - not found EmailSettings object with code ' . $this->code);
+        }
         $this->code = $code;
 
         $this->to = $this->setAddress($this->emailSettings->to ?? '', $to, $cc, $bcc);
@@ -69,11 +72,22 @@ class EmailWithSettings
     protected function setAddress(string $variable, $to, $cc, $bcc)
     {
         switch ($variable) {
-            case '$to': return (is_array($to) ? array_filter($to) : $to);
-            case '$cc': return (is_array($cc) ? array_filter($cc) : $cc);
-            case '$bcc': return (is_array($bcc) ? array_filter($bcc) : $bcc);
+            case '$to': return (is_array($to) ? array_filter($to) : [$to]);
+            case '$cc': return (is_array($cc) ? array_filter($cc) : [$cc]);
+            case '$bcc': return (is_array($bcc) ? array_filter($bcc) : [$bcc]);
             default: return $this->service->parseRecipients($variable);
         }
+    }
+
+    /**
+     * @param array $params
+     * @param array $data
+     * @return TabldaMail
+     */
+    public function getMailable(array $params, array $data): TabldaMail
+    {
+        $params = $this->replaceParams($params);
+        return new TabldaMail($this->getView(), $data, $params);
     }
 
     /**
@@ -96,6 +110,17 @@ class EmailWithSettings
         $params = $this->replaceParams($params);
         $this->prepare()
             ->queue(new TabldaMail($this->getView(), $data, $params));
+    }
+
+    /**
+     * @param array $params
+     * @param array $data
+     * @return TabldaMail
+     */
+    public function mailable(array $params, array $data): TabldaMail
+    {
+        $params = $this->replaceParams($params);
+        return new TabldaMail($this->getView(), $data, $params);
     }
 
     /**
@@ -142,12 +167,10 @@ class EmailWithSettings
         $sendgrid->setSubject( $prepared['subject'] );
         $sendgrid->addTos( $to_recipients );
         if ($this->cc) {
-            $cc_recipients = array_combine($this->cc, $this->cc);
-            $sendgrid->addCc($cc_recipients);
+            $sendgrid->addCc(Arr::first($this->cc));
         }
         if ($this->bcc) {
-            $bcc_recipients = array_combine($this->bcc, $this->bcc);
-            $sendgrid->addCc($bcc_recipients);
+            $sendgrid->addCc(Arr::first($this->bcc));
         }
         if ($reply) {
             $sendgrid->setReplyTo($reply, $reply);
@@ -167,7 +190,7 @@ class EmailWithSettings
      */
     protected function replaceParams(array $params): array
     {
-        $params['to.address'] = is_array($this->to) ? array_first($this->to) : $this->to;
+        $params['to.address'] = is_array($this->to) ? Arr::first($this->to) : $this->to;
         $params['from.name'] = $this->emailSettings->sender_name ?: ($params['from.name'] ?? '');
         $subject = $this->emailSettings->subject ?: '$subject';
         $params['subject'] = str_replace('$subject', $params['subject'] ?? '', $subject);
@@ -195,6 +218,9 @@ class EmailWithSettings
     protected function getView(): string
     {
         switch ($this->code) {
+            case 'email_2fa_auth':
+                return 'tablda.emails.email_2fa_auth';
+
             case 'subscription_pay':
                 return 'tablda.emails.payments.subscription_pay';
 
@@ -238,6 +264,11 @@ class EmailWithSettings
 
             case 'password_reset':
                 return 'tablda.emails.pass-reset';
+
+            case 'auto_renewal_off':
+            case 'credit_balance_low':
+            case 'credit_card_expiring':
+                return 'tablda.emails.payments.renewal_notification';
 
             default:
                 Log::error('EmailWithSettings.php error - code not found: ' . $this->code);

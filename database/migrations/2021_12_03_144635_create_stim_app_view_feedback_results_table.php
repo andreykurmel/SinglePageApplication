@@ -22,6 +22,7 @@ class CreateStimAppViewFeedbackResultsTable extends Migration
                 $table->dateTime('received_date');
                 $table->string('notes', 1024);
                 $table->string('received_attachments', 255)->nullable();
+                $table->string('row_hash', 64)->nullable();
                 $table->timestamps();
 
                 $table->foreign('stim_view_feedback_id', 'stim_app_view_feedback_results__feedback_id')

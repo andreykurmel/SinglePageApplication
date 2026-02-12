@@ -24,8 +24,8 @@ class LoadHeadersTableDataRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required_without:ref_cond_id|integer|exists:tables,id',
-            'ref_cond_id' => 'required_without:table_id|integer|exists:table_ref_conditions,id',
+            'table_id' => 'required_without:ref_cond_id|integer|nullable|exists:tables,id',
+            'ref_cond_id' => 'required_without:table_id|integer|nullable|exists:table_ref_conditions,id',
             'user_id' => 'integer|nullable',
             'special_params' => 'array'
         ];

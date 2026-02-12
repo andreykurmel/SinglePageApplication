@@ -5,9 +5,9 @@
 
   .menu-header {
     position: absolute;
-    left: -405px;
-    width: 430px;
-    height: 20px;
+    left: -560px;
+    width: 570px;
+    height: 5px;
     transform-origin: bottom right;
     transform: rotate(-90deg);
 
@@ -27,9 +27,9 @@
   .menu-body {
     position: absolute;
     left: 32px;
-    right: 5px;
-    top: 5px;
-    bottom: 5px;
+    right: 0;
+    top: 0;
+    bottom: 0;
     background-color: #005fa4;
     border-radius: 5px;
   }

@@ -37,6 +37,11 @@ class RedirectSubdomains
         $user = $this->auth->user();
         $avail_subdom = $user && $user->_available_features && $user->_available_features->apps_are_avail;
 
+        //redirect stim.tablda.com to stim.tablda.com/apps/3d
+        if ($service->cur_subdomain == 'stim' && $request->path() == '/') {
+            return redirect( url('apps/3d') );
+        }
+
         //skip [public,blog] subdomains
         if (in_array($service->cur_subdomain, $service->no_redirect_subdomains)) {
             return $next($request);

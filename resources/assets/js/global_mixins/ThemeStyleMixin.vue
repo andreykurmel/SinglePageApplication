@@ -1,4 +1,6 @@
 <script>
+    import {SpecialFuncs} from "../classes/SpecialFuncs";
+
     /**
      *  Must be present:
      *
@@ -10,6 +12,12 @@
             }
         },
         computed: {
+            themeMainTxtColor() {
+                let bg = this.themeMainBgStyle.backgroundColor;
+                return {
+                    color: SpecialFuncs.smartTextColorOnBg(bg)
+                };
+            },
             themeTopBgStyle() {
                 let bg_color = this.getThemeProp('navbar_bg_color');
                 return {backgroundColor: bg_color || '#FFF'};
@@ -84,7 +92,7 @@
                 };
             },
             tsmTbMeta() {
-                return this.tableMeta || this.$root.tableMeta;
+                return this.tableMeta || this.$root.tableMeta || {};
             },
         },
         methods: {
@@ -99,7 +107,7 @@
                         ||
                         this.$root.user.see_view
                         ||
-                        this.$root.user.see_srv
+                        this.$root.user._srv_hash
                     );
             },
             tsmInitTableTheme(tableMeta) {

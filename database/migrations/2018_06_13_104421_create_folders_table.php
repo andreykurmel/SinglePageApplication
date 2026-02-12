@@ -19,6 +19,7 @@ class CreateFoldersTable extends Migration
             $table->unsignedInteger('parent_id')->nullable();
             $table->string('name');
             $table->string('structure', 50)->default('private');
+            $table->string('description', 255)->nullable();
             $table->tinyInteger('is_opened')->default(1);
             $table->tinyInteger('is_system')->default(0);
 

@@ -22,6 +22,7 @@ class HistoryRepository
         'last_name',
         'avatar'
     ];
+    protected $hf_relations = [];
 
     /**
      * HistoryRepository constructor.
@@ -29,6 +30,12 @@ class HistoryRepository
     public function __construct()
     {
         $this->service = new HelperService();
+        $this->hf_relations = [
+            '_u_value:' . join(',', $this->user_fields),
+            '_user:' . join(',', $this->user_fields),
+            '_to_user:' . join(',', $this->user_fields),
+            '_table_field:id,name,f_type',
+        ];
     }
 
     /**
@@ -43,8 +50,17 @@ class HistoryRepository
      */
     public function store(Table $table, int $user_id, int $field_id, int $row_id, $old_val)
     {
-        $data = $this->newHistoryRow($table, $user_id, $field_id, $row_id, $old_val);
-        return HistoryField::create($data);
+        return HistoryField::create(array_merge(
+            [
+                'user_id' => $user_id,
+                'table_id' => $table->id,
+                'table_field_id' => $field_id,
+                'row_id' => $row_id,
+                'value' => $old_val
+            ],
+            $this->service->getModified($table),
+            $this->service->getCreated($table)
+        ));
     }
 
     /**
@@ -57,7 +73,7 @@ class HistoryRepository
      * @param $old_val
      * @return array
      */
-    public function newHistoryRow(Table $table, int $user_id = null, int $field_id, int $row_id, $old_val)
+    protected function newHistoryRow(Table $table, int $user_id = null, int $field_id, int $row_id, $old_val)
     {
         $last = $this->getLastHistory($field_id, $row_id);
         $last = $last ? $last->toArray() : $table->toArray();
@@ -94,9 +110,9 @@ class HistoryRepository
      * @param int $row_id
      * @return Builder
      */
-    private function historyRequest(int $table_field_id, int $row_id)
+    protected function historyRequest(int $table_field_id, int $row_id)
     {
-        return HistoryField::with('_user:' . join(',', $this->user_fields))
+        return HistoryField::with($this->hf_relations)
             ->whereNull('to_user_id')
             ->where('table_field_id', '=', $table_field_id)
             ->where('row_id', '=', $row_id)
@@ -123,11 +139,7 @@ class HistoryRepository
      */
     protected function allHistory(Table $table, int $row_id)
     {
-        return HistoryField::with([
-            '_user:' . join(',', $this->user_fields),
-            '_to_user:' . join(',', $this->user_fields),
-            '_table_field:id,name,f_type',
-        ])
+        return HistoryField::with($this->hf_relations)
             ->where('table_id', '=', $table->id)
             ->where('row_id', '=', $row_id)
             ->orderBy('id', 'desc');
@@ -191,6 +203,7 @@ class HistoryRepository
 
         $history_row = $this->newHistoryRow($table, auth()->id(), $header->id, $row_id, $row[$field] ?? null);
         $history_row['_user'] = $this->getHistoryUser($row['modified_by'] ?? null);
+        $history_row['_u_value'] = $this->getHistoryUser($history_row['value'] ?? null);
 
         return $history_row;
     }
@@ -201,7 +214,7 @@ class HistoryRepository
      * @param $user_id
      * @return mixed
      */
-    public function getHistoryUser($user_id)
+    protected function getHistoryUser($user_id)
     {
         return User::where('id', '=', $user_id)
             ->select($this->user_fields)

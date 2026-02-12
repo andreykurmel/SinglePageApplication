@@ -6,6 +6,7 @@
     export default {
         data: function () {
             return {
+                sortApplied: true,
                 sort: this.queryPreset
                     ? this.queryPreset.sort || []
                     : [],

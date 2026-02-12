@@ -5,7 +5,8 @@
         components: {
         },
         props: {
-            init_link: String
+            init_link: String,
+            home_message_flash: String,
         },
         data() {
             return{
@@ -36,8 +37,8 @@
                     this.isContact = false;
                     this.clearingForm();
                     Swal({
-                        title: 'Thanks for your message. We will get back to your shortly.',
-                        text: '',
+                        title: 'Info',
+                        text: 'Thanks for your message. We will get back to your shortly.',
                         timer: 3500
                     });
                 }).catch(errors => {
@@ -70,8 +71,12 @@
             //     },
             // });
 
-            if (window.screen.width >= 768) {
+            if (window.innerWidth >= 768) {
                 this.data_link = this.init_link;
+            }
+
+            if (this.home_message_flash) {
+                Swal('Info', this.home_message_flash);
             }
         }
     }

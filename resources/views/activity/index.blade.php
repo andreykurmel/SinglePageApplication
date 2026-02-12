@@ -29,11 +29,11 @@
                         <input type="text"
                                class="form-control input-solid"
                                name="search"
-                               value="{{ Input::get('search') }}"
+                               value="{{ request()->get('search') }}"
                                placeholder="@lang('app.search_for_action')">
 
                         <span class="input-group-append">
-                            @if (Input::has('search') && Input::get('search') != '')
+                            @if (request()->has('search') && request()->get('search') != '')
                                 <a href="{{ isset($adminView) ? route('activity.index') : route('profile.activity') }}"
                                    class="btn btn-light d-flex align-items-center"
                                    role="button">

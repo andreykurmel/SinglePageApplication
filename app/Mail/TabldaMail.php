@@ -7,6 +7,10 @@ use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use Symfony\Component\Mailer\Transport\SendmailTransport;
+use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
+use Symfony\Component\Mailer\Transport\Smtp\SmtpTransport;
+use Symfony\Component\Mailer\Transport\TransportInterface;
 
 class TabldaMail extends Mailable implements ShouldQueue
 {
@@ -39,14 +43,14 @@ class TabldaMail extends Mailable implements ShouldQueue
      * @param  \Illuminate\Contracts\Mail\Mailer  $mailer
      * @return void
      */
-    public function send(Mailer $mailer)
+    public function send($mailer)
     {
         if ($this->selected_acc != 'noreply') {
             $credentials = $this->accounts[ $this->selected_acc ];
-            $transport = new \Swift_SmtpTransport(config('mail.host'), config('mail.port'), config('mail.encryption'));
+            $transport = new EsmtpTransport(config('mail.host'), config('mail.port'), config('mail.encryption'));
             $transport->setUsername($credentials['email']);
             $transport->setPassword($credentials['pass']);
-            $mailer->setSwiftMailer( new \Swift_Mailer($transport) );
+            $mailer->setSymfonyTransport($transport);
         }
 
         parent::send($mailer);
@@ -160,6 +164,22 @@ class TabldaMail extends Mailable implements ShouldQueue
     }
 
     /**
+     * @return string
+     */
+    public function get_from(): string
+    {
+        return $this->params['from.email'] ?? '';
+    }
+
+    /**
+     * @return string
+     */
+    public function get_from_name(): string
+    {
+        return $this->params['from.name'] ?? '';
+    }
+
+    /**
      * @return string|array
      */
     public function get_cc()
@@ -197,6 +217,23 @@ class TabldaMail extends Mailable implements ShouldQueue
     public function row_tablda()
     {
         return $this->params['tablda_row'] ?? null;
+    }
+
+    /**
+     * @return array
+     */
+    public function history_elem()
+    {
+        return [
+            'email_from_name' => trim($this->params['from.name'] ?? ''),
+            'email_from_email' => trim($this->params['from.email']),
+            'email_reply' => $this->replys(),
+            'email_to' => $this->recipients(),
+            'email_cc' => $this->get_cc(),
+            'email_bcc' => $this->get_bcc(),
+            'email_subject' => $this->subjects(),
+            'email_body' => $this->bodys(),
+        ];
     }
 
     /**

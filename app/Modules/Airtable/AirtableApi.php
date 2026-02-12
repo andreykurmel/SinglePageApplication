@@ -5,6 +5,7 @@ namespace Vanguard\Modules\Airtable;
 use Carbon\Carbon;
 use Exception;
 use GuzzleHttp\Client;
+use Illuminate\Support\Arr;
 use Vanguard\Helpers\DateHelper;
 
 class AirtableApi
@@ -74,7 +75,7 @@ class AirtableApi
      */
     protected function guessType($val): string
     {
-        if (is_array($val) && is_array(array_first($val))) {
+        if (is_array($val) && is_array(Arr::first($val))) {
             return 'Attachment';
         }
         if (DateHelper::isDate($val)) {

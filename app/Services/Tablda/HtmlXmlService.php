@@ -3,6 +3,8 @@
 
 namespace Vanguard\Services\Tablda;
 
+use Illuminate\Support\Arr;
+
 class HtmlXmlService
 {
     /**
@@ -63,11 +65,11 @@ class HtmlXmlService
         }
 
         $caption = $this->elXpath($node, '//caption')->item(0);
-        $caption = $caption ? $caption->textContent : '';
+        $caption = $caption ? $this->getText($caption->textContent) : '';
         $caption = strlen($caption) > 20 ? substr($caption, 0, 20).'...' : $caption;
 
         $first_el = $this->elXpath($node, '//th | //td | //li')->item(0);
-        $first_el = $first_el ? $first_el->textContent : '';
+        $first_el = $first_el ? $this->getText($first_el->textContent) : '';
         $first_el = strlen($first_el) > 20 ? substr($first_el, 0, 20).'...' : $first_el;
 
         $total_num = $this->elXpath($node, '//th | //td | //li')->length;
@@ -114,7 +116,7 @@ class HtmlXmlService
                 $rows = $this->parseListEl($node);
             }
         }
-        return $all ? $rows : (array_first($rows) ?: []);
+        return $all ? $rows : (Arr::first($rows) ?: []);
     }
 
     /**
@@ -131,9 +133,9 @@ class HtmlXmlService
         $nodeList = $xpather->query($xpath);
         $rows = [];
         foreach ($nodeList as $nod) {
-            $rows[] = [ $nod->textContent ];
+            $rows[] = [ $this->getText($nod->textContent) ];
         }
-        return $all ? $rows : (array_first($rows) ?: []);
+        return $all ? $rows : (Arr::first($rows) ?: []);
     }
 
     /**
@@ -231,12 +233,12 @@ class HtmlXmlService
                     $ii = $name_idx['items'][$key];
                     $row[$ii] = $pre_header
                         ? $pre_header . $el->nodeName
-                        : $row[$ii] . ', ' . $el->textContent;
+                        : $row[$ii] . ', ' . $this->getText($el->textContent);
                 } else {
                     $name_idx['items'][$key] = count($row);
                     $row[] = $pre_header
                         ? $pre_header . $el->nodeName
-                        : $el->textContent;
+                        : $this->getText($el->textContent);
                 }
 
             }
@@ -289,7 +291,7 @@ class HtmlXmlService
             $row = [];
             $tds = $this->elXpath($tr, '//th | //td');
             foreach ($tds as $el) {
-                $row[] = $el->textContent;
+                $row[] = $this->getText($el->textContent);
             }
             $rows[] = $row;
         }
@@ -305,8 +307,17 @@ class HtmlXmlService
         $rows = [];
         $lis = $this->elXpath($node, '//li');
         foreach ($lis as $li) {
-            $row[] = [ $li->textContent ];
+            $row[] = [ $this->getText($li->textContent) ];
         }
         return $rows;
+    }
+
+    /**
+     * @param $text
+     * @return false|mixed|string
+     */
+    protected function getText($text)
+    {
+        return json_encode($text);
     }
 }

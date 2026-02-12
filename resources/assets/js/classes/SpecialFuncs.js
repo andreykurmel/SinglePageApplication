@@ -1,4 +1,3 @@
-
 import {UnitConversion} from "./UnitConversion";
 
 export class SpecialFuncs {
@@ -39,6 +38,7 @@ export class SpecialFuncs {
      */
     static clipFillPaste() {
         let el = document.getElementById('for_paste_get');
+        el.value = '';
         el.focus();
         document.execCommand("paste");
     }
@@ -49,7 +49,7 @@ export class SpecialFuncs {
      */
     static clipboardGetStr() {
         let el = document.getElementById('for_paste_get');
-        return el.value;
+        return el.value || '';
     }
 
     /**
@@ -128,10 +128,8 @@ export class SpecialFuncs {
         let filters_new = [];
         _.each(updated_filters, (fltr) => {
             let old = _.find(initial_filters, {id: Number(fltr.id)});
-            filters_new.push({
-                ...old,
-                ...fltr
-            });
+            let new_fl = { ...old, ...fltr };
+            filters_new.push(new_fl);
         });
         //-------
         return filters_new;
@@ -143,6 +141,10 @@ export class SpecialFuncs {
      * @returns {[*]}
      */
     static parseMsel(val) {
+        if (Array.isArray(val)) {
+            return val;
+        }
+
         let result = [];
         val = String(val || '');
         try {
@@ -176,10 +178,11 @@ export class SpecialFuncs {
      *
      * @param string
      * @param nohtml
+     * @param color
      * @returns {string}
      */
-    static wrap_span(string, nohtml) {
-        return nohtml ? string : '<span style="color: #00F;font-weight: bold;">' + string + '</span>';
+    static wrap_span(string, nohtml, color = '#00F') {
+        return nohtml ? string : '<span style="color: '+color+';font-weight: bold;">' + string + '</span>';
     }
 
     /**
@@ -227,23 +230,32 @@ export class SpecialFuncs {
      */
     static rcObj(tableRow, field, val) {
         let obj = tableRow['_rc_' + field] || {};
-        return val ? (obj[val] || obj[to_float(val)] || {}) : obj;
+        return to_standard_val(val, true)
+            ? (obj[val] || obj[to_float(val)] || {})
+            : obj;
     }
 
     /**
      *
      * @param tablemeta
+     * @param additionalDefaultFields
      * @returns {{}}
      */
-    static emptyRow(tablemeta) {
+    static emptyRow(tablemeta, additionalDefaultFields) {
         let objectForAdd = {};
         for (let i in tablemeta._fields) {
             if (tablemeta._fields[i].f_type === 'Boolean') {
-                objectForAdd[tablemeta._fields[i].field] = tablemeta._fields[i].f_default == '1';
+                objectForAdd[tablemeta._fields[i].field] = tablemeta._fields[i].f_default == '1' ? 1 : 0;
             } else {
-                objectForAdd[tablemeta._fields[i].field] = null;
+                objectForAdd[tablemeta._fields[i].field] = tablemeta._fields[i].f_default || null;
             }
         }
+        _.each((additionalDefaultFields || []), (adFld) => {
+            let tbf = _.find(tablemeta._fields, {id: Number(adFld.table_field_id)});
+            if (tbf && to_standard_val(adFld.default, true).length) {
+                objectForAdd[tbf.field] = adFld.default;
+            }
+        });
         objectForAdd._temp_id = uuidv4();
         objectForAdd.row_hash = uuidv4();
         return objectForAdd;
@@ -279,12 +291,12 @@ export class SpecialFuncs {
      *
      * @param tableHeader
      * @param showValue
-     * @param unitConv
+     * @param tableMeta
      * @returns {string}
      */
-    static currencySign(tableHeader, showValue, unitConv) {
+    static currencySign(tableHeader, showValue, tableMeta) {
         let unit_dis = this.rcObj(tableHeader, 'unit_display', tableHeader.unit_display).show_val || tableHeader.unit_display;
-        unit_dis = unitConv ? unit_dis : '';
+        unit_dis = tableMeta && tableMeta.unit_conv_is_active ? unit_dis : '';
         let unit = this.rcObj(tableHeader, 'unit', tableHeader.unit).show_val || tableHeader.unit;
 
         let cur = String(unit_dis || unit).toUpperCase();
@@ -299,20 +311,22 @@ export class SpecialFuncs {
      *
      * @param tableHeader
      * @param tableRow
-     * @param unitConv
+     * @param tableMeta
+     * @param asArray
      * @returns {string}
      */
-    static showFullHtml(tableHeader, tableRow, unitConv) {
+    static showFullHtml(tableHeader, tableRow, tableMeta, asArray = false) {
         let cellVal = tableRow[tableHeader.field];
-        let fullHtml = '';
+        let fullHtml = asArray ? [] : '';
         if (['M-Select', 'M-Search', 'M-SS'].indexOf(tableHeader.input_type) > -1) {
             let arr = [];
             _.each(this.parseMsel(cellVal), (el) => {
-                arr.push(this.showhtml(tableHeader, tableRow, el, unitConv));
+                arr.push(this.showhtml(tableHeader, tableRow, el, tableMeta));
             });
-            fullHtml = arr.join(', ');
+            fullHtml = asArray ? arr : arr.join(', ');
         } else {
-            fullHtml = this.showhtml(tableHeader, tableRow, cellVal, unitConv);
+            let html = this.showhtml(tableHeader, tableRow, cellVal, tableMeta);
+            fullHtml = asArray ? [html] : html;
         }
         return fullHtml;
     }
@@ -322,17 +336,19 @@ export class SpecialFuncs {
      * @param tableHeader
      * @param tableRow
      * @param htmlValue
-     * @param unitConv
+     * @param tableMeta
      * @returns {*}
      */
-    static showhtml(tableHeader, tableRow, htmlValue, unitConv) {
+    static showhtml(tableHeader, tableRow, htmlValue, tableMeta) {
         let val = '';
         let ddl = this.rcObj(tableRow, tableHeader.field, '_is_ddlid');
 
         if (Object.keys(ddl).length) {
             ddl = this.rcObj(tableRow, tableHeader.field, htmlValue);
             val = ddl.show_val !== 'null' ? ddl.show_val || htmlValue : '';
-            val = unitConv ? UnitConversion.doConv(tableHeader, val, false) : val;
+            val = tableMeta && tableMeta.unit_conv_is_active
+                ? UnitConversion.doConv(tableHeader, val, false)
+                : val;
         } else {
             val = htmlValue;
         }
@@ -341,18 +357,40 @@ export class SpecialFuncs {
         if (tableRow._is_def_cell) {
             val = to_standard_val(val);
         } else {
-            val = to_standard_val(val) || (tableHeader.show_zeros ? '0' : '');
+            val = UnitConversion.applyShowZero( to_standard_val(val), tableHeader );
         }
 
         //format value
-        val = this.format(tableHeader, val, tableRow.__no_html);
+        val = this.formatWithSigns(tableHeader, val, tableRow.__no_html, tableMeta, tableRow);
+        val = this.strip_tags( String(val) );
+        val = unicodeToChar(val);
+
+        //asterisks if needed
+        if (tableHeader.fill_by_asterisk) {
+            val = _.pad('', String(val).length, '*');
+        }
+
+        return val;
+    }
+
+    /**
+     *
+     * @param tableHeader
+     * @param val
+     * @param no_html
+     * @param tableMeta
+     * @param tableRow
+     * @returns {string}
+     */
+    static formatWithSigns(tableHeader, val, no_html, tableMeta, tableRow) {
+        //format value
+        val = this.format(tableHeader, val, no_html, tableRow, tableMeta);
 
         //for DDL is/val on 'currency'
         if (tableHeader.f_type == 'Currency' && val) {
-            val = this.currencySign(tableHeader, val, unitConv);
+            val = this.currencySign(tableHeader, val, tableMeta);
         }
-
-        return this.strip_tags( String(val) );
+        return val;
     }
 
     /**
@@ -378,7 +416,7 @@ export class SpecialFuncs {
             }
         });
         return minus
-            ? this.wrap_span('-', nohtml) + ' (' + result.join(' ') + ')'
+            ? this.wrap_span('-', nohtml, '#F00') + ' (' + result.join(' ') + ')'
             : result.join(' ');
     }
 
@@ -422,12 +460,24 @@ export class SpecialFuncs {
 
     /**
      *
+     * @param str
+     * @returns {*}
+     */
+    static space2nbsp(str) {
+        return String(str).replace(/  /g, ' &nbsp;');
+    }
+
+    /**
+     *
      * @param tableHeader
      * @param value
      * @param no_html
+     * @param tableRow
+     * @param tableMeta
      * @returns {*}
      */
-    static format(tableHeader, value, no_html) {
+    static format(tableHeader, value, no_html, tableRow, tableMeta) {
+        tableMeta = tableMeta || {};
 
         //remove '0000-00-00'
         if (value === '0000-00-00' || value === '0000-00-00 00:00:00') {
@@ -441,6 +491,10 @@ export class SpecialFuncs {
             if (['Decimal', 'Currency', 'Percentage', 'Progress Bar'].indexOf(tableHeader.f_type) > -1) {
 
                 value = to_float(value);
+                if (tableHeader.f_type === 'Percentage') {
+                    value *= 100;
+                }
+
                 if (tableHeader.f_format) {
 
                     //apply F-Format
@@ -482,42 +536,54 @@ export class SpecialFuncs {
             }
 
             //DATE
-            if (tableHeader.f_type === 'Date') {
+            if (tableHeader.f_type === 'Date' && !this.isSpecialVar(value)) {
                 let fformat = String(tableHeader.f_format).toLowerCase();
                 switch (fformat) {
                     case 'mm-dd-yyyy':
-                        value = moment(value).format('MM-DD-YYYY');
+                    case 'mm-dd-yyyy-':
+                    case 'mm-dd-yyyy/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('MM/DD/YYYY') : moment(value).format('MM-DD-YYYY');
                         break;
                     case 'm-d-yyy':
-                        value = moment(value).format('M-D-Y');
+                    case 'm-d-yyy-':
+                    case 'm-d-yyy/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('M/D/Y') : moment(value).format('M-D-Y');
                         break;
                     case 'yyyy-mm-dd':
-                        value = moment(value).format('YYYY-MM-DD');
+                    case 'yyyy-mm-dd-':
+                    case 'yyyy-mm-dd/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('YYYY/MM/DD') : moment(value).format('YYYY-MM-DD');
                         break;
                     case 'yyy-m-d':
-                        value = moment(value).format('Y-M-D');
+                    case 'yyy-m-d-':
+                    case 'yyy-m-d/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('Y/M/D') : moment(value).format('Y-M-D');
                         break;
                     case 'dd-mm-yyyy':
-                        value = moment(value).format('DD-MM-YYYY');
+                    case 'dd-mm-yyyy-':
+                    case 'dd-mm-yyyy/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('DD/MM/YYYY') : moment(value).format('DD-MM-YYYY');
                         break;
                     case 'd-m-yyy':
-                        value = moment(value).format('M-D-Y');
+                    case 'd-m-yyy-':
+                    case 'd-m-yyy/':
+                        value = String(fformat).slice(-1) == '/' ? moment(value).format('M/D/Y') : moment(value).format('M-D-Y');
                         break;
                     case 'month d, yr':
+                    case 'month d, yr-':
+                    case 'month d, yr/':
                         value = moment(value).format('MMMM D, Y');
                         break;
                     case 'mon. d, yr':
+                    case 'mon. d, yr-':
+                    case 'mon. d, yr/':
                         value = moment(value).format('MMM. D, Y');
                         break;
                 }
             }
             //DATE-TIME
-            if (['Date Time'].indexOf(tableHeader.f_type) > -1) {
+            if (tableHeader.f_type === 'Date Time') {
                 value = this.convertToLocal(value, window.vueRootApp.user.timezone);
-            }
-            //TIME
-            if (['Time'].indexOf(tableHeader.f_type) > -1) {
-                value = this.timeToLocal(value, window.vueRootApp.user.timezone, 'HH:mm:ss');
             }
 
             //DURATION
@@ -528,6 +594,11 @@ export class SpecialFuncs {
             //STRING
             if (tableHeader.f_type === 'String') {
                 value = this.nl2br(value);
+            }
+
+            //USER
+            if (tableHeader.f_type === 'User' && !no_html && tableRow) {
+                value = window.vueRootApp.getUserOneStr(value, tableRow, tableHeader, tableMeta._owner_settings);
             }
         }
 
@@ -590,17 +661,24 @@ export class SpecialFuncs {
         }
         if (['Percentage'].indexOf(tableHeader.f_type) > -1 && value) {
             value = String(value).replace(/%/gi, '');
+            value = value / 100;
         }
         if (['Decimal','Currency','Percentage'].indexOf(tableHeader.f_type) > -1 && value) {
             value = String(value).replace(/,/gi, '');
         }
+        if (['Gradient Color'].indexOf(tableHeader.f_type) > -1 && value) {
+            value = value > 100 ? parseFloat(value) / 100 : parseFloat(value);
+            value = value > 1 ? 1 : value;
+            value = value < 0 ? 0 : value;
+        }
 
         //convert data to UTC
         if (['Date Time'].indexOf(tableHeader.f_type) > -1 && value) {
-            value = this.convertToUTC(value, window.vueRootApp.user.timezone, tableHeader.f_type);
-        }
-        if (['Time'].indexOf(tableHeader.f_type) > -1 && value) {
-            value = this.timeToUTC(value, window.vueRootApp.user.timezone, 'HH:mm:ss');
+            if (this.isSpecialVar(value)) {
+                //special variables: {{Today}} etc.
+            } else {
+                value = this.convertToUTC(value, window.vueRootApp.user.timezone, tableHeader.f_type);
+            }
         }
 
         //Activated MultiSelect
@@ -617,11 +695,25 @@ export class SpecialFuncs {
 
     /**
      *
+     * @param date
+     * @returns {boolean}
+     */
+    static isSpecialVar(date)
+    {
+        return String(date).substr(0,2) === '{{';
+    }
+
+    /**
+     *
      * @param datetime
      * @param roundup
+     * @param timeformat
+     * @returns {*}
      */
-    static dateTimeasDate(datetime, roundup) {
-        return moment(datetime).add(roundup || 0, 'day').format( this.dateFormat() );
+    static dateTimeasDate(datetime, roundup, timeformat) {
+        return moment.utc(datetime)
+            .add(roundup || 0, 'day')
+            .format( timeformat ? this.dateTimeFormat() : this.dateFormat() );
     }
 
     /**
@@ -632,6 +724,9 @@ export class SpecialFuncs {
      * @returns {string}
      */
     static convertToLocal(date, timezone, f_type = 'Date Time') {
+        if (this.isSpecialVar(date)) {
+            return date;
+        }
         let tz = f_type === 'Date Time' ? timezone : null;
         let d_format = f_type === 'Date Time' ? this.dateTimeFormat() : this.dateFormat();
 
@@ -648,6 +743,9 @@ export class SpecialFuncs {
      * @returns {string}
      */
     static convertToUTC(date, timezone, f_type = 'Date Time') {
+        if (this.isSpecialVar(date)) {
+            return date;
+        }
         let tz = f_type === 'Date Time' ? timezone : null;
         let d_format = f_type === 'Date Time' ? this.dateTimeFormat() : this.dateFormat();
 
@@ -735,6 +833,15 @@ export class SpecialFuncs {
         return ['S-Select','S-Search','S-SS','M-Select','M-Search','M-SS'].indexOf(input_type) > -1;
     }
 
+    /**
+     *
+     * @param input_type
+     * @returns {boolean}
+     */
+    static isInputOrSel(input_type) {
+        return ['Input','S-Select','S-Search','S-SS','M-Select','M-Search','M-SS'].indexOf(input_type) > -1;
+    }
+
 
 
     //OTHERS
@@ -791,10 +898,11 @@ export class SpecialFuncs {
      * @returns {{user_id: (*|null), ref_cond_id: *, table_id: *, special_params: {_user_id: null, view_hash: string, edited_view_hash: (*|string), is_folder_view: (*|string), dcr_hash: (*|string), for_list_view: boolean}}}
      */
     static tableMetaRequest(table_id, ref_cond_id, for_list_view) {
+        let user = window.vueRootApp ? window.vueRootApp.user : window.rootUser;
         return {
             table_id: table_id,
             ref_cond_id: ref_cond_id,
-            user_id: !window.vueRootApp.user.see_view ? window.vueRootApp.user.id : null,
+            user_id: !user.see_view ? user.id : null,
             special_params: this.specialParams(for_list_view),
         };
     }
@@ -803,18 +911,83 @@ export class SpecialFuncs {
      *
      * @param for_list_view
      * @param dcr_linked_id
-     * @returns {{view_hash: (*|string), dcr_linked_id, dcr_hash: string, _user_id: (*|null), is_folder_view: (*|string), for_list_view: boolean}}
+     * @param dcr_parent_row
+     * @returns {{view_hash: (*|string), view_filtering_row: string, dcr_linked_id, dcr_uid: (*|string), dcr_parent_row, dcr_hash: (*|string), _user_id: (*|null), is_folder_view: (*|string), for_list_view: boolean}}
      */
-    static specialParams(for_list_view, dcr_linked_id) {
+    static specialParams(for_list_view, dcr_linked_id, dcr_parent_row) {
+        let user = window.vueRootApp ? window.vueRootApp.user : window.rootUser;
         return {
-            _user_id: !window.vueRootApp.user.see_view ? window.vueRootApp.user.id : null,
-            view_hash: window.vueRootApp.user.view_hash || '',
-            is_folder_view: window.vueRootApp.user._is_folder_view || '',
-            dcr_hash: window.vueRootApp.user._dcr_hash || '',
-            dcr_uid: window.vueRootApp.user._dcr_uid || '',
+            _user_id: !user.see_view ? user.id : null,
+            view_filtering_row: user.view_filtering_row || '',
+            view_hash: user.view_hash || '',
+            is_folder_view: user._is_folder_view || '',
+            dcr_hash: user._dcr_hash || '',
+            dcr_uid: user._dcr_uid || '',
             for_list_view: !!for_list_view,
             dcr_linked_id: dcr_linked_id,
+            dcr_parent_row: dcr_parent_row,
         };
+    }
+
+    /**
+     *
+     * @param {string|number} data_range // Examples: -2, 0, 5, '-1', 'rg:2', 'sf:4'
+     * @param table_id
+     * @param request_params
+     * @param additionals
+     * @returns {*}
+     */
+    static dataRangeRequestParams(data_range, table_id, request_params, additionals) {
+        let grp = '';
+        let rangeVal = data_range;
+        if (String(data_range).indexOf(':') > -1) {
+            grp = _.first( String(data_range).split(':') );
+            rangeVal = _.last( String(data_range).split(':') );
+        }
+        rangeVal = parseInt(rangeVal);
+
+        let params = {};
+        if (rangeVal > 0) { //RowGroup or SavedFilter
+            params = this.tableMetaRequest(table_id);
+            if (grp === 'sf') {
+                params.selected_saved_filter_id = rangeVal;
+            } else {
+                params.selected_row_group_id = rangeVal;
+            }
+            params.page = 1;
+            params.rows_per_page = 0;
+        }
+        else if (!rangeVal) { //Current Page
+            params = _.cloneDeep(request_params);
+            params.special_params.for_list_view = false;
+        }
+        else if (rangeVal === -1) { //All Pages (with filters)
+            params = _.cloneDeep(request_params);
+            params.special_params.for_list_view = false;
+            params.page = 1;
+            params.rows_per_page = 0;
+        }
+        else { //Full Table
+            params = this.tableMetaRequest(table_id);
+            params.page = 1;
+            params.rows_per_page = 0;
+        }
+        params = this._applyAdditionals(params, additionals);
+        return params;
+    }
+
+    /**
+     *
+     * @param params
+     * @param additionals
+     * @returns {*}
+     * @private
+     */
+    static _applyAdditionals(params, additionals) {
+        if (additionals && additionals['sort']) {
+            params['sort'] = additionals['sort'];
+        }
+        return params;
     }
 
     /**
@@ -824,7 +997,7 @@ export class SpecialFuncs {
      */
     static forbiddenCustomizables(tableMeta) {
         let forbid = [];
-        if (tableMeta._current_right) {
+        if (tableMeta._current_right && !tableMeta._is_owner) {
             _.each(tableMeta._current_right.forbidden_col_settings, (db_name) => {
                 forbid.push(db_name);
             });
@@ -854,13 +1027,40 @@ export class SpecialFuncs {
     static smartTextColorOnBg(background) {
         // http://www.w3.org/TR/AERT#color-contrast
         let bgclr = String(background) && String(background)[0] === '#' && String(background).length === 7 ? String(background) : '#FFFFFF';
-        let r = parseInt(bgclr.substr(1, 2), 16);
-        let g = parseInt(bgclr.substr(3, 2), 16);
-        let b = parseInt(bgclr.substr(5, 2), 16);
+        let r = parseInt(bgclr.substring(1, 3), 16);
+        let g = parseInt(bgclr.substring(3, 5), 16);
+        let b = parseInt(bgclr.substring(5, 7), 16);
         const brightness = Math.round(((parseInt(r) * 299) +
             (parseInt(g) * 587) +
             (parseInt(b) * 114)) / 1000);
         return (brightness > 125) ? 'black' : 'white';
+    }
+
+    /**
+     *
+     * @param tableField
+     * @param delta
+     * @returns {string}
+     */
+    static getGradientColor(tableField, delta) {
+        let gradients = String(tableField.f_format).split('-');
+        if (!delta) {
+            return gradients[0];
+        }
+
+        let r1 = parseInt(gradients[0].substring(1, 3), 16);
+        let g1 = parseInt(gradients[0].substring(3, 5), 16);
+        let b1 = parseInt(gradients[0].substring(5, 7), 16);
+
+        let r2 = parseInt(gradients[1].substring(1, 3), 16);
+        let g2 = parseInt(gradients[1].substring(3, 5), 16);
+        let b2 = parseInt(gradients[1].substring(5, 7), 16);
+
+        let r = parseInt(r1 + ((r2 - r1) * delta));
+        let g = parseInt(g1 + ((g2 - g1) * delta));
+        let b = parseInt(b1 + ((b2 - b1) * delta));
+
+        return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
     }
 
     /**
@@ -870,6 +1070,141 @@ export class SpecialFuncs {
      */
     static safeTableName(name)
     {
-        return String(name || '').replace(/[^\w\d\(\)\-\.,_ ]/gi, '');
+        return String(name || '').replace(newRegexp('[^\\p{L}\\d\\(\\)\\-\\.,_ ]'), '');
+    }
+
+    /**
+     *
+     * @param obj
+     * @param key
+     * @param datas
+     */
+    static setRowsSaveNewstatus(obj, key, datas) {
+        let new_row_ids = _.map(
+            _.filter(obj[key], {_is_new: 1}),
+            (row) => { return row.id; }
+        );
+        obj[key] = datas;
+        _.each(obj[key], (row) => {
+            if ($.inArray(row.id, new_row_ids) > -1) {
+                row._is_new = 1;
+            }
+        });
+    }
+
+    /**
+     *
+     * @param tableMeta
+     * @param user
+     * @param needPos
+     * @returns {string|string|null|*}
+     */
+    static filterOnTop(tableMeta, user, needPos) {
+        if (user && user.view_all) {
+            return needPos ? user.view_all.srv_fltrs_ontop_pos : user.view_all.srv_fltrs_on_top;
+        }
+        if (tableMeta) {
+            return needPos ? tableMeta.filters_ontop_pos : tableMeta.filters_on_top;
+        }
+        return '';
+    }
+
+    /**
+     *
+     * @param type
+     * @param dcrObject
+     * @returns {{fontFamily: (*|string), color: (*|null), fontSize: string, lineHeight: string}}
+     */
+    static fontStyleObj (type, dcrObject) {
+        let stl = {
+            fontFamily: dcrObject[type+'_font'] || dcrObject[type+'_type'] || 'Raleway, sans-serif',
+            fontSize: (dcrObject[type+'_size'] || 14)+'px',
+            lineHeight: (to_float(dcrObject[type+'_size'] || 14)*1.1)+'px',
+            color: dcrObject[type+'_color'] || null,
+        };
+        let fonts = window.vueRootApp.parseMsel(dcrObject[type+'_style']);
+        _.each(fonts, (f) => {
+            (f === 'Italic' ? stl.fontStyle = 'italic' : stl.fontStyle = stl.fontStyle || null);
+            (f === 'Bold' ? stl.fontWeight = 'bold' : stl.fontWeight = stl.fontWeight || null);
+            (f === 'Strikethrough' ? stl.textDecoration = 'line-through' : stl.textDecoration = stl.textDecoration || null);
+            (f === 'Overline' ? stl.textDecoration = 'overline' : stl.textDecoration = stl.textDecoration || null);
+            (f === 'Underline' ? stl.textDecoration = 'underline' : stl.textDecoration = stl.textDecoration || null);
+        });
+        return stl;
+    }
+
+    /**
+     *
+     * @param tableHeader
+     * @returns {boolean}
+     */
+    static defaultVisibility(tableHeader) {
+        if (!!tableHeader['is_default_show_in_popup']) {
+            return true;
+        }
+
+        let obj = window.vueRootApp.is_dcr_page
+            ? _.find(window.vueRootApp.dcrPivotFields, {table_field_id: Number(tableHeader.id)}) || {}
+            : {};
+
+        return !!obj['fld_popup_shown'];
+    }
+
+    /**
+     *
+     * @param string
+     * @param searchArray
+     * @param key
+     * @returns {*}
+     */
+    static nameWithIndex(string, searchArray, key) {
+        let idx = 1;
+        while (
+            _.find(searchArray, (item) => { return item[key] == string + (idx > 1 ? idx : ''); })
+        ) {
+            idx += 1;
+        }
+        return string + (idx > 1 ? idx : '');
+    }
+
+    /**
+     *
+     * @param fields
+     * @param dcrLinkedTables
+     * @returns {Dictionary<unknown[]>}
+     */
+    static getFieldTabs(fields, dcrLinkedTables) {
+        let prepared = _.map(fields, (fld) => {
+            return {
+                group: fld.pop_tab_name || 'Fields',
+                field: fld.field,
+                pop_tab_order: fld.pop_tab_order,
+            };
+        });
+
+        let individualTabs = _.filter(dcrLinkedTables || [], (dcrLink) => {
+            return dcrLink.placement_tab_name && !dcrLink.position_field_id;
+        });
+        if (individualTabs && individualTabs.length) {
+            let preparedDcrs = _.map(individualTabs, (dcr) => {
+                return {
+                    group: dcr.placement_tab_name,
+                    dcr: dcr,
+                    pop_tab_order: dcr.placement_tab_order,
+                };
+            });
+            prepared = _.concat(prepared, preparedDcrs);
+        }
+
+        let ordered = _.sortBy(prepared, 'pop_tab_order');
+        let tabs = _.groupBy(ordered, 'group');
+        _.each(tabs, (tab, key) => {
+            tabs[key] = {
+                fields: _.filter(_.map(tab, 'field')),
+                dcr_lnks: _.filter(_.map(tab, 'dcr')),
+            };
+        });
+
+        return tabs;
     }
 }

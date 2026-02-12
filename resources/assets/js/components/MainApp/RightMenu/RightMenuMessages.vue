@@ -67,7 +67,7 @@
                 }).then(({ data }) => {
                     this.tableMessages.splice(0, 0, data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -84,7 +84,7 @@
                         this.tableMessages.splice(idx, 1);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

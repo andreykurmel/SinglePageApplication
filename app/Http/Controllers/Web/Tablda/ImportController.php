@@ -65,11 +65,12 @@ class ImportController extends Controller
 
             $data = $this->importService->createTable(
                 $request->only([
-                    'name', 'rows_per_page', 'autoload_new_data', 'pub_hidden', 'initial_view_id',
-                    'add_map', 'add_bi', 'add_request', 'add_alert', 'add_kanban', 'add_gantt', 'add_email', 'add_calendar',
+                    'name', 'rows_per_page', 'autoload_new_data', 'pub_hidden', 'initial_view_id', 'add_tournament','add_report', 'primary_align',
+                    'add_map', 'add_bi', 'add_request', 'add_alert', 'add_kanban', 'add_gantt', 'add_email', 'add_calendar', 'add_twilio',
                     'app_font_size', 'app_font_color', 'app_font_family', 'appsys_font_size', 'appsys_font_color', 'appsys_font_family',
-                    'appsys_tables_font_size', 'appsys_tables_font_color', 'appsys_tables_font_family',
-                    'navbar_bg_color', 'button_bg_color', 'ribbon_bg_color', 'main_bg_color', 'table_hdr_bg_color', 'is_public', 'enabled_activities'
+                    'appsys_tables_font_size', 'appsys_tables_font_color', 'appsys_tables_font_family', 'filters_on_top', 'filters_ontop_pos',
+                    'navbar_bg_color', 'button_bg_color', 'ribbon_bg_color', 'main_bg_color', 'table_hdr_bg_color', 'is_public', 'enabled_activities',
+                    'primary_view', 'primary_width', 'listing_fld_id', 'listing_rowswi', 'add_ai','add_grouping','add_simplemap',
                 ]),
                 auth()->id(),
                 $request->folder_id,
@@ -184,7 +185,7 @@ class ImportController extends Controller
      */
     public function getScrapWeb(SendWebScrapRequest $request)
     {
-        $data = '';
+        $data = ['no_action' => true];
         if ($request->web_action == 'preload') {
             $data = $this->importService->preloadHtmlXml($request->web_url);
         }
@@ -288,7 +289,7 @@ class ImportController extends Controller
         if (auth()->user()) {
             $table = $this->tableService->getTable($request->table_id);
             $this->authorizeForUser(auth()->user(), 'insert', [TableData::class, $table, $request->all()]);
-            (new ImportTableData($table, $request->all(), auth()->user(), 0))->handle();
+            dispatch(new ImportTableData($table, $request->all(), auth()->user(), 0));
             return ['success' => 1];
         } else {
             return ['error' => 1];
@@ -319,7 +320,7 @@ class ImportController extends Controller
      */
     public function storeGoogleFile(SpreadsheetFileRequest $request)
     {
-        return $this->importService->storeGoogleFile($request->cloud_id, $request->file_id, $request->new_path);
+        return $this->importService->storeTmpGoogleFile($request->cloud_id, $request->file_id, $request->new_path);
     }
 
     /**
@@ -337,7 +338,7 @@ class ImportController extends Controller
      */
     public function storeDropboxFile(DropboxFileRequest $request)
     {
-        return $this->importService->storeDropboxFile($request->cloud_id, $request->file_id, $request->new_path);
+        return $this->importService->storeTmpDropboxFile($request->cloud_id, $request->file_id, $request->new_path);
     }
 
     /**
@@ -355,7 +356,7 @@ class ImportController extends Controller
      */
     public function storeOneDriveFile(OneDriveFileRequest $request)
     {
-        return $this->importService->storeOneDriveFile($request->cloud_id, $request->file_id, $request->new_path);
+        return $this->importService->storeTmpOneDriveFile($request->cloud_id, $request->file_id, $request->new_path);
     }
 
     /**

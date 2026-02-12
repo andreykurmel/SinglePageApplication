@@ -16,8 +16,7 @@
                                     :settings-meta="$root.settingsMeta"
                                     :user="user"
                                     :table_id="tableMeta.id"
-                                    :foreign_sel_fld_id="sel_fld_id"
-                                    :foreign_sel_id="sel_id"
+                                    :foreign_sel_id="link_id"
                             ></table-settings-display-links>
                         </div>
                     </div>
@@ -45,8 +44,7 @@
         data: function () {
             return {
                 show_popup: false,
-                sel_fld_id: null,
-                sel_id: null,
+                link_id: null,
                 //PopupAnimationMixin
                 getPopupWidth: 1000,
                 idx: 0,
@@ -59,13 +57,12 @@
         methods: {
             hide() {
                 this.show_popup = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
             },
-            showGroupingSettings(table_field_id, sel_id) {
+            showGroupingSettings(sel_id) {
                 this.show_popup = true;
-                this.sel_fld_id = table_field_id;
-                this.sel_id = sel_id;
-                this.$root.tablesZidx += 10;
+                this.link_id = sel_id;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             }

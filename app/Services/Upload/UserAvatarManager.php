@@ -3,6 +3,8 @@
 namespace Vanguard\Services\Upload;
 
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
+use Intervention\Image\Drivers\Gd\Driver;
 use Vanguard\User;
 use Illuminate\Filesystem\Filesystem;
 use Intervention\Image\ImageManager;
@@ -28,10 +30,10 @@ class UserAvatarManager
      */
     private $imageManager;
 
-    public function __construct(Filesystem $fs, ImageManager $imageManager)
+    public function __construct(Filesystem $fs)
     {
         $this->fs = $fs;
-        $this->imageManager = $imageManager;
+        $this->imageManager = new ImageManager(new Driver());
     }
 
     /**
@@ -68,7 +70,7 @@ class UserAvatarManager
      */
     private function userHasUploadedAvatar(User $user)
     {
-        return $user->avatar && ! str_contains($user->avatar, ['http', 'gravatar']);
+        return $user->avatar && ! preg_match('/http|gravatar/i',$user->avatar);
     }
 
     /**
@@ -124,7 +126,7 @@ class UserAvatarManager
      */
     private function generateAvatarName()
     {
-        return sprintf("%s.png", str_random());
+        return sprintf("%s.png", Str::random());
     }
 
     /**
@@ -137,7 +139,7 @@ class UserAvatarManager
      */
     private function cropAndResizeImage(File $avatarImage, array $points = null)
     {
-        $image = $this->imageManager->make(
+        $image = $this->imageManager->read(
             $avatarImage->getRealPath()
         );
 

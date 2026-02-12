@@ -10,19 +10,18 @@
 <script>
     import {eventBus} from '../../../app';
 
+    import {SpecialFuncs} from "../../../classes/SpecialFuncs";
+
     export default {
         name: "CellTableDataExpand",
         data: function () {
             return {
             }
         },
-        props:{
-            cont_height: Number,
-            cont_width: Number,
+        props: {
             tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
-            html: String,
             uniqid: String,
             canEdit: Boolean,
         },
@@ -30,14 +29,12 @@
             //popup for long Strings functions
             openPopup() {
                 let obj = {
-                    height: this.cont_height,
-                    width: this.cont_width,
                     top: window.event.clientY,
                     left: window.event.clientX,
                     header: this.tableHeader,
                     meta: this.tableMeta,
                     row: this.tableRow,
-                    html: this.html,
+                    html: SpecialFuncs.showFullHtml(this.tableHeader, this.tableRow, this.tableMeta),
                     can_edit: this.canEdit,
                     uniq_id: this.uniqid
                 };

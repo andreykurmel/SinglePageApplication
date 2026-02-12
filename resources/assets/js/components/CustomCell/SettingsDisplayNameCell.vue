@@ -1,21 +1,19 @@
 <template>
-    <td :style="getCellStyle"
+    <td :style="getCellStyle()"
         class="td-custom"
         ref="td"
-        draggable="true"
+        :draggable="canDrg"
         @dragstart="$emit('drag-start')"
         @dragover.prevent=""
         @dragenter="$emit('drag-enter')"
         @dragend="$emit('drag-end')"
         @drop="$emit('drop-event')"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
-
                     {{ $root.uniqName(tableRow['name']) }}
-
                 </div>
             </div>
 
@@ -47,6 +45,9 @@
         watch: {
         },
         computed: {
+            canDrg() {
+                return this.$root.systemFields.indexOf(this.tableRow.field) === -1;
+            },
         },
         methods: {
         },

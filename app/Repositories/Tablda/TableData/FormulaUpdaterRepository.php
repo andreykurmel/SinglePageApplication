@@ -10,6 +10,7 @@ use Vanguard\Repositories\Tablda\TableAlertsRepository;
 use Vanguard\Repositories\Tablda\TableBackupRepository;
 use Vanguard\Repositories\Tablda\TableEmailAddonRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
+use Vanguard\Repositories\Tablda\TableTwilioAddonRepository;
 
 class FormulaUpdaterRepository
 {
@@ -44,6 +45,9 @@ class FormulaUpdaterRepository
     {
         $from = preg_replace('/[^\w\d]/i','', $from);
         $to = preg_replace('/[^\w\d]/i','', $to);
+        if (! $from || ! $to) {
+            return [];
+        }
         $updater = [];
         $nodef = [];
         foreach ($table->_fields as $header) {
@@ -60,7 +64,7 @@ class FormulaUpdaterRepository
         $this->updateAlerts($table, $from, $to);
         $this->updateDCRs($table, $from, $to);
         $this->updateEmails($table, $from, $to);
-        $this->updateBackups($table, $from, $to);
+        $this->updateTwilios($table, $from, $to);
 
         if ($updater) {
             (new TableDataQuery($table))->getQuery()->update($updater);
@@ -99,8 +103,8 @@ class FormulaUpdaterRepository
     protected function updateDCRs(Table $table, $from, $to)
     {
         $repo = new TableDataRequestRepository();
-        $columns = ['dcr_email_subject', 'dcr_addressee_txt', 'dcr_email_message',
-            'dcr_save_email_subject', 'dcr_save_addressee_txt', 'dcr_save_email_message',
+        $columns = ['dcr_email_subject', 'dcr_addressee_txt', 'dcr_email_message','dcr_signature_txt','dcr_save_signature_txt',
+            'dcr_save_email_subject', 'dcr_save_addressee_txt', 'dcr_save_email_message','dcr_upd_signature_txt',
             'dcr_upd_email_subject', 'dcr_upd_addressee_txt', 'dcr_upd_email_message',];
         foreach ($table->_table_requests as $dcr) {
             $found_from = array_reduce($columns, function ($res, $item) use ($dcr, $from) {
@@ -139,20 +143,14 @@ class FormulaUpdaterRepository
      * @param $from
      * @param $to
      */
-    protected function updateBackups(Table $table, $from, $to)
+    protected function updateTwilios(Table $table, $from, $to)
     {
-        $repo = new TableBackupRepository();
-        foreach ($table->_backups as $backup) {
-            if (
-                strpos($backup->bkp_email_subject, $from) !== false
-                || strpos($backup->bkp_addressee_txt, $from) !== false
-                || strpos($backup->bkp_email_message, $from) !== false
-            ) {
-                $array = $backup->toArray();
-                $array['bkp_email_subject'] = preg_replace('/\{' . $from . '\}/i', '{' . $to . '}', $array['bkp_email_subject']);
-                $array['bkp_addressee_txt'] = preg_replace('/\{' . $from . '\}/i', '{' . $to . '}', $array['bkp_addressee_txt']);
-                $array['bkp_email_message'] = preg_replace('/\{' . $from . '\}/i', '{' . $to . '}', $array['bkp_email_message']);
-                $repo->updateTableBackup($backup->id, $array);
+        $repo = new TableTwilioAddonRepository();
+        foreach ($table->_twilio_addon_settings()->get() as $twilio_settings) {
+            if (strpos($twilio_settings->sms_body, $from) !== false) {
+                $array = $twilio_settings->toArray();
+                $array['sms_body'] = preg_replace('/\{' . $from . '\}/i', '{' . $to . '}', $array['sms_body']);
+                $repo->updateTwilioSett($twilio_settings->id, $array);
             }
         }
     }

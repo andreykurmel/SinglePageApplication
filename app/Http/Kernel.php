@@ -3,6 +3,7 @@
 namespace Vanguard\Http;
 
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use Symfony\Component\Debug\Exception\FatalThrowableError;
 
 class Kernel extends HttpKernel
 {
@@ -61,9 +62,5 @@ class Kernel extends HttpKernel
         'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
-        'tabledata.get' => \Vanguard\Http\Middleware\TableData\GetData::class,
-        'tabledata.insert' => \Vanguard\Http\Middleware\TableData\InsertData::class,
-        'tabledata.update' => \Vanguard\Http\Middleware\TableData\UpdateData::class,
-        'tabledata.delete' => \Vanguard\Http\Middleware\TableData\DeleteData::class,
     ];
 }

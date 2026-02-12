@@ -56,9 +56,9 @@
                                                 :style="textSysStyle"
                                                 @click="activeConnTab = 'mysql'">MySQL</button>
                                         <button class="btn btn-default btn-sm"
-                                                :class="{active : activeConnTab === 'sendgrid'}"
+                                                :class="{active : activeConnTab === 'twilio_tab'}"
                                                 :style="textSysStyle"
-                                                @click="activeConnTab = 'sendgrid'">SendGrid</button>
+                                                @click="activeConnTab = 'twilio_tab'">Twilio</button>
                                         <button class="btn btn-default btn-sm"
                                                 :class="{active : activeConnTab === 'google'}"
                                                 :style="textSysStyle"
@@ -79,7 +79,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_clouds"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_clouds"
                                                             :table-meta="$root.settingsMeta.user_clouds"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.settingsMeta.user_clouds_data"
@@ -91,6 +91,7 @@
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
                                                             :forbidden-columns="forbiddenColumns"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="addCloudRow"
                                                             @updated-row="updateCloudRow"
                                                             @delete-row="deleteCloudRow"
@@ -104,7 +105,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_connections"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_connections"
                                                             :table-meta="$root.settingsMeta.user_connections"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.settingsMeta.user_connections_data"
@@ -116,6 +117,7 @@
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
                                                             :forbidden-columns="forbiddenColumns"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="addConnRow"
                                                             @updated-row="updateConnRow"
                                                             @delete-row="deleteConnRow"
@@ -124,12 +126,14 @@
                                             </div>
                                         </div>
 
-                                        <div v-show="activeConnTab === 'sendgrid'">
+                                        <div v-show="activeConnTab === 'twilio_tab'">
                                             <div class="cloud-block">
                                                 <div>
                                                     <label>
-                                                        <a href="https://sendgrid.com/docs/ui/account-and-settings/api-keys/#creating-an-api-key" target="_blank">API Keys:</a>
-                                                        <i class="fa fa-info-circle" ref="gl_help" @click="showGridHover"></i>
+                                                        <span>Email - </span>
+                                                        <a href="https://sendgrid.com/docs/ui/account-and-settings/api-keys/#creating-an-api-key" target="_blank">API Keys</a>
+                                                        <span>by <a target="_blank" href="https://sendgrid.com/">SendGrid</a></span>
+                                                        <i class="fa fa-info-circle" ref="sg_help" @click="showGridHover"></i>
                                                         <hover-block v-if="sg_tooltip"
                                                                      :html_str="$root.sendgrid_help"
                                                                      :p_left="sg_left"
@@ -142,7 +146,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_api_keys"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
                                                             :table-meta="$root.settingsMeta.user_api_keys"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.user._sendgrid_api_keys"
@@ -153,11 +157,59 @@
                                                             :user="$root.user"
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
-                                                            :available-columns="['is_active','key']"
+                                                            :available-columns="['is_active','name','key']"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="addGridApiRow"
                                                             @updated-row="updateGridApiRow"
                                                             @delete-row="deleteGridApiRow"
                                                     ></custom-table>
+                                                </div>
+                                            </div>
+
+                                            <div class="cloud-block">
+                                                <div>
+                                                    <label>
+                                                        <span>SMS/Voice - </span>
+                                                        <a href="https://console.twilio.com/" target="_blank">SID/Token and Phone</a>
+                                                        <span>by <a target="_blank" href="https://twilio.com/">Twilio</a></span>
+                                                        <i class="fa fa-info-circle" ref="tw_help" @click="showTwilioHover"></i>
+                                                        <hover-block v-if="tw_tooltip"
+                                                                     :html_str="$root.twilio_help"
+                                                                     :p_left="tw_left"
+                                                                     :p_top="tw_top"
+                                                                     :c_offset="tw_offset"
+                                                                     @another-click="tw_tooltip = false"
+                                                        ></hover-block>
+                                                    </label>
+                                                </div>
+                                                <div class="table-block">
+                                                    <custom-table
+                                                            :cell_component_name="'custom-cell-connection'"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
+                                                            :table-meta="$root.settingsMeta.user_api_keys"
+                                                            :settings-meta="$root.settingsMeta"
+                                                            :all-rows="$root.user._twilio_api_keys"
+                                                            :rows-count="$root.user._twilio_api_keys.length"
+                                                            :cell-height="1"
+                                                            :max-cell-rows="0"
+                                                            :is-full-width="true"
+                                                            :user="$root.user"
+                                                            :behavior="'twilio_keys'"
+                                                            :adding-row="addingRow"
+                                                            :available-columns="['is_active','name','key','auth_token','twiml_app_id','twilio_phone']"
+                                                            :headers-changer="{'key': 'SID'}"
+                                                            :required-changer="['twilio_phone']"
+                                                            :special_extras="{force_delete: true}"
+                                                            @added-row="addTwilioApiRow"
+                                                            @updated-row="updateTwilioApiRow"
+                                                            @delete-row="deleteTwilioApiRow"
+                                                    ></custom-table>
+                                                </div>
+                                                <div>
+                                                    <label>
+                                                        <span>* A Twilio number or</span>
+                                                        <a href="https://support.twilio.com/hc/en-us/articles/223180048-Adding-a-Verified-Phone-Number-or-Caller-ID-with-Twilio" target="_blank">verified caller ID number</a>.
+                                                    </label>
                                                 </div>
                                             </div>
                                         </div>
@@ -180,7 +232,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_api_keys"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
                                                             :table-meta="$root.settingsMeta.user_api_keys"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.user._google_api_keys"
@@ -191,7 +243,8 @@
                                                             :user="$root.user"
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
-                                                            :available-columns="['is_active','key']"
+                                                            :available-columns="['is_active','name','key']"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="addGoogleApiRow"
                                                             @updated-row="updateGoogleApiRow"
                                                             @delete-row="deleteGoogleApiRow"
@@ -208,7 +261,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_email_accounts"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_email_accounts"
                                                             :table-meta="$root.settingsMeta.user_email_accounts"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.user._google_email_accs"
@@ -220,6 +273,7 @@
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
                                                             :forbidden-columns="forbiddenColumns"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="addGoogleEmailAccRow"
                                                             @updated-row="updateGoogleEmailAccRow"
                                                             @delete-row="deleteGoogleEmailAccRow"
@@ -238,7 +292,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_payment_keys"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_payment_keys"
                                                             :table-meta="$root.settingsMeta.user_payment_keys"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.user._paypal_payment_keys"
@@ -250,6 +304,7 @@
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
                                                             :available-columns="['mode','name','secret_key','public_key']"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="(row) => { addPaymentRow(row, $root.user._paypal_payment_keys, 'paypal') }"
                                                             @updated-row="(row) => { updatePaymentRow(row, $root.user._paypal_payment_keys, 'paypal') }"
                                                             @delete-row="(row) => { deletePaymentRow(row, $root.user._paypal_payment_keys, 'paypal') }"
@@ -266,7 +321,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                             :cell_component_name="'custom-cell-connection'"
-                                                            :global-meta="$root.settingsMeta.user_payment_keys"
+                                                            :global-meta="$root.tableMeta || $root.settingsMeta.user_payment_keys"
                                                             :table-meta="$root.settingsMeta.user_payment_keys"
                                                             :settings-meta="$root.settingsMeta"
                                                             :all-rows="$root.user._stripe_payment_keys"
@@ -278,6 +333,7 @@
                                                             :behavior="'user_conn'"
                                                             :adding-row="addingRow"
                                                             :available-columns="['name','secret_key','public_key']"
+                                                            :special_extras="{force_delete: true}"
                                                             @added-row="(row) => { addPaymentRow(row, $root.user._stripe_payment_keys, 'stripe') }"
                                                             @updated-row="(row) => { updatePaymentRow(row, $root.user._stripe_payment_keys, 'stripe') }"
                                                             @delete-row="(row) => { deletePaymentRow(row, $root.user._stripe_payment_keys, 'stripe') }"
@@ -296,7 +352,7 @@
                                                 <div class="table-block">
                                                     <custom-table
                                                         :cell_component_name="'custom-cell-connection'"
-                                                        :global-meta="$root.settingsMeta.user_api_keys"
+                                                        :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
                                                         :table-meta="$root.settingsMeta.user_api_keys"
                                                         :settings-meta="$root.settingsMeta"
                                                         :all-rows="$root.user._airtable_api_keys"
@@ -309,6 +365,7 @@
                                                         :adding-row="addingRow"
                                                         :available-columns="['name','air_type','air_base','key']"
                                                         :headers-changer="{key: 'Key'}"
+                                                        :special_extras="{force_delete: true}"
                                                         @added-row="addAirtableApiRow"
                                                         @updated-row="updateAirtableApiRow"
                                                         @delete-row="deleteAirtableApiRow"
@@ -339,7 +396,7 @@
                                                     <custom-table
                                                         v-if="$root.user.extracttable_terms"
                                                         :cell_component_name="'custom-cell-connection'"
-                                                        :global-meta="$root.settingsMeta.user_api_keys"
+                                                        :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
                                                         :table-meta="$root.settingsMeta.user_api_keys"
                                                         :settings-meta="$root.settingsMeta"
                                                         :all-rows="$root.user._extracttable_api_keys"
@@ -351,9 +408,71 @@
                                                         :behavior="'user_conn'"
                                                         :adding-row="addingRow"
                                                         :available-columns="['name','key','notes']"
+                                                        :special_extras="{force_delete: true}"
                                                         @added-row="addExtracttableApiRow"
                                                         @updated-row="updateExtracttableApiRow"
                                                         @delete-row="deleteExtracttableApiRow"
+                                                    ></custom-table>
+                                                </div>
+                                            </div>
+                                            <div class="cloud-block">
+                                                <div>
+                                                    <label>
+                                                        <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank">Jira APIs</a>
+                                                    </label>
+                                                </div>
+                                                <div class="table-block">
+                                                    <custom-table
+                                                        :cell_component_name="'custom-cell-connection'"
+                                                        :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
+                                                        :table-meta="$root.settingsMeta.user_api_keys"
+                                                        :settings-meta="$root.settingsMeta"
+                                                        :all-rows="$root.user._jira_api_keys"
+                                                        :rows-count="$root.user._jira_api_keys.length"
+                                                        :cell-height="1"
+                                                        :max-cell-rows="0"
+                                                        :is-full-width="true"
+                                                        :user="$root.user"
+                                                        :behavior="'user_conn'"
+                                                        :adding-row="addingRow"
+                                                        :available-columns="['name','jira_email','key','jira_host','notes']"
+                                                        :special_extras="{force_delete: true}"
+                                                        @added-row="addJiraApiRow"
+                                                        @updated-row="updateJiraApiRow"
+                                                        @delete-row="deleteJiraApiRow"
+                                                    ></custom-table>
+                                                </div>
+                                            </div>
+                                            <div class="cloud-block">
+                                                <div>
+                                                    <label>
+                                                        AI APIs
+                                                        (
+                                                        <a href="https://openai.com/" target="_blank">OpenAI</a>
+                                                        ,
+                                                        <a href="https://ai.google.dev/" target="_blank">Gemini</a>
+                                                        )
+                                                    </label>
+                                                </div>
+                                                <div class="table-block">
+                                                    <custom-table
+                                                        :cell_component_name="'custom-cell-connection'"
+                                                        :global-meta="$root.tableMeta || $root.settingsMeta.user_api_keys"
+                                                        :table-meta="$root.settingsMeta.user_api_keys"
+                                                        :settings-meta="$root.settingsMeta"
+                                                        :all-rows="$root.user._ai_api_keys"
+                                                        :rows-count="$root.user._ai_api_keys.length"
+                                                        :cell-height="1.5"
+                                                        :max-cell-rows="0"
+                                                        :is-full-width="true"
+                                                        :user="$root.user"
+                                                        :behavior="'user_conn'"
+                                                        :adding-row="addingRow"
+                                                        :available-columns="['is_active','name','key','notes','type','model']"
+                                                        :special_extras="{force_delete: true}"
+                                                        @added-row="addAiApiRow"
+                                                        @updated-row="updateAiApiRow"
+                                                        @delete-row="deleteAiApiRow"
                                                     ></custom-table>
                                                 </div>
                                             </div>
@@ -364,7 +483,7 @@
                                 <div class="full-frame container-fluid" v-show="activeTab === 'users'">
                                     <div class="row full-height resources-tab">
                                         <!--LEFT SIDE-->
-                                        <div class="col-xs-12 col-md-4 full-height" :style="{paddingRight: 0}">
+                                        <div class="col-xs-12 col-md-4 full-height" :style="{padding: 0}">
                                             <div class="full-height">
                                                 <div class="top-text" :style="textSysStyle">
                                                     <span>User Groups</span>
@@ -373,7 +492,7 @@
                                                     <div class="full-frame">
                                                         <custom-table
                                                                 :cell_component_name="'custom-cell-user-groups'"
-                                                                :global-meta="$root.settingsMeta['user_groups']"
+                                                                :global-meta="$root.tableMeta || $root.settingsMeta['user_groups']"
                                                                 :table-meta="$root.settingsMeta['user_groups']"
                                                                 :all-rows="$root.user._user_groups"
                                                                 :rows-count="$root.user._user_groups.length"
@@ -397,33 +516,36 @@
 
                                         <!--RIGHT SIDE-->
 
-                                        <div class="col-xs-12 col-md-8 full-height">
+                                        <div class="col-xs-12 col-md-8 full-height" :style="{padding: 0}">
 
                                             <div class="full-height" :style="textSysStyle">
                                                 <div class="top-text">
-                                                    <span>Selected: <span>{{ (selectedUserGroup > -1 ? $root.user._user_groups[selectedUserGroup].name : '') }}</span></span>
+                                                    <span>Selected Usergroup: <span>{{ (curUserGroup ? curUserGroup.name : '') }}</span></span>
                                                 </div>
-                                                <div class="resources-panel" :style="{height: (activeSubUserGroup === 'individ' ? 'calc(100% - 64px)' : 'calc(100% - 30px)')}">
-                                                    <div class="resources-menu-header">
+                                                <div class="resources-panel" :style="{height: (activeSubUserGroup === 'individ' ? 'calc(100% - 65px)' : 'calc(100% - 30px)')}">
+                                                    <div class="resources-menu-header" style="position: relative">
                                                         <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active: activeSubUserGroup === 'individ'}" @click="activeSubUserGroup = 'individ'">
                                                             Individuals
                                                         </button>
                                                         <button class="btn btn-default btn-sm" :style="textSysStyle" v-if="$root.user._usr_email_domain" :class="{active: activeSubUserGroup === 'cond'}" @click="activeSubUserGroup = 'cond'">
-                                                            Conditions
+                                                            Criteria
+                                                        </button>
+                                                        <button class="btn btn-default btn-sm" :style="textSysStyle" v-if="!$root.user._usr_email_domain && curUserGroup" :class="{active: activeSubUserGroup === 'subgroup'}" @click="activeSubUserGroup = 'subgroup'">
+                                                            Subgroups
                                                         </button>
 
                                                         <button v-if="$root.user._usr_email_domain" v-show="activeSubUserGroup === 'cond'" class="btn btn-default btn-sm right-btn" @click="addToIndividuals()">
-                                                            Add to Individuals
+                                                            Search & Add to "Individuals"
                                                         </button>
                                                     </div>
                                                     <div class="resources-menu-body" v-show="activeSubUserGroup === 'individ'">
                                                         <div class="full-frame">
                                                             <custom-table
                                                                     :cell_component_name="'custom-cell-user-groups'"
-                                                                    :global-meta="$root.settingsMeta['user_groups_2_users']"
+                                                                    :global-meta="$root.tableMeta || $root.settingsMeta['user_groups_2_users']"
                                                                     :table-meta="$root.settingsMeta['user_groups_2_users']"
-                                                                    :all-rows="selectedUserGroup > -1 ? $root.user._user_groups[selectedUserGroup]._individuals : null"
-                                                                    :rows-count="selectedUserGroup > -1 ? $root.user._user_groups[selectedUserGroup]._individuals.length : 0"
+                                                                    :all-rows="curUserGroup ? curUserGroup._individuals : null"
+                                                                    :rows-count="curUserGroup ? curUserGroup._individuals.length : 0"
                                                                     :cell-height="1"
                                                                     :max-cell-rows="0"
                                                                     :is-full-width="true"
@@ -439,7 +561,7 @@
                                                         <div class="full-frame">
                                                             <custom-table
                                                                     :cell_component_name="'custom-cell-user-groups'"
-                                                                    :global-meta="$root.settingsMeta['user_group_conditions']"
+                                                                    :global-meta="$root.tableMeta || $root.settingsMeta['user_group_conditions']"
                                                                     :table-meta="$root.settingsMeta['user_group_conditions']"
                                                                     :all-rows="conditiRows"
                                                                     :rows-count="conditiRows ? conditiRows.length : 0"
@@ -448,7 +570,7 @@
                                                                     :is-full-width="true"
                                                                     :user="$root.user"
                                                                     :behavior="'sett_usergroup_conds'"
-                                                                    :adding-row="selectedUserGroup > -1 ? addingRow : {active: false}"
+                                                                    :adding-row="curUserGroup ? addingRow : {active: false}"
                                                                     :forbidden-columns="$root.systemFields"
                                                                     @added-row="addUserGroupCondition"
                                                                     @updated-row="updateUserGroupCondition"
@@ -456,8 +578,33 @@
                                                             ></custom-table>
                                                         </div>
                                                     </div>
+                                                    <div class="resources-menu-body" v-if="!$root.user._usr_email_domain && curUserGroup" v-show="activeSubUserGroup === 'subgroup'">
+                                                        <div class="full-frame">
+                                                            <div v-if="usergroupIsSub" class="flex flex--center">This Usergroup is already used as Subgroup!</div>
+                                                            <custom-table
+                                                                v-else
+                                                                :cell_component_name="'custom-cell-user-groups'"
+                                                                :global-meta="$root.tableMeta || $root.settingsMeta['user_group_subgroups']"
+                                                                :table-meta="$root.settingsMeta['user_group_subgroups']"
+                                                                :all-rows="subGroups"
+                                                                :rows-count="subGroups ? subGroups.length : 0"
+                                                                :cell-height="1"
+                                                                :max-cell-rows="0"
+                                                                :is-full-width="true"
+                                                                :user="$root.user"
+                                                                :behavior="'sett_usergroup_conds'"
+                                                                :parent-row="curUserGroup"
+                                                                :adding-row="curUserGroup ? addingRow : {active: false}"
+                                                                :forbidden-columns="$root.systemFields"
+                                                                :special_extras="{force_delete: true}"
+                                                                @added-row="addUserSubGroup"
+                                                                @updated-row="updateUserSubGroup"
+                                                                @delete-row="deleteUserSubGroup"
+                                                            ></custom-table>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div class="user-search-box" v-show="activeSubUserGroup === 'individ'">
+                                                <div class="user-search-box flex usb-full-wi" v-show="activeSubUserGroup === 'individ'">
                                                     <div class="search-wrapper">
                                                         <select ref="search_user"></select>
                                                     </div>
@@ -519,8 +666,7 @@
                                                 <input type="text" :style="textSysStyle" class="form-control" v-model="app_sett_our_benefits.val" @change="appSettChanged(app_sett_our_benefits)"/>
                                             </div>
                                         </div>
-                                    </div>
-                                    <div class="appset-block">
+
                                         <div>
                                             <label>User searching for adding to usergroup:</label>
                                         </div>
@@ -530,6 +676,36 @@
                                                 <input type="text" :style="textSysStyle" class="form-control" v-model="app_sett_public_domain.val" @change="appSettChanged(app_sett_public_domain)"/>
                                             </div>
                                         </div>
+
+
+                                        <div>
+                                            <label>Other Parameters:</label>
+                                        </div>
+                                        <div class="appset-block--settings">
+                                            <div class="flex flex--center-v form-group" v-if="app_sett_max_nbr_mirror">
+                                                <span>Input Type/Mirror: max. # of records that can be mirrored:</span>
+                                                <input type="number" :style="textSysStyle" class="form-control" v-model="app_sett_max_nbr_mirror.val" @change="appSettChanged(app_sett_max_nbr_mirror)"/>
+                                            </div>
+                                            <div class="flex flex--center-v form-group" v-if="app_sett_max_rcds_email">
+                                                <span>Add-on/Email: max. records that can be inserted into an email:</span>
+                                                <input type="number" :style="textSysStyle" class="form-control" v-model="app_sett_max_rcds_email.val" @change="appSettChanged(app_sett_max_rcds_email)"/>
+                                            </div>
+                                            <div class="flex flex--center-v" v-if="app_max_backend_sync_delay">
+                                                <span>Time interval (seconds) for calling backend to sync up changes:</span>
+                                                <input type="number" :style="textSysStyle" class="form-control" v-model="app_max_backend_sync_delay.val" @change="appSettChanged(app_max_backend_sync_delay)"/>
+                                            </div>
+                                            <div class="flex flex--center-v" v-if="app_max_backend_sync_delay">
+                                                <span>Affected functions: collaboration updating, formula calculation,</span>
+                                            </div>
+                                            <div class="flex flex--center-v form-group" v-if="app_max_backend_sync_delay">
+                                                <span>mirroring, ANA addon and other backend changes.</span>
+                                            </div>
+                                            <div class="flex flex--center-v form-group" v-if="app_sett_referral_credit">
+                                                <span>Referral credit ($) per accepted invite:</span>
+                                                <input type="number" :style="textSysStyle" class="form-control" v-model="app_sett_referral_credit.val" @change="appSettChanged(app_sett_referral_credit)"/>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
 
@@ -559,7 +735,7 @@
         components: {
             HoverBlock,
             ThemeSelectorBlock,
-            CustomTable
+            CustomTable,
         },
         mixins: [
             PopupAnimationMixin,
@@ -568,6 +744,8 @@
         ],
         data: function () {
             return {
+                telinput: '',
+                telmsg: '',
                 extracttable_clicked: false,
 
                 gl_tooltip: false,
@@ -578,6 +756,10 @@
                 sg_left: 0,
                 sg_top: 0,
                 sg_offset: 0,
+                tw_tooltip: false,
+                tw_left: 0,
+                tw_top: 0,
+                tw_offset: 0,
 
                 addingRow: {
                     active: true,
@@ -604,6 +786,10 @@
                 app_sett_plan_comp: null,
                 app_sett_pricing_view: null,
                 app_sett_our_benefits: null,
+                app_sett_max_nbr_mirror: null,
+                app_max_backend_sync_delay: null,
+                app_sett_max_rcds_email: null,
+                app_sett_referral_credit: null,
                 //PopupAnimationMixin
                 idx: 0,
             }
@@ -612,17 +798,20 @@
             is_visible: Boolean,
         },
         computed: {
+            curUserGroup() {
+                return this.$root.user._user_groups[this.selectedUserGroup];
+            },
             getPopupWidth() {
                 switch (this.activeTab) {
                     case 'users': return 1000;
                     case 'themes': return 850;
-                    default: return 700;
+                    default: return 1000;
                 }
             },
             conditiRows() {
                 let rows = null;
-                if (this.selectedUserGroup > -1) {
-                    rows = this.$root.user._user_groups[this.selectedUserGroup]._conditions;
+                if (this.curUserGroup) {
+                    rows = this.curUserGroup._conditions;
                     if (!_.find(rows, {is_system: 1})) {
                         rows.unshift({
                             id:null,
@@ -636,6 +825,16 @@
                 }
                 return rows;
             },
+            subGroups() {
+                let usrGrp = this.curUserGroup || {};
+                return usrGrp._subgroups || [];
+            },
+            usergroupIsSub() {
+                let usedSubs = _.flatten(_.map(this.$root.user._user_groups, '_subgroups'));
+                usedSubs = _.map(usedSubs, 'subgroup_id');
+                let group = this.curUserGroup;
+                return !group || usedSubs.indexOf(group.id) !== -1;
+            },
         },
         methods: {
             showGoogleHover(e) {
@@ -643,6 +842,9 @@
             },
             showGridHover(e) {
                 this.showHover(e, 'sg');
+            },
+            showTwilioHover(e) {
+                this.showHover(e, 'tw');
             },
             showHover(e, pref) {
                 let bounds = this.$refs[pref+'_help'] ? this.$refs[pref+'_help'].getBoundingClientRect() : {};
@@ -669,7 +871,7 @@
                     this.$root.settingsMeta.user_connections_data.push( data );
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -686,7 +888,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -705,7 +907,7 @@
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -724,7 +926,7 @@
                     this.$root.settingsMeta.user_clouds_data.push( data );
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -741,7 +943,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -760,7 +962,7 @@
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -780,7 +982,7 @@
                     user_keys.push( data );
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -798,7 +1000,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -817,7 +1019,7 @@
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -835,7 +1037,7 @@
                 }).then(({ data }) => {
                     this.$root.user._google_email_accs.push( data );
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -852,7 +1054,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -870,7 +1072,7 @@
                         this.$root.user._google_email_accs.splice(idx, 1);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -888,7 +1090,7 @@
                     eventBus.$emit('user-group-added');
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -905,7 +1107,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -931,7 +1133,7 @@
                     eventBus.$emit('user-group-deleted');
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -941,14 +1143,14 @@
             addUserToUserGroup(tableRow) {
                 $.LoadingOverlay('show');
                 axios.post('/ajax/user-group/user', {
-                    user_group_id: this.$root.user._user_groups[this.selectedUserGroup].id,
+                    user_group_id: this.curUserGroup.id,
                     user_id: $(this.$refs.search_user).val()
                 }).then(({ data }) => {
                     this.$root.user._user_groups = data._user_groups;
                     $(this.$refs.search_user).val(null).trigger('change');
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -961,7 +1163,7 @@
                     is_manager: Boolean(tableRowLink.is_edit_added)
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -970,17 +1172,17 @@
                 $.LoadingOverlay('show');
                 axios.delete('/ajax/user-group/user', {
                     params: {
-                        user_group_id: this.$root.user._user_groups[this.selectedUserGroup].id,
+                        user_group_id: this.curUserGroup.id,
                         user_id: tableRow.id
                     }
                 }).then(({ data }) => {
-                    let idx = _.findIndex(this.$root.user._user_groups[this.selectedUserGroup]._individuals, {id: tableRow.id});
+                    let idx = _.findIndex(this.curUserGroup._individuals, {id: tableRow.id});
                     if (idx > -1) {
-                        this.$root.user._user_groups[this.selectedUserGroup]._individuals.splice(idx, 1);
+                        this.curUserGroup._individuals.splice(idx, 1);
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -994,13 +1196,13 @@
                 this.$root.deleteSystemFields(fields);
 
                 axios.post('/ajax/user-group/condition', {
-                    user_group_id: this.$root.user._user_groups[this.selectedUserGroup].id,
+                    user_group_id: this.curUserGroup.id,
                     fields: fields,
                 }).then(({ data }) => {
-                    this.$root.user._user_groups[this.selectedUserGroup]._conditions = data;
+                    this.curUserGroup._conditions = data;
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -1017,7 +1219,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -1029,13 +1231,13 @@
                         user_group_condition_id: tableRow.id
                     }
                 }).then(({ data }) => {
-                    let idx = _.findIndex(this.$root.user._user_groups[this.selectedUserGroup]._conditions, {id: tableRow.id});
+                    let idx = _.findIndex(this.curUserGroup._conditions, {id: tableRow.id});
                     if (idx > -1) {
-                        this.$root.user._user_groups[this.selectedUserGroup]._conditions.splice(idx, 1);
+                        this.curUserGroup._conditions.splice(idx, 1);
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -1043,24 +1245,82 @@
             addToIndividuals() {
                 $.LoadingOverlay('show');
                 axios.post('/ajax/user-group/cond-to-user', {
-                    user_group_id: this.$root.user._user_groups[this.selectedUserGroup].id,
+                    user_group_id: this.curUserGroup.id,
                 }).then(({ data }) => {
-                    this.$root.user._user_groups[this.selectedUserGroup]._conditions = [];
-                    this.$root.user._user_groups[this.selectedUserGroup]._individuals = data;
+                    this.curUserGroup._conditions = [];
+                    this.curUserGroup._individuals = data;
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
             },
+
+
+            //User Group Subgroup Functions
+            addUserSubGroup(tableRow) {
+                $.LoadingOverlay('show');
+
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                axios.post('/ajax/user-group/subgroup', {
+                    user_group_id: this.curUserGroup.id,
+                    fields: fields,
+                }).then(({ data }) => {
+                    this.curUserGroup._subgroups = data;
+                    this.$forceUpdate();
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            updateUserSubGroup(tableRow) {
+                $.LoadingOverlay('show');
+
+                let group_id = tableRow.id;
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                axios.put('/ajax/user-group/subgroup', {
+                    user_group_id: this.curUserGroup.id,
+                    model_id: group_id,
+                    fields: fields
+                }).then(({ data }) => {
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            deleteUserSubGroup(tableRow) {
+                $.LoadingOverlay('show');
+                axios.delete('/ajax/user-group/subgroup', {
+                    params: {
+                        user_group_id: this.curUserGroup.id,
+                        model_id: tableRow.id
+                    }
+                }).then(({ data }) => {
+                    let idx = _.findIndex(this.curUserGroup._subgroups, {id: tableRow.id});
+                    if (idx > -1) {
+                        this.curUserGroup._subgroups.splice(idx, 1);
+                    }
+                    this.$forceUpdate();
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+
             hideMenu(e) {
                 if (this.is_visible && e.keyCode === 27 && !this.$root.e__used) {
                     this.$emit('popup-close');
                     this.$root.set_e__used(this);
                 }
             },
-
             appSettChanged(sett) {
                 $.LoadingOverlay('show');
                 axios.put('/ajax/app/settings', {
@@ -1068,7 +1328,7 @@
                     app_val: sett.val
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -1083,14 +1343,14 @@
                 }).then(({ data }) => {
                     this.$root.user.extracttable_terms = 1;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
             },
         },
         mounted() {
-            this.$root.tablesZidx += 10;
+            this.$root.tablesZidxIncrease();
             this.zIdx = this.$root.tablesZidx;
             this.runAnimation({anim_transform:'none'});
 
@@ -1124,6 +1384,10 @@
             this.app_sett_plan_comp = this.$root.settingsMeta.app_settings['app_plan_comparison'];
             this.app_sett_pricing_view = this.$root.settingsMeta.app_settings['app_pricing_view'];
             this.app_sett_our_benefits = this.$root.settingsMeta.app_settings['app_our_benefits'];
+            this.app_sett_max_nbr_mirror = this.$root.settingsMeta.app_settings['app_max_mirror_records'];
+            this.app_max_backend_sync_delay = this.$root.settingsMeta.app_settings['app_max_backend_sync_delay'];
+            this.app_sett_max_rcds_email = this.$root.settingsMeta.app_settings['app_max_records_email_adn'];
+            this.app_sett_referral_credit = this.$root.settingsMeta.app_settings['invite_reward_amount'];
         },
         beforeDestroy() {
             eventBus.$off('global-keydown', this.hideMenu);
@@ -1145,6 +1409,7 @@
         left: calc(50% - 400px);
 
         .popup-main {
+            padding: 5px;
 
             .cloud-block {
                 margin-bottom: 30px;
@@ -1166,7 +1431,7 @@
 
             .top-text {
                 height: 30px;
-                line-height: 30px;
+                line-height: 30px !important;
             }
 
             .resources-panel {
@@ -1183,17 +1448,23 @@
                 padding: 5px;
             }
 
-            .search-wrapper {
-                position: relative;
-                height: 100%;
-                width: calc(100% - 85px);
-                display: inline-block;
+            .user-search-box {
                 margin-top: 5px;
+
+                .search-wrapper {
+                    position: relative;
+                    height: 100%;
+                    width: 100%;
+                    margin-right: 5px;
+                }
+                .btn-primary {
+                    height: 28px !important;
+                }
             }
 
             .right-btn {
-                float: right;
-                position: relative;
+                position: absolute;
+                right: 0;
                 top: -5px;
             }
         }
@@ -1207,6 +1478,13 @@
 
         .fa-info-circle {
             cursor: pointer;
+        }
+    }
+</style>
+<style lang="scss">
+    .usb-full-wi {
+        .select2-container {
+            max-width: 100% !important;
         }
     }
 </style>

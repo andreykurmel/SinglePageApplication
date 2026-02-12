@@ -14,9 +14,15 @@
             return {
                 show_table: true,
                 is_ready: false,
+                copy_master_popup: false,
+                copy_success_message: '',
                 pre_delete_master_popup: false,
 
+                cp_additional_tbls: [],
                 del_additional_tbls: [],
+                hide_show_tables: [],
+                elements_length: 0,
+                stim_app: null,
 
                 addingRows: {},
                 handlers: {},
@@ -60,37 +66,43 @@
                     this.found_model.setSelectedRow(data.rows[0]);
                     this.SET_SELECTED_MODEL_ROW(data.rows[0]);
                 }
+                this.redrawTabIfNeeded();
             },
             updatedMaster(data) {
                 if (data.rows && data.rows.length) {
                     this.found_model.setSelectedRow(data.rows[0]);
                     this.SET_SELECTED_MODEL_ROW(data.rows[0]);
                 }
+                this.redrawTabIfNeeded();
             },
             preDeleteMaster() {
                 if (this.found_model._id) {
                     this.pre_delete_master_popup = true;
                 }
             },
-            deleteMaster() {
-                this.deleteModelMixin(this.found_model, this.tab_object.master_table, this.del_additional_tbls).then(({data}) => {
-                    this.found_model.setSelectedRow(null);
-                    this.SET_SELECTED_MODEL_ROW(null);
-                    eventBus.$emit('recheck-backend', this.found_model.meta.table_id);
-                });
+            afterDeleteMaster() {
+                this.found_model.setSelectedRow(null);
+                this.SET_SELECTED_MODEL_ROW(null);
+                eventBus.$emit('recheck-backend', this.found_model.meta.table_id);
                 this.pre_delete_master_popup = false;
             },
             copyMaster() {
                 if (this.found_model._id) {
-                    this.copyModelMixin(this.found_model, this.tab_object.master_table, this.tab_object.copy_child_tbls).then(({data}) => {
-                        this.found_model.setSelectedRow(data.row);
-                        this.SET_SELECTED_MODEL_ROW(data.row);
-                    });
+                    this.copy_master_popup = true;
+                    this.copy_success_message = '';
                 }
+            },
+            copyMasterAfter(data_rows) {
+                let row = _.first(data_rows);
+                if (row) {
+                    this.found_model.setSelectedRow(row);
+                    this.SET_SELECTED_MODEL_ROW(row);
+                }
+                this.copy_master_popup = false;
             },
             saveMaster() {
                 if (!this.$root.user.id) {
-                    Swal('Please login to save.');
+                    Swal('Info','Please login to save.');
                     return;
                 }
 
@@ -134,12 +146,20 @@
             },
             afterInsertRow(data) {
                 //this.REDRAW_3D('soft'); //The same functions work in 'Three3dWid::intervalTickHandler'
+                this.redrawTabIfNeeded();
             },
             afterUpdateRow(data) {
                 //this.REDRAW_3D('soft');
+                this.redrawTabIfNeeded();
             },
             afterDeleteRow(data) {
                 //this.REDRAW_3D('soft');
+                this.redrawTabIfNeeded();
+            },
+            redrawTabIfNeeded() {
+                if (this.hide_show_tables.length) {
+                    this.buildTabGroups();
+                }
             },
 
             //Permissions
@@ -184,6 +204,16 @@
                         }),
                     };
                 });
+                this.cp_additional_tbls = _.map(this.tab_object.copy_child_tbls, (el) => {
+                    return {
+                        to_copy: true,
+                        table: el,
+                        stim: _.find(this.vuex_settings.plain_settings, (stm) => {
+                            return String(stm.table).toLowerCase() === String(el).toLowerCase()
+                                && String(stm.type_tablda).toLowerCase() === 'table';
+                        }),
+                    };
+                });
 
                 //Adding Rows
                 let addingRows = {};
@@ -210,8 +240,85 @@
                 this.is_ready = true;
             },
 
-            emitSearchWordChanged(metaTabldaTable) {
-                eventBus.$emit('stim-search-word-changed', metaTabldaTable.table_id);
+            emitSearchWordChanged(metaTabldaTable, searchObj) {
+                eventBus.$emit('stim-search-word-changed', metaTabldaTable.table_id, searchObj);
+            },
+
+            //stimvis functions
+            getVisibleTables() {
+                return _.filter(this.tab_object.tables, (tb) => {
+                    return this.is_visible(tb) && this.no_hidden(tb) && this.stimvisPassed(tb);
+                });
+            },
+            handleHideShowTables() {
+                let promises = [];
+                _.each(this.hide_show_tables, (app_table) => {
+                    let metaRows = this.vuex_fm[app_table].rows;
+                    if (this.allRows && app_table != this.tab_object.master_table) {
+                        let meta = this.vuex_fm[app_table].meta.params;
+                        metaRows.setModelAndGroup(this.allRows.master_row, this.vuex_links[app_table]);
+                        promises.push( metaRows.loadRows(meta) );
+                    }
+                });
+
+                if (promises && promises.length) {
+                    Promise.all(promises).then(() => {
+                        this.buildTabGroups();
+                    });
+                }
+
+                if (! this.elements_length) {
+                    this.buildTabGroups();
+                }
+            },
+            stimvisPassed(tb) {
+                if (! tb.stimvis_status || ! tb.stimvis_table_id || ! tb.stimvis_field_id) {
+                    return true;
+                }
+
+                let fmKey = this.tabldaTableIdToAppTable(tb.stimvis_table_id);
+
+                if (! this.vuex_fm[fmKey] || ! this.vuex_fm[fmKey].rows || ! this.vuex_fm[fmKey].rows.all_rows) {
+                    return true;
+                }
+
+                let tabldaTb = _.find(this.$root.settingsMeta.available_tables, {id: Number(tb.stimvis_table_id)}) || {};
+                let tabldaFld = _.find(tabldaTb._fields || [], {id: Number(tb.stimvis_field_id)});
+                let found = _.find(this.vuex_fm[fmKey].rows.all_rows || [], (tabldaRow) => {
+                    switch (tb.stimvis_operator) {
+                        case '=': return tabldaRow[tabldaFld.field] == tb.stimvis_value;
+                        case '!=': return tabldaRow[tabldaFld.field] != tb.stimvis_value;
+                        case '>': return tabldaRow[tabldaFld.field] > tb.stimvis_value;
+                        case '<': return tabldaRow[tabldaFld.field] < tb.stimvis_value;
+                        default: return false;
+                    }
+                });
+
+                return (String(tb.stimvis_status).toLowerCase() == 'show' && found)
+                    || (String(tb.stimvis_status).toLowerCase() == 'hide' && !found);
+            },
+            fillHideShowTables() {
+                let shown_tbls = _.filter(this.tab_object.tables, (tb) => {
+                    return this.is_visible(tb) && this.no_hidden(tb);
+                });
+
+                let visTableIds = _.filter(shown_tbls, 'stimvis_status');
+                this.hide_show_tables = _.map(visTableIds, (tb) => {
+                    return this.tabldaTableIdToAppTable(tb.stimvis_table_id);
+                });
+            },
+            tabldaTableIdToAppTable(id) {
+                let tabldaTb = _.find(this.$root.settingsMeta.available_tables, {id: Number(id)}) || {};
+                let app = this.getStimApp();
+
+                let appTb = _.find(app._tables || [], {data_table: tabldaTb.db_name}) || {};
+                return String(appTb.app_table).replaceAll(newRegexp('[^\\p{L}\\d]'), '').toLowerCase();
+            },
+            getStimApp() {
+                if (! this.stim_app) {
+                    this.stim_app = _.find(this.$root.settingsMeta.table_apps_data, {code: 'stim_3d'});
+                }
+                return this.stim_app;
             },
         },
     }

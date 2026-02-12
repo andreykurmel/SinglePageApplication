@@ -17,7 +17,7 @@
                         <div v-if="add_tables && add_tables.length" class="flex__elem-remain">
                             <div class="flex__elem__inner">
                                 <div class="flex flex--col full-height">
-                                    <h2 class="hh2">Tables inheriting fields from this table. Check those to be deleted:</h2>
+                                    <h2 class="hh2">Child tables inheriting fields from this Master table. Check those to be deleted:</h2>
                                     <div class="flex__elem-remain tbs_wrp">
                                         <div>
                                             <span class="indeterm_check__wrap">
@@ -87,7 +87,9 @@
         methods: {
             getTname(obj) {
                 if (obj.stim) {
-                    return obj.stim.horizontal + (obj.stim.vertical ? '/'+obj.stim.vertical : '');
+                    return obj.stim.horizontal_lvl1 + (obj.stim.vertical_lvl1 ? '/'+obj.stim.vertical_lvl1 : '')
+                        + (obj.stim.horizontal_lvl2 ? '/'+obj.stim.horizontal_lvl2 : '')
+                        + (obj.stim.vertical_lvl2 ? '/'+obj.stim.vertical_lvl2 : '');
                 } else {
                     return obj.table;
                 }
@@ -115,7 +117,7 @@
     }
     .hh1 {
         margin: 0;
-        font-size: 2.00rem;
+        font-size: 0.9em;
         font-weight: bold;
     }
     .hh2 {

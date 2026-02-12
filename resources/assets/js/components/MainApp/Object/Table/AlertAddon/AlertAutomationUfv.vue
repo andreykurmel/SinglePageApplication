@@ -1,6 +1,6 @@
 <template>
-    <div class="full-height">
-        <div>
+    <div class="full-height" :style="$root.themeMainBgStyle">
+        <div :style="textSysStyleSmart">
             <label>List of records for which field values are to be updated:</label>
         </div>
         <div class="special_he">
@@ -28,7 +28,7 @@
             ></custom-table>
         </div>
         <div class="form-group"></div>
-        <div style="height: 36px;">
+        <div style="height: 36px;" :style="textSysStyleSmart">
             <label style="position: relative; top: 7px;">Details for updating field value for: {{ selUfvTable ? selUfvTable.name : '...' }}</label>
             <div v-if="selUfvTable" class="right-elem" style="height: 32px;">
                 <button class="btn btn-default btn-sm blue-gradient full-height"
@@ -72,6 +72,8 @@
 </template>
 
 <script>
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     import CustomTable from "../../../../CustomTable/CustomTable";
     import SelectBlock from "../../../../CommonBlocks/SelectBlock";
 
@@ -81,6 +83,9 @@
             SelectBlock,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 tb_id_for_copy: null,
@@ -92,9 +97,10 @@
             }
         },
         props:{
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
             tableMeta: Object,
             alert_sett: Object,
+            is_temp: Boolean,
         },
         computed: {
             availUfvTable() {
@@ -132,7 +138,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._ufv_tables = data._ufv_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -149,7 +155,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._ufv_tables = data._ufv_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -164,7 +170,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._ufv_tables = data._ufv_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -181,7 +187,7 @@
                 }).then(({ data }) => {
                     this.selUfvTable._ufv_fields = data._ufv_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -198,7 +204,7 @@
                 }).then(({ data }) => {
                     this.selUfvTable._ufv_fields = data._ufv_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -213,7 +219,7 @@
                 }).then(({ data }) => {
                     this.selUfvTable._ufv_fields = data._ufv_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -227,7 +233,7 @@
                 }).then(({ data }) => {
                     this.selUfvTable._ufv_fields = data._ufv_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -246,7 +252,7 @@
                     if (has_table_different) {
                         grs.push({
                             val: null,
-                            show: '//Alert: ' + al.name,
+                            show: '//ANA: ' + al.name,
                             style: title_style,
                             isTitle: true,
                         });
@@ -276,7 +282,7 @@
         margin: 0;
     }
     .special_he {
-        height: calc(50% - 56px);
+        height: calc(50% - 34px);
         border: 1px solid #CCC;
     }
 </style>

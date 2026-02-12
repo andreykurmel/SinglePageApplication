@@ -25,7 +25,8 @@ class DDLRefColorUpdateRequest extends FormRequest
     {
         return [
             'ddl_ref_color_id' => 'required|integer|exists:ddl_reference_colors,id',
-            'fields' => 'required|array'
+            'fields' => 'required|array',
+            'page' => 'required|integer',
         ];
     }
 }

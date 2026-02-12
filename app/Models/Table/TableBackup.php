@@ -14,6 +14,7 @@ use Vanguard\User;
  * @property int $table_id
  * @property int $user_id
  * @property int $user_cloud_id
+ * @property int|null $table_view_id
  * @property int|null $is_active
  * @property string $name
  * @property string|null $day
@@ -36,12 +37,17 @@ use Vanguard\User;
  * @property string|null $bkp_email_subject
  * @property string|null $bkp_addressee_txt
  * @property string|null $bkp_email_message
+ * @property int $bkp_email_def
+ * @property int $bkp_subject_def
+ * @property int $bkp_addressee_def
+ * @property int $bkp_message_def
  * @property-read \Vanguard\Models\Table\TableField|null $_bkp_addressee_field
  * @property-read \Vanguard\Models\Table\TableField|null $_bkp_email_field
  * @property-read \Vanguard\Models\User\UserCloud $_cloud
  * @property-read \Vanguard\User|null $_created_user
  * @property-read \Vanguard\User|null $_modified_user
  * @property-read \Vanguard\Models\Table\Table $_table
+ * @property-read \Vanguard\Models\Table\TableView $_table_view
  * @property-read \Vanguard\User $_user
  * @mixin \Eloquent
  */
@@ -55,6 +61,7 @@ class TableBackup extends Model
         'table_id',
         'user_id',
         'user_cloud_id',
+        'table_view_id',
         'name',
         'day',
         'overwrite',
@@ -74,6 +81,10 @@ class TableBackup extends Model
         'bkp_addressee_field_id',
         'bkp_addressee_txt',
         'bkp_email_message',
+        'bkp_email_def',
+        'bkp_subject_def',
+        'bkp_addressee_def',
+        'bkp_message_def',
         //
         'created_by',
         'created_on',
@@ -84,14 +95,20 @@ class TableBackup extends Model
     /**
      * @return null|string
      */
-    public function getsubfolder()
+    public function getsubfolder(bool $app_name = false)
     {
-        return $this->root_folder ?: $this->_user->username;
+        return ($app_name ? '/'.config('app.name') : '')
+            . '/Autobackup/'
+            . ($this->root_folder ?: $this->_user->username);
     }
 
 
     public function _table() {
         return $this->belongsTo(Table::class, 'table_id', 'id');
+    }
+
+    public function _table_view() {
+        return $this->belongsTo(TableView::class, 'table_view_id', 'id');
     }
 
     public function _user() {

@@ -2,6 +2,9 @@ import {SpecialFuncs} from './SpecialFuncs';
 import {FoundModel} from './FoundModel';
 import {StimLinkParams} from './StimLinkParams';
 import {RefCondHelper} from "./helpers/RefCondHelper";
+import {RowDataHelper} from "./helpers/RowDataHelper";
+
+import {eventBus} from "../app";
 
 export class MetaTabldaRows {
     /**
@@ -23,12 +26,6 @@ export class MetaTabldaRows {
         this.search_words = [];
         this.search_columns = [];
         this.direct_row_id = null;
-
-        this.for_search_block = {
-            keyWords: '',
-            columns: [],
-            direct_row_id: null,
-        };
 
         //DATA
         this.master_row = obj.all_rows ? obj.all_rows[0] || null : null;
@@ -54,20 +51,16 @@ export class MetaTabldaRows {
      * @returns {{table_id: (null|*), user_id: (null|*)}}
      */
     rowsRequest(non_active) {
-        let s_words = this.search_words;
-        if (this.for_search_block.keyWords) {
-            s_words.push({word: this.for_search_block.keyWords});
-        }
         return {
             ...SpecialFuncs.tableMetaRequest(this.table_id, undefined, this.filters_active && !non_active),
             ...{
                 user_hash: this.user_hash,
                 page: this.page,
                 rows_per_page: this.rows_per_page,
-                row_id: this.direct_row_id || this.for_search_block.direct_row_id,
+                row_id: this.direct_row_id,
                 sort: this.sort,
-                search_words: s_words,
-                search_columns: this.for_search_block.columns.length ? this.for_search_block.columns : this.search_columns,
+                search_words: this.search_words,
+                search_columns: this.search_columns,
                 applied_filters: this.filters,
             }
         };
@@ -123,21 +116,28 @@ export class MetaTabldaRows {
     /**
      * loadRows
      */
-    loadRows() {
+    loadRows(tableMeta, searchObj) {
         //Not ask server if not all params are filled.
         if (this.can_load) {
             return new Promise((resolve) => {
+                if (searchObj) {
+                    this.direct_row_id = searchObj.direct_row_id;
+                    this.search_columns = searchObj.columns;
+                    this.search_words = searchObj.keyWords ? [{word: searchObj.keyWords}] : [];
+                }
                 axios.post('/ajax/table-data/get', this.rowsRequest()).then(({data}) => {
+                    RowDataHelper.fillCanEdits(tableMeta, data.rows);
                     this.master_row = data.rows ? data.rows[0] || null : null;
-                    this.all_rows = data.rows;
+                    SpecialFuncs.setRowsSaveNewstatus(this, 'all_rows', data.rows);
                     this.state_hash = uuidv4();
                     this.rows_count = data.rows_count;
                     this.filters = SpecialFuncs.prepareFilters(this.filters, data.filters);
                     this.is_loaded = true;
                     this._convertRows();
                     resolve(data);
+                    eventBus.$emit('new-request-params', 'rows-changed');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             });
         } else {
@@ -178,7 +178,7 @@ export class MetaTabldaRows {
             }).then(({data}) => {
                 resolve(data);
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         });
     }
@@ -191,7 +191,7 @@ export class MetaTabldaRows {
             axios.post('/ajax/table-data/get', this.rowsRequest()).then(({data}) => {
                 this.filters = SpecialFuncs.prepareFilters(this.filters, data.filters);
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         }
     }
@@ -219,6 +219,21 @@ export class MetaTabldaRows {
             _.each(this.maps, (tablda, app) => {
                 conv[app] = row[tablda];
                 conv['_c_'+app] = tablda;
+            });
+        }
+        return conv;
+    }
+
+    /**
+     * Convert Row to 3D type.
+     * @param row
+     * @returns {{}}
+     */
+    convertTo3D(row) {
+        let conv = {};
+        if (row) {
+            _.each(this.maps, (tablda, app) => {
+                conv[tablda] = row[app];
             });
         }
         return conv;
@@ -299,9 +314,10 @@ export class MetaTabldaRows {
      * insertRow
      * @param tableRow
      * @param no_reload
+     * @param copy
      * @returns {Promise}
      */
-    insertRow(tableRow, no_reload) {
+    insertRow(tableRow, no_reload, copy) {
         let fields = _.cloneDeep(tableRow);//copy object
 
         return new Promise((resolve) => {
@@ -311,6 +327,7 @@ export class MetaTabldaRows {
                 get_query: {
                     table_id: this.table_id
                 },
+                is_copy: copy ? 1 : 0,
             }).then(({ data }) => {
                 if (data.rows && data.rows.length) {
                     data.rows[0]._is_new = 1;
@@ -323,8 +340,9 @@ export class MetaTabldaRows {
                     this.reloadFilters();
                 }
                 resolve(data);
+                eventBus.$emit('new-request-params', 'rows-changed');
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         });
     }
@@ -345,17 +363,20 @@ export class MetaTabldaRows {
      * @param tableMeta
      * @param massTableRows
      * @param no_reload
+     * @param no_then
      * @returns {Promise<unknown>}
      */
-    massUpdatedRows(tableMeta, massTableRows, no_reload) {
+    massUpdatedRows(tableMeta, massTableRows, no_reload, no_then) {
         let row_datas = {};
         _.each(massTableRows, (tableRow) => {
             let row_id = tableRow.id;
             let fields = _.cloneDeep(tableRow);//copy object
             this.deleteSystemFields(fields);
 
-            //front-end RowGroups and CondFormats
-            RefCondHelper.updateRGandCFtoRow(tableMeta, tableRow);
+            if (tableMeta) {
+                //front-end RowGroups and CondFormats
+                RefCondHelper.updateRGandCFtoRow(tableMeta, tableRow);
+            }
 
             row_datas[row_id] = fields;
         });
@@ -368,6 +389,11 @@ export class MetaTabldaRows {
                     table_id: this.table_id
                 },
             }).then(({data}) => {
+                if (no_then) {
+                    resolve(data);
+                    return;
+                }
+
                 _.each(data.rows, (d_row) => {
                     let idx = _.findIndex(this.all_rows, el => el.id == d_row.id);
                     if (idx > -1) {
@@ -377,12 +403,14 @@ export class MetaTabldaRows {
                         this._convertRows();
                     }
                 });
+
                 if (!no_reload) {
                     this.reloadFilters();
                 }
                 resolve(data);
+                eventBus.$emit('new-request-params', 'rows-changed');
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         });
     }
@@ -405,8 +433,9 @@ export class MetaTabldaRows {
             }).then(({data}) => {
                 this._afterDelete([row_id], no_reload);
                 resolve(data);
+                eventBus.$emit('new-request-params', 'rows-changed');
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         });
     }
@@ -426,8 +455,9 @@ export class MetaTabldaRows {
                 }).then(({data}) => {
                     this._afterDelete(rows_ids, no_reload);
                     resolve(data);
+                    eventBus.$emit('new-request-params', 'rows-changed');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             } else {
                 resolve({});

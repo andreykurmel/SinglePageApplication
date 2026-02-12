@@ -35,4 +35,16 @@ class AppSettingsService
             return $this->appSettingsRepository->addAppSetting($app_key, $app_val);
         }
     }
+
+    /**
+     * Update FormulaHelper
+     *
+     * @param $app_key
+     * @param $app_val
+     * @return array
+     */
+    public function updateFormulaHelper($app_key, $app_val)
+    {
+        return $this->appSettingsRepository->updateFormulaHelper($app_key, $app_val);
+    }
 }

@@ -14,7 +14,7 @@
         ],
         data: function () {
             return {
-                smart_limit: 150,
+                smart_limit: this.$root.ddlHeight,
                 smart_horizontal: 150,
                 smart_wrapper: 'select_wrapper',
                 opened: false,
@@ -68,8 +68,19 @@
 
                 return style;
             },
+            smartLeftRight() {
+                let style = {};
+                if (window.innerWidth - this.fix_right > this.smart_horizontal) {
+                    style.left = this.fixed_pos ? this.fix_left+'px' : '0';//DDL left from the cell
+                    style.right = 'initial';
+                } else {
+                    style.left = 'initial';
+                    style.right = this.fixed_pos ? (window.innerWidth - this.fix_right)+'px' : '0';//DDL left from the cell
+                }
+                return style;
+            },
             //Show Items List
-            showItemsList() {
+            showItemsList(ref) {
                 this.fix_left = 0;
                 this.fix_top = 0;
                 this.fix_bottom = 0;
@@ -89,6 +100,14 @@
                     }
 
                     this.opened = true;
+
+                    if (ref && this.show_search) {
+                        this.$nextTick(() => {
+                            if (this.$refs[ref]) {
+                                this.$refs[ref].focus();
+                            }
+                        });
+                    }
                 });
             },
 
@@ -100,8 +119,10 @@
                 }
             },
             hideSelect() {
-                this.opened = false;
-                this.$emit('hide-select');
+                if (this.opened) {
+                    this.opened = false;
+                    this.$emit('hide-select');
+                }
             },
         },
         created() {

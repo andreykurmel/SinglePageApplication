@@ -30,13 +30,20 @@ class UserNotifyConfirm implements ShouldQueue
      */
     public function handle()
     {
-        set_time_limit(300);
+        set_time_limit(1200);
 
         $users = $this->userRepo->getUnconfirmed();
         foreach ($users as $user) {
             $this->userRepo->sendConfirmationEmail($user);
         }
 
+        $users = $this->userRepo->getUnconfirmedWarning();
+        foreach ($users as $user) {
+            $removeDate = $user->created_at->addDays(7)->midDay()->toDateTimeString();
+            $this->userRepo->sendConfirmationEmail($user, $removeDate);
+        }
+
+        $this->userRepo->deleteOldUnconfirmed();
     }
 
     public function failed()

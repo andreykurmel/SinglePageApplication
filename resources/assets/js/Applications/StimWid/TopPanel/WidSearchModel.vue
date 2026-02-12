@@ -175,7 +175,7 @@
             setModelColumns() {
                 let t_meta = this.found_model.meta.params;
                 let accessible = _.filter(this.found_model.meta.params._fields, (hdr) => {
-                    return this.stim_link_params.avail_columns_for_app.indexOf(hdr.field) > -1
+                    return this.stim_link_params.avail_cols_for_app.indexOf(hdr.field) > -1
                         && (t_meta._is_owner || t_meta._current_right.view_fields.indexOf(hdr.field) > -1);
                 });
                 this.search_obj.model_columns = _.map(accessible, (hdr) => {
@@ -219,6 +219,7 @@
                 this.search_obj.string = '';
             },
             clearSearch() {
+                this.triggerAutoExport();
                 this.setFoundModel(null);
                 this.hideAbsolutes();
             },
@@ -250,8 +251,20 @@
                     this.total_found = data.rows_count;
                     this.search_results_len = data.search_results_len;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {});
+            },
+            triggerAutoExport() {
+                if (this.found_model && this.found_model._id) {
+                    axios.post('/ajax/triggers/auto-export', {
+                        table_id: this.stim_link_params.table_id,
+                        row_id: this.found_model._id,
+                    }).then(({data}) => {
+                        //
+                    }).catch(errors => {
+                        Swal('Info', getErrors(errors));
+                    }).finally(() => {});
+                }
             },
             AutoRowClicked(row) {
                 this.setFoundModel(row);
@@ -279,6 +292,12 @@
             },
         },
         mounted() {
+            if (! window.autoExportHandler) {
+                window.autoExportHandler = true;
+                window.addEventListener('beforeunload', (event) => {
+                    this.triggerAutoExport();
+                });
+            }
             if (this.as_input_style) {
                 this.setModelColumns();
             }
@@ -303,7 +322,7 @@
         margin-right: 7px;
     }
     .table_search_menu > input {
-        width: 330px;
+        width: 350px;
     }
     .table_search_menu > select {
         width: 60px;

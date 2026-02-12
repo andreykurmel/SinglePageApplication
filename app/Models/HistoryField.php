@@ -54,6 +54,9 @@ class HistoryField extends Model
     ];
 
 
+    public function _u_value() {
+        return $this->belongsTo(User::class, 'value', 'id');
+    }
     public function _user() {
         return $this->belongsTo(User::class, 'user_id', 'id');
     }

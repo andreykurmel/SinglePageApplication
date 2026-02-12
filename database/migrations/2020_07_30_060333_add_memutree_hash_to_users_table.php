@@ -15,6 +15,7 @@ class AddMemutreeHashToUsersTable extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('memutree_hash', 64)->default(\Ramsey\Uuid\Uuid::uuid4());
+            $table->unsignedInteger('sync_reloading')->default(0);
         });
     }
 
@@ -27,6 +28,7 @@ class AddMemutreeHashToUsersTable extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('memutree_hash');
+            $table->dropColumn('sync_reloading');
         });
     }
 }

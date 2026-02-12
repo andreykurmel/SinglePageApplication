@@ -1,9 +1,9 @@
 <template>
     <span v-if="canSRV(tableMeta)">
         <a v-if="availSRV()" :href="linkSRV()" target="_blank" @click="linkClick">
-            <span class="srv" title="To open the Single-Record View (SRV) for this record.">S</span>
+            <span class="srv" title="Click to open the Single-Record View (SRV) for this record.">S</span>
         </a>
-        <span v-else class="srv" style="cursor: not-allowed;color: #aaa;">S</span>
+        <span v-else class="srv" style="cursor: not-allowed;color: #aaa;" title="Single-Record View (SRV) not available for this record.">S</span>
 
         <span v-if="withDelimiter"> | </span>
     </span>
@@ -39,13 +39,16 @@
                 return this.canSRV(this.tableMeta) && (!fld || !!this.tableRow[fld.field]);
             },
             linkSRV() {
-                return this.$root.clear_url + '/srv/' + this.tableMeta.hash + '#' + this.tableRow['static_hash'];
+                let urlHdr = _.find(this.tableMeta._fields, {id: Number(this.tableMeta.single_view_url_id)});
+                let hash = urlHdr ? this.tableRow[urlHdr.field] : this.tableRow['static_hash'];
+                return this.$root.clear_url + '/srv/' + this.tableMeta.hash + '#' + hash;
             },
             linkClick(e) {
-                if (e.ctrlKey) {
+                let cmdOrCtrl = e.metaKey || e.ctrlKey;
+                if (cmdOrCtrl) {
                     e.preventDefault();
                     SpecialFuncs.strToClipboard(this.linkSRV());
-                    Swal('SRV URL Copied to Clipboard!');
+                    Swal('Info','SRV URL Copied to Clipboard!');
                 }
             },
         },

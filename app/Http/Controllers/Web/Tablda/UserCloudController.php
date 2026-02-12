@@ -4,6 +4,7 @@ namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
 use Illuminate\Http\Request;
+use Vanguard\Classes\TabldaUser;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Repositories\Tablda\UserCloudRepository;
 use Vanguard\Services\Tablda\BladeVariablesService;
@@ -74,10 +75,14 @@ class UserCloudController extends Controller
      */
     public function activate(Request $request)
     {
+        if (env('DD_CLOUD_ACTIVATION')) {
+            dd($request->all());
+        }
         $state = json_decode($request->state, true);
         if ($request->code && !empty($state['cloud_id'])) {
             if ($this->cloudRepository->setCloudToken($state['cloud_id'], $request->code)) {
                 $msg = 'Successfully Connected!';
+                TabldaUser::syncReloading();
             }
         }
         return view('tablda.cloud-activation', array_merge(

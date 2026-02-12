@@ -10,7 +10,8 @@
                         <input
                             type="text"
                             v-model="tbBackup['bkp_email_field_static']"
-                            :disabled="!with_edit" @change="updateBackup"
+                            :disabled="!with_edit"
+                            @change="updateBackup('bkp_email_field_static')"
                             class="form-control"
                             placeholder="Enter email addresses separated with comma, space or semicolon."/>
                     </div>
@@ -28,23 +29,9 @@
                                     rows="2"
                                     v-model="tbBackup['bkp_email_subject']"
                                     :disabled="!with_edit"
-                                    @keyup="recreateFrm('formula_dcr_email_subject')"
-                                    @focus="formula_dcr_email_subject = true"
                                     class="form-control"
-                                    placeholder="Use formula to generate a email subject with field value(s)."
+                                    @change="updateBackup('bkp_email_subject')"
                             ></textarea>
-                            <formula-helper
-                                    v-if="formula_dcr_email_subject"
-                                    :user="$root.user"
-                                    :table-meta="tableMeta"
-                                    :table-row="tbBackup"
-                                    :header-key="'bkp_email_subject'"
-                                    :can-edit="with_edit"
-                                    :no-function="true"
-                                    :no_prevent="true"
-                                    :pop_width="'100%'"
-                                    @set-formula="updateBackup"
-                            ></formula-helper>
                         </div>
                     </div>
                 </div>
@@ -60,22 +47,9 @@
                             <input type="text"
                                    v-model="tbBackup['bkp_addressee_txt']"
                                    :disabled="!with_edit"
-                                   @keyup="recreateFrm('formula_dcr_addressee_txt')"
-                                   @focus="formula_dcr_addressee_txt = true"
+                                   @change="updateBackup('bkp_addressee_txt')"
                                    class="form-control"
-                                   placeholder="Use formula to generate a addressee with field value(s)."/>
-                            <formula-helper
-                                    v-if="formula_dcr_addressee_txt"
-                                    :user="$root.user"
-                                    :table-meta="tableMeta"
-                                    :table-row="tbBackup"
-                                    :header-key="'bkp_addressee_txt'"
-                                    :can-edit="with_edit"
-                                    :no-function="true"
-                                    :no_prevent="true"
-                                    :pop_width="'100%'"
-                                    @set-formula="updateBackup"
-                            ></formula-helper>
+                                   placeholder="Hello, there (default)."/>
                         </div>
                     </div>
                 </div>
@@ -88,26 +62,12 @@
                     <div class="flex full-height">
                         <label :style="{width: label_wi}">{{ $root.uniqName(requestFields['bkp_email_message'].name) }}:&nbsp;</label>
                         <textarea
-                                rows="3"
+                                rows="6"
                                 v-model="tbBackup['bkp_email_message']"
                                 :disabled="!with_edit"
-                                @keyup="recreateFrm('formula_dcr_email_message')"
-                                @focus="formula_dcr_email_message = true"
                                 class="form-control"
-                                placeholder="Use formula to generate an opening message with field value(s)."
+                                @change="updateBackup('bkp_email_message')"
                         ></textarea>
-                        <formula-helper
-                                v-if="formula_dcr_email_message"
-                                :user="$root.user"
-                                :table-meta="tableMeta"
-                                :table-row="tbBackup"
-                                :header-key="'bkp_email_message'"
-                                :can-edit="with_edit"
-                                :no-function="true"
-                                :no_prevent="true"
-                                :pop_width="'100%'"
-                                @set-formula="updateBackup"
-                        ></formula-helper>
                     </div>
                 </div>
             </td>
@@ -120,19 +80,16 @@
 <script>
     import CellStyleMixin from "../../../_Mixins/CellStyleMixin.vue";
 
-    import FormulaHelper from "./../../../CustomCell/InCell/FormulaHelper";
-
     export default {
         name: "BackupAddSettings",
         mixins: [
             CellStyleMixin,
         ],
         components: {
-            FormulaHelper,
         },
         data: function () {
             return {
-                label_wi: '75px',
+                label_wi: '85px',
                 i_avail_fields: [
                     'bkp_email_field_id',
                     'bkp_email_field_static',
@@ -142,10 +99,6 @@
                     'bkp_email_message',
                 ],
                 requestFields: null,
-                //
-                formula_dcr_email_subject: false,
-                formula_dcr_addressee_txt: false,
-                formula_dcr_email_message: false,
             }
         },
         props:{
@@ -171,33 +124,9 @@
             inArray(type, array) {
                 return array.indexOf(type) > -1;
             },
-            recreateFrm(param) {
-                this[param] = false;
-                this.$nextTick(() => {
-                    this[param] = true;
-                });
-            },
-            updateBackup() {
-                this.formula_dcr_email_subject = false;
-                this.formula_dcr_addressee_txt = false;
-                this.formula_dcr_email_message = false;
-
-                this.$root.sm_msg_type = 1;
-
-                let row_id = this.tbBackup.id;
-                let fields = _.cloneDeep(this.tbBackup);//copy object
-                this.$root.deleteSystemFields(fields);
-
-                axios.put('/ajax/table/backup', {
-                    table_backup_id: row_id,
-                    fields: fields
-                }).then(({ data }) => {
-                    this.$forceUpdate();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
+            updateBackup(fld) {
+                this.tbBackup._changed_field = fld;
+                this.$emit('updated-row', this.tbBackup);
             },
             setAvailFields() {
                 this.requestFields = null;

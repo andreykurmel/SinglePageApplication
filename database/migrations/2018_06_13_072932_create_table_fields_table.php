@@ -23,17 +23,33 @@ class CreateTableFieldsTable extends Migration
             $table->string('unit', 50)->nullable();
             $table->unsignedInteger('unit_ddl_id')->nullable();
             $table->tinyInteger('header_unit_ddl')->default(0);
+            $table->string('prev_input_type', 50)->nullable();
             $table->string('input_type', 50)->default('Input');
+            $table->unsignedInteger('prev_ddl_id')->nullable();
             $table->unsignedInteger('ddl_id')->nullable();
             $table->string('f_type', 50)->default('String');
             $table->string('f_size', 20)->default(255);
             $table->string('f_default')->nullable();
             $table->tinyInteger('f_required')->default(0);
             $table->unsignedInteger('fetch_source_id')->nullable();
+            $table->unsignedInteger('fetch_by_row_cloud_id')->nullable();
+            $table->unsignedInteger('fetch_one_cloud_id')->nullable();
+            $table->tinyInteger('fetch_uploading')->default(0);
             $table->string('link_type', 20)->nullable();
             $table->unsignedInteger('mirror_rc_id')->nullable();
             $table->unsignedInteger('mirror_field_id')->nullable();
             $table->string('mirror_part', 16)->default('show');
+            $table->tinyInteger('mirror_one_value')->default(0);
+            $table->tinyInteger('mirror_editable')->default(0);
+            $table->string('mirror_edit_component', 128)->default('Input');
+            $table->string('shared_ddlref_ids', 128)->nullable();
+
+            $table->tinyInteger('is_inherited_tree')->default(0);
+            $table->tinyInteger('has_copy_prefix')->default(0);
+            $table->string('copy_prefix_value', 128)->nullable();
+            $table->tinyInteger('has_copy_suffix')->default(0);
+            $table->string('copy_suffix_value', 128)->nullable();
+            $table->tinyInteger('has_datetime_suffix')->default(0);
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

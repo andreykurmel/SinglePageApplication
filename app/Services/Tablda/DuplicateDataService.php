@@ -17,6 +17,10 @@ class DuplicateDataService
      * @var \Illuminate\Support\Collection
      */
     protected $concats;
+    /**
+     * @var array
+     */
+    protected $to_delete = [];
 
     /**
      * @param array $parameters
@@ -29,6 +33,7 @@ class DuplicateDataService
         $this->concats = collect($parameters)
             ->filter(function($el) { return $el == 'all'; })
             ->keys();
+        $this->to_delete = [];
     }
 
     /**
@@ -52,8 +57,22 @@ class DuplicateDataService
             $this->proceedRows($rows, $duplicates, $row_sql);
         }
         $this->updateConcats($duplicates, $row_sql);
+        $this->doRemove($row_sql);
 
         return $duplicates->count();
+    }
+
+    /**
+     * @param Builder $row_sql
+     * @return void
+     */
+    protected function doRemove(Builder $row_sql)
+    {
+        if ($this->to_delete) {
+            (clone $row_sql)
+                ->whereIn('id', $this->to_delete)
+                ->delete();
+        }
     }
 
     /**
@@ -96,9 +115,7 @@ class DuplicateDataService
                 }
                 $duplicates[$key] = $dup;
 
-                (clone $row_sql)
-                    ->where('id', '=', $r['id'])
-                    ->delete();
+                $this->to_delete[] = $r['id'];
             }
         }
     }
@@ -111,7 +128,7 @@ class DuplicateDataService
     {
         $key = [];
         foreach ($this->uniques as $k) {
-            $key[] = $row[$k] ?? '';
+            $key[] = trim($row[$k] ?? '');
         }
         return implode('_', $key);
     }

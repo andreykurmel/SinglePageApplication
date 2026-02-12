@@ -14,6 +14,7 @@
                 :table-row="header"
                 :header-key="'f_formula'"
                 :pop_width="'100%'"
+                @close-formula="show_help = false"
                 @set-formula="show_help = false"
         ></formula-helper>
     </div>
@@ -22,11 +23,8 @@
 <script>
     import {eventBus} from './../../../../app';
 
-    import FormulaHelper from "../../../CustomCell/InCell/FormulaHelper";
-
     export default {
         components: {
-            FormulaHelper
         },
         name: 'TabDataDefaultCol',
         data: function () {

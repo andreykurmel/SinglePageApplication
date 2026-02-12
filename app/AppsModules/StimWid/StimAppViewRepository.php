@@ -93,7 +93,7 @@ Your name
      */
     public function insertAppView(array $data)
     {
-        $data['name'] = preg_replace('/[^\w\d_\s]/i', '', $data['name']);
+        $data['name'] = preg_replace('/[^\w\d_\-\s]/i', '', $data['name']);
         $data['hash'] = Uuid::uuid4();
         $data['user_id'] = auth()->id();
         $data['side_top'] = $data['side_top'] ?? 'na';
@@ -119,7 +119,7 @@ Your name
     public function updateAppView($view_id, array $data)
     {
         if (!empty($data['name'])) {
-            $data['name'] = preg_replace('/[^\w\d_\s]/i', '', $data['name']);
+            $data['name'] = preg_replace('/[^\w\d_\-\s]/i', '', $data['name']);
         }
         return StimAppView::where('id', '=', $view_id)->update($this->service->delSystemFields($data));
     }
@@ -302,7 +302,7 @@ Your name
      * @param $search
      * @return StimAppViewFeedback
      */
-    public function getFeedbackBy(string $field, $search): StimAppViewFeedback
+    public function getFeedbackBy(string $field, $search)
     {
         return StimAppViewFeedback::where($field, '=', $search)
             ->first();

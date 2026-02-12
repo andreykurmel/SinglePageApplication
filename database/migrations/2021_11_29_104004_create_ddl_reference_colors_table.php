@@ -18,6 +18,8 @@ class CreateDdlReferenceColorsTable extends Migration
             $table->unsignedInteger('ddl_reference_id');
             $table->string('ref_value', 64);
             $table->string('color', 16)->default('');
+            $table->string('image_ref_path', 255)->nullable();
+            $table->unsignedInteger('max_selections')->nullable();
 
             $table->foreign('ddl_reference_id', 'ddl_reference_colors_ddl_reference_id')
                 ->references('id')

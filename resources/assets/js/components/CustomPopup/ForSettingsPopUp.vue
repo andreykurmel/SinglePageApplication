@@ -17,21 +17,16 @@
                 <div class="popup-content flex__elem-remain">
                     <div class="flex__elem__inner popup-main">
                         <div class="flex flex--col">
+                            <div class="flex flex--center-v" style="margin-bottom: 5px;font-size: 16px;font-weight: bold;white-space: nowrap;">
+                                Current Field/Column:&nbsp;
+                                <select-block
+                                    :options="curcolOpts()"
+                                    :sel_value="tableRow.id"
+                                    :style="{ height:'32px', }"
+                                    @option-select="curcolChange"
+                                ></select-block>
+                            </div>
                             <div class="popup-menu">
-                                <button v-if="isAvail('calendar_tab')"
-                                        class="btn btn-default"
-                                        :class="{active: activeTab === 'calendar_tab'}"
-                                        @click="activeTab = 'calendar_tab';redraw_tab=true;"
-                                >
-                                    <span>Basics</span>
-                                </button>
-                                <button v-if="isAvail('gantt_tab')"
-                                        class="btn btn-default"
-                                        :class="{active: activeTab === 'gantt_tab'}"
-                                        @click="activeTab = 'gantt_tab';redraw_tab=true;"
-                                >
-                                    <span>Basics</span>
-                                </button>
                                 <button v-if="isAvail('map_tab')"
                                         class="btn btn-default"
                                         :class="{active: activeTab === 'map_tab'}"
@@ -67,12 +62,19 @@
                                 >
                                     <span>Pop-up</span>
                                 </button>
+                                <button v-if="isAvail('others')"
+                                        class="btn btn-default"
+                                        :class="{active: activeTab === 'others'}"
+                                        @click="activeTab = 'others';redraw_tab=true;"
+                                >
+                                    <span>3rd Party</span>
+                                </button>
 
                                 <div class="right-icons flex flex--automargin pull-right">
-                                    <button class="btn btn-sm btn-primary blue-gradient" @click="smallSpace()" :style="$root.themeButtonStyle">
-                                        <img v-if="is_small_spacing === 'no'" src="/assets/img/elevator-dn1.png" width="15" height="15"/>
-                                        <img v-else="" src="/assets/img/elevator-up1.png" width="15" height="15"/>
-                                    </button>
+                                    <row-space-button
+                                        :init_size="tableMeta.row_space_size"
+                                        @changed-space="smallSpace"
+                                    ></row-space-button>
                                     <button class="btn btn-sm btn-primary blue-gradient" @click="anotherRow(false)" :style="$root.themeButtonStyle">
                                         <i class="fas fa-arrow-left"></i>
                                     </button>
@@ -137,8 +139,9 @@
     import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
 
     import AttachmentsBlock from '../CommonBlocks/AttachmentsBlock';
-    import VerticalTable from '../CustomTable/VerticalTable';
     import AddOptionPopup from './AddOptionPopup';
+    import SelectBlock from "../CommonBlocks/SelectBlock";
+    import RowSpaceButton from "../Buttons/RowSpaceButton.vue";
 
     export default {
         name: "ForSettingsPopUp",
@@ -148,9 +151,10 @@
             PopupAnimationMixin,
         ],
         components: {
+            RowSpaceButton,
+            SelectBlock,
             AddOptionPopup,
             AttachmentsBlock,
-            VerticalTable,
         },
         data: function () {
             return {
@@ -204,22 +208,56 @@
                 return SpecialFuncs.forbiddenCustomizables(this.globalMeta);
             },
             getAvaCols() {
+                if (this.activeTab === 'inps') {
+                    switch (this.tableRow.input_type) {
+                        case 'S-Select':
+                        case 'S-Search':
+                        case 'S-SS':
+                        case 'M-Select':
+                        case 'M-Search':
+                        case 'M-SS':
+                            return _.difference(this.$root.availableInpsColumns, ['is_uniform_formula','f_formula','fetch_source_id','fetch_by_row_cloud_id','fetch_one_cloud_id','fetch_uploading','mirror_rc_id','mirror_field_id','mirror_part','mirror_one_value','mirror_editable','mirror_edit_component']);
+
+                        case 'Mirror':
+                            return _.difference(this.$root.availableInpsColumns, ['is_uniform_formula','f_formula','ddl_id','ddl_add_option','ddl_auto_fill','ddl_style','is_inherited_tree','fetch_source_id','fetch_by_row_cloud_id','fetch_one_cloud_id','fetch_uploading']);
+
+                        case 'Formula':
+                            return _.difference(this.$root.availableInpsColumns, ['ddl_id','ddl_add_option','ddl_auto_fill','ddl_style','is_inherited_tree','mirror_rc_id','mirror_field_id','mirror_part','mirror_one_value','mirror_editable','mirror_edit_component','fetch_source_id','fetch_by_row_cloud_id','fetch_one_cloud_id','fetch_uploading']);
+
+                        case 'Fetch':
+                            return _.difference(this.$root.availableInpsColumns, ['is_uniform_formula','f_formula','ddl_id','ddl_add_option','ddl_auto_fill','ddl_style','is_inherited_tree','mirror_rc_id','mirror_field_id','mirror_part','mirror_one_value','mirror_editable','mirror_edit_component']);
+
+                        default:
+                            return _.difference(this.$root.availableInpsColumns, ['is_uniform_formula','f_formula','ddl_id','ddl_add_option','ddl_auto_fill','ddl_style','is_inherited_tree','mirror_rc_id','mirror_field_id','mirror_part','mirror_one_value','mirror_editable','mirror_edit_component','fetch_source_id','fetch_by_row_cloud_id','fetch_one_cloud_id','fetch_uploading']);
+                    }
+                }
                 switch (this.activeTab) {
-                    case 'calendar_tab': return this.$root.availableCalendarColumns;
-                    case 'gantt_tab': return this.$root.availableGanttColumns;
                     case 'map_tab': return this.$root.availableMapColumns;
                     case 'inps': return this.$root.availableInpsColumns;
                     case 'standard': return this.$root.availableSettingsColumns;
                     case 'bas_popup': return this.$root.availablePopupDisplayColumns;
+                    case 'others': return this.$root.availableOthersColumns;
                     default: return this.$root.availableNotOwnerDisplayColumns;
                 }
             },
             availTabs() {
                 return this.extAvailTabs
-                    || (this.globalMeta._is_owner ? ['inps','standard','customizable','bas_popup'] : ['customizable']);
+                    || (this.globalMeta._is_owner ? ['inps','standard','customizable','bas_popup','others'] : ['customizable']);
             },
         },
         methods: {
+            curcolOpts() {
+                let fields = this.globalMeta
+                    ? _.filter(this.globalMeta._fields, (hdr) => { return !this.$root.inArray(hdr.field, this.$root.systemFields) })
+                    : [];
+                return _.map(fields, (fld) => {
+                    return { val:fld.id, show:fld.name };
+                });
+            },
+            curcolChange(opt) {
+                let ii = _.findIndex(this.globalMeta._fields, {id: Number(opt.val)});
+                this.$emit('direct-row', ii);
+            },
             isAvail(tab) {
                 return this.availTabs.indexOf(tab) > -1;
             },
@@ -282,9 +320,8 @@
                 }
             },
 
-            smallSpace() {
-                this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                setLocalStorage('is_small_spacing', this.is_small_spacing);
+            smallSpace(size) {
+                this.tableMeta.row_space_size = size;
             },
             anotherRow(is_next) {
                 this.$emit('another-row', is_next);

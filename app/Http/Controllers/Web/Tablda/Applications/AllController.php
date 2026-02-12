@@ -148,9 +148,16 @@ class AllController extends Controller
      */
     protected function findApplication($path)
     {
-        $path = '/' . $path;
+        $first = $path[0] ?? '';
+        $path = $first != '/' ? ('/' . $path) : $path;
         $app = CorrespApp::onlyActive()
-            ->where('subdomain', $this->service->cur_subdomain)
+            ->where(function ($in) {
+                $in->where('subdomain', $this->service->cur_subdomain);
+                $in->orWhere(function ($in2) {
+                    $in2->where('user_id', 1);
+                    $in2->where('is_public', 1);
+                });
+            })
             ->whereRaw('\'' . $path . '\' like CONCAT(`app_path` ,\'%\')')
             ->first();
 

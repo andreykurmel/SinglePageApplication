@@ -49,4 +49,12 @@ class TabldaFile
     {
         \Storage::put($path.'/'.$name, $this->content);
     }
+
+    /**
+     * @return string
+     */
+    public function get()
+    {
+        return $this->content;
+    }
 }

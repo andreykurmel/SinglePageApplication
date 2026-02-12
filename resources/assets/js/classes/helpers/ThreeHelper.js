@@ -10,9 +10,25 @@ export class ThreeHelper {
         this.load_data = load_data;
         this.master_model = master_model;
         this.progress_done = 0;
-        this.progress_total = 0;
+        this.progress_total = 1;
         this.counter = 0;
         this.forbidden_local = [];
+    }
+
+    /**
+     *
+     * @param direct_eqpt_3d
+     * @returns {number}
+     */
+    affectedEqpts(direct_eqpt_3d) {
+        let affected_cnt = 0;
+        _.each(this.load_data.params.members, (memb) => {
+            let affected = _.filter(this.load_data.eqs.collection, (eqpt) => {
+                return this._canRL(direct_eqpt_3d, eqpt, memb);
+            });
+            affected_cnt += affected.length;
+        });
+        return affected_cnt;
     }
 
     /**
@@ -24,10 +40,10 @@ export class ThreeHelper {
             local_id: direct_eqpt_3d ? direct_eqpt_3d.local_id : null,
             master_model: this.master_model,
         }).then(({data}) => {
-            this._prepareEqpts();
+            this._prepareEqpts(direct_eqpt_3d);
             this._calculateProcess(direct_eqpt_3d);
         }).catch(errors => {
-            Swal('', getErrors(errors));
+            Swal('Info', getErrors(errors));
         });
     }
 
@@ -35,7 +51,7 @@ export class ThreeHelper {
      *
      * @private
      */
-    _prepareEqpts() {
+    _prepareEqpts(direct_eqpt_3d) {
         this.counter = 0;
         this.forbidden_local = [];
 
@@ -58,6 +74,14 @@ export class ThreeHelper {
                 });
             }
         });
+
+        this.progress_done = 0;
+        this.progress_total = 0;
+        _.each(this.load_data.params.members, (memb) => {
+            _.each(this.load_data.eqs.collection, (eqpt) => {
+                this.progress_total += this._canRL(direct_eqpt_3d, eqpt, memb) ? 1 : 0;
+            });
+        });
     }
 
     /**
@@ -71,6 +95,28 @@ export class ThreeHelper {
             this.counter++;
         }
         return this.counter;
+    }
+
+    /**
+     *
+     * @param direct_eqpt_3d
+     * @param cur_eqpt
+     * @param memb
+     * @returns {{mbr_name: string, dx: number, rotx: number, dy: number, dz: number, rotz: number, roty: number, id: number, status: string}|*|null}
+     * @private
+     */
+    _canRL(direct_eqpt_3d, cur_eqpt, memb) {
+        let eqpt_lc = direct_eqpt_3d || cur_eqpt.lc;
+        let pos2mbr = _.find(this.load_data.libs.pos_to_mbrs, (p2m) => {
+            return p2m._id == eqpt_lc.mbr_id || p2m.member == eqpt_lc.mbr_id;
+        });
+
+        let avail_eqpt = !direct_eqpt_3d || direct_eqpt_3d._id == cur_eqpt.lc._id;
+        let some_attach = ThreeHelper.get_attach(eqpt_lc, 1) || ThreeHelper.get_attach(eqpt_lc, 2) || ThreeHelper.get_attach(eqpt_lc, 3);
+        let needed_member = (memb['_id'] == eqpt_lc.mbr_id) || (pos2mbr && pos2mbr.member == memb['Mbr_Name']);
+        return avail_eqpt && some_attach && needed_member
+            ? eqpt_lc
+            : null;
     }
 
     /**
@@ -95,16 +141,8 @@ export class ThreeHelper {
                 });
 
                 _.each(this.load_data.eqs.collection, (eqpt) => {
-                    let eqpt_lc = direct_eqpt_3d || eqpt.lc;
-                    let pos2mbr = _.find(this.load_data.libs.pos_to_mbrs, (p2m) => {
-                        return p2m._id == eqpt_lc.mbr_id;
-                    });
-
-                    let avail_eqpt = !direct_eqpt_3d || direct_eqpt_3d._id == eqpt.lc._id;
-                    let some_attach = ThreeHelper.get_attach(eqpt_lc, 1) || ThreeHelper.get_attach(eqpt_lc, 2) || ThreeHelper.get_attach(eqpt_lc, 3);
-                    let needed_member = (memb['_id'] == eqpt_lc.mbr_id) || (pos2mbr && pos2mbr.member == memb['Mbr_Name']);
-
-                    if (avail_eqpt && needed_member && some_attach) {
+                    let eqpt_lc = this._canRL(direct_eqpt_3d, eqpt, memb);
+                    if (eqpt_lc) {
                         let membTop = new THREE.Vector3(memberS[0], memberS[1], memberS[2]);
                         let membBot = new THREE.Vector3(memberE[0], memberE[1], memberE[2]);
                         let memb_line = new THREE.Line3(membTop, membBot);
@@ -120,9 +158,9 @@ export class ThreeHelper {
                         glob_top.applyEuler(eulerPar);
 
                         let d1 = to_float(eqpt.eq.d1 / 12 / 2);//Half and in. => ft.
-                        let eTop = new THREE.Vector3(to_float(newD.x), to_float(newD.y) + d1, to_float(newD.z));
+                        let eTop = new THREE.Vector3(to_float(newD.dx), to_float(newD.dy) + d1, to_float(newD.dz));
                         eTop.applyEuler(eulerPar);
-                        let eBot = new THREE.Vector3(to_float(newD.x), to_float(newD.y) - d1, to_float(newD.z));
+                        let eBot = new THREE.Vector3(to_float(newD.dx), to_float(newD.dy) - d1, to_float(newD.dz));
                         eBot.applyEuler(eulerPar);
 
                         let memb_center = memb_line.center();
@@ -170,7 +208,7 @@ export class ThreeHelper {
             let llc = _.clone(eqpt_lc);
             if (!llc.mbr_name) {
                 let pos2mbr = _.find(this.load_data.libs.pos_to_mbrs, (p2m) => {
-                    return p2m._id == eqpt_lc.mbr_id;
+                    return p2m._id == eqpt_lc.mbr_id || p2m.member == eqpt_lc.mbr_id;
                 });
                 llc.mbr_name = pos2mbr.member;
             }
@@ -185,9 +223,8 @@ export class ThreeHelper {
             }).then(({data}) => {
                 this.progress_done++;
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
-            this.progress_total++;
         }
     }
 
@@ -229,18 +266,23 @@ export class ThreeHelper {
      *
      * @param lc
      * @param parent
-     * @returns {{x, y, z, rotx, roty, rotz}}
+     * @returns {{dx: (number), dy: (number), dz: (number), roty: number}}
      */
     static eqpt_center(lc, parent) {
-        var newCoords = {
-            x: to_float(lc.dx),
-            y: to_float(lc.dy),
-            z: to_float(lc.dz),
-        };
+        let globtopy = 0;
+        if (parent) {
+            let euler = new THREE.Euler(-(parent.rotation.x), -(parent.rotation.y), -(parent.rotation.z), 'ZYX');
+            let glob_top = new THREE.Vector3(0, 1, 0);
+            glob_top.applyEuler(euler);
+            globtopy = glob_top.y;
+        }
 
-        let euler = new THREE.Euler(-(parent.rotation.x), -(parent.rotation.y), -(parent.rotation.z), 'ZYX');
-        let glob_top = new THREE.Vector3(0, 1, 0);
-        glob_top.applyEuler(euler);
+        var newCoords = {
+            dx: to_float(lc.dx),
+            dy: (globtopy > 0 ? 1 : -1) * to_float(lc.dy),
+            dz: to_float(lc.dz),
+            roty: 0,
+        };
 
         // if(lc.rotz) {
         //     var oldX = newCoords.x,
@@ -251,15 +293,16 @@ export class ThreeHelper {
         //     newCoords.y = oldX * Math.sin(rotZ) + oldY * Math.cos(rotZ);
         // }
 
-        let add_roty = (glob_top.y > 0 ? 0 : 180) * (Math.PI / 180);
+        let add_roty = (globtopy > 0 ? 0 : 180) * (Math.PI / 180);
         if (lc.roty || add_roty) {
-            var oldX = to_float(newCoords.x),
-                oldZ = to_float(newCoords.z),
+            var oldX = to_float(newCoords.dx),
+                oldZ = to_float(newCoords.dz),
                 rotY = -to_float(lc.roty) * (Math.PI / 180);
             rotY += add_roty;
 
-            newCoords.x = oldX * Math.cos(rotY) - oldZ * Math.sin(rotY);
-            newCoords.z = oldX * Math.sin(rotY) + oldZ * Math.cos(rotY);
+            newCoords.dx = oldX * Math.cos(rotY) - oldZ * Math.sin(rotY);
+            newCoords.dz = oldX * Math.sin(rotY) + oldZ * Math.cos(rotY);
+            newCoords.roty = add_roty;
         }
 
         // if(lc.rotx) {
@@ -271,8 +314,87 @@ export class ThreeHelper {
         //     newCoords.z = oldY * Math.sin(rotX) + oldZ * Math.cos(rotX);
         // }
 
-        newCoords.y += (glob_top.y > 0 ? 1 : -1) * to_float(lc.dist_to_node_s);// || to_float(y_gctr);
         return newCoords;
+    }
+
+    /**
+     *
+     * @param lc
+     * @param parent
+     * @param watched
+     * @returns {*}
+     */
+    static limit_by_member(lc, parent, watched)
+    {
+        let w3d = this.watcher3d_field();
+        let g_member_center = to_float(lc._ma_gctr) + to_float(parent.position.y);
+        let half_member_len = to_float(parent.member_len) / 2;
+
+        if (w3d === 'origin_elev') {
+            //
+        }
+        if (w3d === 'elev_g') {
+            let glob_idx = this.glob_top_vector(parent, true);
+            let diff = to_float(watched.val) - g_member_center;
+            if (glob_idx > 0 && Math.abs(diff / glob_idx) > half_member_len) {
+                watched.val = g_member_center + (half_member_len - 0.1) * glob_idx * (diff > 0 ? 1 : -1);
+            }
+        }
+        if (['dist_to_node_s','dy'].indexOf(w3d) > -1) {
+            let diff = to_float(watched.val);
+            if (Math.abs(diff) > half_member_len) {
+                watched.val = (diff > 0 ? 1 : -1) * (half_member_len - 0.1);
+            }
+        }
+        return watched;
+    }
+
+    /**
+     *
+     * @param parent
+     * @param as_index
+     * @returns {THREE.Vector3|number}
+     */
+    static glob_top_vector(parent, as_index)
+    {
+        //return to Global Coord System (instead of Member's local) => Local to Global
+        let locToGlob = new THREE.Euler( -(parent.rotation.x), -(parent.rotation.y), -(parent.rotation.z), 'ZYX' );
+
+        //get global direction
+        let glob_top = new THREE.Vector3( 0, 1, 0 );
+        glob_top.applyEuler(locToGlob);
+
+        return !as_index ? glob_top : Math.abs(glob_top.y);
+    }
+
+    /**
+     *
+     * @param lc
+     * @param parent
+     * @param field
+     * @param new_value
+     * @returns {boolean}
+     */
+    static consistent_data(lc, parent, field, new_value) {
+        if (new_value === undefined) {
+            new_value = lc[field];
+        }
+
+        let g_member_center = to_float(lc._ma_gctr) + to_float(parent.position.y);
+        let half_member_len = to_float(parent.member_len) / 2;
+        let consistent = true;
+
+        if (field === 'elev_g') {
+            let glob_idx = this.glob_top_vector(parent, true);
+            consistent = glob_idx > 0
+                ? Math.abs((g_member_center - to_float(new_value)) / glob_idx) <= half_member_len
+                : (g_member_center - to_float(new_value)) === glob_idx;
+        }
+        if (field === 'dist_to_node_s' || field === 'dy') {
+            consistent = Math.abs(to_float(new_value)) <= half_member_len;
+        }
+
+        return consistent;
     }
 
     /**
@@ -371,4 +493,79 @@ export class ThreeHelper {
         return cos_angle;
         // return the cosine value of the angle.
     }
+
+    //Sync tables data with 3d model
+    /**
+     *
+     * @param stim_app_fields
+     * @param changed_rows
+     * @returns {null|Object}
+     */
+    static watched3d_is_needed_action(stim_app_fields, changed_rows) {
+        let first_row = _.first(changed_rows);
+        let cha_field = first_row._changed_field;
+        let watched_for = ['origin_elev','elev_g','dist_to_node_s','dy'];
+
+        let is3dLC = _.find(stim_app_fields, (fld) => {
+            return String(fld.link_field_type).indexOf('3d:ma') > -1
+                || String(fld.link_field_type).indexOf('3d:lcs') > -1;
+        });
+        if (is3dLC) {
+            let corrFld = _.find(stim_app_fields, (fld) => {
+                return cha_field == fld.data_field
+                    && watched_for.indexOf(fld.app_field) > -1;
+            });
+            if (corrFld) {
+                window.changed_lc_ids_to_values = _.map(changed_rows, (r) => {
+                    return {
+                        id: corrFld.app_field == 'origin_elev' ? 'origin_elev' : r.id,
+                        val: r[corrFld.data_field],
+                        old_val: corrFld.app_field == 'origin_elev' ? first_row._old_val : null,
+                    };
+                });
+                window.changed_lc_field = corrFld.app_field;
+                return corrFld;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     *
+     * @param lc
+     * @returns {*}
+     */
+    static watcher3d_check(lc) {
+        return _.find(window.changed_lc_ids_to_values, (el) => {
+            return el.id == lc._id || el.id == 'origin_elev';
+        });
+    }
+
+    /**
+     *
+     * @param lc
+     */
+    static watcher3d_processed(lc) {
+        window.changed_lc_ids_to_values = _.filter(window.changed_lc_ids_to_values, (el) => {
+            return el.id != lc._id;
+        });
+    }
+
+    /**
+     *
+     */
+    static watcher3d_finalized() {
+        window.changed_lc_field = '';
+        window.changed_lc_ids_to_values = [];
+    }
+
+    /**
+     *
+     * @returns {string}
+     */
+    static watcher3d_field() {
+        return window.changed_lc_field || '';
+    }
+    //^^^^^^^
 }

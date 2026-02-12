@@ -17,12 +17,14 @@ class AddWebFilterToUserHeaders extends Migration
             $table->tinyInteger('web')->default(1);
             $table->tinyInteger('filter')->default(0);
             $table->tinyInteger('popup_header')->default(0);
+            $table->tinyInteger('popup_header_val')->default(0);
         });
         
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('web');
             $table->dropColumn('filter');
             $table->dropColumn('popup_header');
+            $table->dropColumn('popup_header_val');
 
             $table->tinyInteger('global_web')->default(1);
         });
@@ -39,6 +41,7 @@ class AddWebFilterToUserHeaders extends Migration
             $table->tinyInteger('web')->default(1);
             $table->tinyInteger('filter')->default(0);
             $table->tinyInteger('popup_header')->default(0);
+            $table->tinyInteger('popup_header_val')->default(0);
 
             $table->dropColumn('global_web');
         });
@@ -47,6 +50,7 @@ class AddWebFilterToUserHeaders extends Migration
             $table->dropColumn('web');
             $table->dropColumn('filter');
             $table->dropColumn('popup_header');
+            $table->dropColumn('popup_header_val');
         });
     }
 }

@@ -17,6 +17,7 @@ class CreateAddonsTable extends Migration
             $table->increments('id');
             $table->string('code');
             $table->string('name');
+            $table->string('description', 255)->nullable();
             $table->float('per_month');
             $table->float('per_year');
             $table->string('notes', 255)->nullable();

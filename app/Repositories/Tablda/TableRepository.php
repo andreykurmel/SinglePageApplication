@@ -10,7 +10,6 @@ use Vanguard\Models\AppTheme;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Folder\Folder2Table;
 use Vanguard\Models\Table\Table;
-use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableMapIcon;
 use Vanguard\Models\Table\TableNote;
 use Vanguard\Models\Table\TableSharedName;
@@ -21,7 +20,10 @@ use Vanguard\Models\User\Communication;
 use Vanguard\Models\User\Plan;
 use Vanguard\Modules\Permissions\PermissionObject;
 use Vanguard\Modules\Permissions\TableRights;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Services\Tablda\TableDataService;
 use Vanguard\User;
 
 class TableRepository
@@ -55,6 +57,26 @@ class TableRepository
     }
 
     /**
+     * @param int $table_id
+     * @param int $user_id
+     * @return \Illuminate\Database\Eloquent\Model|object|TableStatuse|null
+     */
+    public function getStatuse(int $table_id, int $user_id)
+    {
+        return TableStatuse::where('table_id', '=', $table_id)
+            ->where('user_id', '=', $user_id)
+            ->first();
+    }
+
+    /**
+     * @return int
+     */
+    public function ownedTables()
+    {
+        return Table::where('user_id', auth()->id() ?: 0)->count();
+    }
+
+    /**
      * Add record into the 'tables' for just created table
      *
      * @param array $data :
@@ -67,8 +89,12 @@ class TableRepository
      * ]
      * @return mixed
      */
-    public function addTable(Array $data)
+    public function addTable(array $data)
     {
+        if ($this->ownedTables() > 2000) {
+            throw new \Exception('You have reached tables limit = 2000!', 1);
+        }
+
         //defaults
         $data['hash'] = Uuid::uuid4();
         $data['enabled_activities'] = $data['enabled_activities'] ?? 0;
@@ -92,7 +118,12 @@ class TableRepository
     public function saveUserSettings($tb_id, $data, $can_sync = false)
     {
         if (auth()->id()) {
-            $data['initial_view_id'] = $data['initial_view_id'] ?? -1;
+            if (empty($data['initial_view_id'])) {
+                $ts = TableUserSetting::where('table_id', '=', $tb_id)
+                    ->where('user_id', '=', auth()->id())
+                    ->first();
+                $data['initial_view_id'] = $ts ? $ts->initial_view_id : -1;
+            }
             $data['table_id'] = $tb_id;
             $data['user_id'] = auth()->id();
             TableUserSetting::updateOrCreate([
@@ -107,17 +138,6 @@ class TableRepository
                 }
             }
         }
-    }
-
-    /**
-     * @param int $table_id
-     * @return mixed
-     */
-    public function getUserSettings(int $table_id)
-    {
-        return TableUserSetting::where('table_id', '=', $table_id)
-            ->where('user_id', '=', auth()
-                ->id())->first();
     }
 
     /**
@@ -138,6 +158,17 @@ class TableRepository
 
     /**
      * @param int $table_id
+     * @return mixed
+     */
+    public function getUserSettings(int $table_id)
+    {
+        return TableUserSetting::where('table_id', '=', $table_id)
+            ->where('user_id', '=', auth()
+                ->id())->first();
+    }
+
+    /**
+     * @param int $table_id
      * @param $is_public
      * @return mixed
      */
@@ -154,7 +185,7 @@ class TableRepository
      * @param array $data
      * @return mixed
      */
-    public function updateTableSettings($table_id, Array $data)
+    public function updateTableSettings($table_id, array $data)
     {
         if (empty($data['unit_conv_table_id'])) {
             $data['unit_conv_table_id'] = null;
@@ -167,7 +198,7 @@ class TableRepository
             $appTheme->update($this->appThemeArr($table_id, $data['_theme'] ?? []));
         }
 
-        if (!empty($data['initial_view_id']) && $data['initial_view_id'] < 0) {
+        if (!empty($data['initial_view_id']) && in_array($data['initial_view_id'], [-2, -3])) {
             TableStatuse::where('table_id', $table_id)
                 ->where('user_id', auth()->id())
                 ->delete();
@@ -183,14 +214,43 @@ class TableRepository
      * @param array $data
      * @return mixed
      */
-    public function onlyUpdateTable($table_id, Array $data)
+    public function onlyUpdateTable($table_id, array $data)
     {
         $tb_data = collect($data)
-            ->only( (new Table)->getFillable() )
+            ->only((new Table)->getFillable())
             ->toArray();
 
-        return Table::where('id', '=', $table_id)
-            ->update($this->service->delSystemFields($tb_data));
+        $old = Table::where('id', '=', $table_id)->first();
+
+        Table::where('id', '=', $table_id)->update($this->service->delSystemFields($tb_data));
+
+        $new = Table::where('id', '=', $table_id)->first();
+
+        if (
+            $old && $new
+            && $new->single_view_regenerate
+            && $new->single_view_regenerate_datarange != $old->single_view_regenerate_datarange
+            && $new->_srv_url
+        ) {
+            $repo = new TableDataRepository();
+            $tdq = new TableDataQuery($new);
+            if ($new->single_view_regenerate_datarange) {
+                $tdq->checkAndApplyDataRange($new->single_view_regenerate_datarange);
+            }
+            $tdq->getQuery()
+                ->chunk(100, function ($rows) use ($new, $repo) {
+                    foreach ($rows as $row) {
+                        $upd = [
+                            $new->_srv_url->field => Uuid::uuid4()
+                        ];
+                        $repo->quickUpdate($new, $row->id, $upd, false);
+                    }
+                });
+
+            (new TableDataService())->newTableVersion($new);
+        }
+
+        return $new;
     }
 
     /**
@@ -202,15 +262,15 @@ class TableRepository
     public function getAvailableTables($user_id)
     {
         return Table::where(function ($q) use ($user_id) {
-                $q->where(function ($in) use ($user_id) {
-                    $in->where('tables.user_id', $user_id);
-                });
-                $q->orWhereHas('_table_permissions', function ($tp) {
-                    $tp->isActiveForUserOrVisitor();
-                    $tp->where('can_reference', 1);
-                });
-            })
-            ->select(['id', 'name', 'db_name', 'user_id'])
+            $q->where(function ($in) use ($user_id) {
+                $in->where('tables.user_id', $user_id);
+            });
+            $q->orWhereHas('_table_permissions', function ($tp) {
+                $tp->isActiveForUserOrVisitor();
+                $tp->where('can_reference', 1);
+            });
+        })
+            ->select(['id', 'name', 'db_name', 'user_id', 'max_rows_in_link_popup'])
             ->get();
     }
 
@@ -263,17 +323,6 @@ class TableRepository
     }
 
     /**
-     * Get only table info
-     *
-     * @param $table_id
-     * @return Table
-     */
-    public function getTable($table_id)
-    {
-        return Table::where('id', '=', $table_id)->first();
-    }
-
-    /**
      * @param $value
      * @return Table|null
      */
@@ -302,6 +351,28 @@ class TableRepository
     /**
      * Get only table info
      *
+     * @param $table_id
+     * @return Table
+     */
+    public function getTable($table_id)
+    {
+        return Table::where('id', '=', $table_id)->first();
+    }
+
+    /**
+     * Get only table info
+     *
+     * @param $db_name
+     * @return Table
+     */
+    public function getTableByDB($db_name)
+    {
+        return Table::where('db_name', '=', $db_name)->first();
+    }
+
+    /**
+     * Get only table info
+     *
      * @param $hash
      * @return Table
      */
@@ -324,23 +395,12 @@ class TableRepository
     }
 
     /**
-     * Get only table info
-     *
-     * @param $db_name
-     * @return Table
-     */
-    public function getTableByDB($db_name)
-    {
-        return Table::where('db_name', '=', $db_name)->first();
-    }
-
-    /**
      * Get many tables info
      *
      * @param array $table_ids
      * @return mixed
      */
-    public function getTables(Array $table_ids)
+    public function getTables(array $table_ids)
     {
         return Table::whereIn('id', $table_ids)->get();
     }
@@ -351,7 +411,7 @@ class TableRepository
      * @param array $table_dbs
      * @return mixed
      */
-    public function getTablesFromDB(Array $table_dbs)
+    public function getTablesFromDB(array $table_dbs)
     {
         return Table::whereIn('db_name', $table_dbs)->get();
     }
@@ -363,7 +423,7 @@ class TableRepository
      * @param string $type
      * @return mixed
      */
-    public function getTablesInFolders(Array $folder_ids, $type = 'table')
+    public function getTablesInFolders(array $folder_ids, $type = 'table')
     {
         return Table::whereHas('_folder_links', function ($q) use ($folder_ids, $type) {
             $q->whereIn('folder_id', $folder_ids);
@@ -401,15 +461,25 @@ class TableRepository
 
     /**
      * @param Table $table
-     * @param array $row_gr_ids
-     * @return bool|Collection
+     * @param Collection $all_rows
+     * @param array $specials
+     * @return array|true
      */
-    public function canDelRows(Table $table, array $row_gr_ids)
+    public function canDelRows(Table $table, Collection $all_rows, array $specials = [])
     {
-        $permis = TableRights::permissions($table);
-        return $permis->is_owner
-            ? true
-            : $permis->delete_row_groups->intersect($row_gr_ids);
+        $permis = TableRights::permissions($table, $specials);
+        if ($permis->is_owner) {
+            return true;
+        }
+
+        $row_ids_to_del = [];
+        $row_group_ids = $all_rows->pluck('_applied_row_groups')->flatten()->toArray() ?? [];
+        foreach ($all_rows as $row) {
+            if ($permis->delete_row_groups->intersect($row_group_ids)->toArray() || $permis->managerOfRow($table, $row)) {
+                $row_ids_to_del[] = $row['id'];
+            }
+        }
+        return $row_ids_to_del;
     }
 
     /**
@@ -422,7 +492,7 @@ class TableRepository
         $main = Table::where('is_system', '=', 1)
             ->whereNotIn('db_name', $this->service->myaccount_tables)
             ->get();
-        return $main->merge( Table::whereIn('db_name', $this->service->stim_views)->get() );
+        return $main->merge(Table::whereIn('db_name', $this->service->stim_views)->get());
     }
 
     /**
@@ -449,12 +519,12 @@ class TableRepository
 
     /**
      * @param int $table_id
-     * @param int $folder_id
+     * @param int|null $folder_id
      * @param string $type
      * @param string $structure
      * @return bool
      */
-    public function insertLink(int $table_id, int $folder_id, string $type = 'table', string $structure = 'private')
+    public function insertLink(int $table_id, int $folder_id = null, string $type = 'table', string $structure = 'private')
     {
         return Folder2Table::insert([
             'table_id' => $table_id,
@@ -472,7 +542,7 @@ class TableRepository
      * @param array $data
      * @return mixed
      */
-    public function updateLink($link_id, Array $data)
+    public function updateLink($link_id, array $data)
     {
         return Folder2Table::where('id', '=', $link_id)
             ->update($this->service->delSystemFields($data));
@@ -492,9 +562,9 @@ class TableRepository
         $table->save();
 
         $links = Table::whereHas('_folder_links', function ($q) use ($user_id, $folder_id) {
-                $q->where('user_id', '=', $user_id);
-                $q->where('folder_id', '=', $folder_id);
-            })
+            $q->where('user_id', '=', $user_id);
+            $q->where('folder_id', '=', $folder_id);
+        })
             ->where('id', '!=', $table->id)
             ->orderBy('menutree_order')
             ->get();
@@ -531,7 +601,7 @@ class TableRepository
     /**
      * Transfer table from user to another user.
      *
-     * @param \Vanguard\Models\Table\Table $table
+     * @param Table $table
      * @param int $new_folder_id
      * @param int $new_user_id
      * @return array|bool|null
@@ -554,6 +624,22 @@ class TableRepository
         $table->_cond_formats()->update(['user_id' => $new_user_id]);
         //transfer Views
         $table->_views()->update(['user_id' => $new_user_id]);
+        //transfer DCRs
+        $table->_table_requests()->update(['user_id' => $new_user_id]);
+        //transfer Notes
+        $table->_user_notes()->update(['user_id' => $new_user_id]);
+        //transfer Backups
+        $table->_backups()->update(['user_id' => $new_user_id]);
+        //transfer Alerts
+        $table->_alerts()->update(['user_id' => $new_user_id]);
+        //transfer Reports
+        $table->_reports()->update(['user_id' => $new_user_id]);
+        //transfer Report Templates
+        $table->_report_templates()->update(['user_id' => $new_user_id]);
+        //transfer Charts
+        $table->_bi_charts()->update(['user_id' => $new_user_id]);
+        //transfer Settings
+        $table->_owner_settings()->update(['user_id' => $new_user_id]);
 
         //transfer table
         return $table->update(array_merge(['user_id' => $new_user_id], $this->service->getModified()));
@@ -569,7 +655,7 @@ class TableRepository
      * @param String $message
      * @return mixed
      */
-    public function addMessage(Int $table_id, Int $from_user_id, Int $to_user_id, $to_user_group_id, String $message)
+    public function addMessage(int $table_id, int $from_user_id, int $to_user_id, $to_user_group_id, string $message)
     {
         return Communication::create(array_merge([
             'table_id' => $table_id,
@@ -598,7 +684,7 @@ class TableRepository
      * @param Int $message_id
      * @return mixed
      */
-    public function deleteMessage(Int $message_id)
+    public function deleteMessage(int $message_id)
     {
         return Communication::where('id', '=', $message_id)->delete();
     }
@@ -609,9 +695,10 @@ class TableRepository
      * @param int $table_id
      * @param int $user_id
      * @param bool $favorite
+     * @param int|null $parent_id
      * @return bool
      */
-    public function favoriteToggle($table_id, $user_id, $favorite)
+    public function favoriteToggle($table_id, $user_id, $favorite, $parent_id)
     {
         //menutree is changed
         (new UserRepository())->newMenutreeHash($user_id);
@@ -622,12 +709,14 @@ class TableRepository
                 ->where('user_id', '=', $user_id)
                 ->where('type', '=', 'link')
                 ->where('structure', '=', 'favorite')
+                ->where('folder_id', '=', $parent_id ?: null)
                 ->first();
 
             if (!$link) {
                 $link = Folder2Table::create(array_merge([
                     'table_id' => $table_id,
                     'user_id' => $user_id,
+                    'folder_id' => $parent_id ?: null,
                     'type' => 'link',
                     'structure' => 'favorite'
                 ], $this->service->getModified(), $this->service->getCreated()));
@@ -641,6 +730,7 @@ class TableRepository
                 ->where('user_id', '=', $user_id)
                 ->where('type', '=', 'link')
                 ->where('structure', '=', 'favorite')
+                ->where('folder_id', '=', $parent_id ?: null)
                 ->delete();
 
         }
@@ -829,21 +919,18 @@ class TableRepository
     public function loadCondFormats(Table $table, int $user_id = null)
     {
         $table->load([
-            '_cond_formats' => function ($cf) use ($table, $user_id)
-            {
+            '_cond_formats' => function ($cf) use ($table, $user_id) {
                 $cf->orderBy('row_order');
 
                 $cf->with('_user_settings', '_table_permissions');
 
                 //all CF for DCR or apply rules
                 $cf->where('user_id', $user_id);
-                if ($user_id != $table->user_id && $table->__data_permission_id != -1) {
+                $vPermisId = $this->service->viewPermissionId($table);
+                if ($table->user_id != $user_id && $vPermisId != -1) {
                     //get only 'shared' condFormats for regular User.
-                    $cf->orWhereHas('_table_permissions', function ($tp) use ($table) {
-                        $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
-                        //all cond formats for DCR
-                        //TODO: DCR moved to another table, use PermissionModule.
-                        //$tp->orWhere('is_request', '>', 0);
+                    $cf->orWhereHas('_table_permissions', function ($tp) use ($vPermisId) {
+                        $tp->applyIsActiveForUserOrPermission($vPermisId);
                     });
                 }
             }

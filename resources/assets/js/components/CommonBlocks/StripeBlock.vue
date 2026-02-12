@@ -67,6 +67,8 @@
 </template>
 
 <script>
+    import {PaymentFunctions} from "../../classes/PaymentFunctions";
+
     export default {
         name: "StripeBlock",
         mixins: [
@@ -92,7 +94,7 @@
                 this.stripe.createToken(this.stripe_card).then((result) => {
                     $.LoadingOverlay('hide');
                     if (result.error) {
-                        Swal('', result.error.message);
+                        Swal('Info', result.error.message);
                     } else {
                         this.$emit('pay-by-card', result.token);
                     }
@@ -103,14 +105,14 @@
                 this.stripe.createToken(this.stripe_card).then((result) => {
                     $.LoadingOverlay('hide');
                     if (result.error) {
-                        Swal('', result.error.message);
+                        Swal('Info', result.error.message);
                     } else {
                         $.LoadingOverlay('show');
                         axios.post('/ajax/user/link-card', {
                             token: result.token
                         }).then(({ data }) => {
                             if (data.error) {
-                                Swal('', data.error);
+                                Swal('Info', data.error);
                                 return;
                             }
                             this.stripe_card.clear();
@@ -119,7 +121,7 @@
                                 this.$root.user.selected_card = data.id;
                             }
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });
@@ -128,8 +130,8 @@
             },
             deleteCard(type, id) {
                 Swal({
-                    title: 'Unlink Card',
-                    text: 'Are you sure?',
+                    title: 'Info',
+                    text: 'Unlink Card. Are you sure?',
                     showCancelButton: true,
                 }).then((result) => {
                     if (result.value) {
@@ -144,7 +146,7 @@
                             this.$root.user.paypal_card_id = data.user.paypal_card_id;
                             this.$root.user.paypal_card_last = data.user.paypal_card_last;
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });

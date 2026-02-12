@@ -4,24 +4,13 @@
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :class="[tableHeader.field === 'hash' ? 'o-visible' : '']" :style="getWrapperStyle">
+            <div class="wrapper-inner" :class="[tableHeader.field === 'hash' ? 'o-visible' : '']" :style="getWrapperStyle()">
                 <div class="inner-content">
 
-                    <!-- ADD ROW -->
-                    <input  v-if="isAddRow && inArray(tableHeader.field, ['name'])"
-                            v-model="tableRow[tableHeader.field]"
-                            @blur="hideEdit()"
-                            @change="updateValue()"
-                            ref="inline_input"
-                            class="form-control full-height"
-                            :style="getEditStyle">
-
-                    <span v-else-if="isAddRow"></span>
-
                     <!-- EDIT ROW -->
-                    <label class="switch_t" v-else-if="!isAddRow && tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
+                    <label class="switch_t" v-if="!isAddRow && tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
                         <input type="checkbox" :disabled="!!tableRow.is_system" v-model="tableRow[tableHeader.field]" @change="updateValue()">
                         <span class="toggler round"></span>
                     </label>
@@ -31,6 +20,13 @@
                                   :hash="tableRow.hash"
                                   class="inline_embed"
                     ></embed-button>
+
+                    <a v-else-if="!isAddRow && tableHeader.field === 'name'"
+                       :target="tableRow.is_active ? '_blank' : ''"
+                       :href="tableRow.is_active ? getLink() : '#'"
+                       title="Open the folder view in a new tab."
+                       class="link_btn"
+                    >{{ tableRow.name }}</a>
 
                     <button v-else-if="!isAddRow && tableHeader.field === 'user_link'"
                             class="btn btn-default paa-btn flex flex--center"
@@ -68,7 +64,7 @@
                     class="form-control full-height"
                     :style="getEditStyle">
 
-            <input  v-else-if="!isAddRow && inArray(tableHeader.field, ['name','user_link'])"
+            <input  v-else-if="inArray(tableHeader.field, ['name','user_link'])"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit()"
                     @change="updateValue()"
@@ -148,8 +144,11 @@ export default {
         },
         computed: {
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 obj.textAlignt = this.tableHeader.f_type === 'Boolean' || this.tableHeader.field === 'hash' ? 'center' : '';
+                if (this.tableHeader.field === 'side_left_menu') {
+                    obj.backgroundColor = '#DDD';
+                }
                 return obj;
             },
         },
@@ -161,11 +160,12 @@ export default {
                 return this.editing
                     && this.globalMeta._is_owner
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields)
-                    && !this.inArray(this.tableHeader.field, ['side_left_menu','side_left_filter','user_link'])
+                    && !this.inArray(this.tableHeader.field, ['user_link','side_left_menu'])
                     && !this.$root.global_no_edit;
             },
             showEdit() {
-                if (this.isAddRow || this.inArray(this.tableHeader.f_type, ['Boolean'])) {
+                let newRow = this.isAddRow && this.tableHeader.field !== 'name';
+                if (newRow || this.inArray(this.tableHeader.f_type, ['Boolean'])) {
                     return;
                 }
                 //edit cell
@@ -199,7 +199,7 @@ export default {
                 else {
                     res = this.tableRow[this.tableHeader.field];
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             updateCheckedDDL(item) {
                 this.tableRow[this.tableHeader.field] = item;
@@ -212,7 +212,7 @@ export default {
             },
             getLink() {
                 return this.$root.clear_url
-                    +'/view/'
+                    +'/folderview/'
                     + (this.tableRow.user_link ? this.tableRow.hash+'/'+this.globalMeta.name+'/'+this.tableRow.user_link : this.tableRow.hash);
             },
             checkedTables() {

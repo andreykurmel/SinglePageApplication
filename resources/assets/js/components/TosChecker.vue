@@ -39,7 +39,7 @@
                 axios.post('/ajax/user/tos-accepted').then(({ data }) => {
                     this.$root.user.tos_accepted = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             }
         }

@@ -1,64 +1,62 @@
 <template>
-    <div class="top-panel flex flex--center-v">
-        <button v-if="!!$root.user.id && cur_found_model && cur_found_model._id && !cur_found_model._virtual_mr && !vuex_settings._app_cur_view"
-                class="btn btn-primary btn-sm blue-gradient ps-absolute"
-                @click="showAppViews()"
-                :style="$root.themeButtonStyle">Views</button>
+    <div class="top-panel">
+        <div class="flex flex--center-v full-height">
+            <button v-if="!!$root.user.id && cur_found_model && cur_found_model._id && !cur_found_model._virtual_mr && !vuex_settings._app_cur_view"
+                    class="btn btn-primary btn-sm blue-gradient ps-absolute"
+                    @click="showAppViews()"
+                    :style="$root.themeButtonStyle">Views</button>
 
-        <!--FEEDBACK PART-->
-        <feedback-block v-if="vuex_settings._app_cur_view" class="ps-absolute"></feedback-block>
+            <!--FEEDBACK PART-->
+            <feedback-block v-if="vuex_settings._app_cur_view" class="ps-absolute"></feedback-block>
 
-        <!--MODEL SEARCH-->
-        <template v-for="(stims,tab) in vuex_settings.tabs" v-if="tab">
-            <template v-for="(group,select) in stims" v-if="group.master_table && vuex_found_models[group.master_table] && vuex_links[group.master_table]">
-                <div v-show="vuex_cur_tab === tab && vuex_cur_select === select" class="flex flex--center-v">
-                    <wid-search-model
-                            class="m-left"
-                            :is_visible="vuex_cur_tab === tab && vuex_cur_select === select"
-                            :found_model="vuex_found_models[group.master_table]"
-                            :stim_link_params="vuex_links[group.master_table]"
-                            :tab_object="group"
-                            :is_disabled="!!vuex_settings._app_cur_view"
-                            @set-found-model="localSetFoundModel"
-                    ></wid-search-model>
-
-                    <!--SELECTS-->
-                    <img v-if="getLogoSrc(group.master_table)" class="img_selector" :src="getLogoSrc(group.master_table)"/>
-                    <select v-else=""
-                            v-show="selects_show && vuex_cur_tab === tab && vuex_cur_select === select"
-                            class="form-control view_selector"
-                            v-model="vuex_select"
-                    >
-                        <option v-for="(tab_object,vert_k) in avail_selects"
-                                v-if="!vuex_settings._app_cur_view || vuex_settings._app_cur_view.v_select === vert_k"
-                                :value="vert_k">{{ tab_object.init_select }}</option>
-                    </select>
-
-                </div>
-            </template>
-        </template>
-
-        <!--TABS-->
-        <ul class="nav nav-tabs flex flex--col m-left">
-            <li
-                v-for="(stims,tab) in vuex_settings.tabs"
-                v-if="tab && (!vuex_settings._app_cur_view || vuex_settings._app_cur_view.v_tab === tab)"
-                :class="[vuex_cur_tab === tab ? 'active' : '']"
+            <!--TABS-->
+            <select class="form-control tabs_selector"
+                    :value="vuex_cur_tab"
+                    @change="tabSelectorInput"
             >
-                <a href="javascript:void(0)"
-                   class="nav-item"
-                   :class="[vuex_cur_tab === tab ? 'btn btn-default btn-sm blue-gradient' : '']"
-                   :style="vuex_cur_tab === tab ? $root.themeButtonStyle : null"
-                   @click="localSetCurTab(tab)"
-                >{{ getStimsTab(stims) }}</a>
-            </li>
-        </ul>
+                <option v-for="(stims,tab) in vuex_settings.tabs"
+                        v-if="tab && (!vuex_settings._app_cur_view || vuex_settings._app_cur_view.v_tab === tab)"
+                        :value="tab"
+                >{{ getStimsTab(stims) }}</option>
+            </select>
 
-        <!--VIEWS-->
-        <app-views-popup :cur_tab="vuex_cur_tab" :cur_sel="vuex_cur_select" :found_row="cur_found_model"></app-views-popup>
+            <!--MODEL SEARCH-->
+            <template v-for="(stims,tab) in vuex_settings.tabs" v-if="tab">
+                <template v-for="(group,select) in stims" v-if="group.master_table && vuex_found_models[group.master_table] && vuex_links[group.master_table]">
+                    <div v-show="vuex_cur_tab === tab && vuex_cur_select === select" class="flex flex--center-v" style="flex-grow: 1;">
+                        <!--SELECTS-->
+                        <img v-if="getLogoSrc(group.master_table)" class="img_selector" :src="getLogoSrc(group.master_table)"/>
+                        <select v-else=""
+                                v-show="selects_show && vuex_cur_tab === tab && vuex_cur_select === select"
+                                class="form-control view_selector"
+                                v-model="vuex_select"
+                        >
+                            <option v-for="(tab_object,vert_k) in avail_selects"
+                                    v-if="!vuex_settings._app_cur_view || vuex_settings._app_cur_view.v_select === vert_k"
+                                    :value="vert_k">{{ tab_object.init_select }}</option>
+                        </select>
 
-        <!--VIEW REQUEST EMAIL-->
-        <views-email-request-popup></views-email-request-popup>
+                        <!--MODEL SEARCH-->
+                        <wid-search-model
+                                style="min-width: 385px"
+                                class="m-left"
+                                :is_visible="vuex_cur_tab === tab && vuex_cur_select === select"
+                                :found_model="vuex_found_models[group.master_table]"
+                                :stim_link_params="vuex_links[group.master_table]"
+                                :tab_object="group"
+                                :is_disabled="!!vuex_settings._app_cur_view"
+                                @set-found-model="localSetFoundModel"
+                        ></wid-search-model>
+                    </div>
+                </template>
+            </template>
+
+            <!--VIEWS-->
+            <app-views-popup :cur_tab="vuex_cur_tab" :cur_sel="vuex_cur_select" :found_row="cur_found_model"></app-views-popup>
+
+            <!--VIEW REQUEST EMAIL-->
+            <views-email-request-popup></views-email-request-popup>
+        </div>
     </div>
 </template>
 
@@ -125,6 +123,10 @@
             ...mapActions([
                 'SET_SELECTED_VIEW', 'SET_SELECTED_MODEL_ROW'
             ]),
+            tabSelectorInput(e) {
+                let tab = e && e.target ? e.target.value : '';
+                this.localSetCurTab(tab);
+            },
             getStimsTab(stims) {
                 let tab_object;
                 for (let i in stims) {
@@ -150,7 +152,7 @@
                 let repfld = this.vuex_links[master].logo_replace_field;
                 let row = this.vuex_found_models[master].masterRow();
                 let img = repfld && row ? _.first(row['_images_for_'+repfld] || []) : '';
-                return img ? this.$root.fileUrl(img) : '';
+                return img ? this.$root.fileUrl(img, 'sm') : '';
             },
         },
         mounted() {
@@ -166,13 +168,14 @@
         left: 200px;
         height: 85px;
         z-index: 1000;
+        width: calc(60% - 200px);
 
         .ps-absolute {
             position: absolute;
         }
 
         .m-left {
-            margin-left: 125px;
+            margin-left: 20px;
         }
 
         .nav-tabs {
@@ -200,23 +203,34 @@
             }
         }
 
-        .view_selector {
-            width: 130px;
+        .tabs_selector {
+            margin-left: 75px;
+            width: 100px;
             padding: 6px;
-            margin-left: 40px;
+            flex-grow: 1;
+        }
+        .view_selector {
+            width: 100px;
+            padding: 6px;
+            margin-left: 20px;
+            flex-grow: 1;
         }
         .img_selector {
             max-height: 75px;
             max-width: 130px;
             padding: 6px;
-            margin-left: 40px;
+            margin-left: 20px;
         }
     }
 
     @media (max-width: 1440px) {
         .top-panel {
             left: 130px;
+            width: calc(60% - 130px);
 
+            .tabs_selector {
+                margin-left: 15px;
+            }
             .nav-tabs {
                 right: 30%;
             }

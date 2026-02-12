@@ -3,7 +3,7 @@
         <div class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="full-height col-xs-6" :style="{paddingRight: 0, width: '40%'}">
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span v-if="is_popup_type">Group Type: {{ activeLeftTab === 'rows' ? 'Rows' : 'Columns' }}</span>
                     <span v-else="">Define Row and Column Groups</span>
                 </div>
@@ -38,7 +38,7 @@
                                 :cell-height="1"
                                 :max-cell-rows="0"
                                 :is-full-width="true"
-                                :behavior="'data_sets'"
+                                :behavior="'data_sets_rows'"
                                 :user="user"
                                 :adding-row="addingRow"
                                 :selected-row="selectedRowGroup"
@@ -49,6 +49,7 @@
                                 @updated-row="updateRowGroup"
                                 @delete-row="deleteRowGroup"
                                 @row-index-clicked="rowIndexClickedRowGroup"
+                                @show-src-record="showLinkedRows"
                             ></custom-table>
                         </div>
 
@@ -64,7 +65,7 @@
                                 :cell-height="1"
                                 :max-cell-rows="0"
                                 :is-full-width="true"
-                                :behavior="'data_sets'"
+                                :behavior="'data_sets_colgroups'"
                                 :user="user"
                                 :adding-row="addingRow"
                                 :selected-row="selectedColGroup"
@@ -75,6 +76,7 @@
                                 @updated-row="updateColGroup"
                                 @delete-row="deleteColGroup"
                                 @row-index-clicked="rowIndexClickedColGroup"
+                                @show-src-record="showLinkedRows"
                             ></custom-table>
                         </div>
 
@@ -89,33 +91,43 @@
                 <div v-show="activeLeftTab === 'rows' && $root.checkAvailable(user, 'group_rows')"
                      class="full-height"
                 >
-                    <div class="top-text" :style="textSysStyle">
-                        <span v-if="!tableMeta._row_groups[selectedRowGroup]">You should select RowGroup</span>
-                        <span v-else="">Row Group: <span>{{ tableMeta._row_groups[selectedRowGroup].name || '' }}</span></span>
+                    <div class="top-text flex flex--space" :style="textSysStyleSmart">
+                        <div v-if="!selRowGroup">You should select RowGroup</div>
+                        <div v-else="" class="flex flex--center-v no-wrap">
+                            Row Group:&nbsp;
+                            <select-block
+                                :options="rowGroupOpts()"
+                                :sel_value="selRowGroup.id"
+                                :style="{ width:'250px', height:'28px', }"
+                                @option-select="rowGroupChanged"
+                            ></select-block>
+                        </div>
 
                         <info-sign-link
-                                class="right-elem"
-                                :app_sett_key="'help_link_settings_data_sets'"
-                                :hgt="26"
+                            class="right-elem"
+                            :app_sett_key="'help_link_settings_data_sets'"
+                            :hgt="18"
+                            :txt="'for Settings/Row Groups'"
                         ></info-sign-link>
                     </div>
                     <div class="permissions-panel no-padding" :class="[selectedRowGroup > -1 ? 'inherit-bg' : '']">
                         <div class="full-frame flex flex--col flex--space">
 
-                            <div class="full-frame data-set-panel-sm">
+                            <div class="full-frame data-set-panel-sm pt5">
                                 <vertical-table
-                                        v-if="tableMeta._row_groups[selectedRowGroup]"
+                                        v-if="selRowGroup"
                                         class="spaced-table__fix"
                                         :td="'custom-cell-col-row-group'"
                                         :global-meta="tableMeta"
                                         :table-meta="settingsMeta['table_row_groups']"
                                         :settings-meta="settingsMeta"
-                                        :table-row="tableMeta._row_groups[selectedRowGroup]"
+                                        :table-row="selRowGroup"
                                         :user="user"
                                         :cell-height="1"
                                         :max-cell-rows="0"
                                         :behavior="'data_sets'"
-                                        :available-columns="['row_ref_condition_id']"
+                                        :with_edit="!selRowGroup.is_system"
+                                        :available-columns="['row_ref_condition_id','preview_col_id','description']"
                                         :widths="{name: '35%', col: '65%', history: 0, no_margins: true}"
                                         @show-add-ref-cond="showAddRefCond"
                                         @updated-cell="updateRowGroup"
@@ -123,11 +135,12 @@
                             </div>
 
                             <div class="field-loader-wrapper">
-                                <div class="field-loader" v-if="tableMeta && tableMeta._row_groups[selectedRowGroup]">
-                                    <label>Listing field:</label>
+                                <div class="field-loader" v-if="tableMeta && selRowGroup">
+                                    <label  :style="textSysStyleSmart">Listing field:</label>
                                     <select class="form-control field-selector"
-                                            v-model="tableMeta._row_groups[selectedRowGroup].listing_field"
-                                            @change="updateRowGroup(tableMeta._row_groups[selectedRowGroup])"
+                                            :disabled="!!selRowGroup.is_system"
+                                            v-model="selRowGroup.listing_field"
+                                            @change="updateRowGroup(selRowGroup)"
                                     >
                                         <option v-for="tableHeader in tableMeta._fields" :value="tableHeader.field">{{ tableHeader.name }}</option>
                                     </select>
@@ -136,15 +149,15 @@
 
                             <div class="full-frame data-set-panel-lg">
                                 <custom-table
-                                        v-if="tableMeta._row_groups[selectedRowGroup]"
+                                        v-if="selRowGroup"
                                         :cell_component_name="'custom-cell-col-row-group'"
                                         :global-meta="tableMeta"
                                         :table-meta="settingsMeta['table_row_group_regulars']"
-                                        :all-rows="tableMeta._row_groups[selectedRowGroup].listing_field
-                                            ? tableMeta._row_groups[selectedRowGroup]._regulars
+                                        :all-rows="selRowGroup.listing_field
+                                            ? selRowGroup._regulars
                                             : null"
-                                        :rows-count="tableMeta._row_groups[selectedRowGroup].listing_field
-                                            ? tableMeta._row_groups[selectedRowGroup]._regulars.length
+                                        :rows-count="selRowGroup.listing_field
+                                            ? selRowGroup._regulars.length
                                             : 0"
                                         :cell-height="1"
                                         :max-cell-rows="0"
@@ -152,9 +165,10 @@
                                         :user="user"
                                         :behavior="'data_sets_items'"
                                         :forbidden-columns="$root.systemFields"
-                                        :parent-row="tableMeta._row_groups[selectedRowGroup]"
+                                        :parent-row="selRowGroup"
                                         :headers-changer="regularsHeadersChanger"
                                         :use_theme="true"
+                                        :with_edit="!selRowGroup.is_system"
                                         @added-row="addRowGroupRegular"
                                         @updated-row="updateRowGroupRegular"
                                         @delete-row="deleteRowGroupRegular"
@@ -168,8 +182,24 @@
                 <div v-show="activeLeftTab === 'columns' && $root.checkAvailable(user, 'group_columns')"
                      class="full-height"
                 >
-                    <div class="top-text" :style="textSysStyle">
-                        <span>Columns for Group: <span>{{ (tableMeta._column_groups[selectedColGroup] ? tableMeta._column_groups[selectedColGroup].name : '') }}</span></span>
+                    <div class="top-text flex flex--space" :style="textSysStyleSmart">
+                        <div v-if="!selColGroup">You should select ColGroup</div>
+                        <div v-else="" class="flex flex--center-v no-wrap">
+                            Columns for Group:&nbsp;
+                            <select-block
+                                :options="colGroupOpts()"
+                                :sel_value="selColGroup.id"
+                                :style="{ width:'250px', height:'28px', }"
+                                @option-select="colGroupChanged"
+                            ></select-block>
+                        </div>
+
+                        <info-sign-link
+                            class="right-elem"
+                            :app_sett_key="'help_link_settings_data_sets_columns'"
+                            :hgt="18"
+                            :txt="'for Settings/Col Groups'"
+                        ></info-sign-link>
                     </div>
                     <div class="permissions-panel">
                         <custom-table
@@ -184,7 +214,7 @@
                                 :is-full-width="true"
                                 :user="user"
                                 :behavior="'data_sets_columns'"
-                                :condition-array="tableMeta._column_groups[selectedColGroup] ? tableMeta._column_groups[selectedColGroup]._fields : null"
+                                :condition-array="selColGroup ? selColGroup._fields : null"
                                 :headers-with-check="headersWithCheck"
                                 :forbidden-columns="$root.systemFields"
                                 :use_theme="true"
@@ -206,15 +236,15 @@
     import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
     import CustomTable from '../../../../CustomTable/CustomTable';
-    import VerticalTable from '../../../../CustomTable/VerticalTable';
     import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink";
+    import SelectBlock from "../../../../CommonBlocks/SelectBlock.vue";
 
     export default {
         name: "TableGroupingSettings",
         components: {
+            SelectBlock,
             InfoSignLink,
             CustomTable,
-            VerticalTable
         },
         mixins: [
             CellStyleMixin,
@@ -240,7 +270,13 @@
                 return {
                     'field_value': (vl ? this.$root.uniqName(vl.name) : '')
                 };
-            }
+            },
+            selRowGroup() {
+                return this.tableMeta._row_groups[this.selectedRowGroup];
+            },
+            selColGroup() {
+                return this.tableMeta._column_groups[this.selectedColGroup];
+            },
         },
         props:{
             tableMeta: Object,
@@ -248,7 +284,7 @@
             table_id: Number|null,
             user: Object,
             is_popup_type: String,
-            foreign_sel_id: Number,
+            foreign_sel_id: Number|String,
         },
         watch: {
             table_id: function(val) {
@@ -274,6 +310,26 @@
             rowIndexClickedColGroup(index) {
                 this.selectedColGroup = index;
             },
+            rowGroupOpts() {
+                return _.map(this.tableMeta._row_groups, (item) => {
+                    return { val:item.id, show:item.name };
+                });
+            },
+            colGroupOpts() {
+                return _.map(this.tableMeta._column_groups, (item) => {
+                    return { val:item.id, show:item.name };
+                });
+            },
+            rowGroupChanged(opt) {
+                this.rowIndexClickedRowGroup(
+                    _.findIndex(this.tableMeta._row_groups, {id: Number(opt.val)})
+                );
+            },
+            colGroupChanged(opt) {
+                this.rowIndexClickedColGroup(
+                    _.findIndex(this.tableMeta._column_groups, {id: Number(opt.val)})
+                );
+            },
 
             //Row Group Functions
             addRowGroup(tableRow) {
@@ -287,13 +343,20 @@
                     fields: fields,
                 }).then(({ data }) => {
                     this.tableMeta._row_groups.push( data );
+                    RefCondHelper.setUses(this.tableMeta);
+
                     eventBus.$emit('reload-page');
                     this.selectedRowGroup = this.tableMeta._row_groups.length-1;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
+            },
+            eventCreateRowGroup(table_id, tableRow) {
+                if (this.tableMeta.id == table_id) {
+                    this.addRowGroup(tableRow);
+                }
             },
             eventUpdateRowGroup(table_id, tableRow) {
                 if (this.tableMeta.id == table_id) {
@@ -317,7 +380,7 @@
                     }
                     eventBus.$emit('reload-page');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -345,7 +408,8 @@
                     str = str.replace(/, $/, '.');
                 }
                 Swal({
-                    title: 'Confirm to delete the RowGroup? '+str,
+                    title: 'Info',
+                    text: 'Confirm to delete the RowGroup? '+str,
                     confirmButtonClass: 'btn-danger',
                     confirmButtonText: 'Yes',
                     showCancelButton: true,
@@ -386,7 +450,7 @@
                     }
                     RefCondHelper.setUses(this.tableMeta);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -406,7 +470,7 @@
                     this.tableMeta._row_groups[this.selectedRowGroup]._regulars.push( data );
                     eventBus.$emit('reload-page');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -428,7 +492,7 @@
                     }
                     eventBus.$emit('reload-page');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -446,7 +510,7 @@
                     }
                     eventBus.$emit('reload-page');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -468,7 +532,7 @@
                     this.tableMeta._column_groups.push( data );
                     this.selectedColGroup = this.tableMeta._column_groups.length-1;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -485,7 +549,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -513,7 +577,8 @@
                     str = str.replace(/, $/, '.');
                 }
                 Swal({
-                    title: 'Confirm to delete the ColGroup? '+str,
+                    title: 'Info',
+                    text: 'Confirm to delete the ColGroup? '+str,
                     confirmButtonClass: 'btn-danger',
                     confirmButtonText: 'Yes',
                     showCancelButton: true,
@@ -551,7 +616,7 @@
                         });
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -559,39 +624,51 @@
 
             //Col Group field Functions
             toggleFieldForColGroup(field, status, ids) {
+                let colGroup = this.tableMeta._column_groups[this.selectedColGroup];
                 this.$root.sm_msg_type = 1;
                 if (status) {
                     axios.post('/ajax/column-group/field', {
-                        table_column_group_id: this.tableMeta._column_groups[this.selectedColGroup].id,
+                        table_column_group_id: colGroup.id,
                         table_field_ids: ids
                     }).then(({ data }) => {
                         _.each(data, (el) => {
                             this.tableMeta._column_groups[this.selectedColGroup]._fields.push(el);
                         });
+                        if (this.tableMeta._groupings && _.find(this.tableMeta._groupings, {rg_colgroup_id: Number(colGroup.id)})) {
+                            eventBus.$emit('reload-meta-table');
+                        }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 } else {
                     axios.delete('/ajax/column-group/field', {
                         params: {
-                            table_column_group_id: this.tableMeta._column_groups[this.selectedColGroup].id,
+                            table_column_group_id: colGroup.id,
                             table_field_ids: ids
                         }
                     }).then(({ data }) => {
                         _.each(ids, (id) => {
-                            let idx = _.findIndex(this.tableMeta._column_groups[this.selectedColGroup]._fields, {id: Number(id)});
+                            let idx = _.findIndex(colGroup._fields, {id: Number(id)});
                             if (idx > -1) {
                                 this.tableMeta._column_groups[this.selectedColGroup]._fields.splice(idx, 1);
                             }
                         });
+                        if (this.tableMeta._groupings && _.find(this.tableMeta._groupings, {rg_colgroup_id: Number(colGroup.id)})) {
+                            eventBus.$emit('reload-meta-table');
+                        }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 }
+            },
+
+            //Linked Rows
+            showLinkedRows(lnk, header, tableRow, behavior) {
+                this.$emit('show-src-record', lnk, header, tableRow, behavior);
             },
 
             //EMITS
@@ -628,11 +705,13 @@
                 }
             }
 
+            eventBus.$on('event-create-row-group', this.eventCreateRowGroup);
             eventBus.$on('event-update-row-group', this.eventUpdateRowGroup);
             eventBus.$on('clear-selected-settings-groups', this.clearSelected);
             eventBus.$on('empty-sel', this.clearSelected);
         },
         beforeDestroy() {
+            eventBus.$off('event-create-row-group', this.eventCreateRowGroup);
             eventBus.$off('event-update-row-group', this.eventUpdateRowGroup);
             eventBus.$off('clear-selected-settings-groups', this.clearSelected);
             eventBus.$off('empty-sel', this.clearSelected);

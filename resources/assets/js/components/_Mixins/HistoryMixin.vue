@@ -5,6 +5,7 @@
 export default {
     data: function () {
         return {
+            duplicator: null,
             total_histories: 0,
             histories: [],
             field_history: [],
@@ -12,6 +13,9 @@ export default {
         }
     },
     methods: {
+        histUpdated() {
+            this.$emit('hist-updated');
+        },
         delHistory(hist) {
             $.LoadingOverlay('show');
             axios.delete('/ajax/history', {
@@ -23,8 +27,9 @@ export default {
                 if (idx > -1) {
                     this.field_history.splice(idx, 1);
                 }
+                this.histUpdated();
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             }).finally(() => {
                 $.LoadingOverlay('hide');
             });
@@ -42,9 +47,10 @@ export default {
                 this.$nextTick(() => {
                     this.field_history = data.history;
                     this.current_history = data.current;
+                    this.duplicator = null;
                 });
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             }).finally(() => {
                 $.LoadingOverlay('hide');
             });
@@ -66,9 +72,10 @@ export default {
                         this.histories = data.histories;
                     }
                     this.total_histories = data.count;
+                    this.duplicator = null;
                 });
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             }).finally(() => {
                 $.LoadingOverlay('hide');
             });

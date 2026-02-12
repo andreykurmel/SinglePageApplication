@@ -2,7 +2,7 @@
     <div class="folders-wrapper full-width">
 
         <nav class="navbar navbar-default" role="navigation">
-            <div class="container-fluid nav-inner">
+            <div class="flex">
                 <div class="nav flex flex--center flex--automargin pull-left">
                     <div>
                         <a @click.prevent="showTree()">
@@ -22,9 +22,18 @@
                         <a @click.prevent="activeTab = 'import'">Import</a>
                     </div>
                 </div>
+                <div class="flex__elem-remain">
+                    <div
+                        v-if="$root.user && $root.user.view_all"
+                        class="flex flex--center"
+                        style="font-size: 18px;top: 5px;position: relative;"
+                    >{{ $root.user.view_all.name }}</div>
+                </div>
                 <div class="nav flex flex--center flex--automargin pull-right">
                     <div>
-                        <a @click.prevent="showNote()"><span class="glyphicon" :class="[ $root.isRightMenu ? 'glyphicon-triangle-right': 'glyphicon-triangle-left']"></span></a>
+                        <a @click.prevent="showNote()">
+                            <span class="glyphicon" :class="[ $root.isRightMenu ? 'glyphicon-triangle-right': 'glyphicon-triangle-left']"></span>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -32,14 +41,16 @@
         <div class="tabs-wrapper" v-if="folderMeta">
             <!--BASICS TAB-->
             <div class="basics-tab full-frame" v-show="activeTab === 'basics'">
-                <div class="form-group">
-                    <label>Name: </label>
+                <div class="form-group flex flex--center-v">
+                    <label class="no-margin">Name:&nbsp;</label>
                     <input class="form-control input-200" v-model="folderMeta.name" @change="renameFolder()"/>
+                    <label class="no-margin">&nbsp;&nbsp;&nbsp;Description:&nbsp;</label>
+                    <input class="form-control" v-model="folderMeta.description" @change="updateFolder()"/>
                 </div>
                 <div class="form-group">
                     <label>Icon: </label>
                     <template v-if="folderMeta.icon_path">
-                        <img :src="$root.fileUrl({url:folderMeta.icon_path})" class="preview-img"/>
+                        <img :src="$root.fileUrl({url:folderMeta.icon_path}, 'md')" class="preview-img"/>
                         <button class="btn btn-danger" @click="deleteIcon()">
                             <span class="glyphicon glyphicon-remove"></span>
                         </button>
@@ -49,10 +60,20 @@
                     </button>
                     <input class="form-control hidden" type="file" ref="upload_file" @change="uploadIcon()"/>
                 </div>
+                <div v-if="canPanel" class="form-group flex flex--center-v">
+                    <label class="no-margin">Is Accordion Panel (applied to all folders on the level):</label>
+                    <label class="switch_t" style="margin: 0 10px;">
+                        <input type="checkbox"
+                               v-model="folderMeta.menutree_accordion_panel"
+                               @click="updateToggle('menutree_accordion_panel')">
+                        <span class="toggler round"></span>
+                    </label>
+                </div>
             </div>
             <!--PERMISSIONS TAB-->
             <div class="full-frame" v-if="activeTab === 'permissions' && folderMeta">
                 <folder-permissions
+                    v-if="settingsMeta.is_loaded"
                     :folder-meta="folderMeta"
                     :settings-meta="settingsMeta"
                 ></folder-permissions>
@@ -98,6 +119,13 @@
             folder_id: Number|null,
             settingsMeta: Object,
         },
+        computed: {
+            canPanel() {
+                return this.folderMeta
+                    && this.folderMeta.structure === 'public'
+                    && this.$root.user.is_admin;
+            },
+        },
         watch: {
             folder_id: function(val) {
                 this.activeTab = 'basics';
@@ -131,12 +159,12 @@
 
                     console.log('FolderSettings', this.folderMeta, 'size about: ', JSON.stringify(this.folderMeta).length);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
             renameFolder() {
                 if (this.folderMeta.name) {
-                    this.folderMeta.name = this.folderMeta.name.replace(/[^\w\d\.-_ ]/gi, '');
+                    this.folderMeta.name = this.$root.safeName(this.folderMeta.name);
                     $.LoadingOverlay('show');
                     axios.put('/ajax/folder', {
                         folder_id: this.folderMeta.id,
@@ -151,11 +179,35 @@
                         window.history.pushState(this.folderMeta.name, this.folderMeta.name, path);
                         this.oldFolderName = this.folderMeta.name;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
                 }
+            },
+            updateFolder(reload) {
+                $.LoadingOverlay('show');
+                axios.put('/ajax/folder', {
+                    folder_id: this.folderMeta.id,
+                    fields: {
+                        description: this.folderMeta.description,
+                        menutree_accordion_panel: this.folderMeta.menutree_accordion_panel,
+                    }
+                }).then(data => {
+                    if (reload) {
+                        window.setTimeout(() => {
+                            eventBus.$emit('event-reload-menu-tree');
+                        }, 100);
+                    }
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            updateToggle(key) {
+                this.folderMeta[key] = this.folderMeta[key] ? 0 : 1;
+                this.updateFolder(true);
             },
             uploadIcon() {
                 let data = new FormData();
@@ -172,18 +224,18 @@
                     }).then(({ data }) => {
                         this.folderMeta.icon_path = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
                 } else {
-                    Swal('No file', '', 'info');
+                    Swal('Info','No file');
                 }
             },
             deleteIcon(col, idx) {
                 Swal({
-                    title: 'Delete Icon',
-                    text: 'Are you sure?',
+                    title: 'Info',
+                    text: 'Delete Icon. Are you sure?',
                     showCancelButton: true,
                 }).then((result) => {
                     if (result.value) {
@@ -195,7 +247,7 @@
                         }).then(({ data }) => {
                             this.folderMeta.icon_path = '';
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });

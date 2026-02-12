@@ -5,7 +5,11 @@
          :style="{cursor: isDisabled ? 'not-allowed' : 'pointer'}"
     >
         <span @click="menu_opened = !menu_opened && !isDisabled"><></span>
-        <div v-show="menu_opened" class="embed_button_menu" :class="[isFixed ? 'fixed-pos' : '']">
+        <div v-show="menu_opened"
+             class="embed_button_menu"
+             :class="[isFixed ? 'fixed-pos' : '']"
+             :style="popupStyle"
+        >
             <label>Use the following code for embedding the {{ (isDcr ? 'form' : 'view') }} on your site.</label>
             <div class="embed_code" @click="copyCode()">
                 {{ embed_code }}
@@ -39,6 +43,7 @@
             isFolder: Boolean,
             isDcr: Boolean,
             isFixed: Boolean,
+            popupStyle: Object,
         },
         methods: {
             copyCode() {

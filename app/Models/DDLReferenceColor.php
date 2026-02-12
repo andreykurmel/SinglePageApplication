@@ -14,7 +14,9 @@ use Vanguard\User;
  * @property int $id
  * @property int $ddl_reference_id
  * @property string $ref_value
+ * @property string|null $image_ref_path
  * @property string|null $color
+ * @property int|null $max_selections
  * @property-read \Vanguard\Models\DDLReference $_ddl_reference
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDLReferenceColor newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDLReferenceColor newQuery()
@@ -34,7 +36,9 @@ class DDLReferenceColor extends Model
     protected $fillable = [
         'ddl_reference_id',
         'ref_value',
+        'image_ref_path',
         'color',
+        'max_selections',
     ];
 
 

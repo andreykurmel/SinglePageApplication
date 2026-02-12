@@ -14,9 +14,9 @@
         >DV</button>
         <!-- Request tables -->
 
-        <div v-else="" class="td-wrapper" :style="getTdWrappStyle">
+        <div v-else="" class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
 
                     <!-- View / Edit Checkbox -->
@@ -30,6 +30,15 @@
                             <i v-if="tableRow[tableHeader.field]" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
+
+                    <!-- Folder/Share: Status, Is App - Checkbox -->
+                    <label class="switch_t"
+                           v-else-if="inArray(tableHeader.field, ['is_f_active','is_f_apps'])"
+                           :style="{height: Math.min(maxCellHGT, 17)+'px'}"
+                    >
+                        <input type="checkbox" :disabled="!(with_edit && hasCheckedTables && !tableRow.is_system)" v-model="tableRow[tableHeader.field]" @change="updateValue()">
+                        <span class="toggler round" :class="[with_edit && hasCheckedTables && !tableRow.is_system ? '' : 'disabled']"></span>
+                    </label>
 
                     <label class="switch_t"
                            v-else-if="tableHeader.f_type === 'Boolean'"
@@ -174,9 +183,15 @@ export default {
             },
         },
         computed: {
+            hasCheckedTables() {
+                return this.tableRow._checked_tables && this.tableRow._checked_tables.length;
+            },
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 obj.textAlign = this.inArray(this.tableHeader.field, ['view','edit','delete','_dv']) ? 'center' : '';
+                if (!this.isAddRow && this.behavior === 'folder_permission_group' && !this.hasCheckedTables) {
+                    obj.backgroundColor = '#DFD';
+                }
                 return obj;
             },
             disabledPermis() {
@@ -187,6 +202,7 @@ export default {
                 return this.with_edit
                     && this.globalMeta._is_owner
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields)
+                    && (this.behavior !== 'folder_permission_group' || !this.tableRow.is_system);
             },
         },
         methods: {
@@ -272,6 +288,7 @@ export default {
                 else
                 if (this.inArray(this.tableHeader.field, ['user_group_id'])) {
                     let group = _.find(this.user._user_groups, {id: Number(this.tableRow.user_group_id)});
+                    group = group || _.find(this.user._sys_user_groups, {id: Number(this.tableRow.user_group_id)});
                     res = group ? group.name : this.tableRow.user_group_id;
                 }
                 else
@@ -283,7 +300,7 @@ export default {
                     res = this.tableRow[this.tableHeader.field];
                 }
 
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             showGroupsPopup(type, id) {
                 eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, type, id);

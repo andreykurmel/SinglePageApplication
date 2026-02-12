@@ -47,6 +47,11 @@ window.addEventListener("load", function(event) {
                 eventBus.$emit('global-click', e);
             });
         },
+        mounted() {
+            if (document.getElementById('birthday')) {
+                $('#birthday').datepicker();
+            }
+        }
     });
 
 });

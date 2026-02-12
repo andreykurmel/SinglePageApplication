@@ -9,7 +9,7 @@ export class PaymentFunctions {
             selected_card: Number(user.selected_card) || null,
         }).then(({ data }) => {
         }).catch(errors => {
-            Swal('', getErrors(errors));
+            Swal('Info', getErrors(errors));
         });
     }
 

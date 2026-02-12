@@ -311,7 +311,8 @@ return [
     'if_you_cant_click' => 'If you’re having trouble clicking the ":button" button, copy and 
     paste the URL below into your web browser:',
     'thank_you_for_registering' => 'Thank you for registering with us.',
-    'confirm_email_on_link_below' => 'Please confirm your registration by clicking on the link below:',
+    'confirm_email_on_link_below' => '<br>Please confirm your registration by clicking the link below:',
+    'confirm_email_on_link_below_warning' => 'You\'ve not confirmed your registration.<br>If you don\'t confirm your registration within 7 days, your registration will be removed on :warning. <br>After removal, you may register again.<br>Please confirm your registration by clicking the link below asap:',
     'confirm_email' => 'Confirm',
     'new_user_registration' => 'New User Registration',
     'unconfirmed_user' => 'Unconfirmed',

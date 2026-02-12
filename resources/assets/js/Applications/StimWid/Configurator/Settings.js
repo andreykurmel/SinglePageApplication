@@ -14,7 +14,7 @@ export class Settings {
         this._pos = [new Pos()];
 
         //specials
-        this.reverse_draw = false;
+        this.draw_type = 'front';
         this.add_new = false;
     }
 
@@ -43,13 +43,19 @@ export class Settings {
         this.g_rest_he = Number(obj.g_rest_he) || 0;
         this.g_bot_he = Number(obj.g_bot_he) || 0;
 
-        this.elev_by = obj.elev_by === 'g' ? 'g' : 'pd'; // ['g','pd']
+        this.elev_by = obj.elev_by === 'pd' ? 'pd' : 'gc'; // ['gc','pd']
         this.show_eqpt_size = Boolean(obj.show_eqpt_size);
         this.show_eqpt_model = Boolean(obj.show_eqpt_model);
         this.show_eqpt_tech = Boolean(obj.show_eqpt_tech);
         this.show_eqpt_id = Boolean(obj.show_eqpt_id);
         this.show_line_model = Boolean(obj.show_line_model);
         this.show_eqpt_tooltip = Boolean(obj.show_eqpt_tooltip);
+        this.show_eqpt_azimuths = Boolean(obj.show_eqpt_azimuths);
+        this.show_elev_lib_lines = Boolean(obj.show_elev_lib_lines);
+
+        this.show_eqpt_azimuth__font = obj.show_eqpt_azimuth__font;
+        this.show_eqpt_azimuth__size = Number(obj.show_eqpt_azimuth__size) || 9;
+        this.show_eqpt_azimuth__color = obj.show_eqpt_azimuth__color;
 
         this.show_eqpt_size__font = obj.show_eqpt_size__font;
         this.show_eqpt_size__size = Number(obj.show_eqpt_size__size) || 9;
@@ -95,10 +101,31 @@ export class Settings {
 
     /**
      *
+     * @returns {string}
+     */
+    draw_type_title() {
+        switch (this.draw_type) {
+            case 'rear': return 'Back View';
+            case 'side': return 'Side View';
+            case 'front': return 'Front View';
+            default: return '';
+        }
+    }
+
+    /**
+     *
      * @returns {boolean}
      */
     is_eqpt_rev() {
-        return this.reverse_draw;
+        return this.draw_type === 'rear';
+    }
+
+    /**
+     *
+     * @returns {boolean}
+     */
+    use_eqpt_width() {
+        return this.draw_type !== 'side';
     }
 
     /**
@@ -106,7 +133,7 @@ export class Settings {
      * @returns {boolean}
      */
     is_full_rev() {
-        return this.reverse_draw && this.full_reflection;
+        return this.draw_type === 'rear' && this.full_reflection;
     }
 
     /**
@@ -114,7 +141,7 @@ export class Settings {
      * @returns {boolean}
      */
     is_rev_no_full() {
-        return this.reverse_draw && !this.full_reflection;
+        return this.draw_type === 'rear' && !this.full_reflection;
     }
 
     /**
@@ -135,9 +162,19 @@ export class Settings {
 
     /**
      *
+     * @param {String} key
+     * @param val
+     */
+    setHeVal(key, val) {
+        key = this.heVal(key, true);
+        this[key] = val;
+    }
+
+    /**
+     *
      * @param key
      * @param only_key
-     * @returns {*}
+     * @returns {String|Number}
      */
     heVal(key, only_key) {
         switch (key) {
@@ -150,7 +187,7 @@ export class Settings {
             case 'bot_he': key = this.elev_by === 'pd' ? 'pd_bot_he' : 'g_bot_he';
                 break;
         }
-        return only_key ? key : this[key];
+        return only_key ? key : Number(this[key]);
     }
 
     /**
@@ -161,9 +198,8 @@ export class Settings {
     eqptMaxWidth(eqpt) {
         let sector = _.find(this._sectors, {sector: eqpt.sector});
         let p_i = _.findIndex(this._pos, {name: eqpt.pos});
-        let ws = String(sector ? sector.pos_widths : '').split(',');
-        return to_float(ws[p_i])
-            || _.sumBy(ws, (el) => { return to_float(el); })
+        return to_float(sector && sector._widths_array[p_i] ? sector._widths_array[p_i].wi : 0)
+            || _.sumBy(sector ? sector._widths_array : [], (el) => { return to_float(el.wi); })
             || this.calcSectorPosOffset(sector ? sector._idx : +Infinity, p_i);
     }
 
@@ -213,6 +249,14 @@ export class Settings {
             this.sel_secpos = null;
         }
 
+        if (exclude !== 'elev') {
+            this.sel_elev = null;
+        }
+
+        if (exclude !== 'azimuth') {
+            this.sel_azimuth = null;
+        }
+
         this.sel_eqpt_id = null;
         this.sel_port_pos = null;
         this.sel_port_idx = null;
@@ -253,10 +297,10 @@ export class Settings {
     /**
      *
      * @param {Eqpt} eqpt
-     * @param {Event} event
+     * @param {boolean} ctrl
      */
-    selEqpt(eqpt, event) {
-        this.clearSel(event && event.ctrlKey ? 'eqpt' : '');//save or not prev selected Eqpts
+    selEqpt(eqpt, ctrl) {
+        this.clearSel(ctrl ? 'eqpt' : '');//save or not prev selected Eqpts
         this.mass_eqpt.push(eqpt);
     }
 
@@ -315,6 +359,24 @@ export class Settings {
 
     /**
      *
+     * @param elev
+     */
+    selElev(elev) {
+        this.clearSel();
+        this.sel_elev = elev;
+    }
+
+    /**
+     *
+     * @param azimuth
+     */
+    selAzimuth(azimuth) {
+        this.clearSel();
+        this.sel_azimuth = azimuth;
+    }
+
+    /**
+     *
      * @param eqpt_id
      * @param pos
      * @param idx
@@ -334,7 +396,7 @@ export class Settings {
                 app_table: this._app_tb,
                 model: this,
             }).catch(errors => {
-                Swal('', getErrors(errors));
+                Swal('Info', getErrors(errors));
             });
         }
     }
@@ -364,13 +426,12 @@ export class Settings {
         let left_off = 0;
         _.each(sectrs, (sec,i) => {
             if (i < s_idx) { //sum all up to current sector
-                let ws = String(sec.pos_widths).split(',');
-                _.each(ws, (el) => {
-                    left_off += Math.round(to_float(el) * (px_in_ft || 1));
+                _.each(sec._widths_array, (el) => {
+                    left_off += Math.round(to_float(el.wi) * (px_in_ft || 1));
                 });
             }
             if (i == s_idx) { //sum all up to current position
-                let ws = String(sec.pos_widths).split(',');
+                let ws = sec._widths_array;
 
                 if (p_idx > -1 && p_idx < Infinity && this.is_rev_no_full()) {
                     p_idx = Math.abs( p_idx - (ws.length-1) );
@@ -378,7 +439,7 @@ export class Settings {
                 }
                 _.each(ws, (el, pi) => {
                     left_off += pi < p_idx
-                        ? Math.round(to_float(el) * (px_in_ft || 1))
+                        ? Math.round(to_float(el.wi) * (px_in_ft || 1))
                         : 0;
                 });
             }
@@ -405,9 +466,8 @@ export class Settings {
             //sectors
             let cur_wi = 0;
             _.each(this._sectors, (sec,si) => {
-                let ws = String(sec.pos_widths).split(',');
-                _.each(ws, (pw,pi) => {
-                    cur_wi += to_float(pw);
+                _.each(sec._widths_array, (el,pi) => {
+                    cur_wi += to_float(el.wi);
                     if (!sector && !pos && coord_x < cur_wi) {
                         sector = this._sectors[si];
                         pos = this._pos[pi];
@@ -443,10 +503,10 @@ export class Settings {
      * @returns {number}
      */
     sectorWi(sec, pos, px_in_ft) {
-        let ws = sec ? String(sec.pos_widths).split(',') : [];
+        let ws = sec ? sec._widths_array : [];
         let p_idx = pos ? _.findIndex(this._pos, {_id: pos._id}) : -1;
         return sec
-            ? ( p_idx > -1 ? ws[p_idx] * px_in_ft : _.sumBy(ws, (i) => to_float(i)) * px_in_ft )
+            ? ( ws[p_idx] ? ws[p_idx].wi * px_in_ft : _.sumBy(ws, (el) => to_float(el.wi)) * px_in_ft )
             : this.calcSectorPosOffset(Infinity, Infinity, px_in_ft);
     }
 
@@ -501,10 +561,17 @@ export class Settings {
      */
     convLeftEqpt(eqpt) {
         let left = 0;
-        if (this.is_rev_no_full()) {
+
+        if (this.is_rev_no_full() && eqpt.is_top()) {
             let wi = this.eqptMaxWidth(eqpt);
-            left += to_float( wi - eqpt.pos_left*2 - eqpt.calc_dx );
+            left += to_float( wi - eqpt.posLeft(this)*2 - eqpt.get_wi(this) );
         }
+
+        if (this.is_full_rev() && ! eqpt.is_top()) {
+            let wi = this.eqptMaxWidth(eqpt);
+            left += to_float( wi - eqpt.posLeft(this)*2 - eqpt.get_wi(this) );
+        }
+
         return left;
     }
 

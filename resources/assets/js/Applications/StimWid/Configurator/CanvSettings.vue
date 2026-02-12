@@ -21,6 +21,44 @@
                             </tr>
 
                             <tr>
+                                <td><b>Eqpt/AZMs</b></td>
+                                <td class="td--center">
+                                    <span class="indeterm_check__wrap">
+                                        <span class="indeterm_check" @click="settings.show_eqpt_azimuths = !settings.show_eqpt_azimuths;saveOnBknd()">
+                                            <i v-if="settings.show_eqpt_azimuths" class="glyphicon glyphicon-ok group__icon"></i>
+                                        </span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <select class="form-control"
+                                            :disabled="!settings.show_eqpt_azimuths"
+                                            v-model="settings.show_eqpt_azimuth__font"
+                                            @change="saveOnBknd()"
+                                    >
+                                        <option>Cursive</option>
+                                        <option>Monospace</option>
+                                        <option>Serif</option>
+                                        <option>Sans-Serif</option>
+                                    </select>
+                                </td>
+                                <td class="td--center">
+                                    <input type="number"
+                                           class="form-control"
+                                           :disabled="!settings.show_eqpt_azimuths"
+                                           v-model="settings.show_eqpt_azimuth__size"
+                                           @change="saveOnBknd()"/>
+                                </td>
+                                <td>
+                                    <tablda-colopicker
+                                            :init_color="settings.show_eqpt_azimuth__color"
+                                            :can_edit="settings.show_eqpt_azimuths"
+                                            :avail_null="true"
+                                            @set-color="(clr) => {settings.show_eqpt_azimuth__color = clr; saveOnBknd()}"
+                                    ></tablda-colopicker>
+                                </td>
+                            </tr>
+
+                            <tr>
                                 <td><b>Eqpt/ID</b></td>
                                 <td class="td--center">
                                     <span class="indeterm_check__wrap">
@@ -209,18 +247,6 @@
                                 </td>
                             </tr>
                         </table>
-                    </td>
-                </tr>
-                <tr>
-                    <td><label>Elevation By:</label></td>
-                    <td>
-                        <select class="form-control"
-                                v-model="settings.elev_by"
-                                @change="redrSignal()"
-                        >
-                            <option value="pd">PD Center</option>
-                            <option value="g">G Center</option>
-                        </select>
                     </td>
                 </tr>
                 <tr>

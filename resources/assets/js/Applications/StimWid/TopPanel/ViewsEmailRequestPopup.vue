@@ -53,8 +53,6 @@
     import PopupAnimationMixin from './../../../components/_Mixins/PopupAnimationMixin';
     import CellStyleMixin from "../../../components/_Mixins/CellStyleMixin";
 
-    import FormulaHelper from "../../../components/CustomCell/InCell/FormulaHelper";
-
     export default {
         name: "ViewsEmailRequestPopup",
         mixins: [
@@ -62,7 +60,6 @@
             CellStyleMixin,
         ],
         components: {
-            FormulaHelper
         },
         data: function () {
             return {
@@ -81,13 +78,13 @@
             hide() {
                 this.selected_feedback = null;
                 this.show_this = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
             showViewEmailRequestHandler(selected_feedback) {
                 this.selected_feedback = selected_feedback;
                 this.show_this = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             },
@@ -101,7 +98,7 @@
                     fields: fields,
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });

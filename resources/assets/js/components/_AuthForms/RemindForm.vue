@@ -12,7 +12,11 @@
                 </div>
 
                 <div class="form-group">
-                    <button type="submit" class="btn btn-success btn-lg btn-block" id="btn-reset-password">
+                    <button type="submit"
+                            class="btn btn-success btn-lg btn-block"
+                            id="btn-reset-password"
+                            @click="(e) => $root.protectFormSubmitByCaptha(e, 'remind-password-form')"
+                    >
                         Reset Password
                     </button>
                     <a href="javascript:void(0)" @click="$emit('show_login')" class="btn btn-default btn-lg btn-block">

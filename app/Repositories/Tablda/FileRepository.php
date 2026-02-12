@@ -2,6 +2,9 @@
 
 namespace Vanguard\Repositories\Tablda;
 
+use Exception;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -9,6 +12,7 @@ use Ramsey\Uuid\Uuid;
 use Vanguard\Classes\TabldaFile;
 use Vanguard\Models\DDLItem;
 use Vanguard\Models\File;
+use Vanguard\Models\RemoteFile;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Services\Tablda\HelperService;
@@ -17,14 +21,25 @@ use Vanguard\Services\Tablda\TableDataService;
 class FileRepository
 {
     /**
-     * @var HelperService
+     * @var string[]
      */
-    protected $service;
-
+    public static $img_or_video_extensions = ['jpg', 'jpeg', 'gif', 'png', 'svg', 'webp', 'jfif', 'tiff', 'bmp', 'mp4', 'ogg', 'webm'];
     /**
      * @var string[]
      */
     public static $img_extensions = ['jpg', 'jpeg', 'gif', 'png', 'svg', 'webp', 'jfif', 'tiff', 'bmp'];
+    /**
+     * @var string[]
+     */
+    public static $video_extensions = ['mp4', 'ogg', 'webm'];
+    /**
+     * @var string[]
+     */
+    public static $audio_extensions = ['mp3', 'ogg', 'wav'];
+    /**
+     * @var HelperService
+     */
+    protected $service;
 
     /**
      * FileRepository constructor.
@@ -67,7 +82,7 @@ class FileRepository
     public function getStorageTable(Table $table, bool $no_id = false)
     {
         $part = $no_id ? '' : $table->id . '_';
-        return $part . preg_replace('/[^\w\d]/i', '_', $table->name);
+        return $part . preg_replace('/[^\w\d]/i', '_', $table->initial_name);
     }
 
     /**
@@ -84,7 +99,7 @@ class FileRepository
         } else {
             File::insert($newarr);
         }
-        return File::where('filehash', '=', $newarr['filehash'])->first();
+        return $this->getByHash($newarr['filehash']);
     }
 
     /**
@@ -104,7 +119,7 @@ class FileRepository
 
     /**
      * @param $filehash
-     * @return mixed
+     * @return File|null
      */
     public function getByHash($filehash)
     {
@@ -134,13 +149,16 @@ class FileRepository
      * @param $rows_ids
      * @return mixed
      */
-    public function getPathsForRows(int $table_id, int $header_id, $rows_ids): Collection
+    public function getPathsForRows(int $table_id, int $header_id, $rows_ids = []): Collection
     {
-        $files = File::where('table_id', '=', $table_id)
-            ->where('table_field_id', '=', $header_id)
-            ->whereIn('row_id', $rows_ids)
-            ->select(['id', 'row_id', 'filepath', 'filename'])
-            ->get();
+        $sql = File::where('table_id', '=', $table_id)
+            ->where('table_field_id', '=', $header_id);
+
+        if ($rows_ids) {
+            $sql->whereIn('row_id', $rows_ids);
+        }
+
+        $files = $sql->select(['id', 'row_id', 'filepath', 'filename'])->get();
 
         foreach ($files as $file) {
             $file->fullpath = $file->filepath . $file->filename;
@@ -153,7 +171,7 @@ class FileRepository
      * @param array $data
      * @param UploadedFile $upload_file
      * @return string|null
-     * @throws \Exception
+     * @throws Exception
      */
     public function saveInTemp(array $data, UploadedFile $upload_file)
     {
@@ -172,9 +190,9 @@ class FileRepository
 
     /**
      * @param array $data
-     * @param \Illuminate\Http\UploadedFile|\Vanguard\Classes\TabldaFile|null $upload_file
+     * @param UploadedFile|TabldaFile|null $upload_file
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
     protected function checkFile(array $data, $upload_file = null)
     {
@@ -190,14 +208,16 @@ class FileRepository
                     Storage::delete('public/' . $fl->filepath . $fl->filename);
                 }
             }
-            File::where('table_id', '=', $data['table_id'])
-                ->where('table_field_id', '=', $data['table_field_id'])
-                ->where('row_id', '=', $data['row_id'])
-                ->delete();
+            $this->delSql($data['table_id'], $data['table_field_id'], [$data['row_id']]);
         }
         if (!$upload_file && empty($data['file_link'])) {
             return false;
         }
+
+        if (!empty($data['replace_file_id'])) {
+            $this->delSql($data['table_id'], null, null, $data['replace_file_id']);
+        }
+
         return true;
     }
 
@@ -207,7 +227,7 @@ class FileRepository
      * @param int $row_id
      * @param string $filename
      * @param string $content
-     * @return mixed
+     * @return File|RemoteFile|null
      */
     public function insertFileAlias(int $table_id, int $col_id, int $row_id, string $filename, string $content)
     {
@@ -222,24 +242,6 @@ class FileRepository
     }
 
     /**
-     * @param int $table_id
-     * @param int $col_id
-     * @param int $row_id
-     * @param string $file_link
-     * @return mixed|null
-     */
-    public function insertFileLink(int $table_id, int $col_id, int $row_id, string $file_link)
-    {
-        $file_data = [
-            'table_id' => $table_id,
-            'table_field_id' => $col_id,
-            'row_id' => $row_id,
-            'file_link' => $file_link,
-        ];
-        return $this->insertFile($file_data);
-    }
-
-    /**
      * Insert file into the user`s table row.
      *
      * @param array $data - example:
@@ -250,8 +252,8 @@ class FileRepository
      *  -file_link: 'http://some_url/file.jpg'
      *  -clear_before: false
      * ]
-     * @param \Illuminate\Http\UploadedFile|\Vanguard\Classes\TabldaFile|null $upload_file - //file data from request//
-     * @return mixed
+     * @param UploadedFile|TabldaFile|null $upload_file - //file data from request//
+     * @return File|RemoteFile|null
      */
     public function insertFile(array $data, $upload_file = null)
     {
@@ -274,47 +276,55 @@ class FileRepository
         }
 
         $file_link_content = '';
-        $flNewName = preg_replace('/[^\w\d\(\)\.]/i', '_', $data['file_new_name'] ?? '');
-        $fname = pathinfo($flNewName, PATHINFO_FILENAME);
-        $ext = pathinfo($flNewName, PATHINFO_EXTENSION);
         if (!empty($data['file_link'])) {
             $fileName = explode('/', preg_replace('/\?.*/i', '', $data['file_link']));
-            $fileName = preg_replace('/[^\w\d\(\)\.]/i', '_', last($fileName));
-            $fname = $fname ?: pathinfo($fileName, PATHINFO_FILENAME);
-            $ext = $ext ?: pathinfo($fileName, PATHINFO_EXTENSION);
+            $fileName = preg_replace('/[^\w\d\(\)\. ]/i', '_', last($fileName));
             $file_link_content = file_get_contents($data['file_link']);
-            Storage::put('public/' . $filePath . '/' . $fname . '.' . $ext, $file_link_content);
         } else {
-            $fileName = preg_replace('/[^\w\d\(\)\.]/i', '_', $upload_file->getClientOriginalName());
-            $fname = $fname ?: pathinfo($fileName, PATHINFO_FILENAME);
-            $ext = $ext ?: pathinfo($fileName, PATHINFO_EXTENSION);
-            $upload_file->storeAs('public/' . $filePath, $fname . '.' . $ext);
+            $fileName = preg_replace('/[^\w\d\(\)\. ]/i', '_', $upload_file->getClientOriginalName());
+            $file_link_content = $upload_file->get();
+        }
+
+        $flNewName = preg_replace('/[^\w\d\(\)\. ]/i', '_', $data['file_new_name'] ?? '');
+        $fname = pathinfo($flNewName ?: $fileName, PATHINFO_FILENAME);
+        $ext = pathinfo($flNewName ?: $fileName, PATHINFO_EXTENSION);
+        $fullName = $fname . ($ext ? '.' . $ext : '');
+
+        $file->filepath = $filePath;
+        $file->filename = $fullName;
+        $file->is_img = (in_array(strtolower($ext), self::$img_or_video_extensions) ? 1 : 0);
+        $file->is_video = (in_array(strtolower($ext), self::$video_extensions) ? 1 : 0);
+        $file->is_audio = (in_array(strtolower($ext), self::$audio_extensions) ? 1 : 0);
+
+        $remote_file = null;
+        $remote = new RemoteFilesRepository();
+        if ($shared_link = $remote->hasConnectedCloud($file)) {//Save to Cloud
+            $remote_file = $remote->uploadToFirstCloud($file, $shared_link, $file_link_content);
+        }
+        if (!$remote_file) {//Save to Server
+            $file->filesize = strlen($file_link_content);
+            Storage::put('public/' . $filePath . '/' . $fullName, $file_link_content);
+            $file = $this->storeFile($file->toArray());
         }
 
         (new TableDataRepository())->saveToCellLastFilePath($data, $filePath . $fileName);
-
-        $file->filesize = $upload_file ? $upload_file->getSize() : strlen($file_link_content);
-        $file->filepath = $filePath;
-        $file->filename = $fname . '.' . $ext;
-        $file->is_img = (in_array(strtolower($ext), self::$img_extensions) ? 1 : 0);
-        $file = $this->storeFile($file->toArray());
 
         if ($data['table_id'] && floatval($data['row_id']) > 0 && is_numeric($data['row_id'])) {
             (new TableDataService())->rowInTableChanged($data['table_id'], $data['row_id']);
         }
 
-        return $file;
+        return $remote_file ?: $file;
     }
 
     /**
      * @param array $data
-     * @param \Illuminate\Http\UploadedFile|\Vanguard\Classes\TabldaFile|null $upload_file
-     * @throws \Exception
+     * @param UploadedFile|TabldaFile|null $upload_file
+     * @throws Exception
      */
     public function fileAllowToFormat(array $data, $file = null)
     {
         $field = (new TableFieldRepository())->getField($data['table_field_id']);
-        if ($field->f_format) {
+        if ($field && $field->f_format) {
             $extension = pathinfo($file ? $file->getClientOriginalName() : $data['file_link'], PATHINFO_EXTENSION);
             $size = $file ? $file->getSize() : strlen(file_get_contents($data['file_link']));
 
@@ -322,42 +332,75 @@ class FileRepository
             $format_size = intval(explode('-', $field->f_format)[1] ?? '');
 
             if ($format_ext && !in_array($extension, explode(',', $format_ext))) {
-                throw new \Exception('The file format '.$extension.' is not allowed for uploading!', 1);
+                throw new Exception('The file format ' . $extension . ' is not allowed for uploading!', 1);
             }
 
-            if ($format_size && $size > $format_size*1024*1024) {
-                throw new \Exception('The size of the file exceeds the set limit '.$format_size.'Mb!', 1);
+            if ($format_size && $size > $format_size * 1024 * 1024) {
+                throw new Exception('The size of the file exceeds the set limit ' . $format_size . 'Mb!', 1);
             }
         }
     }
 
     /**
      * @param int $table_id
-     * @param array $rows_correspondence : [from_id => to_id]
+     * @param int $col_id
+     * @param int $row_id
+     * @param string $file_link
+     * @return File|RemoteFile|null
      */
-    public function copyAttachForRows(int $table_id, array $rows_correspondence)
+    public function insertFileLink(int $table_id, int $col_id, int $row_id, string $file_link)
+    {
+        $file_data = [
+            'table_id' => $table_id,
+            'table_field_id' => $col_id,
+            'row_id' => $row_id,
+            'file_link' => $file_link,
+        ];
+        return $this->insertFile($file_data);
+    }
+
+    /**
+     * @param Table $table_from
+     * @param Table $table_to
+     * @param array $rows_correspondence : [from_id => to_id]
+     * @param array $fields_correspondence : [from_id => to_id]
+     */
+    public function copyAttachForRows(Table $table_from, Table $table_to, array $rows_correspondence, array $fields_correspondence = [])
     {
         $dataRepo = new TableDataRepository();
 
+        $from_fields = $table_from->_fields()->select(['id','field'])->get();
+        $to_fields = $table_to->_fields()->select(['id','field'])->get();
+
+        $files = File::where('table_id', '=', $table_from->id)
+            ->whereIn('row_id', array_keys($rows_correspondence))
+            ->get();
+
         foreach ($rows_correspondence as $from_row_id => $to_row_id) {
+            $filesPart = $files->where('row_id', '=', $from_row_id);
+            foreach ($filesPart as $i => $fl) {
+                if (!$fields_correspondence || !empty($fields_correspondence[$fl->table_field_id])) {
+                    $new_fl = $fl->toArray();
+                    $new_fl['id'] = null;
+                    $new_fl['table_field_id'] = $fields_correspondence[$fl->table_field_id] ?? $fl->table_field_id;
+                    $new_fl['table_id'] = $table_to->id;
+                    $new_fl['row_id'] = $to_row_id;
 
-            $files = File::where('table_id', '=', $table_id)
-                ->where('row_id', '=', $from_row_id)
-                ->get()
-                ->toArray();
-
-            foreach ($files as $i => $fl) {
-                $new_fl = $fl;
-                $new_fl['id'] = null;
-                $new_fl['row_id'] = $to_row_id;
-                $new_fl['filepath'] = preg_replace('#/' . $from_row_id . '/#', '/' . $to_row_id . '/', $fl['filepath']);
-                //copy file
-                $this->storageCopy($fl, $new_fl);
-                //copy record about file
-                $this->storeFile($new_fl);
-                //if last
-                if ($i == count($files) - 1) {
-                    $dataRepo->saveToCellLastFilePath($new_fl, $new_fl['filepath'] . $new_fl['filename']);
+                    $from_col = $from_fields->where('id', '=', $fl->table_field_id)->first();
+                    $to_col = $to_fields->where('id', '=', $new_fl['table_field_id'])->first();
+                    $new_fl['filepath'] = preg_replace(
+                        '#'.$this->getStorageTable($table_from).'/' . $from_row_id . '/'.$from_col->field.'#',
+                        $this->getStorageTable($table_to).'/' . $to_row_id . '/'.$to_col->field,
+                        $fl->filepath
+                    );
+                    //copy file
+                    $this->storageCopy($fl->toArray(), $new_fl);
+                    //copy record about file
+                    $this->storeFile($new_fl);
+                    //if last
+                    if ($i == ($filesPart->count() - 1)) {
+                        $dataRepo->saveToCellLastFilePath($new_fl, $new_fl['filepath'] . $new_fl['filename']);
+                    }
                 }
             }
         }
@@ -374,7 +417,7 @@ class FileRepository
                 'public/' . $from['filepath'] . $from['filename'],
                 'public/' . $to['filepath'] . $to['filename']
             );
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
         }
     }
 
@@ -391,17 +434,18 @@ class FileRepository
      */
     public function updateFile($data)
     {
-        $fileObj = File::where('id', '=', $data['id'])->first();
+        $fileObj = $this->get($data['id']);
         if (($data['filename'] ?? '') != $fileObj->filename) {
-            $flNewName = preg_replace('/[^\w\d\(\)\.]/i', '_', $data['filename']);
+            $flNewName = preg_replace('/[^\w\d\(\)\. ]/i', '_', $data['filename']);
             $fname = pathinfo($flNewName, PATHINFO_FILENAME);
             $ext = pathinfo($flNewName, PATHINFO_EXTENSION);
             $fname = $fname ?: pathinfo($fileObj->filename, PATHINFO_FILENAME);
             $ext = $ext ?: pathinfo($fileObj->filename, PATHINFO_EXTENSION);
+            $fullName = $fname . ($ext ? '.' . $ext : '');
 
             $path = 'public/' . $fileObj->filepath . '/';
-            Storage::move($path . $fileObj->filename, $path . $fname . '.' . $ext);
-            $fileObj->update(array_merge(['filename' => $fname . '.' . $ext], $this->service->getModified()));
+            Storage::move($path . $fileObj->filename, $path . $fullName);
+            $fileObj->update(array_merge(['filename' => $fullName], $this->service->getModified()));
         }
         if ($data['notes'] ?? '') {
             $fileObj->update(array_merge(['notes' => $data['notes']], $this->service->getModified()));
@@ -411,19 +455,42 @@ class FileRepository
     }
 
     /**
-     * Delete file from user`s table row.
-     *
-     * @param $data - array, example:
-     * [
-     *  id: 15,
-     *  table_id: 2,
-     *  table_field_id: 47
-     * ]
-     * @return mixed
+     * @param int $id
+     * @return File|null
      */
-    public function deleteFile($data)
+    public function get(int $id)
     {
-        $fileObj = File::where('id', '=', $data['id'])->first();
+        return File::where('id', '=', $id)->first();
+    }
+
+    /**
+     * @param int $file_id
+     * @return RemoteFile|null
+     * @throws FileNotFoundException
+     */
+    public function moveToCloud(int $file_id)
+    {
+        $file = $this->get($file_id);
+        $remote_file = null;
+        $remote = new RemoteFilesRepository();
+        if ($shared_link = $remote->hasConnectedCloud($file)) {//Save to Cloud
+            $file_link_content = Storage::get('public/' . $file->filepath . $file->filename);
+            $remote_file = $remote->uploadToFirstCloud($file, $shared_link, $file_link_content);
+            if ($remote_file) {
+                $this->deleteFile($file_id);
+            }
+        }
+        return $remote_file;
+    }
+
+    /**
+     * @param int $file_id
+     * @return bool
+     * @throws Exception
+     */
+    public function deleteFile(int $file_id)
+    {
+        $fileObj = $this->get($file_id);
         if ($fileObj) {
 
             $res = File::where('id', '=', $fileObj->id)->delete();
@@ -433,7 +500,7 @@ class FileRepository
 
             (new TableDataRepository())->saveToCellLastFilePath($fileObj->toArray(), '');
 
-            return $res;
+            return !!$res;
         }
         return false;
     }
@@ -500,15 +567,56 @@ class FileRepository
     }
 
     /**
+     * @param int $table_id
+     * @param int|null $field_id
+     * @param array|null $row_ids
+     * @param int|null $direct_id
+     * @return mixed
+     */
+    protected function delSql(int $table_id, int $field_id = null, array $row_ids = null, int $direct_id = null)
+    {
+        return $this->getSql($table_id, $field_id, $row_ids, $direct_id)->delete();
+    }
+
+    /**
+     * @param int $table_id
+     * @param int|null $field_id
+     * @param array|null $row_ids
+     * @param int|null $direct_id
+     * @return Builder
+     */
+    public function getSql(int $table_id, int $field_id = null, array $row_ids = null, int $direct_id = null): Builder
+    {
+        $sql = File::query()->where('table_id', '=', $table_id);
+        if ($field_id) {
+            $sql->where('table_field_id', '=', $field_id);
+        }
+        if ($row_ids) {
+            $sql->whereIn('row_id', $row_ids);
+        }
+        if ($direct_id) {
+            $sql->where('id', '=', $direct_id);
+        }
+        return $sql;
+    }
+
+    /**
      * @param Table $table
      * @param array $row_ids
+     * @param string $columnField
+     * @return void
      */
-    public function deleteFilesForRow(Table $table, array $row_ids)
+    public function deleteFilesForRow(Table $table, array $row_ids, string $columnField = '')
     {
         foreach ($row_ids as $rid) {
             $path = storage_path('app/public/') . $this->getStorageTable($table) . '/' . $rid;
+            if ($columnField) {
+                $path .= '/' . $columnField;
+            }
             \File::deleteDirectory($path);
         }
+        $fldid = $table->_fields->where('field', '=', $columnField)->first();
+        $this->delSql($table->id, $fldid ? $fldid->id : null, $row_ids);
     }
 
     /**
@@ -520,6 +628,7 @@ class FileRepository
     {
         $path = storage_path('app/public/') . $this->getStorageTable($table);
         \File::deleteDirectory($path);
+        $this->delSql($table->id);
     }
 
     /**
@@ -527,7 +636,7 @@ class FileRepository
      *
      * @param Table $table
      * @param string $field
-     * @throws \Exception
+     * @throws Exception
      */
     public function deleteAttachmentsOfColumn(Table $table, string $field)
     {
@@ -547,9 +656,7 @@ class FileRepository
                 \File::deleteDirectory($path);
             }
 
-            File::where('table_id', '=', $table->id)
-                ->where('table_field_id', '=', $column->id)
-                ->delete();
+            $this->delSql($table->id, $column->id);
         }
     }
 

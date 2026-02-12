@@ -4,9 +4,9 @@
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
 
                     <span v-if="tableHeader.field === 'is_edit_added' && tableRow._link" class="indeterm_check__wrap checkbox-input">
@@ -27,9 +27,21 @@
         <!-- ABSOLUTE EDITINGS -->
         <div v-if="isEditing()" class="cell-editing">
 
+            <!--User SubGroups-->
+            <tablda-select-simple
+                    v-if="tableHeader.field === 'subgroup_id'"
+                    :options="getSubgroups()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
             <!--User Group Conditions-->
             <tablda-select-simple
-                    v-if="tableHeader.field === 'user_field'"
+                    v-else-if="tableHeader.field === 'user_field'"
                     :options="usr_fields"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
@@ -134,10 +146,11 @@ export default {
             maxCellRows: Number,
             isAddRow: Boolean,
             user: Object,
+            parentRow: Object,
         },
         computed: {
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 let effect_fld = ['logic_operator'].indexOf(this.tableHeader.field) > -1;
                 obj.backgroundColor = (this.canCellEdit || !effect_fld ? 'initial' : '#C7C7C7');
                 return obj;
@@ -150,6 +163,14 @@ export default {
             },
         },
         methods: {
+            getSubgroups() {
+                let userGroups = _.filter(this.$root.user._user_groups, (group) => {
+                    return ! group._subgroups.length && this.parentRow && this.parentRow.id != group.id;
+                });
+                return _.map(userGroups, (group) => {
+                    return { val: group.id, show: group.name };
+                });
+            },
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
             },
@@ -201,6 +222,11 @@ export default {
                     res = 'Auto'
                 }
                 else
+                if (this.tableHeader.field === 'subgroup_id' && this.tableRow.subgroup_id) {
+                    let obj = _.find(this.getSubgroups(), {val: this.tableRow.subgroup_id});
+                    res = obj ? obj.show : this.tableRow.subgroup_id;
+                }
+                else
                 if (this.tableHeader.field === 'user_field' && this.tableRow.user_field) {
                     let obj = _.find(this.usr_fields, {val: this.tableRow.user_field});
                     res = obj ? obj.show : this.tableRow.user_field;
@@ -219,7 +245,7 @@ export default {
                     res = this.tableRow[this.tableHeader.field];
                 }
 
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
         },
         mounted() {

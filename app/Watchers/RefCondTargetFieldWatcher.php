@@ -2,14 +2,12 @@
 
 namespace Vanguard\Watchers;
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
-use Vanguard\Models\Table\Table;
-use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 
 class RefCondTargetFieldWatcher
 {
+    use UpdateFormulaTrait;
+
     protected $processed_tables = [];
 
     /**
@@ -30,18 +28,7 @@ class RefCondTargetFieldWatcher
                 $this->processed_tables[] = $ref->table_id;
 
                 $table = $ref->_table;
-                if ($table && $table->_fields_are_formula) {
-                    $dataQuery = new TableDataQuery($table);
-
-                    $fields_for_update = [];
-                    foreach ($table->_fields_are_formula as $header) {
-                        $fld = $dataQuery->getSqlFld($header->field . '_formula');
-                        $fields_for_update[$fld] = DB::raw('REPLACE(' . $fld . ', "\"' . $old_name . '\"", "\"' . $new_name . '\"")');
-                    }
-                    if ($fields_for_update) {
-                        $dataQuery->getQuery()->update($fields_for_update);
-                    }
-                }
+                $this->updTableFormulas($table, '\"' . $old_name . '\"', '\"' . $new_name . '\"');
 
             }
         }

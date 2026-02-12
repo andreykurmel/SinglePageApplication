@@ -1,31 +1,78 @@
 <template>
     <td @click="showEdit()" class="td-sum" :style="sumCellStyle">
 
-        <div v-if="calcHeaderFunc" class="flex flex--center">
-            <b class="elipsis">{{ calcRowsResult(tableHeader) }}</b>
-        </div>
+        <template v-if="overviewStyle">
+            <!-- Row Groups -->
+            <div v-if="calcHeaderFunc" class="txt--center">
+                <div v-if="tableHeader.field === '_of_name'" class="flex flex--center">
+                    <b>Row Group:</b>
+                </div>
+                <a v-else-if="tableHeader._cf_row_group_id"
+                   title="Open row group in popup."
+                   :style="{color: rowGroupIsApplied ? null : '#222'}"
+                   @click.stop="showGroupsPopup('row', tableHeader._cf_row_group_id)"
+                >
+                    {{ getRowGroupName() }}
+                </a>
+            </div>
+            <!-- Column Groups -->
+            <div v-else="" class="txt--center">
+                <div v-if="tableHeader.field === '_of_name'" class="flex flex--center">
+                    <b>Column Group:</b>
+                </div>
+                <a v-else-if="tableHeader._cf_col_group_id"
+                   title="Open column group in popup."
+                   @click.stop="showGroupsPopup('col', tableHeader._cf_col_group_id)"
+                >
+                    {{ getColumnGroupName() }}
+                </a>
+            </div>
+        </template>
 
-        <div v-else="" class="flex flex--center">
-            <select
+        <template v-else>
+            <div v-if="calcHeaderFunc" class="flex flex--col flex--center">
+                <div v-for="reslt in calcRowsResult()">
+                    <b class="elipsis">{{ reslt }}</b>
+                </div>
+            </div>
+
+            <template v-else="">
+                <tablda-select-simple
                     v-if="editing"
-                    v-model="tableHeader.default_stats"
-                    ref="inline_input"
-                    @blur="hideEdit()"
-                    class="form-control cell-input">
-                <option></option>
-                <option v-for="frm in $root.availRowSumFormulas" :value="frm">{{ String(frm).toUpperCase() }}</option>
-            </select>
+                    :fld_input_type="'M-Select'"
+                    :options="availRowSumFormulas()"
+                    :table-row="groupFunctions"
+                    :hdr_field="tableHeader.field"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+                ></tablda-select-simple>
 
-            <b class="elipsis" v-else="">{{ showVal(tableHeader.default_stats) }}</b>
-        </div>
+                <div v-else-if="!editing" v-for="func in showVal()">
+                    <b class="elipsis txt--center">{{ func }}</b>
+                </div>
+            </template>
+        </template>
     </td>
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
+    import {UnitConversion} from "../../classes/UnitConversion";
+
     import CellStyleMixin from "./../_Mixins/CellStyleMixin.vue";
+
+    import TabldaSelectSimple from "../CustomCell/Selects/TabldaSelectSimple";
+
+    import {eventBus} from "../../app";
 
     export default {
         name: "RowsSumCellBlock",
+        components: {
+            TabldaSelectSimple,
+        },
         mixins: [
             CellStyleMixin,
         ],
@@ -34,10 +81,14 @@
                 editing: false,
             };
         },
-        props:{
+        props: {
+            tableMeta: Object,
+            groupFunctions: Object,
             tableHeader: Object,
             calcHeaderFunc: Boolean,
             allRows: Array,
+            behavior: String,
+            special_extras: Object,
         },
         computed: {
             sumCellStyle() {
@@ -45,33 +96,72 @@
                 style.width = this.tdCellWidth(this.tableHeader)+'px';
                 return style;
             },
+            funcArray() {
+                return this.groupFunctions[this.tableHeader.field] || [];
+            },
+            overviewStyle() {
+                return this.behavior === 'cond_format_overview';
+            },
+            rowGroupIsApplied() {
+                return !this.special_extras.direct_row || this.testRow(this.special_extras.direct_row, this.tableHeader._cf_id)
+            },
         },
         methods: {
-            // MAIN FUNC
-            calcRowsResult(header) {
-                let def_stat = String(header.default_stats).toLowerCase();
-                if (!def_stat) {
-                    return '';
-                }
-
-                let result;
-                if (!this.allRows.length) {
-                    result = NaN;
+            getRowGroupName() {
+                let row_gr = _.find(this.tableMeta._row_groups, {id: Number(this.tableHeader._cf_row_group_id)})
+                    || _.find(this.tableMeta._gen_row_groups, {id: Number(this.tableHeader._cf_row_group_id)});
+                return row_gr ? row_gr.name : '';
+            },
+            getColumnGroupName() {
+                let col_gr = _.find(this.tableMeta._column_groups, {id: Number(this.tableHeader._cf_col_group_id)});
+                return col_gr ? col_gr.name : '';
+            },
+            showGroupsPopup(type, id) {
+                eventBus.$emit('show-grouping-settings-popup', this.tableMeta.db_name, type, id);
+            },
+            availRowSumFormulas() {
+                return _.map(this.$root.availRowSumFormulas, (frm) => {
+                    return { val: frm, show: String(frm).toUpperCase(), }
+                });
+            },
+            updateCheckedDDL(item) {
+                if (this.funcArray.indexOf(item) > -1) {
+                    this.groupFunctions[this.tableHeader.field].splice( this.funcArray.indexOf(item), 1 );
                 } else {
-                    switch (def_stat) {
-                        //#app_avail_formulas
-                        case 'count': result = this.countFunc(header.field); break;
-                        case 'countunique': result = this.countuniqueFunc(header.field); break;
-                        case 'sum': result = this.sumFunc(header.field); break;
-                        case 'min': result = this.minFunc(header.field); break;
-                        case 'max': result = this.maxFunc(header.field); break;
-                        case 'mean': result = this.avgFunc(header.field); break;
-                        case 'avg': result = this.meanFunc(header.field); break;
-                        case 'var': result = this.varFunc(header.field); break;
-                        case 'std': result = this.stdFunc(header.field); break;
-                    }
+                    this.groupFunctions[this.tableHeader.field].push(item);
                 }
-                return isNaN(result) ? '' : result;
+            },
+            // MAIN FUNC
+            calcRowsResult() {
+                let unit = SpecialFuncs.currencySign(this.tableHeader, '', this.tableMeta);
+                let arr = [];
+                _.each(this.funcArray, (func) => {
+                    if (!func || !this.allRows.length) {
+                        return;
+                    }
+                    let result;
+                    switch (String(func).toLowerCase()) {
+                        //#app_avail_formulas
+                        case 'count': result = this.countFunc(this.tableHeader.field); break;
+                        case 'countunique': result = this.countuniqueFunc(this.tableHeader.field); break;
+                        case 'sum': result = this.sumFunc(this.tableHeader.field); break;
+                        case 'min': result = this.minFunc(this.tableHeader.field); break;
+                        case 'max': result = this.maxFunc(this.tableHeader.field); break;
+                        case 'mean': result = this.meanFunc(this.tableHeader.field); break;
+                        case 'avg': result = this.avgFunc(this.tableHeader.field); break;
+                        case 'var': result = this.varFunc(this.tableHeader.field); break;
+                        case 'std': result = this.stdFunc(this.tableHeader.field); break;
+                    }
+                    if (unit && result) {
+                        result = String(unit) + String(result);
+                    }
+                    arr.push(
+                        String(result).length > 7
+                            ? Number(result).toPrecision(7)
+                            : result
+                    );
+                });
+                return arr;
             },
 
             // HELPERS
@@ -161,8 +251,10 @@
             hideEdit() {
                 this.editing = false;
             },
-            showVal(val) {
-                return val ? String(val).toUpperCase() : '';
+            showVal() {
+                return _.map(this.funcArray, (func) => {
+                    return String(func).toUpperCase();
+                });
             }
         },
         mounted() {

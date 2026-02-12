@@ -1,6 +1,7 @@
 
 import {SpecialFuncs} from './SpecialFuncs';
 import {UnitConversion} from './UnitConversion';
+import {VerticalTableFldObject} from "../components/CustomTable/VerticalTableFldObject";
 
 export class SelectedCells {
 
@@ -152,7 +153,9 @@ export class SelectedCells {
 
         let init_field = this.col;
         let avail_fields = _.filter(tableMeta._fields, (fld) => {
-            return fld.is_showed && (!$except_attach || fld.f_type !== 'Attachment');
+            return !fld._permis_hidden
+                && ($except_attach ? VerticalTableFldObject.fieldSetting('fld_popup_shown', fld) : fld.is_showed)
+                && (!$except_attach || fld.f_type !== 'Attachment');
         });
         let idx = _.findIndex(avail_fields, {'field': init_field});
         //find next col
@@ -264,7 +267,15 @@ export class SelectedCells {
         for (let r = idxs.row_start; r <= idxs.row_end; r++) {
             for (let c = idxs.col_start; c <= idxs.col_end; c++) {
                 let fld = tableMeta._fields[c];
+                tableRows[r]._old_val = tableRows[r][fld.field];
                 tableRows[r][fld.field] = null;
+                tableRows[r]._changed_field = fld.field;
+                if (fld.input_type === 'Formula') {
+                    tableRows[r][fld.field+'_formula'] = null;
+                }
+                if (fld.input_type === 'Mirror') {
+                    tableRows[r][fld.field+'_mirror'] = '';
+                }
             }
             changed_rows.push(tableRows[r]);
         }
@@ -317,11 +328,25 @@ export class SelectedCells {
 
     /**
      *
+     * @param tableRows
+     * @returns {boolean}
+     */
+    fill_want_confirmation(tableRows) {
+        if (this.copy_square_row > -1 && this.copy_square_col) { // copied a few cells
+            return false;
+        } else {
+            return !tableRows[this.copy_row];
+        }
+    }
+
+    /**
+     *
      * @param tableMeta
      * @param tableRows
-     * @returns {Promise}
+     * @param overwrite
+     * @returns {Promise<unknown>}
      */
-    fill_copy(tableMeta, tableRows) {
+    fill_copy(tableMeta, tableRows, overwrite) {
         let updated_rows = [];
         let promis = null;
 
@@ -345,10 +370,7 @@ export class SelectedCells {
                         let c_header = tableMeta._fields[c_i];
                         if (t_header && c_header) {
                             let val = UnitConversion.doConv(c_header, copyrow[c_header.field]);
-                            targrow[t_header.field] = UnitConversion.doConv(t_header, val, true);
-                            if (t_header.input_type === 'Formula') {
-                                targrow[t_header.field+'_formula'] = targrow[t_header.field];
-                            }
+                            this._copy_value(targrow, t_header, val, copyrow);
                         }
                         c_i++;
                         ccl++;
@@ -377,10 +399,7 @@ export class SelectedCells {
                                     let c_header = _.find(tableMeta._fields, {field: this.copy_col});
                                     if (tableRows[r_i] && t_header && c_header) {
                                         let val = UnitConversion.doConv(c_header, copyrow[c_header.field]);
-                                        tableRows[r_i][t_header.field] = UnitConversion.doConv(t_header, val, true);
-                                        if (t_header.input_type === 'Formula') {
-                                            tableRows[r_i][t_header.field+'_formula'] = tableRows[r_i][t_header.field];
-                                        }
+                                        this._copy_value(tableRows[r_i], t_header, val, copyrow);
                                     }
                                 }
                                 c_i++;
@@ -395,52 +414,125 @@ export class SelectedCells {
                     let c_header = _.find(tableMeta._fields, {field: this.copy_col});
                     if (targrow && t_header && c_header) {
                         let val = UnitConversion.doConv(c_header, copyrow[c_header.field]);
-                        targrow[t_header.field] = UnitConversion.doConv(t_header, val, true);
-                        if (t_header.input_type === 'Formula') {
-                            targrow[t_header.field+'_formula'] = targrow[t_header.field];
-                        }
+                        this._copy_value(targrow, t_header, val, copyrow);
                         updated_rows.push(targrow);
                     }
                 }
             } else {
-
-                //Copied from Clioboard
-                SpecialFuncs.clipFillPaste();
-                let idxs = this.idxs(tableMeta, '');
-                promis = window.sleep(1000, () => {
-                    let u_rows = [];
-                    let clipboard = SpecialFuncs.clipboardGetStr();
-                    let clip_rows = clipboard.split('\n');
-                    let r_i = idxs.row_start;
-                    while (r_i <= idxs.row_end) {
-                        let clipr = clip_rows[r_i-idxs.row_start];
-                        if (tableRows[r_i] && clipr) {
-                            clipr = clipr.split(/[,\t]/i);
-                            let clipr_i = 0;
-                            let c_i = idxs.col_start;
-                            while (c_i <= idxs.col_end) {
-                                if (tableMeta._fields[c_i] && clipr[clipr_i]) {
-                                    let tfld = tableMeta._fields[c_i].field;
-                                    tableRows[r_i][tfld] = UnitConversion.doConv(tableMeta._fields[c_i], clipr[clipr_i], true);
-                                    if (t_header.input_type === 'Formula') {
-                                        tableRows[r_i][t_header.field+'_formula'] = tableRows[r_i][t_header.field];
-                                    }
-                                    clipr_i++;
-                                }
-                                c_i++;
-                            }
-                            u_rows.push(tableRows[r_i]);
-                        }
-                        r_i++;
-                    }
-                    return u_rows;
-                });
+                //Copied from Clipboard
+                if (navigator.clipboard) {
+                    promis = navigator.clipboard.readText().then((clipboard) => {
+                        return this._fill_copy_from_clipboard(tableMeta, tableRows, overwrite, clipboard);
+                    });
+                } else {
+                    SpecialFuncs.clipFillPaste();
+                    promis = window.sleep(500, (resolve) => {
+                        return this._fill_copy_from_clipboard(tableMeta, tableRows, overwrite, SpecialFuncs.clipboardGetStr());
+                    });
+                }
             }
             
         }
         
         this.clear_square();
-        return promis || new Promise((resolve) => {resolve(updated_rows)});
+        return promis || new Promise((resolve) => {
+            resolve({
+                updated_rows: updated_rows,
+                new_rows: []
+            })
+        });
+    }
+
+    /**
+     *
+     * @param tableMeta
+     * @param tableRows
+     * @param overwrite
+     * @param clipboard
+     * @returns {{updated_rows: *[], new_rows: *[]}}
+     * @private
+     */
+    _fill_copy_from_clipboard(tableMeta, tableRows, overwrite, clipboard) {
+        let idxs = this.idxs(tableMeta, '');
+        let new_rows = [];
+        let u_rows = [];
+        clipboard = clipboard.replace(/<tr\/?>/gi, '\n');
+        clipboard = clipboard.replace(/<td\/?>/gi, '\t');
+        clipboard = clipboard.replace(/\n+/gi, '\n');
+        clipboard = clipboard.replace(/\t+/gi, '\t');
+        let clip_rows = clipboard.split('\n') || [];
+        clip_rows = _.map(clip_rows, (row) => _.trim(row));
+        clip_rows = _.filter(clip_rows);
+
+        let clip_one_value = null;
+        if (clip_rows.length === 1 && clip_rows[0].split(/[\t]/i).length === 1) {
+            clip_one_value = clip_rows[0];
+        }
+
+        if (idxs.row_start == idxs.row_end && idxs.col_start == idxs.col_end) {
+            _.each(clip_rows, (row, i) => {
+                let tablRow = tableRows[idxs.row_start + i];
+                let usedRow = tablRow || SpecialFuncs.emptyRow(tableMeta);
+                if (usedRow) {
+                    _.each(row.split(/[\t]/i), (col, j) => {
+                        let tablField = tableMeta._fields[idxs.col_start + j];
+                        if (tablField && (overwrite || !usedRow[tablField.field])) {
+                            this._copy_value(usedRow, tablField, col);
+                        }
+                    });
+                    tablRow ? u_rows.push(usedRow) : new_rows.push(usedRow);
+                }
+            });
+        } else {
+            let r_i = idxs.row_start;
+            while (r_i <= idxs.row_end) {
+                let clipr = clip_one_value || clip_rows[r_i - idxs.row_start];
+                let tablRow = tableRows[r_i];
+                let usedRow = tablRow || SpecialFuncs.emptyRow(tableMeta);
+                if (usedRow && clipr) {
+                    clipr = clipr.split(/[\t]/i);
+                    let clipr_i = 0;
+                    let c_i = idxs.col_start;
+                    while (c_i <= idxs.col_end) {
+                        if (tableMeta._fields[c_i] && (clip_one_value || clipr[clipr_i])) {
+                            let tfld = tableMeta._fields[c_i];
+                            if (overwrite || !usedRow[tfld.field]) {
+                                this._copy_value(usedRow, tfld, clip_one_value || clipr[clipr_i]);
+                            }
+                            clipr_i++;
+                        }
+                        c_i++;
+                    }
+                    tablRow ? u_rows.push(usedRow) : new_rows.push(usedRow);
+                }
+                r_i++;
+            }
+        }
+
+        return {
+            updated_rows: u_rows,
+            new_rows: new_rows
+        };
+    }
+
+    /**
+     *
+     * @param tableRow
+     * @param tableHeader
+     * @param val
+     * @param fromRow
+     * @private
+     */
+    _copy_value(tableRow, tableHeader, val, fromRow) {
+        tableRow._old_val = tableRow[tableHeader.field];
+        tableRow[tableHeader.field] = UnitConversion.doConv(tableHeader, val, true);
+        tableRow._changed_field = tableHeader.field;
+        if (tableHeader.input_type === 'Formula') {
+            tableRow[tableHeader.field+'_formula'] = tableRow[tableHeader.field];
+        }
+        if (fromRow && fromRow['_u_'+tableHeader.field]) {
+            tableRow['_u_'+tableHeader.field] = fromRow['_u_'+tableHeader.field];
+        }
     }
     // COPY FUNCTIONS
 

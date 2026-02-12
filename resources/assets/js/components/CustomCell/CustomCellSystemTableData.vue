@@ -4,18 +4,18 @@
         ref="cell_tb_data"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content" :style="{textAlign: no_align ? 'left' : tableHeader.col_align}">
 
-                    <span v-if="hidden_by_format"></span>
+                    <span v-if="hidden_by_format" class="by_format_hidden"></span>
 
                     <span v-else-if="tableMeta.db_name === 'email_settings'">{{ showEmailSett() }}</span>
 
                     <div v-else-if="tableMeta.db_name === 'sum_usages' && tableHeader.field === 'table_id'" class="inner-content">
                         <a target="_blank"
-                           title="Open the “Visiting” view in a new tab."
+                           title="Open the “Visiting” MRV in a new tab."
                            :href="showTable('link')"
                            @click.stop="">{{ showTable() }}</a>
                     </div>
@@ -37,8 +37,18 @@
                         <span class="toggler round" :class="[!canEdit ? 'disabled' : '']"></span>
                     </label>
 
+                    <a v-else-if="tableHeader.f_type === 'RefTable'"
+                       target="_blank"
+                       title="Open the table in a new tab."
+                       :href="showRefTable('__url')"
+                       @click.stop=""
+                       v-html="showRefTable()"
+                    ></a>
+
                     <span v-else-if="tableMeta.db_name === 'plan_features'
-                            && inArray(tableHeader.field, ['add_bi','add_map','add_request','add_alert','add_kanban','add_gantt','add_email','add_calendar','recurrent_pay'])"
+                            && inArray(tableHeader.field, ['add_bi','add_map','add_request','add_alert','add_kanban',
+                                'add_gantt','add_email','add_calendar','add_twilio','add_tournament','add_grouping',
+                                'add_report','add_ai','add_simplemap','recurrent_pay'])"
                           class="indeterm_check__wrap checkbox-input"
                     >
                         <span class="indeterm_check"
@@ -81,8 +91,8 @@
                     :header-key="tableHeader.field"
                     :can-edit="true"
                     :no-function="true"
-                    :uuid="uuid"
                     :pop_width="'100%'"
+                    @close-formula="hideEdit"
                     @set-formula="updateRow"
             ></formula-helper>
 
@@ -97,6 +107,15 @@
             >
                 <option :value="tableRow[tableHeader.field]" selected="selected">{{ editValue }}</option>
             </select>
+
+            <input v-else-if="inArray(tableHeader.f_type, ['Date', 'Date Time', 'Time'])"
+                   ref="inline_input"
+                   @blur="hideDatePicker"
+                   @keyup.stop=""
+                   @keydown.stop=""
+                   @keypress.stop=""
+                   class="form-control full-height no_CF_for_date"
+                   :style="getEditStyle"/>
 
             <input
                     v-else-if="spec_fld"
@@ -176,7 +195,6 @@ import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 import TabldaSelectDdl from "./Selects/TabldaSelectDdl";
 import CellTableSysContent from "./InCell/CellTableSysContent";
-import FormulaHelper from "./InCell/FormulaHelper";
 
 export default {
         name: "CustomCellSystemTableData",
@@ -187,7 +205,6 @@ export default {
             CellStyleMixin,
         ],
         components: {
-            FormulaHelper,
             CellTableSysContent,
             TabldaSelectDdl,
             TabldaSelectSimple,
@@ -218,6 +235,7 @@ export default {
             tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
+            allRows: Object|null,
             rowIndex: Number,
             cellValue: String|Number,
             maxCellRows: Number,
@@ -235,7 +253,8 @@ export default {
             isVertTable: Boolean,
             hasFloatColumns: Boolean,
             no_align: Boolean,
-            isSelected: Boolean,
+            isSelectedExt: Boolean,
+            extraPivotFields: Array,
         },
         watch: {
             table_id: function (val) {
@@ -246,8 +265,11 @@ export default {
             },
         },
         computed: {
+            isSelected() {
+                return this.isSelectedExt;
+            },
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 if (this.uc_disabled) {
                     obj.backgroundColor = '#EEE';
                 }
@@ -276,8 +298,16 @@ export default {
                 return Number(this.tableRow[this.tableHeader.field]);
             },
             canEdit() {
+                if (this.tableMeta.db_name === 'formula_helpers' && this.inArray(this.$root.user.role_id, [1,3])) {
+                    return true;
+                }
                 if (this.tableMeta.db_name === 'uploading_file_formats') {
                     return true;
+                }
+                if (this.tableMeta.db_name === 'promo_codes') {
+                    let now = moment().format('YYYY-MM-DD');
+                    return this.tableHeader.field !== 'is_active'
+                        || (! this.isAddRow && now >= this.tableRow.start_at && now <= this.tableRow.end_at);
                 }
                 if (this.tableMeta.db_name === 'email_settings') {
                     return !this.inArray(this.tableHeader.field, ['sender_email']);
@@ -294,7 +324,6 @@ export default {
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields) //cannot edit system fields
                     && !this.freezed_by_format //cannot edit cells freezed by CondFormat
                     && !this.hidden_by_format //cannot edit cells hidden by CondFormat
-                    && !(this.behavior === 'request_view' && this.tableRow.id) //if embed request -> can edit only newly added rows
                     && (
                         !this.tableMeta.is_system // PERMISSIONS FOR EACH SYSTEM TABLE --->>>
                         || !this.tableMeta.db_name
@@ -315,6 +344,16 @@ export default {
             },
         },
         methods: {
+            showRefTable(link) {
+                let res = this.tableRow[this.tableHeader.field];
+                let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(res)});
+                if (tb) {
+                    res = link
+                        ? tb[link]
+                        : ((tb._referenced ? ('@' + tb._referenced + '/') : '') + tb.name);
+                }
+                return res;
+            },
             showTable(link) {
                 let res = this.tableRow.table_id;
                 let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow.table_id)});
@@ -333,7 +372,7 @@ export default {
             showEdit() {
                 //focus on cell
                 if (
-                    window.screen.width >= 768
+                    window.innerWidth >= 768
                     && this.selectedCell
                     && !this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex)
                 ) {
@@ -376,6 +415,29 @@ export default {
                 this.no_key_handler = true;
                 this.editing = false;
             },
+            hideDatePicker() {
+                this.hideEdit();
+                let value = $(this.$refs.inline_input).val();
+                if (SpecialFuncs.isSpecialVar(this.dateTemp)) {
+                    value = this.dateTemp; //special variables: {{Today}} etc.
+                } else {
+                    switch (this.tableHeader.f_type) {
+                        case 'Date':
+                            value = moment(value).format('YYYY-MM-DD');
+                            break;
+                        case 'Date Time':
+                            value = moment(value).format('YYYY-MM-DD HH:mm:ss');
+                            break;
+                        case 'Time':
+                            value = moment('0001-01-01 ' + value).format('HH:mm:ss');
+                            break;
+                    }
+                    if (value === 'Invalid date') {
+                        value = '';
+                    }
+                }
+                this.updateValue( value );
+            },
 
             //CONVERTING
             unitConvert(val) {
@@ -393,6 +455,7 @@ export default {
             },
             updateCheckBox() {
                 this.tableRow[this.tableHeader.field] = !Number(this.tableRow[this.tableHeader.field]);
+                this.tableRow._changed_field = this.tableHeader.field;
                 this.$emit('updated-cell', this.tableRow, this.tableHeader);
             },
             updateCheckedDDL(item) {
@@ -408,8 +471,12 @@ export default {
                 }
                 this.updateValue();
             },
-            updateValue() {
-                let editVal = SpecialFuncs.applySetMutator(this.tableHeader, this.editValue);
+            updateValue(ediVal) {
+                let editVal = ediVal === undefined ? this.editValue : ediVal;
+                editVal = SpecialFuncs.applySetMutator(this.tableHeader, editVal);
+                if (this.tableMeta.db_name == 'formula_helpers' && this.tableHeader.field == 'notes') {
+                    editVal = this.$root.strip_danger_tags(nl2br(editVal || ''));
+                }
                 if (to_standard_val(this.tableRow[this.tableHeader.field]) !== to_standard_val(editVal)) {
                     this.sendUpdateSignal(editVal);
                 }
@@ -420,6 +487,7 @@ export default {
             },
             sendUpdateSignal(editVal) {
                 this.tableRow[this.tableHeader.field] = editVal;
+                this.tableRow._changed_field = this.tableHeader.field;
                 this.$emit('updated-cell', this.tableRow, this.tableHeader);
             },
 
@@ -447,20 +515,6 @@ export default {
                 }
 
                 return res;
-            },
-
-            //KEYBOARD
-            changeCol(is_next) {
-                if (this.editing) {
-                    this.hideEdit();
-                    this.updateValue();
-                    if (this.$refs.inline_input && $(this.$refs.inline_input).hasClass('select2-hidden-accessible')) {
-                        $(this.$refs.inline_input).select2('destroy');
-                    }
-                }
-                this.$nextTick(() => {
-                    this.selectedCell.next_col(this.tableMeta, is_next, this.isVertTable);
-                });
             },
         },
         mounted() {

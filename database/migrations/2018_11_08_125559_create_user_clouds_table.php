@@ -19,6 +19,7 @@ class CreateUserCloudsTable extends Migration
             $table->string('name');
             $table->string('cloud', 50);
             $table->string('api_key', 1024);
+            $table->text('extra_params')->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

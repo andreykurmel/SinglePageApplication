@@ -44,7 +44,7 @@ class Risa3dDeleterController extends Controller implements AppControllerInterfa
         $tableNames = Table::whereIn('db_name', $tables_delete)->get()->pluck('name')->toArray();
 
         $lightweight = $correspApp->open_as_popup;
-        $ugroup = (new UserRepository())->getUserOrGroupInfo($request->usergroup);
+        $ugroup = (new UserRepository())->getUserOrGroupInfo($request->usergroup ?: '');
         return view('tablda.applications.risa3d-deleter', array_merge(
             $this->bladeVariablesService->getVariables(null, 0, $lightweight),
             [

@@ -6,6 +6,7 @@ namespace Vanguard\Services\Tablda;
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\Table\TableBackup;
+use Vanguard\Repositories\Tablda\AutomationHistoryRepository;
 use Vanguard\Repositories\Tablda\TableBackupRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
@@ -47,28 +48,24 @@ class TableBackupService
     }
 
     /**
-     * Add Backup row to store Table
-     *
      * @param array $data
-     * @return mixed
+     * @param string $table_url
+     * @return \Illuminate\Database\Eloquent\Model|TableBackup
      */
-    public function addTableBackup(array $data)
+    public function addTableBackup(array $data, string $table_url)
     {
-        $data['user_id'] = auth()->id();
-        $data['is_active'] = true;
-        return $this->repo->addTableBackup($data);
+        return $this->repo->addTableBackup($data, $table_url);
     }
 
     /**
-     * Update Backup row.
-     *
      * @param $table_backup_id
      * @param array $data
+     * @param string $table_url
      * @return mixed
      */
-    public function updateTableBackup($table_backup_id, array $data)
+    public function updateTableBackup($table_backup_id, array $data, string $table_url)
     {
-        return $this->repo->updateTableBackup($table_backup_id, $data);
+        return $this->repo->updateTableBackup($table_backup_id, $data, $table_url);
     }
 
     /**
@@ -100,6 +97,8 @@ class TableBackupService
 
         $recipients = $this->service->parseRecipients($static_emails ?? '');
         if ($recipients) {
+            $automationHistory = new AutomationHistoryRepository($bkp->user_id, $bkp->table_id);
+            $automationHistory->startTimer();
 
             $fields_arr = $this->service->getFieldsArrayForNotification($table);
             //convert
@@ -112,8 +111,8 @@ class TableBackupService
             $usr = auth()->user();
             $user_str = $usr ? ($usr->first_name ? $usr->first_name . ' ' . $usr->last_name : $usr->username) : '';
             $greeting = $usr || $toname
-                ? 'Hello, ' . ($toname ?: $user_str) . '!'
-                : 'Hello!';
+                ? ($toname ?: $user_str) . ':'
+                : 'Hello, there:';
 
             $rows_arr = $this->service->prepareRowVals($table, $row);
 
@@ -139,6 +138,7 @@ class TableBackupService
             $mailer = new EmailWithSettings('backup_is_created', $recipients);
             $mailer->send($params, $data);
 
+            $automationHistory->stopTimerAndSave('Autobackup', $bkp->name, 'Notification', 'Email');
         }
     }
 }

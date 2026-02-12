@@ -1,19 +1,29 @@
 <template>
-    <div class="full-height setup_wrapper flex flex--col">
-        <div class="flex__elem-remain" ref="ckeditor_wrap">
-            <div class="flex flex--center-v add_link" :style="textSysStyle">
+    <div class="full-height setup_wrapper" ref="ckeditor_wrap">
+        <div v-if="type === 'email'"
+             class="flex flex--center-v flex--space add_link"
+             :style="textSysStyleSmart"
+             ref="topbuttons"
+        >
+            <div class="flex flex--center-v">
                 <label>Add Field Variable:&nbsp;</label>
-                <select class="form-control"
+                <select style="width: 200px;"
+                        class="form-control"
                         @change="addFieldLink()"
                         v-model="field_link_to_add"
+                        :disabled="is_disabled"
                         :style="textSysStyle">
                     <option v-for="fld in tableMeta._fields" :value="fld">{{ fld.name }}</option>
                 </select>
+            </div>
 
+            <div class="flex flex--center-v">
                 <label>&nbsp;&nbsp;&nbsp;Insert Linked Data:&nbsp;</label>
-                <select class="form-control"
+                <select style="width: 200px;"
+                        class="form-control"
                         @change="linkedDataVariable()"
                         v-model="selected_link_id"
+                        :disabled="is_disabled"
                         :style="textSysStyle">
                     <optgroup
                         v-for="fld in tableMeta._fields"
@@ -24,63 +34,47 @@
                             v-for="link in fld._links"
                             v-if="link.link_type === 'Record'"
                             :value="link.id"
-                        >{{ link.icon + ' (' + link.link_type + ')' }}</option>
+                        >{{ link.name + ' (' + link.link_type + ')' }}</option>
                     </optgroup>
                 </select>
 
-                <info-sign-link
-                    :use_hover="true"
-                    :app_sett_key="'addon_email_body_info'"
-                    :hgt="24"
-                    style="margin-left: 10px;"
-                ></info-sign-link>
-
                 <template v-if="type === 'email'">
-                    <label>&nbsp;&nbsp;&nbsp;Table Width:&nbsp;</label>
-                    <select class="form-control"
+                    <label>&nbsp;&nbsp;&nbsp;View:&nbsp;</label>
+                    <select style="width: 200px;"
+                            class="form-control"
                             @change="emitUpd()"
-                            v-model="targetRow.email_link_width_type"
+                            v-model="targetRow.email_link_viewtype"
+                            :disabled="is_disabled"
                             :style="textSysStyle">
-                        <option value="full">Full Body</option>
-                        <option value="content">Fit Content</option>
-                        <option value="column_size">Fixed (ea. col.)</option>
-                        <option value="total_size">Fixed (Total)</option>
-                    </select>
-
-                    <template v-if="targetRow.email_link_width_type === 'column_size' || targetRow.email_link_width_type === 'total_size'">
-                        <input class="form-control input-sm"
-                               type="number"
-                               @change="emitUpd()"
-                               v-model="targetRow.email_link_width_size"
-                               :style="textSysStyle">
-                        <label>px</label>
-                    </template>
-
-                    <label>&nbsp;&nbsp;&nbsp;Align:&nbsp;</label>
-                    <select class="form-control"
-                            @change="emitUpd()"
-                            v-model="targetRow.email_link_align"
-                            :style="textSysStyle">
-                        <option value="left">Left</option>
-                        <option value="center">Center</option>
-                        <option value="right">Right</option>
+                        <option value="table">Grid</option>
+                        <option value="vertical">Board</option>
+                        <option value="list">List</option>
                     </select>
                 </template>
+
+                <ckeditor-settings-button
+                    :target-row="targetRow"
+                    :is_disabled="is_disabled"
+                    style="position: relative; top: 3px; margin-left: 5px;"
+                    @updated-ckeditor="emitUpd()"
+                ></ckeditor-settings-button>
             </div>
-
-            <!--<html-edit-panel :init-text="targetRow[fieldName]"-->
-            <!--:table-meta="tableMeta"-->
-            <!--style="height: 150px;"-->
-            <!--@txt-update="(val) => { targetRow[fieldName] = val; emitUpd() }"-->
-            <!--&gt;</html-edit-panel>-->
-
-            <vue-ckeditor
-                    v-if="draw_ck"
-                    :config="ck_conf"
-                    v-model="targetRow[fieldName]"
-                    @blur="emitUpd()"
-            ></vue-ckeditor>
         </div>
+
+        <!--<html-edit-panel :init-text="targetRow[fieldName]"-->
+        <!--:table-meta="tableMeta"-->
+        <!--style="height: 150px;"-->
+        <!--@txt-update="(val) => { targetRow[fieldName] = val; emitUpd() }"-->
+        <!--&gt;</html-edit-panel>-->
+
+        <vue-ckeditor
+                v-if="draw_ck"
+                :config="ck_conf"
+                :read-only-mode="is_disabled"
+                v-model="targetRow[fieldName]"
+                style="color: #222;"
+                @blur="emitUpd()"
+        ></vue-ckeditor>
     </div>
 </template>
 
@@ -90,6 +84,8 @@
     import HtmlEditPanel from "../CustomTable/Specials/HtmlEditPanel";
     import VueCkeditor from "../../../../../node_modules/vue-ckeditor2/src/VueCkeditor";
     import InfoSignLink from "../CustomTable/Specials/InfoSignLink";
+    import CkeditorSettingsButton from "../Buttons/CkeditorSettingsButton.vue";
+    import TourSettingsButton from "../Buttons/TourSettingsButton.vue";
 
     export default {
         name: "TabCkeditor",
@@ -97,6 +93,8 @@
             CellStyleMixin,
         ],
         components: {
+            TourSettingsButton,
+            CkeditorSettingsButton,
             InfoSignLink,
             VueCkeditor,
             HtmlEditPanel,
@@ -108,7 +106,7 @@
                 draw_ck: false,
                 ck_conf: {
                     allowedContent: true,
-                    height: 222,
+                    height: 500,
                     toolbarGroups: [
                         { name: 'document',    groups: [ 'mode', 'document', 'doctools' ] },
                         { name: 'clipboard',   groups: [ 'clipboard', 'undo' ] },
@@ -117,6 +115,7 @@
                         { name: 'basicstyles', groups: [ 'basicstyles', 'cleanup' ] },
                         { name: 'paragraph',   groups: [ 'list', 'indent', 'blocks', 'align', 'bidi' ] },
                         '/',
+                        { name: 'links' },
                         { name: 'insert', groups: [ 'insert' ] },
                         { name: 'styles' },
                         { name: 'colors' },
@@ -128,11 +127,12 @@
                 },
             }
         },
-        props:{
+        props: {
             tableMeta: Object,
             targetRow: Object,
             fieldName: String,
             type: String,
+            is_disabled: Boolean,
         },
         computed: {
         },
@@ -152,7 +152,7 @@
                 });
             },
             prepName(name) {
-                return String(name).replace(/[^\w\d]/gi,'');
+                return String(name).replace(newRegexp('[^\\p{L}\\d]'),'');
             },
             addFieldLink() {
                 if (this.field_link_to_add) {
@@ -163,24 +163,25 @@
             },
             linkedDataVariable() {
                 if (this.selected_link_id) {
-                    let field = null;
                     let link = null;
-                    let idxs = { fi:null, li:null };
-                    _.each(this.tableMeta._fields, (fld, fi) => {
-                        _.each(fld._links, (lnk, li) => {
+                    _.each(this.tableMeta._fields, (fld) => {
+                        _.each(fld._links, (lnk) => {
                             if (lnk.id == this.selected_link_id) {
-                                field = fld;
                                 link = lnk;
-                                idxs.fi = fi+1;
-                                idxs.li = li+1;
                             }
                         });
                     });
-                    if (field && link) {
-                        this.targetRow[this.fieldName] += ' [Link:#' + idxs.li
-                            + '/' + this.prepName(link.icon)
-                            + '@Col:#' + idxs.fi
-                            + '/' + this.prepName(field.name)
+                    if (link) {
+                        let view = null;
+                        switch (this.targetRow.email_link_viewtype) {
+                            case 'vertical': view = 'Board'; break;
+                            case 'list': view = 'List'; break;
+                            default: view = 'Grid'; break;
+                        }
+                        this.targetRow[this.fieldName] += ' [Link:'
+                            + this.prepName(link.name)
+                            + '/'
+                            + this.prepName(view)
                             + ']';
                         this.emitUpd();
                     }
@@ -188,8 +189,11 @@
             },
         },
         mounted() {
-            this.ck_conf.height = $(this.$refs.ckeditor_wrap).outerHeight() - 180;
-            this.draw_ck = true;
+            this.$nextTick(() => {
+                this.ck_conf.height = $(this.$refs.ckeditor_wrap).outerHeight() - 140
+                    - (this.$refs.topbuttons ? $(this.$refs.topbuttons).outerHeight() : 0);
+                this.draw_ck = true;
+            });
         },
         beforeDestroy() {
         }
@@ -197,25 +201,17 @@
 </script>
 
 <style lang="scss" scoped>
-    .setup_wrapper {
-        .form-group {
-            white-space: nowrap;
-            font-size: 1.1em;
-
-            label {
-                margin: 0;
-            }
-        }
-    }
     .add_link {
+        flex-wrap: wrap;
         white-space: nowrap;
-        margin-bottom: 10px;
 
+        div {
+            margin-bottom: 5px;
+        }
         label {
             margin: 0;
         }
         select {
-            max-width: 150px;
             height: 30px;
             padding: 3px 6px;
         }

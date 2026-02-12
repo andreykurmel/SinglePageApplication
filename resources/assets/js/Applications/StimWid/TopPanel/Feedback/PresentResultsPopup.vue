@@ -82,12 +82,12 @@
             },
             //additionals
             hide() {
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
         },
         mounted() {
-            this.$root.tablesZidx += 10;
+            this.$root.tablesZidxIncrease();
             this.zIdx = this.$root.tablesZidx;
             this.runAnimation();
         },

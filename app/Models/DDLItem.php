@@ -20,6 +20,8 @@ use Vanguard\User;
  * @property string $modified_on
  * @property string|null $description
  * @property string|null $image_path
+ * @property string|null $opt_color
+ * @property int|null $max_selections
  * @property int|null $apply_target_row_group_id
  * @property-read \Vanguard\Models\DataSetPermissions\TableRowGroup|null $_apply_row_group
  * @property-read \Vanguard\User|null $_created_user
@@ -42,7 +44,6 @@ use Vanguard\User;
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDLItem whereOption($value)
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDLItem whereShowOption($value)
  * @mixin \Eloquent
- * @property string|null $opt_color
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDLItem whereOptColor($value)
  */
 class DDLItem extends Model
@@ -58,6 +59,7 @@ class DDLItem extends Model
         'show_option',
         'opt_color',
         'image_path',
+        'max_selections',
         'notes',
         'created_by',
         'created_on',
@@ -71,7 +73,11 @@ class DDLItem extends Model
      * @return mixed
      */
     public function scopeIsTbRef($q) {
-        return $q->whereNotNull('image_path');
+        return $q->where(function ($i) {
+            $i->whereNotNull('show_option');
+            $i->orWhereNotNull('image_path');
+            $i->orWhereNotNull('opt_color');
+        });
     }
 
 

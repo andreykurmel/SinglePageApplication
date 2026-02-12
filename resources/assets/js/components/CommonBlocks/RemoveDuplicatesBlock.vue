@@ -13,9 +13,9 @@
                     <td>
                         <select-block
                             :options="[
-                                { val: 'first', show: 'Empty' },
-                                { val: 'all', show: 'All' },
-                                { val: 'unique', show: 'Comb Unique' }
+                                { val: 'first', show: 'Keep the First Only' },
+                                { val: 'all', show: 'Concatenate All' },
+                                { val: 'unique', show: '(Comb) Unique' }
                             ]"
                             :sel_value="parameters[fld.field]"
                             @option-select="(opt) => { parameters[fld.field] = opt.val; }"
@@ -75,7 +75,7 @@
                 }).then(({data}) => {
                     eventBus.$emit('reload-page');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
         },

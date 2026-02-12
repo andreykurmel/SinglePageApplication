@@ -30,7 +30,8 @@ class PostFileRequest extends FormRequest
             'file' => 'required_without:file_link',
             'file_link' => 'required_without:file',
             'file_new_name' => 'string|nullable',
-            'clear_before' => 'boolean'
+            'clear_before' => 'boolean',
+            'replace_file_id' => 'integer|nullable',
         ];
     }
 }

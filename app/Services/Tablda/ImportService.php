@@ -6,6 +6,7 @@ namespace Vanguard\Services\Tablda;
 
 use Exception;
 use File;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
@@ -14,6 +15,7 @@ use Vanguard\Classes\ExcelWrapper;
 use Vanguard\Classes\Tablda;
 use Vanguard\Jobs\ImportTableData;
 use Vanguard\Jobs\RecalcTableFormula;
+use Vanguard\Models\AutomationHistory;
 use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
@@ -28,6 +30,8 @@ use Vanguard\Repositories\Tablda\CopyTableRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\ImportRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
+use Vanguard\Repositories\Tablda\RemoteFilesRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
@@ -40,17 +44,18 @@ use Vanguard\User;
 
 class ImportService
 {
-    private $importRepository;
-    private $tableRepository;
-    private $copyTableRepository;
-    private $fieldRepository;
-    private $tableDataService;
-    private $folderRepository;
-    private $permissionsService;
-    private $tableViewRepository;
-    private $fileRepository;
-    private $htmlservice;
-    private $service;
+    protected $importRepository;
+    protected $tableRepository;
+    protected $copyTableRepository;
+    protected $fieldRepository;
+    protected $tableDataService;
+    protected $folderRepository;
+    protected $permissionsService;
+    protected $tableViewRepository;
+    protected $fileRepository;
+    protected $htmlservice;
+    protected $service;
+    protected $copiedCorrespond = [];
 
     /**
      * ImportService constructor.
@@ -108,6 +113,7 @@ class ImportService
 
         //copy folders and tables
         $new_fld_id = $this->copyFolderTreeForOthers($jstree_folder, $new_user_id, $parent_folder_id, $with_links);
+        $this->copyFolderTreeForOthersSettings($jstree_folder, $new_user_id, $with_links);
 
         //new menutree user hash
         (new UserRepository())->newMenutreeHash($new_user_id);
@@ -125,10 +131,10 @@ class ImportService
      * @return false|int|null
      * @throws Exception
      */
-    private function copyFolderTreeForOthers(array $jstree_folder, int $new_user_id, int $parent_folder_id, bool $with_links = false)
+    protected function copyFolderTreeForOthers(array $jstree_folder, int $new_user_id, int $parent_folder_id, bool $with_links = false)
     {
         $created_fld_id = null;
-        if ($this->jsonObjectIsSelected($jstree_folder)) {
+        if ($this->jsonObjectIsSelected($jstree_folder, $with_links)) {
 
             $created_fld_id = $this->getOrCopyFolder($jstree_folder, $parent_folder_id, $new_user_id);
 
@@ -137,18 +143,18 @@ class ImportService
                 foreach ($jstree_folder['children'] as &$inner) {
                     $type = $inner['li_attr']['data-type'] ?? '';
                     $is_table = $type == 'table' || ($with_links && $type == 'link');
-                    if ($is_table && $this->jsonObjectIsSelected($inner)) {
+                    if ($is_table && $this->jsonObjectIsSelected($inner, $with_links)) {
 
-                        $table = $this->tableRepository->getTable($inner['li_attr']['data-object']['id'] ?? 0);
+                        $table = $this->tableRepository->getTable($inner['li_attr']['data-id'] ?? 0);
                         $tb_settings = !empty($inner['li_attr']['data-copy-settings']) ? $inner['li_attr']['data-copy-settings'] : null;
 
                         $res = $this->copyTable($table, $new_user_id, $created_fld_id, $tb_settings);
                         $this->copyTableRepository->copied_table_compares[$table->id] = $res['new_table']->id;
-                        $this->copyTableSettings($table, $new_user_id, $res['new_table'], $tb_settings);
+                        $this->copiedCorrespond[$table->id] = $res['new_table'];
 
                     }
-                    if ($type == 'folder' && $this->jsonObjectIsSelected($inner)) {
-                        $this->copyFolderTreeForOthers($inner, $new_user_id, $created_fld_id);
+                    if ($type == 'folder' && $this->jsonObjectIsSelected($inner, $with_links)) {
+                        $this->copyFolderTreeForOthers($inner, $new_user_id, $created_fld_id, $with_links);
                     }
                 }
 
@@ -158,17 +164,46 @@ class ImportService
     }
 
     /**
+     * @param array $jstree_folder
+     * @param int $new_user_id
+     * @param bool $with_links
+     * @return void
+     * @throws Exception
+     */
+    private function copyFolderTreeForOthersSettings(array $jstree_folder, int $new_user_id, bool $with_links = false)
+    {
+        if ($this->jsonObjectIsSelected($jstree_folder, $with_links)) {
+            foreach ($jstree_folder['children'] as &$inner) {
+                $type = $inner['li_attr']['data-type'] ?? '';
+                $is_table = $type == 'table' || ($with_links && $type == 'link');
+                if ($is_table && $this->jsonObjectIsSelected($inner, $with_links)) {
+                    $table = $this->tableRepository->getTable($inner['li_attr']['data-id'] ?? 0);
+                    $tb_settings = !empty($inner['li_attr']['data-copy-settings']) ? $inner['li_attr']['data-copy-settings'] : null;
+                    $this->copyTableSettings($table, $new_user_id, $this->copiedCorrespond[$table->id], $tb_settings);
+                }
+                if ($type == 'folder' && $this->jsonObjectIsSelected($inner, $with_links)) {
+                    $this->copyFolderTreeForOthersSettings($inner, $new_user_id, $with_links);
+                }
+            }
+        }
+    }
+
+    /**
      * JS-Tree Object is selected or its children.
      *
      * @param $jstree_folder
+     * @param $with_links
      * @return bool
      */
-    public function jsonObjectIsSelected($jstree_folder)
+    public function jsonObjectIsSelected($jstree_folder, $with_links)
     {
+        if ($with_links) {
+            return true;
+        }
         $selected = $jstree_folder['state']['selected'] ?? false;
         if (!$selected) {
             foreach ($jstree_folder['children'] as $inner) {
-                $selected = $this->jsonObjectIsSelected($inner);
+                $selected = $this->jsonObjectIsSelected($inner, $with_links);
                 if ($selected) {
                     break;
                 }
@@ -206,13 +241,14 @@ class ImportService
      * @param $new_user_id
      * @return int
      */
-    private function copyFolder(array $old, $parent_folder_id, $new_user_id)
+    protected function copyFolder(array $old, $parent_folder_id, $new_user_id)
     {
+        $parent = $this->folderRepository->getFolder($parent_folder_id);
         $folder = $this->folderRepository->insertFolder(
             $parent_folder_id,
             $new_user_id,
             $old['name'],
-            'private',
+            $parent->structure ?: 'private',
             [
                 'in_shared' => $old['in_shared']
             ]
@@ -246,7 +282,7 @@ class ImportService
      */
     public function copyTable(Table $table, $new_user_id, int $new_folder_id, $settings = null, $overwrite = false, $visitor = false)
     {
-        $data = $this->prepareData($table->only(['name', 'rows_per_page', 'notes']), $new_user_id);
+        $data = $this->prepareData($table->only(['name', 'rows_per_page', 'notes', 'initial_name']), $new_user_id);
 
         if ($tested = $this->tableRepository->testNameOnLvl($data['name'], $new_folder_id, $new_user_id)) {
             if (!$overwrite) {
@@ -259,7 +295,7 @@ class ImportService
         //Copy table and data in DB
         $copyAvails = $visitor ? $this->copyAvails($table, null) : [];
         $with_data = is_null($settings) || !empty($settings['data']);
-        $this->copyTableInDB($table, $copyAvails, $data['db_name'], $with_data);
+        $this->importRepository->copyTableInDB($table, $copyAvails, $data['db_name'], $with_data);
 
         //copy in DB_SYS
         $initial_columns = $this->getInitialColumns($table, $copyAvails['columns'] ?? []);
@@ -313,8 +349,10 @@ class ImportService
      */
     public function deleteTable(Table $table)
     {
+        AutomationHistory::where('table_id', $table->id)->delete();
+        (new RemoteFilesRepository())->delete($table->id);
         $this->fileRepository->deleteAllAttachments($table);
-        $error = $this->importRepository->deleteTable($table->db_name);
+        $error = $this->importRepository->deleteTableInDb($table->db_name);
         if ($error) {
             $res = ['error' => true, 'msg' => $error];
         }
@@ -341,36 +379,6 @@ class ImportService
             'columns' => $permission->view_fields->merge((new HelperService())->system_fields)->unique()->toArray(),
             'rows' => (new TableDataRepository())->getRowsColumn($table, $permission)->toArray(),
         ];
-    }
-
-    /**
-     * @param Table $table
-     * @param array $copyAvails
-     * @param string $db_name
-     * @param bool $with_data
-     */
-    protected function copyTableInDB(Table $table, array $copyAvails, string $db_name, bool $with_data)
-    {
-        //config connection
-        $db = $this->service->getConnectionForTable($table);
-
-        $columns = $copyAvails
-            ? implode(',', $copyAvails['columns'])
-            : '*';
-
-        if ($with_data) {
-            $rows = $copyAvails
-                ? '`id` IN (' . implode(',', $copyAvails['rows']) . ')'
-                : 'true';
-        } else {
-            $rows = 'false';
-        }
-
-        //copy in DB_DATA
-        $db->select('CREATE TABLE `' . $db_name . '` SELECT ' . $columns . ' FROM `' . $table->db_name . '` WHERE ' . $rows);
-        //create 'id' as primary key
-        $db->select('UPDATE `' . $db_name . '` SET `created_on` = now(), `modified_on` = now()');
-        $db->select('ALTER TABLE `' . $db_name . '` CHANGE `id` `id` INT(10) AUTO_INCREMENT, add PRIMARY KEY (`id`)');
     }
 
     /**
@@ -411,6 +419,7 @@ class ImportService
     public function createTable(array $data, $user_id, $folder_id, $folder_path = '', $initial_columns = [])
     {
         $data['name'] = Tablda::safeName($data['name']);
+        $data['initial_name'] = preg_replace('/[^\w\d]/i', '_', $data['initial_name'] ?? $data['name']);
         if ($this->tableRepository->testNameOnLvl($data['name'], $folder_id, $user_id)) {
             return ['error' => true, 'msg' => 'Node Name Taken. Enter a Different Name.'];
         }
@@ -437,6 +446,7 @@ class ImportService
         //add right for 'Visitor' if table will be published
         $this->permissionsService->addSystemRights($table->id, 0, $initial_columns ? $initial_columns : []);
         $this->tableViewRepository->addSys($table);
+        (new TableRowGroupRepository())->addSystems($table->id);
 
         $table->link = $table->_link_initial_folder;
         $path = ($folder_path ? $folder_path : config('app.url') . "/data/");
@@ -457,7 +467,7 @@ class ImportService
      *
      * @return array
      */
-    private function getSystemColumns()
+    protected function getSystemColumns()
     {
         return [
             [
@@ -519,10 +529,10 @@ class ImportService
      * @return bool
      * @throws Exception
      */
-    public function copyTableSettings(Table $table, $new_user_id, Table $new_table, $settings = null)
+    protected function copyTableSettings(Table $table, $new_user_id, Table $new_table, $settings = null)
     {
         $errors = [];
-        $new_table->update($table->getCopyAttrs());
+        $this->copyTableRepository->copyTableParams($table, $new_table);
 
         try {
             $this->copyTableRepository->copyHeaderSettings($table, $new_table);
@@ -541,18 +551,18 @@ class ImportService
             }
         }
 
-        if (is_null($settings) || !empty($settings['grouping_rows'])) {
-            try {
-                $this->copyTableRepository->copyRowGroups($table, $new_table);
-            } catch (Exception $e) {
-                $errors[] = 'Row Groups';
-            }
-        }
         if (is_null($settings) || !empty($settings['grouping_columns'])) {
             try {
                 $this->copyTableRepository->copyColumnGroups($table, $new_table);
             } catch (Exception $e) {
                 $errors[] = 'Column Groups';
+            }
+        }
+        if (is_null($settings) || !empty($settings['grouping_rows'])) {
+            try {
+                $this->copyTableRepository->copyRowGroups($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Row Groups';
             }
         }
 
@@ -584,11 +594,104 @@ class ImportService
                 $errors[] = 'Cond Formats';
             }
         }
-
-        try {
-            $this->copyTableRepository->copyMapIconsAndCharts($table, $new_table);
-        } catch (Exception $e) {
-            $errors[] = 'Map Icons And Charts';
+        //ADDONS
+        if (is_null($settings) || !empty($settings['addon_bi'])) {
+            try {
+                $this->copyTableRepository->copyAddonBi($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: BI';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_map'])) {
+            try {
+                $this->copyTableRepository->copyAddonGsi($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: GSI';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_request'])) {
+            try {
+                $this->copyTableRepository->copyAddonDcr($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: DCR';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_alert'])) {
+            try {
+                $this->copyTableRepository->copyAddonAna($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: ANA';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_kanban'])) {
+            try {
+                $this->copyTableRepository->copyAddonKanban($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Kanban';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_gantt'])) {
+            try {
+                $this->copyTableRepository->copyAddonGantt($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Gantt';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_email'])) {
+            try {
+                $this->copyTableRepository->copyAddonEmail($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Email';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_calendar'])) {
+            try {
+                $this->copyTableRepository->copyAddonCalendar($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Calendar';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_twilio'])) {
+            try {
+                $this->copyTableRepository->copyAddonSms($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: SMS';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_tournament'])) {
+            try {
+                $this->copyTableRepository->copyAddonTournament($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Brackets';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_simplemap'])) {
+            try {
+                $this->copyTableRepository->copyAddonSimplemap($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Maps';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_report'])) {
+            try {
+                $this->copyTableRepository->copyAddonReport($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Report';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_ai'])) {
+            try {
+                $this->copyTableRepository->copyAddonAi($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: AI';
+            }
+        }
+        if (is_null($settings) || !empty($settings['addon_grouping'])) {
+            try {
+                $this->copyTableRepository->copyAddonGrouping($table, $new_table);
+            } catch (Exception $e) {
+                $errors[] = 'Addon: Grouping';
+            }
         }
 
         if ($errors) {
@@ -605,13 +708,14 @@ class ImportService
      * @param null $settings
      * @param bool $overwrite
      * @param bool $visitor
+     * @param int|null $folder_id
      * @return array|mixed
      */
-    public function saveCopyTable(Table $table, $new_user_id, $settings = null, $overwrite = false, $visitor = false)
+    public function saveCopyTable(Table $table, $new_user_id, $settings = null, $overwrite = false, $visitor = false, int $folder_id = null)
     {
-        $sys_folder = $this->folderRepository->getSysFolder($new_user_id, 'TRANSFERRED');
+        $sys_folder = $folder_id ?: $this->folderRepository->getSysFolder($new_user_id, 'TRANSFERRED')->id;
 
-        $res = $this->copyTable($table, $new_user_id, $sys_folder->id, $settings, $overwrite, $visitor);
+        $res = $this->copyTable($table, $new_user_id, $sys_folder, $settings, $overwrite, $visitor);
         if (!empty($res['error'])) {
             return $res;
         }
@@ -622,6 +726,36 @@ class ImportService
         (new UserRepository())->newMenutreeHash($new_user_id);
 
         return $res['result'];
+    }
+
+    /**
+     * @param int $fieldId
+     * @param Table $tableTo
+     * @return array
+     */
+    public function copyFieldTo(int $fieldId, Table $tableTo): array
+    {
+        $error = '';
+        $fld = $this->fieldRepository->getField($fieldId);
+
+        if ($fld) {
+
+            $data = [
+                'import_type' => '',
+                'columns' => [
+                    array_merge($fld->toArray(), ['status' => 'add'])
+                ]
+            ];
+            $error = $this->importRepository->modifyTableColumns($tableTo, $data);
+
+            try {
+                $this->copyTableRepository->copyBasics($fld->_table, $tableTo, [$fld->id]);
+            } catch (Exception $e) {
+                $error = 'Copy TableField:'.$e->getMessage();
+            }
+        }
+
+        return ['error' => !!$error, 'msg' => $error];
     }
 
     /**
@@ -647,7 +781,7 @@ class ImportService
     {
         //if needs to replace table with columns -> prepare to do it.
         if (
-            in_array($data['import_type'], ['csv', 'mysql', 'remote', 'paste', 'web_scrap', 'g_sheets', 'table_ocr', 'airtable_import', 'chart_export'])
+            in_array($data['import_type'], ['csv','mysql','remote','paste','web_scrap','g_sheets','table_ocr','airtable_import','chart_export','jira_import','salesforce_import'])
             &&
             $data['import_action'] === 'new'
         ) {
@@ -693,6 +827,8 @@ class ImportService
             'num_columns' => count($this->fieldRepository->getFieldsForTable($table->id)),
         ]);
 
+        $table->activateVirtualScrollIfNeeded();
+
         return [
             'error' => false,
             'msg' => '',
@@ -709,24 +845,17 @@ class ImportService
     protected function importData(Table $table, array $data): int
     {
         //import data
-        if (in_array($data['import_type'], ['csv', 'mysql', 'reference', 'paste', 'g_sheets', 'web_scrap', 'table_ocr', 'airtable_import', 'chart_export'])) {
+        if (in_array($data['import_type'], ['csv','mysql','reference','paste','g_sheets','web_scrap','table_ocr','airtable_import','chart_export','transpose_import','jira_import','salesforce_import'])) {
             $job = Import::create([
+                'table_id' => $table->id,
                 'file' => "app/tmp_import/" . $data['csv_settings']['filename'],
-                'status' => 'initialized'
+                'status' => 'initialized',
+                'type' => 'ImportTableData',
             ]);
             dispatch(new ImportTableData($table, $data, auth()->user(), $job->id));
         } else {
-            if ($table->num_rows > $this->service->recalc_table_formulas_job) {
-                $recalc = Import::create([
-                    'file' => '',
-                    'status' => 'initialized'
-                ]);
-                dispatch(new RecalcTableFormula($table, auth()->id(), $recalc->id));
-                Session::flash('recalc_id', $recalc->id);
-            } else {
-                //recalc all formulas if table has them
-                $this->tableDataService->recalcTableFormulas($table);
-            }
+            //recalc all formulas if table has them
+            $this->tableDataService->recalcTableFormulas($table, auth()->id());
         }
         return isset($job) ? $job->id : 0;
     }
@@ -744,8 +873,10 @@ class ImportService
         $folder_id = $folder ? $folder->folder_id : null;
         $user_id = $table->user_id;
         $tb = $table->only([
-            'db_name', 'name', 'rows_per_page', 'notes', 'import_web_scrap_save', 'import_gsheet_save',
-            'import_airtable_save', 'import_table_ocr_save', 'import_csv_save', 'import_mysql_save', 'import_paste_save'
+            'db_name', 'name', 'rows_per_page', 'notes', 'import_web_scrap_save', 'import_gsheet_save', 'import_last_cols_corresp',
+            'import_airtable_save', 'import_table_ocr_save', 'import_csv_save', 'import_mysql_save', 'import_paste_save',
+            'import_transpose_save', 'import_salesforce_save', 'import_last_salesforce_action', 'import_jira_save', 'import_last_jira_action',
+            'initial_name'
         ]);
 
         $resp = $this->deleteTable($table);
@@ -810,7 +941,7 @@ class ImportService
 
         return [
             'headers' => $headers,
-            'fields' => array_pluck($headers, 'name'),
+            'fields' => Arr::pluck($headers, 'name'),
             'file_hash' => $file_hash
         ];
     }
@@ -822,7 +953,7 @@ class ImportService
      * @param array $specials
      * @return array
      */
-    protected function makeHeaders(array $row, bool $use_val = false, array $types = [], array $specials = [])
+    public function makeHeaders(array $row, bool $use_val = false, array $types = [], array $specials = [])
     {
         $headers = [];
         foreach ($row as $key => $val) {
@@ -904,7 +1035,7 @@ class ImportService
 
         return [
             'headers' => $headers,
-            'fields' => array_pluck($headers, 'name'),
+            'fields' => Arr::pluck($headers, 'name'),
         ];
     }
 
@@ -926,7 +1057,7 @@ class ImportService
         $headers = $this->makeHeaders($row, !!$web_headers);
         return [
             'headers' => $headers,
-            'fields' => array_pluck($headers, 'name'),
+            'fields' => Arr::pluck($headers, 'name'),
         ];
     }
 
@@ -940,7 +1071,7 @@ class ImportService
         $headers = $this->makeHeaders($row, true);
         return [
             'headers' => $headers,
-            'fields' => array_pluck($headers, 'name'),
+            'fields' => Arr::pluck($headers, 'name'),
         ];
     }
 
@@ -961,7 +1092,7 @@ class ImportService
         }
         return [
             'headers' => $headers,
-            'fields' => array_pluck($headers, 'name'),
+            'fields' => Arr::pluck($headers, 'name'),
         ];
     }
 
@@ -1021,7 +1152,7 @@ class ImportService
 
         return [
             'headers' => $headers,
-            'csv_fields' => array_pluck($headers, 'name'),
+            'csv_fields' => Arr::pluck($headers, 'name'),
             'csv_file' => $tmp_csv,
             'xls_sheets' => $xls_sheets,
         ];
@@ -1048,29 +1179,10 @@ class ImportService
                 $headers = $this->makeHeaders($row);
             }
 
-            if ($row_idx == 1 && ($data['firstHeader'] ?? "")) {
+            $hdrRowNum = floatval($data['headerRowNum'] ?? 0);
+            if ($hdrRowNum && $row_idx == $hdrRowNum) {
                 foreach ($row as $key => $val) {
                     $headers[$key]['name'] = $val;
-                }
-            }
-            if ($row_idx == 3 && ($data['secondType'] ?? "")) {
-                foreach ($row as $key => $val) {
-                    $headers[$key]['f_type'] = ucfirst(strtolower($val));
-                }
-            }
-            if ($row_idx == 4 && ($data['thirdSize'] ?? "")) {
-                foreach ($row as $key => $val) {
-                    $headers[$key]['f_size'] = (int)$val;
-                }
-            }
-            if ($row_idx == 5 && ($data['fourthDefault'] ?? "")) {
-                foreach ($row as $key => $val) {
-                    $headers[$key]['f_default'] = $val;
-                }
-            }
-            if ($row_idx == 6 && ($data['fifthRequired'] ?? "")) {
-                foreach ($row as $key => $val) {
-                    $headers[$key]['f_required'] = $val ? 1 : 0;
                 }
             }
 
@@ -1179,7 +1291,7 @@ class ImportService
 
         return [
             'headers' => $headers,
-            'mysql_fields' => array_pluck($headers, 'name'),
+            'mysql_fields' => Arr::pluck($headers, 'name'),
             'connection_id' => $user_conn->id
         ];
     }
@@ -1191,7 +1303,7 @@ class ImportService
      * @param $user_id
      * @return mixed
      */
-    private function saveUserConnection(array $data, $user_id)
+    protected function saveUserConnection(array $data, $user_id)
     {
         $conn_data = collect($data)->only(['name', 'host', 'login', 'pass', 'db', 'table', 'notes'])->toArray();
         $conn_data['user_id'] = $user_id;
@@ -1280,7 +1392,7 @@ class ImportService
     public function allGoogleFiles(int $user_cloud_id, string $mime = '')
     {
         $token_json = (new UserCloudRepository())->getCloudToken($user_cloud_id);
-        return (new GoogleApiModule())->driveFindFiles($token_json, $mime);
+        return (new GoogleApiModule())->driveFindFiles($token_json, $mime ? ['q' => "mimeType='".$mime."'"] : []);
     }
 
     /**
@@ -1300,10 +1412,10 @@ class ImportService
      * @param string $path
      * @return string
      */
-    public function storeGoogleFile(int $user_cloud_id, string $file_id, string $path)
+    public function storeTmpGoogleFile(int $user_cloud_id, string $file_id, string $path)
     {
         $token_json = (new UserCloudRepository())->getCloudToken($user_cloud_id);
-        return (new GoogleApiModule())->storeGoogleFile($token_json, $file_id, $path);
+        return (new GoogleApiModule())->storeGoogleFile($token_json, $file_id, 'tmp_import/'.$path);
     }
 
     /**
@@ -1313,7 +1425,8 @@ class ImportService
      */
     public function allDropboxFiles(int $user_cloud_id, array $extension)
     {
-        return (new DropBoxApiModule())->driveFindFiles($user_cloud_id, $extension);
+        $cloud = (new UserCloudRepository())->getCloud($user_cloud_id);
+        return (new DropBoxApiModule($cloud->cloud))->driveFindFiles($user_cloud_id, $extension);
     }
 
     /**
@@ -1322,9 +1435,10 @@ class ImportService
      * @param string $path
      * @return string
      */
-    public function storeDropboxFile(int $user_cloud_id, string $file_id, string $path)
+    public function storeTmpDropboxFile(int $user_cloud_id, string $file_id, string $path)
     {
-        return (new DropboxApiModule())->storeDropboxFile($user_cloud_id, $file_id, $path);
+        $cloud = (new UserCloudRepository())->getCloud($user_cloud_id);
+        return (new DropboxApiModule($cloud->cloud))->storeDropboxFile($user_cloud_id, $file_id, 'tmp_import/'.$path);
     }
 
     /**
@@ -1343,8 +1457,8 @@ class ImportService
      * @param string $path
      * @return string
      */
-    public function storeOneDriveFile(int $user_cloud_id, string $file_id, string $path)
+    public function storeTmpOneDriveFile(int $user_cloud_id, string $file_id, string $path)
     {
-        return (new OneDriveApiModule())->storeOneDriveFile($user_cloud_id, $file_id, $path);
+        return (new OneDriveApiModule())->storeOneDriveFile($user_cloud_id, $file_id, 'tmp_import/'.$path);
     }
 }

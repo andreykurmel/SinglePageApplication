@@ -20,25 +20,11 @@ use Vanguard\User;
  * @property string|null $row_hash
  * @property string|null $token_json
  * @property string|null $msg_to_user
+ * @property array|null $extra_params
  * @property int $row_order
  * @property-read \Vanguard\User|null $_created_user
  * @property-read \Vanguard\User|null $_modified_user
  * @property-read \Vanguard\User $_user
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud query()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereCloud($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereCreatedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereCreatedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereModifiedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereModifiedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereMsgToUser($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereRowHash($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereRowOrder($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereTokenJson($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\User\UserCloud whereUserId($value)
  * @mixin \Eloquent
  */
 class UserCloud extends Model
@@ -57,11 +43,26 @@ class UserCloud extends Model
         'cloud',
         'msg_to_user',
         'token_json',
-        'created_by',
-        'created_on',
-        'modified_by',
-        'modified_on'
+        'extra_params',
     ];
+
+    protected $casts = [
+        'extra_params' => 'array',
+    ];
+
+    public function jiraCloudId(): string
+    {
+        return $this->cloud == 'Jira' && !empty($this->extra_params['id'])
+                ? (string) $this->extra_params['id']
+                : '';
+    }
+
+    public function jiraDomain(): string
+    {
+        return $this->cloud == 'Jira' && !empty($this->extra_params['url'])
+                ? (string) $this->extra_params['url']
+                : '';
+    }
 
     /**
      * @return null|string

@@ -3,7 +3,7 @@
 @section('email_content')
     @if(!empty($replace_main_message))
         <p style="{{ $styles['paragraph'] }}">
-            {{ $replace_main_message }}
+            {!! $replace_main_message !!}
         </p>
     @else
         <p style="{{ $styles['paragraph'] }}">Following {{ $type == 'added' ? 'new' : ($type == 'updated' ? 'existing' : '') }}
@@ -24,14 +24,16 @@
     {{--DCR LINKS--}}
     @if(isset($link_tables) && is_array($link_tables))
         @foreach($link_tables as $ltable)
-            <p style="{{ $styles['paragraph'] }}">Linked Table <span style="color: #2ca02c">"{{ ($ltable['name'] ?? '') }}"</span>:</p>
+            <div style="margin-left: 40px">
+                <p style="{{ $styles['paragraph'] }}">Linked Table <span style="color: #2ca02c">"{{ ($ltable['name'] ?? '') }}"</span>:</p>
 
-            @include('tablda.emails.templates.partial_table', [
-                'pt_mail_format' => ($alert_arr['mail_format'] ?? ''),
-                'pt_fields_arr' => $ltable['fields'] ?? [],
-                'pt_all_rows' => $ltable['all_rows'] ?? [],
-                'pt_has_unit' => $ltable['has_unit'] ?? false,
-            ])
+                @include('tablda.emails.templates.partial_table', [
+                    'pt_mail_format' => ($ltable['mail_format'] ?? $alert_arr['mail_format'] ?? ''),
+                    'pt_fields_arr' => $ltable['fields'] ?? [],
+                    'pt_all_rows' => $ltable['all_rows'] ?? [],
+                    'pt_has_unit' => $ltable['has_unit'] ?? false,
+                ])
+            </div>
         @endforeach
     @endif
 

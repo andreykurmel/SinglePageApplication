@@ -18,14 +18,12 @@
 
                     <div class="flex__elem__inner popup-main" @click="editPopup()">
                         <div v-if="!edit" v-html="html" class="content_popup__body"></div>
-                        <div v-else="" class="content_popup__body">
-                            <textarea
-                                    v-model="html"
-                                    @blur="updateVal()"
-                                    @click.stop=""
-                                    ref="inline_input"
-                                    class="full-height form-control textarea-autosize"
-                            ></textarea>
+                        <div v-else class="content_popup__body">
+                            <Editor
+                                v-model="html"
+                                @click.stop=""
+                                class="textarea-autosize"
+                            ></Editor>
                         </div>
                     </div>
                 </div>
@@ -35,11 +33,13 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
     import {eventBus} from '../../app';
 
     import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
 
-    import TextareaAutosize from '../CustomCell/InCell/TextareaAutosize';
+    import Editor from '../CommonBlocks/Editor.vue';
 
     export default {
         name: "TableDataStringPopup",
@@ -47,7 +47,7 @@
             PopupAnimationMixin,
         ],
         components: {
-            TextareaAutosize,
+            Editor,
         },
         data: function () {
             return {
@@ -58,12 +58,13 @@
                 can_edit: false,
 
                 html: '',
+                newHtml: '',
 
                 uniq_id: null,
 
                 idx: 0,
-                getPopupWidth: 500,
-                getPopupHeight: '300px',
+                getPopupWidth: 720,
+                getPopupHeight: '350px',
             }
         },
         props: {
@@ -76,16 +77,7 @@
             editPopup() {
                 if (this.can_edit) {
                     this.edit = true;
-                    this.$nextTick(() => {
-                        if (this.$refs.inline_input) {
-                            this.$refs.inline_input.focus();
-                        }
-                    });
                 }
-            },
-            updateVal() {
-                eventBus.$emit('table-data-string-popup__update', this.uniq_id, this.html);
-                this.close();
             },
             hidePop(e) {
                 if (this.is_vis && e.keyCode === 27 && !this.$root.e__used) {
@@ -94,6 +86,9 @@
                 }
             },
             close() {
+                if (this.edit) {
+                    eventBus.$emit('table-data-string-popup__update', this.uniq_id, this.$root.strip_danger_tags(this.html));
+                }
                 this.edit = false;
                 this.is_vis = false;
             },
@@ -102,8 +97,13 @@
                 let row = this.obj ? this.obj.row : [];
                 let globalShows = [];
                 _.each(headers, (hdr) => {
-                    if (hdr.popup_header) {
-                        globalShows.push('{' + this.$root.uniqName(hdr.name) + '}: ' + (row ? (row[hdr.field] || '') : ''));
+                    if (hdr.popup_header || hdr.popup_header_val) {
+                        let row_value = row
+                            ? SpecialFuncs.showhtml(hdr, row, row[hdr.field], this.obj.meta)
+                            : '';
+                        let ar = hdr.popup_header ? [this.$root.uniqName(hdr.name)] : [];
+                        if (hdr.popup_header_val) { ar.push(row_value) }
+                        globalShows.push( ar.join(': ') );
                     }
                 });
                 globalShows = globalShows.length ? globalShows.join('<br>') : '';
@@ -113,18 +113,17 @@
                 return (globalShows ? globalShows+'<br>' : '') + localShows;
             },
             tableDataStringShowHandler(obj) {
-                if (obj.behavior === this.behavior) {
-                    this.obj = obj;
-                    this.can_edit = obj.can_edit;
-                    this.html = obj.html;
-                    this.uniq_id = obj.uniq_id;
-                    this.is_vis = true;
-                    this.$root.tablesZidx += 10;
-                    this.zIdx = this.$root.tablesZidx + 700;
-                    this.$nextTick(() => {
-                        this.runAnimation();
-                    });
-                }
+                this.obj = obj;
+                this.can_edit = obj.can_edit;
+                this.html = obj.html;
+                this.newHtml = obj.html;
+                this.uniq_id = obj.uniq_id;
+                this.is_vis = true;
+                this.$root.tablesZidxIncrease();
+                this.zIdx = this.$root.tablesZidx + 700;
+                this.$nextTick(() => {
+                    this.runAnimation();
+                });
             }
         },
         mounted() {
@@ -161,13 +160,12 @@
                 white-space: nowrap;
             }
             .content_popup__body {
-                padding: 0 5px;
                 height: 100%;
                 overflow: auto;
             }
             .textarea-autosize {
-                padding: 0 5px;
                 font-size: 13px;
+                height: calc(100% - 45px);
             }
         }
     }

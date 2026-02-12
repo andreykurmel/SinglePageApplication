@@ -4,19 +4,27 @@ namespace Vanguard\Repositories\Tablda\TableData;
 
 use DB;
 use Exception;
+use Illuminate\Contracts\Support\Arrayable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Vanguard\Classes\MselConvert;
 use Vanguard\Models\Dcr\DcrLinkedTable;
 use Vanguard\Models\FavoriteRow;
 use Vanguard\Models\File;
+use Vanguard\Models\RemoteFile;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\User\UserGroup;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\TableSavedFilterRepository;
+use Vanguard\Repositories\Tablda\TwilioHistoryRepository;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Support\SimilarityHelper;
 use Vanguard\User;
 
 class TableDataRowsRepository
@@ -113,7 +121,6 @@ class TableDataRowsRepository
     public function getRows(array $data, $user_id)
     {
         ini_set('memory_limit', '256M');
-        set_time_limit(60);
 
         $table = Table::where('id', '=', $data['table_id'])->first();
         $this->autoCorrectRowOrder($table);
@@ -133,7 +140,12 @@ class TableDataRowsRepository
             $rowsData = $sql->get();
             $this->attachSpecialFields($rowsData, $table, $user_id);
         } else {
-            $rowsData = $sql->get();
+            $rowsData = $sql->limit(500)->get();
+        }
+
+        if (!empty($data['search_words']) && !empty($data['search_columns'])) {
+            $searchArray = is_array($data['search_words']) ? $data['search_words'] : TableDataQuery::searchStringToArr($data['search_words']);
+            $rowsData = $this->sortBySimilarity($rowsData, $data['search_columns'], $searchArray);
         }
 
         return [
@@ -148,6 +160,27 @@ class TableDataRowsRepository
     }
 
     /**
+     * @param Collection $rowsData
+     * @param array $searchColumns
+     * @param array $searchWords
+     * @return Collection
+     */
+    protected function sortBySimilarity(Collection $rowsData, array $searchColumns, array $searchWords): Collection
+    {
+        foreach ($rowsData as $row) {
+            foreach ($searchColumns as $column) {
+                foreach ($searchWords as $srch) {
+                    if (! $row->_search_similarity) {
+                        $row->_search_similarity = 0;
+                    }
+                    $row->_search_similarity += SimilarityHelper::check($row[$column] ?? '', $srch['word'] ?? '');
+                }
+            }
+        }
+        return $rowsData->sortBy('_search_similarity', SORT_NUMERIC, true);
+    }
+
+    /**
      * Auto-correct 'row order' for all rows.
      *
      * @param Table $table
@@ -157,13 +190,17 @@ class TableDataRowsRepository
         if (!$table->is_system) {
             $tdq = new TableDataQuery($table);
             $query = $tdq->getQuery();
-            $query->groupBy('row_order')
-                ->havingRaw('rw > 1')
-                ->selectRaw('COUNT(`row_order`) as rw');
+            $action_needed = (clone $query)->where('row_order', '=', 0)->count();
+            if (!$action_needed) {
+                $action_needed = (clone $query)->groupBy('row_order')
+                    ->havingRaw('`rw` > 1')
+                    ->selectRaw('COUNT(`row_order`) as `rw`')
+                    ->first();
+            }
             //present not unique 'row_order'
-            if ($query->get()->count()) {
-                DB::connection($tdq->getConn($table))->statement('SET @row_number = 0;');
-                DB::connection($tdq->getConn($table))->statement('UPDATE `' . $table->db_name . '` SET `row_order` = (@row_number:=@row_number + 1) ORDER BY `row_order`,`id`');
+            if ($action_needed) {
+                DB::connection(TableDataQuery::getConn($table))->statement('SET @row_number = 0;');
+                DB::connection(TableDataQuery::getConn($table))->statement('UPDATE `' . $table->db_name . '` SET `row_order` = (@row_number:=@row_number + 1) ORDER BY `row_order`,`id`');
             }
         }
     }
@@ -182,6 +219,10 @@ class TableDataRowsRepository
     {
         if (!$rowsData->count()) {
             return $rowsData;
+        }
+
+        if (!$only || in_array('twilio_history', $only)) {
+            $this->attachTwilioHistory($rowsData, $table);
         }
 
         if (!$only || in_array('files', $only)) {
@@ -219,6 +260,34 @@ class TableDataRowsRepository
     }
 
     /**
+     * Attach Twilio History into table cells.
+     *
+     * @param Collection $allRows
+     * @param Table $table
+     */
+    protected function attachTwilioHistory(Collection $allRows, Table $table)
+    {
+        $twHistory = new TwilioHistoryRepository();
+        foreach ($table->_fields as $fld) {
+            if (
+                (in_array($fld->f_type, ['Email']) && ($fld->twilio_google_acc_id || $fld->twilio_sendgrid_acc_id))
+                ||
+                (in_array($fld->f_type, ['Phone Number']) && ($fld->twilio_sms_acc_id || $fld->twilio_voice_acc_id))
+            ) {
+                $row_ids = $allRows->pluck('id')->toArray();
+                $histories = $twHistory->getForRows($table->id, $fld->id, $row_ids);
+
+                foreach ($allRows as $row) {
+                    $array = $histories->where('row_id', '=', $row['id'])
+                        ->groupBy('type')
+                        ->toArray();
+                    $row['_tw_' . $fld->field] = $twHistory->allTypes($array);
+                }
+            }
+        }
+    }
+
+    /**
      * Attach files into table cells.
      *
      * @param Collection $allRows
@@ -229,7 +298,7 @@ class TableDataRowsRepository
         //prepare containers
         foreach ($allRows as $row) {
             foreach ($table->_fields as $header) {
-                if ($header->f_type === 'Attachment') {
+                if ($header->f_type == 'Attachment') {
                     $row['_images_for_' . $header->field] = [];
                     $row['_files_for_' . $header->field] = [];
                 }
@@ -242,13 +311,26 @@ class TableDataRowsRepository
             ->with('_table_field')
             ->get();
 
-        if (count($files)) {
-            foreach ($files as $file) {
-                $row = $allRows->where('id', '=', $file->row_id)->first();
-                if ($row && $file->_table_field) {
-                    $sys_col = $file->is_img ? '_images_for_' : '_files_for_';
-                    $row[$sys_col . $file->_table_field->field] = array_merge($row[$sys_col . $file->_table_field->field], [$file]);
-                }
+        foreach ($files as $file) {
+            $row = $allRows->where('id', '=', $file->row_id)->first();
+            if ($row && $file->_table_field) {
+                $sys_col = $file->is_img ? '_images_for_' : '_files_for_';
+                $row[$sys_col . $file->_table_field->field] = array_merge($row[$sys_col . $file->_table_field->field], [$file->getAttributes()]);
+            }
+        }
+
+        //attach remotes
+        $remotes = RemoteFile::where('table_id', '=', $table->id)
+            ->whereIn('row_id', $allRows->pluck('id'))
+            ->with('_table_field')
+            ->get();
+
+        foreach ($remotes as $remote) {
+            $row = $allRows->where('id', '=', $remote->row_id)->first();
+            if ($row && $remote->_table_field) {
+                $remote->is_remote = 1;
+                $sys_col = $remote->is_img ? '_images_for_' : '_files_for_';
+                $row[$sys_col . $remote->_table_field->field] = array_merge($row[$sys_col . $remote->_table_field->field], [$remote->getAttributes()]);
             }
         }
     }
@@ -419,13 +501,11 @@ class TableDataRowsRepository
      * @param Collection $allRows
      * @param Table $table
      * @param int|null $user_id
-     * @param int|null $table_permission_id
      */
-    protected function attachCondFormats(Collection $allRows, Table $table, int $user_id = null, int $table_permission_id = null)
+    protected function attachCondFormats(Collection $allRows, Table $table, int $user_id = null)
     {
         //get all applied CondFormats
         $_cond_formats = $table->_cond_formats()
-            ->activeForUser($user_id, $table_permission_id)
             ->get()
             ->toArray();
 
@@ -461,13 +541,19 @@ class TableDataRowsRepository
                 foreach ($fields as $fld) {
                     $row_ids = collect([]);
                     foreach ($allRows as $data_row) {
-                        $row_ids = $row_ids->merge(MselConvert::getArr($data_row->{$fld->field}));
+                        $row_val = $this->dataRowVal($data_row, $fld->field);
+                        $row_ids = $row_ids->merge(MselConvert::getArr($row_val));
                     }
+                    $row_ids = $row_ids->filter();
 
-                    $ref_rows = $this->getReferencedRowsFromDdl($fld, $row_ids);
+                    $ref_rows = collect([]);
+                    if ($row_ids->count()) {
+                        $ref_rows = $this->getReferencedRowsFromDdl($row_ids, $fld->ddl_id);
+                    }
 
                     foreach ($allRows as $data_row) {
                         $this->addRCs($data_row, $fld->field, $ref_rows);
+                        $data_row->_rc_attached = true;
                     }
                 }
                 //-------
@@ -477,12 +563,28 @@ class TableDataRowsRepository
     }
 
     /**
-     * @param TableField $field
+     * @param $data_row
+     * @param $field
+     * @return mixed|null
+     */
+    protected function dataRowVal($data_row, $field)
+    {
+        if ($data_row instanceof Arrayable) {
+            $array = $data_row->toArray();
+        } elseif (is_array($data_row)) {
+            $array = $data_row;
+        } else {
+            $array = (array)$data_row;
+        }
+        return $array[$field] ?? null;
+    }
+
+    /**
      * @param Collection $row_vals
-     * @param string $mode
+     * @param int|null $ddl_id
      * @return Collection
      */
-    protected function getReferencedRowsFromDdl(TableField $field, Collection $row_vals, string $mode = 'ddl_id')
+    public function getReferencedRowsFromDdl(Collection $row_vals, int $ddl_id = null)
     {
         $result = collect($row_vals)->map(function ($item) {
             return (object)[
@@ -490,47 +592,48 @@ class TableDataRowsRepository
                 'show_val' => $item,
                 'img_vals' => [],
                 'ref_bg_color' => '',
+                'max_selections' => '',
             ];
         });
 
         $this->recursive_passed = [];
-        return $this->recursiveDdlSearch($field, $result, $mode);
+        return $this->recursiveDdlSearch($result, $ddl_id);
     }
 
     /**
-     * @param TableField $field
      * @param Collection $row_vals
-     * @param string $mode
+     * @param int|null $ddl_id
      * @param int $dep
      * @return Collection
      */
-    protected function recursiveDdlSearch(TableField $field, Collection $row_vals, string $mode = 'ddl_id', int $dep = 1)
+    protected function recursiveDdlSearch(Collection $row_vals, int $ddl_id = null, int $dep = 1)
     {
         if ($dep >= 5) {
             return $row_vals;
         }
 
-        if ($field->{$mode}) {
+        if ($ddl_id) {
             //DDL Items
-            $ddl_items = $this->getDdlItems($field->{$mode});
+            $ddl_items = $this->getDdlItems($ddl_id);
             foreach ($row_vals as $res) {
                 $di = $ddl_items->where('option', '=', $res->show_val)->first();
                 if ($di) {
-                    $res->show_val = $di->show_option;
-                }
+                    $res->show_val = $di->show_option ?: $di->option;
 
-                if (!$res->img_vals) {
-                    $img = $ddl_items->where('option', '=', $res->show_val)->first();
-                    $res->img_vals = $img && $img->image_path ? [$img->image_path] : $res->img_vals;
-                }
-                if (!$res->ref_bg_color) {
-                    $img = $ddl_items->where('option', '=', $res->show_val)->first();
-                    $res->ref_bg_color = $img ? $img->opt_color : $res->ref_bg_color;
+                    if (!$res->img_vals) {
+                        $res->img_vals = $di->image_path ? [$di->image_path] : $res->img_vals;
+                    }
+                    if (!$res->ref_bg_color) {
+                        $res->ref_bg_color = $di->opt_color ?: $res->ref_bg_color;
+                    }
+                    if (!$res->max_selections) {
+                        $res->max_selections = $di->max_selections ?: $res->max_selections;
+                    }
                 }
             }
 
             //DDL References
-            $references = $this->getReferences($field->{$mode});
+            $references = $this->getReferences($ddl_id);
             $fileRepo = new FileRepository();
             foreach ($references as $dref) {
                 //prevent cyclic links
@@ -542,32 +645,50 @@ class TableDataRowsRepository
                 $tar_field = $dref->_target_field ? $dref->_target_field->field : 'id';
                 $show_field = $dref->_show_field ? '`' . $dref->_show_field->field . '`' : '""';
                 $img_field = $dref->_image_field ? '`' . $dref->_image_field->field . '`' : '""';
+                $clr_field = $dref->_color_field ? '`' . $dref->_color_field->field . '`' : '""';
+                $max_selections_field = $dref->_max_selections_field ? '`' . $dref->_max_selections_field->field . '`' : '""';
 
                 $r_table = $dref->_ref_condition->_ref_table;
-                $reffs = (new TableDataQuery($r_table))
+                $rSql = (new TableDataQuery($r_table))
                     ->getQuery()
-                    ->whereIn($tar_field, $row_vals->pluck('show_val'))
-                    ->selectRaw('`id`, `' . $tar_field . '` as `init_val`, ' . $show_field . ' as `show_val`')
+                    ->distinct()
+                    ->whereIn($tar_field, $row_vals->pluck('show_val')->unique());
+
+                $refHasId = $rSql->count('id') < 1000;
+                $id_field = $refHasId ? '`id`' : '""';
+
+                $reffs = $rSql
+                    ->selectRaw('' . $id_field . ' as `id`, `' . $tar_field . '` as `init_val`, ' . $show_field . ' as `show_val`, ' . $clr_field . ' as `ref_bg_color`, ' . $max_selections_field . ' as `max_selections`')
                     ->get();
 
                 $ref_files = $dref->_image_field
-                    ? $fileRepo->getPathsForRows($r_table->id, $dref->_image_field->id, $reffs->pluck('id'))
+                    ? $fileRepo->getPathsForRows($r_table->id, $dref->_image_field->id, $refHasId ? $reffs->pluck('id')->toArray() : [])
                     : collect([]);
 
+                $def_clr_img = $dref->search_in_ref_colors()->where('ref_value', '=', 'Default:')->first();
                 foreach ($row_vals as $res) {
                     $find = $reffs->where('init_val', '=', $res->show_val)->first();
                     if ($find) {
                         $res->show_val = $find->show_val ?: $find->init_val;
-                        $showfiles = $ref_files->where('row_id', '=', $find->id);
-                        $res->img_vals = $showfiles->count() ? $showfiles->pluck('fullpath') : [];
+                        $ref_clr_img = $dref->search_in_ref_colors()->where('ref_value', '=', $res->show_val)->first() ?: $def_clr_img;
 
-                        $clr = $dref->_reference_colors->where('ref_value', '=', $res->show_val)->first();
-                        $res->ref_bg_color = $clr ? $clr->color : $res->ref_bg_color;
+                        $showfiles = $ref_files->where('row_id', '=', $find->id);
+                        $res->img_vals = $dref->has_individ_images
+                            ? ($ref_clr_img && $ref_clr_img->image_ref_path ? [$ref_clr_img->image_ref_path] : [])
+                            : ($showfiles->count() ? $showfiles->pluck('fullpath') : []);
+
+                        $res->ref_bg_color = $dref->has_individ_colors
+                            ? ($ref_clr_img && $ref_clr_img->color ? $ref_clr_img->color : '')
+                            : ($find->ref_bg_color);
+
+                        $res->max_selections = $dref->has_individ_max_selections
+                            ? ($ref_clr_img && $ref_clr_img->max_selections ? $ref_clr_img->max_selections : '')
+                            : ($find->max_selections);
                     }
                 }
 
                 if ($dref->_show_field) {
-                    $row_vals = $this->recursiveDdlSearch($dref->_show_field, $row_vals, 'ddl_id', $dep + 1);
+                    $row_vals = $this->recursiveDdlSearch($row_vals, $dref->_show_field->ddl_id, $dep + 1);
                 }
             }
         }
@@ -601,7 +722,8 @@ class TableDataRowsRepository
     protected function addRCs(object $data_row, string $field, Collection $ref_rows)
     {
         $rcs = ['_is_ddlid' => ['show_val' => '']];
-        foreach (MselConvert::getArr($data_row->{$field}) as $row_item) {
+        $row_val = $this->dataRowVal($data_row, $field);
+        foreach (MselConvert::getArr($row_val) as $row_item) {
             $row_item = is_numeric($row_item) ? floatval($row_item) : (string)$row_item;
             $rcs[$row_item] = $ref_rows->where('init_val', '=', $row_item)->first();
         }
@@ -687,15 +809,55 @@ class TableDataRowsRepository
     /**
      * @param Table $table
      * @param DcrLinkedTable $dcrLinkedTable
-     * @param int $parent_row_id
+     * @param array $parent_row_dcr
      * @return Collection
      */
-    public function getDcrLinkedRows(Table $table, DcrLinkedTable $dcrLinkedTable, int $parent_row_id): Collection
+    public function getDcrLinkedRows(Table $table, DcrLinkedTable $dcrLinkedTable, array $parent_row_dcr): Collection
     {
-        $request_id = HelperService::dcr_id_linked_row($dcrLinkedTable->table_request_id, $parent_row_id);
-        $rows = (new TableDataQuery($table))
+        $request_id = HelperService::dcr_id_linked_row($dcrLinkedTable->table_request_id, $parent_row_dcr['id'] ?? null);
+
+        $tdq = new TableDataQuery($table);
+        $tdq->applyRefConditionRow($dcrLinkedTable->_passed_ref_cond, $parent_row_dcr);
+        $rows = $tdq->getQuery()->get();
+
+        $rows = $rows->merge(
+            (new TableDataQuery($table))
             ->getQuery()
             ->where('request_id', '=', $request_id)
+            ->get()
+        );
+
+        $this->attachSpecialFields($rows, $table);
+
+        return $rows;
+    }
+
+    /**
+     * @param Table $table
+     * @param DcrLinkedTable $dcrLinkedTable
+     * @param array $filters
+     * @return Collection
+     */
+    public function getDcrCatalog(Table $table, DcrLinkedTable $dcrLinkedTable, array $filters): Collection
+    {
+        $tdq = new TableDataQuery($table);
+        $tdq->checkAndApplyDataRange($dcrLinkedTable->ctlg_data_range);
+        $tdq->externalFilters($filters);
+        $query = $tdq->getQuery();
+
+        $row_ids = (clone $query)
+            ->distinct()
+            ->limit(100)
+            ->groupBy($dcrLinkedTable->_ctlg_distinct_field->field)
+            ->selectRaw('GROUP_CONCAT(id) as fid')
+            ->get()
+            ->pluck('fid')
+            ->map(function ($item) {
+                return Arr::first(explode(',', $item) ?: []);
+            });
+
+        $rows = (clone $query)
+            ->whereIn('id', $row_ids)
             ->get();
 
         $this->attachSpecialFields($rows, $table);
@@ -705,14 +867,38 @@ class TableDataRowsRepository
 
     /**
      * @param Table $table
+     * @param string $eriKeyPart
+     * @return Collection
+     */
+    public function getEriRows(Table $table, string $eriKeyPart): Collection
+    {
+        return (new TableDataQuery($table))
+            ->getQuery()
+            ->where('request_id', 'like', "$eriKeyPart%")
+            ->get()
+            ->sort(function ($a, $b) {
+                $aVal = explode('_', $a['request_id'] ?? '');
+                $aVal = Arr::last($aVal);
+
+                $bVal = explode('_', $b['request_id'] ?? '');
+                $bVal = Arr::last($bVal);
+
+                return $aVal <=> $bVal;
+            })
+            ->values();
+    }
+
+    /**
+     * @param Table $table
      * @param string $static_hash
      * @return Model|null
      */
     public function getRowSRV(Table $table, string $static_hash)
     {
+        $fld = $table->_srv_url ? $table->_srv_url->field : 'static_hash';
         return (new TableDataQuery($table))
             ->getQuery()
-            ->where('static_hash', '=', $static_hash)
+            ->where($fld, '=', $static_hash)
             ->first();
     }
 
@@ -726,11 +912,11 @@ class TableDataRowsRepository
         try {
             foreach ($fields as $i => $fld) {
                 if ($fld->unit_ddl_id && $fld->unit) {
-                    $ref_rows = $this->getReferencedRowsFromDdl($fld, collect([$fld->unit]), 'unit_ddl_id');
+                    $ref_rows = $this->getReferencedRowsFromDdl(collect([$fld->unit]), $fld->unit_ddl_id);
                     $this->addRCs($fld, 'unit', $ref_rows);
                 }
                 if ($fld->unit_ddl_id && $fld->unit_display) {
-                    $ref_rows = $this->getReferencedRowsFromDdl($fld, collect([$fld->unit_display]), 'unit_ddl_id');
+                    $ref_rows = $this->getReferencedRowsFromDdl(collect([$fld->unit_display]), $fld->unit_ddl_id);
                     $this->addRCs($fld, 'unit_display', $ref_rows);
                 }
             }
@@ -753,5 +939,77 @@ class TableDataRowsRepository
             ->select('id')
             ->get()
             ->pluck('id');
+    }
+
+    /**
+     * @param Table $table
+     * @param int|null $row_group_id
+     * @return Builder
+     */
+    public function dataQuerySql(Table $table, int $row_group_id = null): Builder
+    {
+        $sql = new TableDataQuery($table);
+        if ($row_group_id) {
+            $sql->applySelectedRowGroup($row_group_id);
+        }
+        return $sql->getQuery();
+    }
+
+    /**
+     * @param Table $table
+     * @param array $request_params
+     * @param int|null $user_id
+     * @param array $moreFilters
+     * @return array
+     * @throws Exception
+     */
+    public function getOnlyRows(Table $table, array $request_params, int $user_id = null, array $moreFilters = [])
+    {
+        $sql = new TableDataQuery($table, true, auth()->id());
+        //apply 'row group' if selected
+        if (!empty($moreFilters['row_group_id'])) {
+            $sql->applySelectedRowGroup($moreFilters['row_group_id']);
+        }
+        //apply 'saved filters' if selected
+        if (!empty($moreFilters['saved_filter_id'])) {
+            $sf = (new TableSavedFilterRepository())->get($moreFilters['saved_filter_id']);
+            $sql->externalFilters($sf->filters_object);
+        }
+        //apply searching, filtering, row rules to getRows
+        $sql->testViewAndApplyWhereClauses($request_params, auth()->id());
+        $sql->applySorting($request_params['sort'] ?? []);
+        //limit is 200rows
+        if ($sql->getQuery()->count() > 200) {
+            throw new Exception('Limit is 200 rows!', 1);
+        }
+        //attach DDL, files, etc.
+        $rowsData = $sql->getQuery()->get();
+        $this->attachSpecialFields($rowsData, $table, $user_id);
+        return [
+            'rows' => $rowsData,
+            'filters' => $sql->filters,
+        ];
+    }
+
+    /**
+     * @param Table $table
+     * @param array $clauses
+     * @param int $offset
+     * @param int $limit
+     * @return Collection
+     */
+    public function listRows(Table $table, array $clauses, int $offset, int $limit = 100): Collection
+    {
+        $sql = new TableDataQuery($table, true, auth()->id());
+        $sql = $sql->getQuery(false);
+        if (!empty($clauses['row_id'])) {
+            $sql->where('id', '=', $clauses['row_id']);
+        }
+        $rowsData = $sql->offset($offset)
+            ->limit($limit)
+            ->get();
+        //attach 'refs'.
+        $this->attachSpecialFields($rowsData, $table, $table->user_id, ['refs']);
+        return $rowsData;
     }
 }

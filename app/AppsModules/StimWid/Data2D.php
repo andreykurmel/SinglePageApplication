@@ -4,7 +4,9 @@ namespace Vanguard\AppsModules\StimWid;
 
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Ramsey\Uuid\Uuid;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
 use Vanguard\AppsModules\StimWid\Data\UserPermisQuery;
 use Vanguard\AppsModules\StimWid\Rts\RtsInterface;
@@ -67,12 +69,14 @@ class Data2D
             return [
                 'eqpt_lib' => $this->equipmentsFind($this->app_table, $this->master_model, 'eqpt_lib'),
                 'line_lib' => $this->libLinesFind($this->app_table, $this->master_model, 'line_lib'),
-                'sectors' => $this->findData($this->app_table, $this->master_model, 'sectors', ['sector', 'pos_num', 'pos_widths']),
+                'sectors' => $this->findData($this->app_table, $this->master_model, 'sectors', ['sector', 'pos_num', 'pos_widths', 'spt_pos_num', 'spt_pos_widths', 'face_norm']),
                 'pos' => $this->posFind($this->app_table, $this->master_model),
                 'data_eqpt' => $this->equipmentsFind($this->app_table, $this->master_model, 'data_eqpt'),
                 'data_conn' => $this->dataLinesFind($this->app_table, $this->master_model, 'data_conn'),
                 'data_filters' => $this->getEqptFilters($this->app_table, 'filters'),
                 'colors_eq' => $this->findEqptColors($this->app_table, $this->master_model),
+                'elevs_lib' => $this->findElevLib($this->app_table, $this->master_model),
+                'azimuth_lib' => $this->findAzimutbLib($this->app_table, $this->master_model),
                 'tech_list' => $this->findData($this->app_table, $this->master_model, 'tech_list', ['technology']),
                 'g_settings' => $g_setts,
                 'popup_tables' => $this->getArrayOfInherits(),
@@ -105,6 +109,8 @@ class Data2D
             'eqptsett_2d' => strtolower( $this->findInherit($this->app_table, 'eqpt_sett') ),
             'pos_2d' => strtolower( $this->findInherit($this->app_table, 'pos') ),
             'status_2d' => strtolower( $this->findInherit($this->app_table, 'eqpt_colors') ),
+            'elevs_2d' => strtolower( $this->findInherit($this->app_table, 'elevs_lib') ),
+            'azimuth_2d' => strtolower( $this->findInherit($this->app_table, 'sectors') ),
             'tech_2d' => strtolower( $this->findInherit($this->app_table, 'tech_list') ),
             'sectors_2d' => strtolower( $this->findInherit($this->app_table, 'sectors') ),
             'filters_2d' => strtolower( $this->findInherit($this->app_table, 'filters') ),
@@ -119,11 +125,12 @@ class Data2D
         $g_sett_select = [
             'background', 'top_elev', 'bot_elev', 'pd_pos_he', 'pd_sector_he', 'pd_rest_he', 'pd_bot_he',
             'g_pos_he', 'g_sector_he', 'g_rest_he', 'g_bot_he', 'elev_by', 'show_eqpt_size', 'show_eqpt_model',
-            'show_eqpt_tech', 'show_eqpt_id', 'show_line_model', 'shared_sectors',
+            'show_eqpt_tech', 'show_eqpt_id', 'show_line_model', 'shared_sectors', 'show_eqpt_azimuths',
             'show_eqpt_size__font', 'show_eqpt_size__size', 'show_eqpt_size__color',
             'show_eqpt_model__font', 'show_eqpt_model__size', 'show_eqpt_model__color',
             'show_eqpt_tech__font', 'show_eqpt_tech__size', 'show_eqpt_tech__color',
-            'show_eqpt_id__font', 'show_eqpt_id__size', 'show_eqpt_id__color',
+            'show_eqpt_azimuth__font', 'show_eqpt_azimuth__size', 'show_eqpt_azimuth__color',
+            'show_eqpt_id__font', 'show_eqpt_id__size', 'show_eqpt_id__color', 'show_elev_lib_lines',
             'show_line_model__font', 'show_line_model__size', 'show_line_model__color',
             'show_eqpt_tooltip', 'air_base_names', 'use_independent_controls', 'full_reflection'
         ];
@@ -159,9 +166,58 @@ class Data2D
      */
     public function findEqptColors(string $app_tb, array $tablda_model)
     {
-        $colors_tb = $this->stimRepo->findInheritTb($app_tb, 'eqpt_colors', '2d');
+        return $this->getLib($app_tb, $tablda_model, 'eqpt_colors');
+    }
+
+    /**
+     * @param string $app_tb
+     * @param array $tablda_model
+     * @return array
+     */
+    public function findElevLib(string $app_tb, array $tablda_model)
+    {
+        return $this->getLib($app_tb, $tablda_model, 'elevs_lib');
+    }
+
+    /**
+     * @param string $app_tb
+     * @param array $tablda_model
+     * @return array
+     */
+    public function findAzimutbLib(string $app_tb, array $tablda_model)
+    {
+        $azimuths = $this->getLib($app_tb, $tablda_model, 'sectors', 'antn_azims');
+        $lib = [];
+        foreach ($azimuths as $az) {
+            $datas = preg_replace('/[\s,;]+/i',',', $az['antn_azims']??'');
+            foreach (explode(',', $datas) as $el) {
+                if (strlen($el)) {
+                    $lib[] = (float)$el;
+                }
+            }
+        }
+        $lib = array_values( Arr::sort( array_unique($lib) ) );
+        return array_map(function($el) {
+            return [ '_id'=>Uuid::uuid4(), '_row_hash'=>null, 'deg'=>$el ];
+        }, $lib);
+    }
+
+    /**
+     * @param string $app_tb
+     * @param array $tablda_model
+     * @param string $inherit
+     * @param string $distinct
+     * @return array
+     */
+    protected function getLib(string $app_tb, array $tablda_model, string $inherit, string $distinct = '')
+    {
+        $tb = $this->stimRepo->findInheritTb($app_tb, $inherit, '2d');
         try {
-            return (new Model3dService( $colors_tb ))->queryFindModel($tablda_model)->get();
+            $rec = (new Model3dService( $tb ))->queryFindModel($tablda_model);
+            if ($distinct) {
+                $rec->select($distinct)->distinct();
+            }
+            return $rec->get();
         } catch (\Exception $e) {
             return [ '_error' => $e->getMessage() ];
         }
@@ -190,10 +246,10 @@ class Data2D
      */
     public function equipmentsFind(string $app_tb, array $tablda_model, string $inherit_type, array $filters = [])
     {
-        $select = ['equipment','location','sector','pos','status','elev_pd','elev_g','elev_rad',
-            'qty','pos_left','label_side','label_dir','technology'];
+        $select = ['equipment','location','sector','pos','status','elev_pd','elev_g','elev_rad','at_rot_y','azm',
+            'qty','pos_left','side_posleft','label_side','label_dir','technology','locmod_id'];
         $data_eqpts = $this->findData($app_tb, $tablda_model, $inherit_type, $select, $filters['eqpt'] ?? []);
-        $models = array_pluck($data_eqpts, 'equipment');
+        $models = Arr::pluck($data_eqpts, 'equipment');
 
         $eqpt_tb = $this->stimRepo->findInheritTb($app_tb, 'equipment', '2d');
         $info_eqpts = $eqpt_tb
@@ -248,7 +304,7 @@ class Data2D
             'from_port_pos', 'from_port_idx', 'to_port_pos', 'to_port_idx', 'control_points', 'control_points_back',
             'caption_style', 'caption_sect', 'caption_orient', ];
         $data_lines = $this->findData($app_tb, $tablda_model, $inherit_type, $select);
-        $models = array_pluck($data_lines, 'line');
+        $models = Arr::pluck($data_lines, 'line');
 
         $info_lines = $this->libLinesFind($this->app_table, $this->master_model, 'line_lib');
 
@@ -279,7 +335,7 @@ class Data2D
     {
         $select = ['title','diameter','gui_name'];
         $data_lines = $this->findData($app_tb, $tablda_model, $inherit_type, $select);
-        $models = array_pluck($data_lines, 'title');
+        $models = Arr::pluck($data_lines, 'title');
 
         $feedline_tb = $this->stimRepo->findPopupTb('feedline');
         $feedline_rows = $feedline_tb

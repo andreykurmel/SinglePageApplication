@@ -1,12 +1,14 @@
 <template>
-    <td :style="getCustomCellStyle"
+    <td :style="getCustomCellStyle()"
         class="td-custom"
         ref="td"
         @click="showEdit()"
+        @mouseenter="show_expand = $root.inArray(tableHeader.f_type, ['String', 'Text', 'Long Text', 'Auto String'])"
+        @mouseleave="show_expand = false"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="customInnerStyle">
+            <div class="wrapper-inner" :style="customInnerStyle()">
                 <div class="inner-content">
 
                     <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px', margin: '0 auto'}">
@@ -58,14 +60,11 @@
             </div>
 
             <cell-table-data-expand
-                v-if="cont_height > maxCellHGT+cell_top_padding"
+                v-if="show_expand"
                 style="background-color: #FFF;"
-                :cont_height="cont_height"
-                :cont_width="cont_width"
                 :table-meta="globalMeta"
                 :table-row="tableRow"
                 :table-header="tableHeader"
-                :html="cont_html"
                 :uniqid="getuniqid()"
                 :can-edit="canEdit"
                 :user="user"
@@ -135,6 +134,7 @@ export default {
         },
         data: function () {
             return {
+                show_expand: false,
                 editing: false,
                 oldVal: null,
                 editValue: null,
@@ -174,8 +174,13 @@ export default {
                         && (!this.inArray(this.tableHeader.field, ['lock_pass']) || this.tableRow.is_locked);
                 }
             },
+            is_sel() {
+                return this.$root.issel(this.tableHeader.input_type);
+            },
+        },
+        methods: {
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 if (this.tableHeader.field === 'lock_pass' && !this.tableRow.is_locked) {
                     obj.backgroundColor = '#EEE';
                 }
@@ -185,17 +190,12 @@ export default {
                 return obj;
             },
             customInnerStyle() {
-                let obj = this.getWrapperStyle;
+                let obj = this.getWrapperStyle();
                 if (this.tableHeader.field === '_embd') {
                     obj.overflow = 'visible';
                 }
                 return obj;
             },
-            is_sel() {
-                return this.$root.issel(this.tableHeader.input_type);
-            },
-        },
-        methods: {
             getLink() {
                 return '?view='+ this.tableRow.hash;
             },
@@ -264,7 +264,7 @@ export default {
                 else {
                     res = this.editValue;
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             showEmailRequestPop() {
                 eventBus.$emit('stim-app-show-email-edit-popup', this.tableRow);

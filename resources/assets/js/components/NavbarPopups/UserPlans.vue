@@ -29,6 +29,15 @@
                                 >
                                     <span>Payment</span>
                                 </button>
+
+                                <a target="_blank"
+                                   href="/data/myAccount/Transactions"
+                                   class="btn btn-sm"
+                                   :style="textSysStyle"
+                                   style="position: absolute; right: 5px; border: 1px solid #CCC;"
+                                >
+                                    <span>All Transactions</span>
+                                </a>
                             </div>
 
                             <!--SUMMARY-->
@@ -411,7 +420,7 @@
                 },
                 periodNotifDays: 2,
                 //PopupAnimationMixin
-                getPopupWidth: 830,
+                getPopupWidth: 990,
                 idx: 0,
             }
         },
@@ -570,7 +579,7 @@
                 if (this.$root.user._cards.length) {
                     this.sendPaying('StripeCard', 0);
                 } else {
-                    Swal('', 'You should link card before you can confirm payment.');
+                    Swal('Info', 'You should link card before you can confirm payment.');
                 }
             },
             sendPaying(url, order_id) {
@@ -597,7 +606,7 @@
                     all_addons: this.loc_all_addons
                 }).then(({ data }) => {
                     if (data.error) {
-                        Swal('', data.error);
+                        Swal('Info', data.error);
                         return;
                     }
                     if (data.approve_url) {
@@ -617,13 +626,13 @@
                             addon._old_checked = addon._checked;
                         });
                         if (!amount) {
-                            Swal('Payment made. $'+Number(used_credit/100).toFixed(2)+' is deduced from the account credit.');
+                            Swal('Info','Payment made. $'+Number(used_credit/100).toFixed(2)+' is deduced from the account credit.');
                         }
                     } else {
                         this.add_to_addon = null;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -641,15 +650,15 @@
                         addon._old_checked = addon._checked;
                     });
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
             },
             deleteCard(type, id) {
                 Swal({
-                    title: 'Unlink Card',
-                    text: 'Are you sure?',
+                    title: 'Info',
+                    text: 'Unlink Card. Are you sure?',
                     showCancelButton: true,
                 }).then((result) => {
                     if (result.value) {
@@ -664,7 +673,7 @@
                             this.$root.user.paypal_card_id = data.user.paypal_card_id;
                             this.$root.user.paypal_card_last = data.user.paypal_card_last;
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });
@@ -730,12 +739,12 @@
                     amount: this.$root.user.avail_credit,
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
         },
         mounted() {
-            this.$root.tablesZidx += 10;
+            this.$root.tablesZidxIncrease();
             this.zIdx = this.$root.tablesZidx;
             this.runAnimation({anim_transform:'none'});
 

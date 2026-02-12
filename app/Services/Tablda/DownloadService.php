@@ -7,11 +7,12 @@ use Dompdf\Dompdf;
 use Maatwebsite\Excel\Facades\Excel;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
+use Vanguard\Support\Excel\ArrayExport;
+use Maatwebsite\Excel\Excel as ExcelFormat;
 
 class DownloadService
 {
     private $tableDataRepository;
-    private $tableService;
 
     private $col_per_page = 9;
 
@@ -21,9 +22,8 @@ class DownloadService
      * @param TableDataRepository $tableDataRepository
      * @param TableService $tableService
      */
-    public function __construct(\Vanguard\Repositories\Tablda\TableData\TableDataRepository $tableDataRepository, TableService $tableService) {
+    public function __construct(\Vanguard\Repositories\Tablda\TableData\TableDataRepository $tableDataRepository) {
         $this->tableDataRepository = $tableDataRepository;
-        $this->tableService = $tableService;
     }
 
     /**
@@ -38,10 +38,10 @@ class DownloadService
         $res = "";
         switch ($filename) {
             case 'CSV': $dwn_mode = "csv";
-                $this->downloader_csv($table, $data, $table->name." " . $time);
+                $this->downloader_csv($table, $data, $table->name." ".$time);
                 break;
             case 'XLSX': $dwn_mode = "xlsx";
-                $res = $this->downloader_xlsx($table, $data, $table->name." " . $time);
+                $this->downloader_xlsx($table, $data, $table->name." ".$time);
                 break;
             case 'PDF': $dwn_mode = "pdf";
                 $this->downloader_pdf($table, $data, $table->name." ".$time.".pdf");
@@ -126,7 +126,7 @@ class DownloadService
         foreach ($tableRows as $row) {
             $to_print = [];
             foreach ($tableHeaders as $header) {
-                $to_print[] = '"'.str_replace('"','', $row[$header['field']]).'"';
+                $to_print[] = '"'.str_replace('"','', $row[$header['field']] ?? '').'"';
             }
             echo implode(',', $to_print)."\r\n";
         }
@@ -135,7 +135,8 @@ class DownloadService
     /*
      * Prepare Excel writer class
      */
-    private function prepare_Excel(Table $table, array $post, $filename) {
+    private function prepare_Excel(Table $table, array $post)
+    {
         $post['page'] = 1;
         $post['rows_per_page'] = 10000;
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
@@ -158,11 +159,7 @@ class DownloadService
             $data[] = $tmp_row;
         }
 
-        return Excel::create($filename, function($excel) use ($data) {
-            $excel->sheet('Sheet1', function($sheet) use ($data) {
-                $sheet->fromArray($data, null, 'A1', true, false);
-            });
-        });
+        return new ArrayExport($data);
     }
 
     /**
@@ -217,8 +214,8 @@ class DownloadService
      * Create data flow for xlsx file
      */
     private function downloader_xlsx(Table $table, array $post, $filename) {
-        $writer = $this->prepare_Excel($table, $post, $filename);
-        return $writer->export('xlsx');
+        $data = $this->prepare_Excel($table, $post);
+        echo Excel::raw($data, ExcelFormat::XLSX);
     }
 
     /*
@@ -227,7 +224,7 @@ class DownloadService
     private function downloader_pdf(Table $table, $post, string $filename) {
         $tableRows = $this->tableDataRepository->getRows($post, auth()->id());
 
-        $tableHeaders = array_filter($table->_fields, function ($header) {
+        $tableHeaders = $table->_fields->filter(function ($header) {
             return $header['is_showed'];
         });
 

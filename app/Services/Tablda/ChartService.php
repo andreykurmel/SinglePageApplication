@@ -2,10 +2,13 @@
 
 namespace Vanguard\Services\Tablda;
 
+use Exception;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 use Vanguard\Classes\BiPivotMaker;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableChart;
+use Vanguard\Models\Table\TableChartTab;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\TableChartRepository;
@@ -14,7 +17,6 @@ use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
-use Vanguard\Repositories\Tablda\TableRepository;
 
 class ChartService
 {
@@ -22,8 +24,8 @@ class ChartService
     protected $chartRepository;
     protected $service;
 
-    protected $limit_points = 5000;
-    protected $limit_excep = 'Too much points, try to use another field. Max points on the chart = 5000.';
+    protected $limit_points = 1000;
+    protected $limit_excep = 'Too much points, try to use another field. Max points on the chart = 1000.';
     protected $str_excep = 'It seems that you are using `value` functions with `String` column as Y-axis. You can try to check `Ignore Strings`.';
 
     protected $max_vert_hor = 5;
@@ -36,6 +38,18 @@ class ChartService
         $this->tableDataRepository = new TableDataRepository();
         $this->chartRepository = new TableChartRepository();
         $this->service = new HelperService();
+    }
+
+    /**
+     * @param TableChart $chart
+     * @param array $settings
+     * @return array
+     */
+    public function prepareChartSettings(TableChart $chart, array $settings): array
+    {
+        $settings['data_range'] = $settings['data_range'] ?? $chart->_tab->chart_data_range;
+
+        return $settings;
     }
 
     /**
@@ -134,33 +148,33 @@ class ChartService
 
         $corresp = [];
         for ($i = 1; $i <= $this->max_vert_hor; $i++) {
-            $corresp['hor_l'.$i] = $pivot_settings['horizontal']['l'.$i.'_field'] ?? null;
-            $corresp['vert_l'.$i] = $pivot_settings['vertical']['l'.$i.'_field'] ?? null;
+            $corresp['hor_l' . $i] = $pivot_settings['horizontal']['l' . $i . '_field'] ?? null;
+            $corresp['vert_l' . $i] = $pivot_settings['vertical']['l' . $i . '_field'] ?? null;
         }
 
         foreach ($pivot_data as $i => $data) {
             $arr = [];
             foreach ($corresp as $bi => $db) {
                 if ($db) {
-                    $arr[ $db ] = $data[ $bi ];
+                    $arr[$db] = $data[$bi];
                 }
             }
             $with_attachs[$i] = new TableData($arr);
         }
 
-        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users','refs']);
+        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users', 'refs']);
 
         foreach ($with_attachs as $i => $attach) {
             $attach = $attach->toArray();
             foreach ($corresp as $bi => $db) {
 
-                $pivot_data[$i]['_db_'.$bi] = $db;
+                $pivot_data[$i]['_db_' . $bi] = $db;
 
-                if (!empty($attach['_u_'.$db])) {
-                    $pivot_data[$i]['_u_'.$bi] = $attach['_u_'.$db];
+                if (!empty($attach['_u_' . $db])) {
+                    $pivot_data[$i]['_u_' . $bi] = $attach['_u_' . $db];
                 }
-                if (!empty($attach['_rc_'.$db])) {
-                    $pivot_data[$i]['_rc_'.$bi] = $attach['_rc_'.$db];
+                if (!empty($attach['_rc_' . $db])) {
+                    $pivot_data[$i]['_rc_' . $bi] = $attach['_rc_' . $db];
                 }
             }
         }
@@ -203,14 +217,17 @@ class ChartService
      */
     protected function getSqlChart(Table $table, array $request_params, array $all_settings, bool $is_chart = true)
     {
-        $excluded_vals = [ 'hors' => [], 'verts' =>[] ];
+        $excluded_vals = ['hors' => [], 'verts' => []];
         if ($is_chart) {
             $excluded_vals['hors'] = $all_settings['excluded_hors'] ?? [];
             $excluded_vals['verts'] = $all_settings['excluded_verts'] ?? [];
         }
-        $row_group_id = $all_settings['dataset']['rowgr_id'] ?? null;
-        $sql = $this->tableDataRepository->getSqlForChart($table, $request_params, $excluded_vals, $row_group_id);
-        return $sql;
+        $sql = $this->tableDataRepository->getSqlForChart($table, $request_params, $excluded_vals, $all_settings['data_range'] ?? '0');
+
+        $wrap = (new TableDataQuery($table))->getQuery();
+        $wrap->fromSub($sql->getQuery(), $table->db_name);
+
+        return $wrap;
     }
 
     /**
@@ -220,7 +237,7 @@ class ChartService
      * @param Builder $sql
      * @param array $chart_settings
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     protected function loadDataXrange(Table $table, Builder $sql, array $chart_settings)
     {
@@ -243,17 +260,16 @@ class ChartService
         ];
         $sql->selectRaw(implode(',', $selectFields));
 
-        $len = $sql->count();
-
-        if ($len < $this->limit_points) {
-            $res = $sql->get()->toArray();
+        $res = $sql->get();
+        if ($res->count() < $this->limit_points) {
+            $res = $res->toArray();
             foreach ($res as &$row) {
                 $row['tooltip1'] = ($tooltip1_fld ? $tooltip1_fld->name . ': ' : '') . $row['tooltip1'];
                 $row['tooltip2'] = ($tooltip2_fld ? $tooltip2_fld->name . ': ' : '') . $row['tooltip2'];
             }
             return $res;
         } else {
-            throw new \Exception('Chart exception. ' . $this->limit_excep, 1);
+            throw new Exception('Chart exception. ' . $this->limit_excep, 1);
         }
     }
 
@@ -277,8 +293,32 @@ class ChartService
 
         //get SQL for data loading
         $sql = $this->getSqlChart($table, $request_params, $all_settings);
+
         //Chart Grouping
-        return $this->groupChartData($table, $sql, $chart_settings);
+        $result = [];
+        if ($groups = $this->groupFuncIsArray($chart_settings)) {
+            foreach ($groups as $group) {
+                $result = array_merge($result, $this->groupChartData($table, $sql, $chart_settings, $group));
+            }
+        } else {
+            $result = $this->groupChartData($table, $sql, $chart_settings);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array $chart_settings
+     * @return array
+     */
+    protected function groupFuncIsArray(array $chart_settings): array
+    {
+        $calc_val = $chart_settings['y_axis']['calc_val'] ?? 0;
+        $group_arr = explode(',', strtolower($chart_settings['y_axis']['group_function'] ?? 'sum'));
+        if ($calc_val > 0 && count($group_arr) > 1 && !$chart_settings['x_axis']['l1_group_fld'] ?? '') {
+            return $group_arr;
+        }
+        return [];
     }
 
     /**
@@ -288,20 +328,20 @@ class ChartService
      * @param Builder $sql
      * @param array $chart_settings
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function groupChartData(Table $table, Builder $sql, array $chart_settings)
+    protected function groupChartData(Table $table, Builder $sql, array $chart_settings, string $foreGroup = '')
     {
         $x_field = $this->getDbField($table, $chart_settings['x_axis']['field']);
         $y_field = $this->getDbField($table, $chart_settings['y_axis']['field']);
         $l1_field = $this->getDbField($table, $chart_settings['x_axis']['l1_group_fld'] ?? '');
         $l2_field = $this->getDbField($table, $chart_settings['x_axis']['l2_group_fld'] ?? '');
-        $group_func = $this->getGroupFunc($chart_settings['y_axis'], $y_field);
+        $group_func = $this->getGroupFunc($chart_settings['y_axis'], $y_field, $foreGroup);
 
         $select = [
             "$group_func as `y`",
             $x_field . ' as `x`',
-            ($l1_field ?: '""') . ' as `l1`',
+            ($l1_field ?: '"'.ucfirst($foreGroup).'"') . ' as `l1`',
             ($l2_field ?: '""') . ' as `l2`',
         ];
 
@@ -310,24 +350,41 @@ class ChartService
         $sql->selectRaw(implode(',', $select));
         $sql->groupBy($grouping);
 
-        if ($sql->count() >= $this->limit_points) {
-            throw new \Exception('Chart exception. ' . $this->limit_excep, 1);
+        $rows = $sql->get();
+        if ($rows->count() >= $this->limit_points) {
+            throw new Exception('Chart exception. ' . $this->limit_excep, 1);
         }
 
-        return $sql->get()->toArray();
+        $rows = $rows->toArray();
+
+        //Remove 'null'
+        foreach ($rows as $idx => $row) {
+            is_null($row['x']) ? $rows[$idx]['x'] = '' : null;
+            is_null($row['l1']) ? $rows[$idx]['l1'] = '' : null;
+            is_null($row['l2']) ? $rows[$idx]['l2'] = '' : null;
+        }
+
+        $rows = $this->explodeMSelect($table, $chart_settings, $rows, 'chart');
+
+        if (count($rows) >= $this->limit_points) {
+            throw new Exception('Chart exception. ' . $this->limit_excep, 1);
+        }
+
+        return $rows;
     }
 
     /**
      * @param array $settings_elem
      * @param string $y_field
-     * @return mixed|string
+     * @param string $foreGroup
+     * @return string
      */
-    protected function getGroupFunc(array $settings_elem, string $y_field)
+    protected function getGroupFunc(array $settings_elem, string $y_field, string $foreGroup = '')
     {
         $calc_val = $settings_elem['calc_val'] ?? 0;
 
         if ($calc_val > 0) {
-            $group_func = strtolower($settings_elem['group_function'] ?? 'sum');
+            $group_func = strtolower($foreGroup ?: $settings_elem['group_function'] ?? 'sum');
         } elseif ($calc_val < 0) {
             $group_func = 'count_distinct';
         } else {
@@ -336,25 +393,35 @@ class ChartService
 
         //#app_avail_formulas
         switch ($group_func) {
-            case 'count_distinct': $func = "count(distinct $y_field)";
+            case 'count_distinct':
+                $func = "count(distinct $y_field)";
                 break;
-            case 'count': $func = "count($y_field)";
+            case 'count':
+                $func = "count($y_field)";
                 break;
-            case 'sum': $func = "sum($y_field)";
+            case 'sum':
+                $func = "sum($y_field)";
                 break;
-            case 'min': $func = "min($y_field)";
+            case 'min':
+                $func = "min($y_field)";
                 break;
-            case 'max': $func = "max($y_field)";
+            case 'max':
+                $func = "max($y_field)";
                 break;
-            case 'avg': $func = "avg($y_field)";
+            case 'avg':
+                $func = "avg($y_field)";
                 break;
-            case 'mean': $func = "(min($y_field) + max($y_field))/2";
+            case 'mean':
+                $func = "(min($y_field) + max($y_field))/2";
                 break;
-            case 'var': $func = "variance($y_field)";
+            case 'var':
+                $func = "variance($y_field)";
                 break;
-            case 'std': $func = "std($y_field)";
+            case 'std':
+                $func = "std($y_field)";
                 break;
-            default: $func = "count($y_field)";
+            default:
+                $func = "count($y_field)";
                 break;
         }
 
@@ -385,7 +452,7 @@ class ChartService
     protected function getPivotData(Table $table, array $all_settings, array $request_params, int $idx = null)
     {
         $pivot_settings = $all_settings['pivot_table'];
-        $key = 'about' . ($idx ? '_'.$idx : '');
+        $key = 'about' . ($idx ? '_' . $idx : '');
         //no main field
         if (!$pivot_settings[$key]['field']) {
             return [];
@@ -405,7 +472,7 @@ class ChartService
      * @param array $pivot_settings
      * @param array $about
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     protected function groupPivotData(Table $table, Builder $sql, array $pivot_settings, array $about)
     {
@@ -416,27 +483,33 @@ class ChartService
         }
         $group_func = $y_field ? $this->getGroupFunc($about, $y_field) : '""';
 
-        $select = [ "$group_func as `y`" ];
+        $select = ["$group_func as `y`"];
         $grouping = [];
 
+        if ($lbl_field = $this->getDbField($table, $about['label_field'] ?? '')) {
+            $select[] = "`$lbl_field` as `lbl`";
+            $grouping[] = $lbl_field;
+        }
+
         for ($i = 1; $i <= $this->max_vert_hor; $i++) {
-            $hor = $this->getDbField($table, $pivot_settings['horizontal']['l'.$i.'_field'] ?? '');
-            $select[] = ($hor ? '`'.$hor.'`' : '""') . ' as `hor_l'.$i.'`';
+            $hor = $this->getDbField($table, $pivot_settings['horizontal']['l' . $i . '_field'] ?? '');
+            $select[] = ($hor ? '`' . $hor . '`' : '""') . ' as `hor_l' . $i . '`';
             if ($hor) $grouping[] = $hor;
 
-            $vert = $this->getDbField($table, $pivot_settings['vertical']['l'.$i.'_field'] ?? '');
-            $select[] = ($vert ? '`'.$vert.'`' : '""') . ' as `vert_l'.$i.'`';
+            $vert = $this->getDbField($table, $pivot_settings['vertical']['l' . $i . '_field'] ?? '');
+            $select[] = ($vert ? '`' . $vert . '`' : '""') . ' as `vert_l' . $i . '`';
             if ($vert) $grouping[] = $vert;
         }
 
         $sql->selectRaw(implode(', ', $select));
         $sql->groupBy($grouping ? array_unique($grouping) : 'id');
 
-        if ($sql->count() >= $this->limit_points) {
-            throw new \Exception('Chart exception. ' . $this->limit_excep, 1);
+        $res = $sql->get();
+        if ($res->count() >= $this->limit_points) {
+            throw new Exception('Chart exception. ' . $this->limit_excep, 1);
         }
 
-        $res = $sql->get()->toArray();
+        $res = $res->toArray();
 
         //Just for DDL 'id/show'
         if ($pivot_settings['referenced_tables'] ?? false) {
@@ -449,12 +522,18 @@ class ChartService
         //Remove 'null'
         foreach ($res as $idx => $row) {
             for ($i = 1; $i <= $this->max_vert_hor; $i++) {
-                is_null($row['hor_l'.$i]) ? $res[$idx]['hor_l'.$i] = '' : null;
-                is_null($row['vert_l'.$i]) ? $res[$idx]['vert_l'.$i] = '' : null;
+                is_null($row['hor_l' . $i]) ? $res[$idx]['hor_l' . $i] = '' : null;
+                is_null($row['vert_l' . $i]) ? $res[$idx]['vert_l' . $i] = '' : null;
             }
         }
 
-        return $this->explodeMSelect($table, $pivot_settings, $res);
+        $res = $this->explodeMSelect($table, $pivot_settings, $res, 'pivot');
+
+        if (count($res) >= $this->limit_points) {
+            throw new Exception('Chart exception. ' . $this->limit_excep, 1);
+        }
+
+        return $res;
     }
 
     /**
@@ -466,16 +545,16 @@ class ChartService
      */
     protected function pivot_ref_data(array $rows, array $pivot_settings, string $type, int $i)
     {
-        $rref = $pivot_settings[$type]['l'.$i.'_reference'] ?? '';
+        $rref = $pivot_settings[$type]['l' . $i . '_reference'] ?? '';
         $refFld = is_numeric($rref) ? (new TableFieldRepository())->getField($rref) : null;
         if ($refFld && $refFld->_table) {
             $part = $type == 'horizontal' ? 'hor_l' : 'vert_l';
-            $targetFld = $pivot_settings[$type]['l'.$i.'_ref_link'] ?? 'id';
-            $clients = (new TableDataQuery($refFld->_table))->getQuery()->whereIn($targetFld, array_pluck($rows, $part.$i))->get();
+            $targetFld = $pivot_settings[$type]['l' . $i . '_ref_link'] ?? 'id';
+            $clients = (new TableDataQuery($refFld->_table))->getQuery()->whereIn($targetFld, Arr::pluck($rows, $part . $i))->get();
             foreach ($rows as $idx => $row) {
-                $found = $clients->where($targetFld, '=', $row[$part.$i])->first();
+                $found = $clients->where($targetFld, '=', $row[$part . $i])->first();
                 if ($found) {
-                    $rows[$idx][$part.$i] = $found[$refFld->field];
+                    $rows[$idx][$part . $i] = $found[$refFld->field];
                 }
             }
         }
@@ -486,24 +565,40 @@ class ChartService
      * @param Table $table
      * @param array $pivot_settings
      * @param array $res
+     * @param string $type
      * @return array
      */
-    protected function explodeMSelect(Table $table, array $pivot_settings, array $res)
+    protected function explodeMSelect(Table $table, array $pivot_settings, array $res, string $type = 'pivot')
     {
-        $some_split = $pivot_settings['horizontal']['l1_split'] || $pivot_settings['horizontal']['l2_split'] || $pivot_settings['horizontal']['l3_split']
-            || $pivot_settings['vertical']['l1_split'] || $pivot_settings['vertical']['l2_split'] || $pivot_settings['vertical']['l3_split'];
+        if ($type == 'pivot') {
+            $some_split = $pivot_settings['horizontal']['l1_split'] || $pivot_settings['horizontal']['l2_split'] || $pivot_settings['horizontal']['l3_split']
+                || $pivot_settings['vertical']['l1_split'] || $pivot_settings['vertical']['l2_split'] || $pivot_settings['vertical']['l3_split'];
+        } else {
+            $some_split = true;
+        }
 
         if ($some_split) {
             $new_arr = [];
-            foreach ($res as $i => $row) {
-                $hor_l1 = $this->parseMSel($pivot_settings['horizontal']['l1_split'], $res[$i]['hor_l1']);
-                $hor_l2 = $this->parseMSel($pivot_settings['horizontal']['l2_split'], $res[$i]['hor_l2']);
-                $hor_l3 = $this->parseMSel($pivot_settings['horizontal']['l3_split'], $res[$i]['hor_l3']);
-                $vert_l1 = $this->parseMSel($pivot_settings['vertical']['l1_split'], $res[$i]['vert_l1']);
-                $vert_l2 = $this->parseMSel($pivot_settings['vertical']['l2_split'], $res[$i]['vert_l2']);
-                $vert_l3 = $this->parseMSel($pivot_settings['vertical']['l3_split'], $res[$i]['vert_l3']);
-                $new_arr = $this->buildRes($new_arr, $hor_l1, $hor_l2, $hor_l3, $vert_l1, $vert_l2, $vert_l3, $res[$i]['y']);
+
+            if ($type == 'pivot') {
+                foreach ($res as $i => $row) {
+                    $hors = [];
+                    $verts = [];
+                    for ($j = 1; $j <= $this->max_vert_hor; $j++) {
+                        $hors[$j] = $this->parseMSel($pivot_settings['horizontal']['l'.$j.'_split'], $res[$i]['hor_l'.$j]);
+                        $verts[$j] = $this->parseMSel($pivot_settings['vertical']['l'.$j.'_split'], $res[$i]['vert_l'.$j]);
+                    }
+                    $new_arr = $this->buildResPivot($new_arr, $hors, $verts, $res[$i]['y']);
+                }
+            } else {
+                foreach ($res as $i => $row) {
+                    $x = $this->parseMSel(true, $res[$i]['x']);
+                    $l1 = $this->parseMSel(true, $res[$i]['l1']);
+                    $l2 = $this->parseMSel(true, $res[$i]['l2']);
+                    $new_arr = $this->buildResChart($new_arr, $x, $l1, $l2, $res[$i]['y']);
+                }
             }
+
         } else {
             $new_arr = $res;
         }
@@ -526,35 +621,68 @@ class ChartService
 
     /**
      * @param array $new_arr
-     * @param array $hor_l1
-     * @param array $hor_l2
-     * @param array $hor_l3
-     * @param array $vert_l1
-     * @param array $vert_l2
-     * @param array $vert_l3
+     * @param array $hors
+     * @param array $verts
      * @param $y
      * @return array
      */
-    protected function buildRes(array $new_arr, array $hor_l1, array $hor_l2, array $hor_l3, array $vert_l1, array $vert_l2, array $vert_l3, $y)
+    protected function buildResPivot(array $new_arr, array $hors, array $verts, $y)
     {
-        foreach ($hor_l1 as $h1) {
-            foreach ($hor_l2 as $h2) {
-                foreach ($hor_l3 as $h3) {
-                    foreach ($vert_l1 as $v1) {
-                        foreach ($vert_l2 as $v2) {
-                            foreach ($vert_l3 as $v3) {
-                                $new_arr[] = [
-                                    'hor_l1' => $h1,
-                                    'hor_l2' => $h2,
-                                    'hor_l3' => $h3,
-                                    'vert_l1' => $v1,
-                                    'vert_l2' => $v2,
-                                    'vert_l3' => $v3,
-                                    'y' => $y,
-                                ];
+        foreach ($hors[1] as $h1) {
+            foreach ($hors[2] as $h2) {
+                foreach ($hors[3] as $h3) {
+                    foreach ($hors[4] as $h4) {
+                        foreach ($hors[5] as $h5) {
+                            foreach ($verts[1] as $v1) {
+                                foreach ($verts[2] as $v2) {
+                                    foreach ($verts[3] as $v3) {
+                                        foreach ($verts[4] as $v4) {
+                                            foreach ($verts[5] as $v5) {
+                                                $new_arr[] = [
+                                                    'hor_l1' => $h1,
+                                                    'hor_l2' => $h2,
+                                                    'hor_l3' => $h3,
+                                                    'hor_l4' => $h4,
+                                                    'hor_l5' => $h5,
+                                                    'vert_l1' => $v1,
+                                                    'vert_l2' => $v2,
+                                                    'vert_l3' => $v3,
+                                                    'vert_l4' => $v4,
+                                                    'vert_l5' => $v5,
+                                                    'y' => $y,
+                                                ];
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
+                }
+            }
+        }
+        return $new_arr;
+    }
+
+    /**
+     * @param array $new_arr
+     * @param array $x
+     * @param array $l1
+     * @param array $l2
+     * @param $y
+     * @return array
+     */
+    protected function buildResChart(array $new_arr, array $x, array $l1, array $l2, $y)
+    {
+        foreach ($x as $h1) {
+            foreach ($l1 as $h2) {
+                foreach ($l2 as $h3) {
+                    $new_arr[] = [
+                        'x' => $h1,
+                        'l1' => $h2,
+                        'l2' => $h3,
+                        'y' => $y,
+                    ];
                 }
             }
         }
@@ -655,5 +783,52 @@ class ChartService
     public function deleteChartRight(TableChart $chart, int $table_permis_id)
     {
         return $this->chartRepository->deleteChartRight($chart, $table_permis_id);
+    }
+
+    /**
+     * @param int $model_id
+     * @return TableChartTab
+     */
+    public function getTab(int $model_id)
+    {
+        return $this->chartRepository->getTab($model_id);
+    }
+
+    /**
+     * @param array $data
+     * @return TableChartTab
+     */
+    public function insertTab(array $data)
+    {
+        return $this->chartRepository->insertTab($data);
+    }
+
+    /**
+     * @param $model_id
+     * @param array $data
+     * @return mixed
+     */
+    public function updateTab($model_id, array $data)
+    {
+        return $this->chartRepository->updateTab($model_id, $data);
+    }
+
+    /**
+     * @param $model_id
+     * @return bool|int|null
+     * @throws Exception
+     */
+    public function deleteTab($model_id)
+    {
+        return $this->chartRepository->deleteTab($model_id);
+    }
+
+    /**
+     * @param Table $table
+     * @return void
+     */
+    public function emptyChartsToTab(Table $table): void
+    {
+        $this->chartRepository->emptyChartsToTab($table);
     }
 }

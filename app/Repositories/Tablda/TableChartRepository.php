@@ -3,6 +3,8 @@
 namespace Vanguard\Repositories\Tablda;
 
 
+use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableChartTab;
 use Vanguard\Models\Table\TableChart;
 use Vanguard\Models\Table\TableChartRight;
 use Vanguard\Services\Tablda\HelperService;
@@ -141,5 +143,63 @@ class TableChartRepository
         return $chart->_chart_rights()
             ->where('table_permission_id', $table_permis_id)
             ->delete();
+    }
+
+    /**
+     * @param int $model_id
+     * @return TableChartTab
+     */
+    public function getTab(int $model_id)
+    {
+        return TableChartTab::where('id', '=', $model_id)->first();
+    }
+
+    /**
+     * @param array $data
+     * @return TableChartTab
+     */
+    public function insertTab(array $data)
+    {
+        return TableChartTab::create($this->service->delSystemFields($data));
+    }
+
+    /**
+     * @param $model_id
+     * @param array $data
+     * @return mixed
+     */
+    public function updateTab($model_id, array $data)
+    {
+        return TableChartTab::where('id', '=', $model_id)
+            ->update($this->service->delSystemFields($data));
+    }
+
+    /**
+     * @param $tab_id
+     * @return bool|int|null
+     * @throws \Exception
+     */
+    public function deleteTab($tab_id)
+    {
+        TableChart::where('table_chart_tab_id', '=', $tab_id)->delete();
+        
+        return TableChartTab::where('id', '=', $tab_id)
+            ->delete();
+    }
+
+    /**
+     * @param Table $table
+     * @return void
+     */
+    public function emptyChartsToTab(Table $table): void
+    {
+        if (!$table->_chart_tabs()->count()) {
+            TableChartTab::create(['name' => 'Charts', 'table_id' => $table->id]);
+        }
+        $table->_bi_charts()
+            ->whereNull('table_chart_tab_id')
+            ->update([
+                'table_chart_tab_id' => $table->_chart_tabs()->first()->id,
+            ]);
     }
 }

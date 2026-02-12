@@ -1,0 +1,110 @@
+[
+    {
+        "section":"T1",
+        "legs":"P2.5 x 0.203",
+        "leggrade":"A500M-54",
+        "diagonals":"L1 1\/2x1 1\/2x3\/16",
+        "diagonalgrade":"A36",
+        "topgirts":"L3x3x1\/4",
+        "facewidthft":"3.5",
+        "weightk":"0.7",
+        "panelsheight":"8",
+        "panelswidth":"5"
+    },
+    {
+        "section":"T2",
+        "legs":"P3x0.216",
+        "leggrade":"A500M-54",
+        "diagonals":"L1 1\/2x1 1\/2x3\/16",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"5",
+        "weightk":"0.8",
+        "panelsheight":"8",
+        "panelswidth":"5"
+    },
+    {
+        "section":"T3",
+        "legs":"P5x0.258",
+        "leggrade":"A500M-54",
+        "diagonals":"L2 1\/2x2 1\/2x3\/16",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"6.5",
+        "weightk":"1.3",
+        "panelsheight":"9",
+        "panelswidth":"6.66667"
+    },
+    {
+        "section":"T4",
+        "legs":"P6x.28",
+        "leggrade":"A500M-54",
+        "diagonals":"L2 1\/2x2 1\/2x3\/16",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"8",
+        "weightk":"1.7",
+        "panelsheight":"9",
+        "panelswidth":"6.66667"
+    },
+    {
+        "section":"T5",
+        "legs":"P8x.322",
+        "leggrade":"A500M-54",
+        "diagonals":"L 3x3x3\/16",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"9.5",
+        "weightk":"2.5",
+        "panelsheight":"9",
+        "panelswidth":"6.66667"
+    },
+    {
+        "section":"T6",
+        "legs":"P8x.322",
+        "leggrade":"A500M-54",
+        "diagonals":"L3x3x1\/4",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"11",
+        "weightk":"2.6",
+        "panelsheight":"8",
+        "panelswidth":"10"
+    },
+    {
+        "section":"T7",
+        "legs":"P10x.365",
+        "leggrade":"A500-50",
+        "diagonals":"L3 1\/2x3 1\/2x1\/4",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"12.5",
+        "weightk":"3.6",
+        "panelsheight":"8",
+        "panelswidth":"10"
+    },
+    {
+        "section":"T8",
+        "legs":"P10x.365",
+        "leggrade":"A500-50",
+        "diagonals":"L3 1\/2x3 1\/2x1\/4",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"14",
+        "weightk":"3.7",
+        "panelsheight":"8",
+        "panelswidth":"10"
+    },
+    {
+        "section":"T9",
+        "legs":"P10x.5",
+        "leggrade":"A500-50",
+        "diagonals":"2L4x4x1\/4x3\/8",
+        "diagonalgrade":"A36",
+        "topgirts":"N.A.",
+        "facewidthft":"15.5",
+        "weightk":"6.3",
+        "panelsheight":"8",
+        "panelswidth":"10"
+    }
+]

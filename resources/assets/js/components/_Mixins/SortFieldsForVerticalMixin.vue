@@ -1,10 +1,13 @@
 <script>
     /**
-     *  should be present:
+     *  Can be used:
      *
      *  */
     import IsShowFieldMixin from './IsShowFieldMixin.vue';
     import TestRowColMixin from './TestRowColMixin.vue';
+
+    import {VerticalTableFldObject} from "../CustomTable/VerticalTableFldObject";
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
     export default {
         mixins: [
@@ -16,6 +19,49 @@
             }
         },
         methods: {
+            getSectionGroups(tableMeta, tableRow, pivotFields, initGroups, multipleGroups, behavior, dcrLinkedTables) {
+                let firstPush = true;
+                let availGroups = initGroups || [];
+                let fld_objects = this.sortAndFilterFields(tableMeta, tableMeta._fields, tableRow, true);
+
+                let ava = [];
+                _.each(fld_objects, (fld) => {
+                    let isDcrSection = VerticalTableFldObject.fieldSetting('is_dcr_section', fld, pivotFields, behavior);
+                    if (isDcrSection && multipleGroups) {
+                        let tabs = SpecialFuncs.getFieldTabs(ava, firstPush ? dcrLinkedTables : null);
+                        firstPush = false;
+
+                        availGroups.push({
+                            fieldTabs: tabs,
+                            fields: ava,
+                            avail_columns: _.map(ava, 'field'),
+                            showthis: 1,
+                            showitem: 0,
+                            activetab: _.first(Object.keys(tabs)),
+                            uuid: uuidv4(),
+                        });
+                        ava = [];
+                    }
+                    ava.push(fld);
+                });
+
+                if (ava && ava.length) {
+                    let tabs = SpecialFuncs.getFieldTabs(ava, firstPush ? dcrLinkedTables : null);
+                    firstPush = false;
+
+                    availGroups.push({
+                        fieldTabs: tabs,
+                        fields: ava,
+                        avail_columns: _.map(ava, 'field'),
+                        showthis: 1,
+                        showitem: 0,
+                        activetab: _.first(Object.keys(tabs)),
+                        uuid: uuidv4(),
+                    });
+                }
+
+                return _.filter(availGroups, (avail) => { return avail.isSlideTitle || avail.avail_columns.length > 0; });
+            },
             /**
              * return [header, header, header, ...]
              * @returns {Array}
@@ -42,12 +88,17 @@
             },
             //can view
             canMainView(tableMeta, header, tableRow, ignore_format) {
-                return this.isShowField(header) && (ignore_format || this.hiddenByFormat(tableMeta, header, tableRow));
+                let noIsShow = this.behavior === 'kanban_view';
+                return this.$root.systemFields.indexOf(header.field) === -1
+                    && this.isShowField(header, noIsShow)
+                    && (ignore_format || this.hiddenByFormat(tableMeta, header, tableRow));
             },
             //hidden by CondFormat 'show in header'
             hiddenByFormat(tableMeta, tableHeader, tableRow) {
-                let visible = !!(tableHeader.is_default_show_in_popup);
-                _.each(tableMeta._cond_formats, (format) => {
+                let visible = SpecialFuncs.defaultVisibility(tableHeader);
+                let condFormats = tableMeta._cond_formats || [];
+                for (let i = condFormats.length-1; i >= 0; i--) {
+                    let format = condFormats[i] || {};
                     //check that Format is applied to this Cell
                     if (
                         format.status == 1 //check that Format is Active
@@ -58,7 +109,7 @@
                     ) {
                         visible = !!(format.show_form_data);
                     }
-                });
+                }
                 return visible;
             },
         },

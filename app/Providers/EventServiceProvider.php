@@ -9,6 +9,7 @@ use Vanguard\Events\User\Registered;
 use Vanguard\Events\User\RequestedPasswordResetEmail;
 use Vanguard\Listeners\Registration\SendThankConfirmationEmail;
 use Vanguard\Listeners\Registration\SendUserConfirmedNotification;
+use Vanguard\Listeners\Registration\SetPromoCodeToNewUser;
 use Vanguard\Listeners\Users\InvalidateSessionsAndTokens;
 use Vanguard\Listeners\Login\UpdateLastLoginTimestamp;
 use Vanguard\Listeners\PermissionEventsSubscriber;
@@ -30,6 +31,7 @@ class EventServiceProvider extends ServiceProvider
         Registered::class => [
             SendConfirmationEmail::class,
             SendSignUpNotification::class,
+            SetPromoCodeToNewUser::class,
         ],
         LoggedIn::class => [
             UpdateLastLoginTimestamp::class

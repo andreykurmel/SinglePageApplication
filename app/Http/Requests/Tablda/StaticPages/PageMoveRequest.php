@@ -25,7 +25,7 @@ class PageMoveRequest extends FormRequest
     {
         return [
             'page_id' => 'required|integer|exists:static_pages,id',
-            'folder_id' => 'required|integer|exists:static_pages,id',
+            'folder_id' => 'nullable|integer|exists:static_pages,id',
             'position' => 'required|integer',
             'type' => 'required|string',
         ];

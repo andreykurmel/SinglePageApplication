@@ -1,23 +1,28 @@
 <template>
     <div class="container-fluid full-height">
         <div class="row full-height permissions-tab" :style="textSysStyle">
-            <div class="top-text" :style="textSysStyle">
+            <div class="top-text flex flex--center-v no-wrap" :style="textSysStyle">
                 <span>Map marker icon association</span>
+                <span>&nbsp;&nbsp;&nbsp;Source:</span>
+                <select :style="textSysStyle" v-model="selectedMap.map_position_refid" class="form-control fixed_control" @change="$emit('upd-map', selectedMap)">
+                    <option :value="null">This</option>
+                    <option v-if="positionRef" :value="positionRef.id">{{ positionRef.name }}</option>
+                </select>
                 <span>&nbsp;&nbsp;&nbsp;Style:</span>
-                <select :style="textSysStyle" v-model="tableMeta.map_icon_style" class="form-control fixed_control" @change="colChanged()">
+                <select :style="textSysStyle" v-model="selectedMap.map_icon_style" class="form-control fixed_control" @change="colChanged()">
                     <option value="dist">Distinctive</option>
                     <option value="comp">Complete</option>
                 </select>
                 <span>&nbsp;&nbsp;&nbsp;Field for icons:</span>
-                <select :style="textSysStyle" v-model="tableMeta.map_icon_field_id" class="form-control fixed_control" @change="colChanged()">
+                <select :style="textSysStyle" v-model="selectedMap.map_icon_field_id" class="form-control fixed_control" @change="colChanged()">
                     <option></option>
                     <option v-for="(fld, idx) in mapFields" :value="fld.id">{{ $root.uniqName(fld.name) }}</option>
                 </select>
             </div>
-            <div class="permissions-panel">
-                <div v-if="tableMeta.map_icon_style == 'dist'" class="full-frame custom-table-wrapper">
+            <div class="permissions-panel tablda-like-bg">
+                <div v-if="selectedMap.map_icon_style === 'dist'" class="full-frame custom-table-wrapper">
                     <table class="full-width">
-                        <thead class="table-head">
+                        <thead class="table-head tablda-like-bg">
                         <tr>
                             <th :style="textSysStyle">Field Value</th>
                             <th :style="textSysStyle">Icon</th>
@@ -27,7 +32,7 @@
                         </thead>
                         <tbody class="table-body">
                         <tr v-for="(col, idx) in columnValues">
-                            <td>{{ col.row_val }}</td>
+                            <td style="padding: 0 10px;">{{ iconName(col.row_val) }}</td>
                             <td :ref="'cell_icon_'+idx"
                                 @dragenter="iconEnter(idx)"
                                 @dragover.prevent=""
@@ -82,40 +87,56 @@
             }
         },
         props:{
+            globalMeta: Object,
             tableMeta: Object,
+            selectedMap: Object,
             columnValues: Array,
+            mapBasicTab: String,
+            canEdit: Boolean,
         },
         computed: {
             mapFields() {
                 return _.filter(this.tableMeta._fields, (fld) => {
-                    return (this.tableMeta.map_icon_style === 'dist' && fld.f_type !== 'Attachment')
-                        || (this.tableMeta.map_icon_style === 'comp' && fld.f_type === 'Attachment');
+                    return (this.selectedMap.map_icon_style === 'dist' && fld.f_type !== 'Attachment')
+                        || (this.selectedMap.map_icon_style === 'comp' && fld.f_type === 'Attachment');
                 });
             },
             iconFld() {
-                return _.find(this.tableMeta._fields, {id: Number(this.tableMeta.map_icon_field_id)});
+                return _.find(this.tableMeta._fields, {id: Number(this.selectedMap.map_icon_field_id)});
+            },
+            positionRef() {
+                return _.find(this.globalMeta._ref_conditions, { id: Number(this.selectedMap.map_position_refid) });
             },
         },
         methods: {
             colChanged() {
+                if (!this.canEdit) {
+                    return;
+                }
+
                 let data = this.iconFld ?
                     { field_id: this.iconFld.id } :
                     { table_id: this.tableMeta.id };
-                data.map_style = this.tableMeta.map_icon_style;
+                data.map_id = this.selectedMap.id;
+                data.map_style = this.selectedMap.map_icon_style;
                 data.special_params = SpecialFuncs.specialParams();
 
                 this.$root.sm_msg_type = 2;
                 axios.get('/ajax/table-data/field/map-icons', {
                     params: data
                 }).then(({ data }) => {
-                    this.$emit('icons-changed', data);
+                    this.$emit('icons-changed', this.selectedMap, data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
             },
             uploadIcon(col_idx, fore_file) {
+                if (!this.canEdit) {
+                    return;
+                }
+
                 let data = new FormData();
                 let file = fore_file || this.$refs['upload_'+col_idx][0].files[0];
                 data.append('table_field_id', this.iconFld.id);
@@ -137,17 +158,21 @@
                         this.columnValues[col_idx].width = null;
                         this.$emit('should-redraw-map');
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                     this.selectedFile = null;
                 } else {
-                    Swal('No file', '', 'info');
+                    Swal('Info','No file');
                 }
             },
             changeIcon(col) {
-                if (this.tableMeta.map_icon_field_id && col.icon_path) {
+                if (!this.canEdit) {
+                    return;
+                }
+
+                if (this.selectedMap.map_icon_field_id && col.icon_path) {
                     let img = new Image();
                     img.addEventListener('load', () => {
                         this.changeIconNextStep(col.row_val, img.width, img.height, col.height);
@@ -156,11 +181,11 @@
                 }
             },
             changeIconNextStep(row_val, width, height, new_height) {
-                if (this.tableMeta.map_icon_field_id) {
+                if (this.selectedMap.map_icon_field_id) {
                     let new_width = width / height * new_height;
                     this.$root.sm_msg_type = 1;
                     axios.put('/ajax/table-data/field/map-icons', {
-                        table_field_id: this.tableMeta.map_icon_field_id,
+                        table_field_id: this.selectedMap.map_icon_field_id,
                         row_val: row_val,
                         height: Number(new_height),
                         width: Number(new_width) || Number(new_height),
@@ -168,23 +193,27 @@
                     }).then(({ data }) => {
                         this.colChanged();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 }
             },
             deleteIcon(col, idx) {
+                if (!this.canEdit) {
+                    return;
+                }
+
                 Swal({
-                    title: 'Delete Icon',
-                    text: 'Are you sure?',
+                    title: 'Info',
+                    text: 'Delete Icon. Are you sure?',
                     showCancelButton: true,
                 }).then((result) => {
-                    if (result.value && this.tableMeta.map_icon_field_id) {
+                    if (result.value && this.selectedMap.map_icon_field_id) {
                         this.$root.sm_msg_type = 1;
                         axios.delete('/ajax/table-data/field/map-icons', {
                             params: {
-                                table_field_id: this.tableMeta.map_icon_field_id,
+                                table_field_id: this.selectedMap.map_icon_field_id,
                                 row_val: col.row_val,
                                 special_params: SpecialFuncs.specialParams(),
                             }
@@ -195,7 +224,7 @@
                             this.columnValues[idx].table_field_id = null;
                             this.colChanged();
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             this.$root.sm_msg_type = 0;
                         });
@@ -223,9 +252,18 @@
                 this.uploadIcon(idx, file);
                 this.attach_overed = -1;
             },
+            iconName(val) {
+                if (this.iconFld) {
+                    let rw = {};
+                    rw[this.iconFld.field] = val;
+                    return SpecialFuncs.showFullHtml(this.iconFld, rw, this.globalMeta);
+                } else {
+                    return val;
+                }
+            },
         },
         mounted() {
-            if (this.tableMeta.map_icon_field_id) {
+            if (this.selectedMap.map_icon_field_id) {
                 this.colChanged();
             }
         }

@@ -8,18 +8,37 @@
             </div>
         </div>
         <div class="flexer" v-else="">
-            <div style="width: 300px;">
+            <div style="width: 500px;">
+                <label style="font-size: 1em;font-weight: normal;">Write calculation results to the RISA file with options:</label>
+            </div>
+            <div style="width: 500px;">
                 <input type="checkbox" v-model="change"/>
-                <label style="font-size: 2em;font-weight: normal;">Update Nodes</label>
+                <label style="font-size: 1em;font-weight: normal;">Update nodes for any changes made here.</label>
             </div>
-            <div style="width: 300px;">
+            <div style="width: 500px;">
                 <input type="checkbox" v-model="add_rls"/>
-                <label style="font-size: 2em;font-weight: normal;">Add Nodes_RLs, RLs</label>
+                <label style="font-size: 1em;font-weight: normal;">Add nodes for RLs "Nodes_RLs", and add RL members "RLs".</label>
             </div>
-            <div style="text-align: right;margin-top: 20px;">
-                <a target="_blank" class="btn btn-success" :href="getlink" @click="closeForm">GO</a>
-                <a class="btn btn-default" @click="closeForm">Cancel</a>
+            <div style="width: 500px;margin-top: 20px;">
+                <!-- a target="_blank"
+                   class="btn btn-default"
+                   style="float: left"
+                   :disabled="disabld"
+                   :href="getlink()"
+                   @click="closeForm"
+                >Review</a -->
+
+                <a class="btn btn-success"
+                   :disabled="disabld"
+                   @click="runCalculation"
+                >GO</a>
+
+                <!-- a class="btn btn-default"
+                   :disabled="disabld"
+                   @click="closeForm"
+                >Close</a -->
             </div>
+            <div v-if="disabld" style="font-weight: bold">Calculating...</div>
         </div>
     </div>
 </template>
@@ -33,6 +52,8 @@
         },
         data() {
             return {
+                targetfile: '',
+                disabld: false,
                 change: true,
                 add_rls: true,
             }
@@ -41,29 +62,56 @@
             apppath: String,
             tiapath: String,
             jsonfile: String,
-            targetfile: String,
             usergroup: String,
             model: String,
             errors_present: Array,
+            tbid: String,
+            fldid: String,
+            rwid: String,
+            fname: String,
         },
-        computed: {
-            getlink() {
+        methods: {
+            getlink(asupdate) {
                 let $url = '';
                 if (this.usergroup && this.model) {
                     $url = this.apppath+'?usergroup=' + this.usergroup + '&model=' + this.model;
                 } else {
                     $url = this.tiapath + '?inp_type=stim_page&json=' + this.jsonfile + '&r3d=' + this.targetfile;
                 }
-                return $url + '&noupd=' + (this.change ? 0 : 1) + '&rls=' + (this.add_rls ? 1 : 0) + '&rejson=1';
+                return asupdate
+                    ? $url + '&noupd=' + (this.change ? 0 : 1) + '&rls=' + (this.add_rls ? 1 : 0) + '&rejson=1'
+                    : $url + '&noupd=1';
             },
-        },
-        methods: {
             closeForm() {
                 let data = {
                     event_name: 'close-application',
                     app_code: 'stim_calculate_loads',
                 };
                 window.parent.postMessage(data, '*');
+            },
+            runCalculation() {
+                this.disabld = true;
+                if (this.usergroup && this.model) {
+                    axios.post('', {
+                        tbid: this.tbid,
+                        fldid: this.fldid,
+                        rwid: this.rwid,
+                        fname: this.fname,
+                    }).then(({data}) => {
+                        this.targetfile = data;
+                        this.linkForCalc();
+                    }).catch(errors => {
+                        Swal('Info', getErrors(errors));
+                    });
+                } else {
+                    this.linkForCalc();
+                }
+            },
+            linkForCalc() {
+                axios.get(this.getlink(true)).then(({data}) => {
+                    Swal('Info','Calculation is finished!');
+                    this.disabld = false;
+                });
             },
         },
         mounted() {

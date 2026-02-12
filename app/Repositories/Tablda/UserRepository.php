@@ -3,13 +3,18 @@
 namespace Vanguard\Repositories\Tablda;
 
 
+use Carbon\Carbon;
 use Exception;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserSubscription;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Services\Tablda\TableAlertService;
+use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Services\Tablda\TableService;
 use Vanguard\Support\Enum\UserStatus;
 use Vanguard\User;
 
@@ -103,10 +108,11 @@ class UserRepository
     {
         if (count($ids)) {
             $query = User::whereIn('id', $ids)->where(function ($q) use ($key) {
-                $q->where('username', 'LIKE', '%' . $key . '%');
-                $q->orWhere('email', 'LIKE', '%' . $key . '%');
-                $q->orWhere('first_name', 'LIKE', '%' . $key . '%');
-                $q->orWhere('last_name', 'LIKE', '%' . $key . '%');
+                $q->where('email', '=', $key);
+//                $q->where('username', 'LIKE', '%' . $key . '%');
+//                $q->orWhere('email', 'LIKE', '%' . $key . '%');
+//                $q->orWhere('first_name', 'LIKE', '%' . $key . '%');
+//                $q->orWhere('last_name', 'LIKE', '%' . $key . '%');
             });
         } else {
             $email_domain = HelperService::usrEmailDomain();
@@ -123,7 +129,7 @@ class UserRepository
             }
         }
 
-        $fields = ['id', 'username', 'first_name', 'last_name'];
+        $fields = ['id', 'username', 'first_name', 'last_name', 'email'];
         if ($request_field) {
             $fields[] = $request_field;
         }
@@ -181,7 +187,20 @@ class UserRepository
      */
     public function createSubscription(array $data)
     {
-        return UserSubscription::create($this->service->delSystemFields($data));
+        $subscription = UserSubscription::create($this->service->delSystemFields($data));
+
+        //check ANA addon
+        $subscription_table = (new TableRepository())->getTableByDB('user_subscriptions');
+        $datas = (new TableService())->getSubscriptions([
+            'table_id' => $subscription_table->id,
+            'page' => 1,
+            'rows_per_page' => 0,
+            'row_id' => $subscription->id
+        ], $subscription->user_id);
+        $special = ['user_id' => $subscription_table->user_id, 'permission_id' => null];
+        (new TableAlertService())->checkAndSendNotifArray($subscription_table, 'added', $datas['rows'], [], $special);
+
+        return $subscription;
     }
 
     /**
@@ -270,14 +289,36 @@ class UserRepository
     }
 
     /**
-     * @return mixed
+     * @return \Illuminate\Database\Eloquent\Collection|User[]
      */
     public function getUnconfirmed()
     {
-        $yesterday = date('Y-m-d H:i:s', time() - 86400);
         return User::where('status', '=', UserStatus::UNCONFIRMED)
-            ->where('created_at', '<', $yesterday)
+            ->where('created_at', '<', Carbon::yesterday()->endOfDay())
+            ->where('created_at', '>', Carbon::now()->subDays(5)->startOfDay())
             ->get();
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection|User[]
+     */
+    public function getUnconfirmedWarning()
+    {
+        return User::where('status', '=', UserStatus::UNCONFIRMED)
+            ->where('created_at', '<', Carbon::now()->subDays(6)->endOfDay())
+            ->where('created_at', '>', Carbon::now()->subDays(7)->startOfDay())
+            ->get();
+    }
+
+    /**
+     * @return bool|null
+     * @throws Exception
+     */
+    public function deleteOldUnconfirmed()
+    {
+        return User::where('status', '=', UserStatus::UNCONFIRMED)
+            ->where('created_at', '<', Carbon::now()->subDays(7)->startOfDay())
+            ->delete();
     }
 
     /**
@@ -292,10 +333,12 @@ class UserRepository
 
     /**
      * @param User $user
+     * @param string $warning
+     * @return void
      */
-    public function sendConfirmationEmail(User $user)
+    public function sendConfirmationEmail(User $user, string $warning = '')
     {
-        $token = str_random(60);
+        $token = Str::random(60);
         $user->update(['confirmation_token' => $token]);
 
         $params = [
@@ -311,6 +354,9 @@ class UserRepository
                 'url' => route('register.confirm-email', $token),
             ],
             'user' => $user,
+            'main_message' => $warning
+                ? trans('app.confirm_email_on_link_below_warning', ['warning' => $warning])
+                : trans('app.confirm_email_on_link_below'),
         ];
 
         $mailer = new EmailWithSettings('confirm_code_to_user', $user->email);

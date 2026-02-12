@@ -25,6 +25,7 @@ class FavoriteToggleRequest extends FormRequest
     {
         return [
             'table_id' => 'required|integer|exists:tables,id',
+            'parent_id' => 'nullable|integer|exists:folders,id',
             'favorite' => 'required|boolean',
         ];
     }

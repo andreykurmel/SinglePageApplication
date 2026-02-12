@@ -4,7 +4,7 @@
             <div class="pr-line" :style="valStyle"></div>
             <span class="pr-val" :style="textStyle">{{ showedPercent }}%</span>
         </div>
-        <input v-else="" ref="inline_input" :value="curVal" @blur="setVal()"/>
+        <input v-else ref="inline_input" :value="curVal" @blur="setVal()"/>
     </div>
 </template>
 
@@ -25,9 +25,10 @@
         },
         props:{
             pr_val: Number,
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
             table_header: Object,
             ignore_format: Boolean,
+            open_edit: Boolean,
         },
         computed: {
             curVal() {
@@ -71,6 +72,11 @@
                 return res;
             }
         },
+        mounted() {
+            if (this.open_edit) {
+                this.showEdit();
+            }
+        }
     }
 </script>
 
@@ -84,6 +90,7 @@
         overflow: hidden;
 
         .pr-line {
+            transition: all 0.5s ease;
             background: linear-gradient(rgb(162, 225, 136), rgb(81, 148, 59) 50%, rgb(76, 138, 49) 50%, rgb(107, 169, 80));
             border-radius: 12px;
             position: relative;

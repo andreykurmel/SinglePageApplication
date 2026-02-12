@@ -41,6 +41,7 @@
                 this.errors_present.push('Param "MG Name" is not present!');
             } else {
                 Swal({
+                    title: 'Info',
                     html: '* Usergroup = ' + this.userString()
                         + '<br>* Mount Geometry (MG) Name = ' + this.mg_name
                         + '<br><b>Confirm</b> to delete following associated model data:<br>- ' + this.tables_delete,
@@ -52,9 +53,9 @@
                             mg_name: this.mg_name,
                         }).then(({ data }) => {
                             if (data.length) {
-                                Swal({ html: data.join('<br>') });
+                                Swal({ title: 'Info', html: data.join('<br>') });
                             } else {
-                                Swal('Successfully Deleted!').then(() => {
+                                Swal('Info','Successfully Deleted!').then(() => {
                                     let data = {
                                         event_name: 'close-application',
                                         app_code: 'risa3d_deleter',
@@ -63,7 +64,7 @@
                                 });
                             }
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => $.LoadingOverlay('hide'));
                     }
                 });

@@ -34,6 +34,7 @@ class ModifyTableRequest extends FormRequest
             'mysql_settings' => 'nullable|array',
             'paste_settings' => 'nullable|array',
             'paste_file' => 'nullable|string',
+            'transpose_item' => 'nullable|array',
             'html_xml' => 'nullable|array',
             'g_sheets' => 'nullable|array',
             'ocr_data' => 'nullable|array',

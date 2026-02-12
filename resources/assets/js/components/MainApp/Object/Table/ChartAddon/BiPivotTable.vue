@@ -1,36 +1,54 @@
 <template>
-    <div class="custom-table-wrapper full-frame">
+    <div class="custom-table-wrapper full-frame flex" :style="tbAlign">
 
         <div v-if="cannot_draw_error" class="flex flex--center full-height bold">{{ cannot_draw_error }}</div>
 
-        <template v-else-if="max_cell_len">
+        <div v-else-if="max_cell_len">
 
             <table ref="pivot_table" class="pivot-table">
                 <colgroup>
                     <col v-for="i in c_s" :style="{width: vert_widths[i].width+'px'}"/>
-                    <col v-for="i in spanLen()" :style="colWidth"/>
-                    <col v-if="pivot_spanned" :style="colWidth"/>
+                    <col v-for="i in spanLen()" :style="{width: '5px'}"/>
+                    <col v-if="pivot_spanned && pivot_activness" :style="{width: '5px'}"/>
                 </colgroup>
-                <!-- start head -->
                 <tr>
-                    <!--Row Header-->
-                    <th v-for="i in (pivot_spanned ? 1 : c_s)" :colspan="(pivot_spanned ? c_s : 1)">
+                    <!-- Main title -->
+                    <th v-for="i in (pivot_spanned ? 1 : titleColSpan())" :colspan="(pivot_spanned ? titleColSpan() : 1)">
                         <span>{{ pivot_labels.general || '' }}</span>
                     </th>
-                    <!--Row Data-->
-                    <th v-for="i in noSpanLen()" :colspan="spanLen()">
-                        <span>{{ pivot_labels.y_label || 'Columns labels' }}</span>
+                </tr>
+                <tr>
+                    <!-- Row/Col title -->
+                    <th v-for="i in (pivot_spanned ? 1 : c_s)"
+                        :colspan="(pivot_spanned ? c_s : 1)"
+                        :rowspan="(pivot_spanned ? r_s+hasRowNames(true) : 1)"
+                    >
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
                     </th>
-                    <!--Action-->
-                    <th v-if="pivot_spanned" :rowspan="r_s+1">
+                    <th v-for="i in noSpanLen()" :colspan="spanLen()">
+                        <span>{{ pivot_labels.y_label || 'Column Description' }}</span>
+                    </th>
+                    <th v-if="pivot_spanned && pivot_activness" :rowspan="r_s+1">
                         <span>Active</span>
                     </th>
                 </tr>
                 <tr>
-                    <!-- lvl1 head -->
-                    <th v-for="i in (pivot_spanned ? 1 : c_s)" :colspan="(pivot_spanned ? c_s : 1)" :rowspan="(pivot_spanned ? r_s : 1)">
-                        <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
+                    <!-- Rows names -->
+                    <th v-if="!h_l1_fld && !h_l2_fld && !h_l3_fld && multi_about <= 1 && hasRowNames() && !hasAboutUnits()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
                     </th>
+                    <!-- lvl1 head -->
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="showVal('hor', l1_h)">
                         <th v-for="i in noSpanLen(l1_h)"
                             :colspan="spanLen(l1_h)"
@@ -44,16 +62,33 @@
                                     :edit-vals="showHead('hor', l1_h)"
                                     :corr-db="corr_dbs.hor_l1"
                                     :can-links="pivot_hor.l1_show_links"
+                                    :vert_widths="dataWidths(l1_h)"
+                                    @resize-finished="saveResizes(true)"
                                     @show-src-record="showSrcRecord"
                             ></bi-pivot-header>
                         </th>
                     </template>
                 </tr>
                 <tr v-if="h_l1_fld">
-                    <!-- checkboxes -->
-                    <th v-if="!pivot_spanned" v-for="i in c_s">
-                        <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
+                    <!-- Rows names -->
+                    <th v-if="!h_l2_fld && !h_l3_fld && multi_about <= 1 && hasRowNames() && !hasAboutUnits()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
                     </th>
+                    <th v-if="!pivot_spanned" v-for="i in c_s">
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
+                    </th>
+                    <!-- Checkboxes -->
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="showVal('hor',l1_h,l2_h)">
                             <th :colspan="spanLen(l1_h, l2_h)" :rowspan="(pivot_spanned && isSubTot(l2_h) ? r_s-1 : 1)">
@@ -75,10 +110,25 @@
                     </template>
                 </tr>
                 <tr v-if="h_l2_fld">
-                    <!-- lvl2 head -->
-                    <th v-if="!pivot_spanned" v-for="i in c_s">
-                        <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
+                    <!-- Rows names -->
+                    <th v-if="!h_l3_fld && multi_about <= 1 && hasRowNames()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
                     </th>
+                    <th v-if="!pivot_spanned" v-for="i in c_s">
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
+                    </th>
+                    <!-- lvl2 head -->
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
                             <th v-for="i in noSpanLen(l1_h, l2_h)"
@@ -92,6 +142,8 @@
                                         :edit-vals="showHead('hor', l1_h, l2_h)"
                                         :corr-db="corr_dbs.hor_l2"
                                         :can-links="pivot_hor.l2_show_links"
+                                        :vert_widths="dataWidths(l1_h, l2_h)"
+                                        @resize-finished="saveResizes(true)"
                                         @show-src-record="showSrcRecord"
                                 ></bi-pivot-header>
                             </th>
@@ -99,10 +151,25 @@
                     </template>
                 </tr>
                 <tr v-if="h_l3_fld">
-                    <!-- lvl3 head -->
-                    <th v-if="!pivot_spanned" v-for="i in c_s">
-                        <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
+                    <!-- Rows names -->
+                    <th v-if="multi_about <= 1 && hasRowNames() && !hasAboutUnits()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
                     </th>
+                    <th v-if="!pivot_spanned" v-for="i in c_s">
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
+                    </th>
+                    <!-- lvl3 head -->
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
                             <template v-for="(l3_h) in sorted_values.hor_l3" v-if="showVal('hor', l1_h, l2_h, l3_h)">
@@ -118,6 +185,8 @@
                                             :edit-vals="showHead('hor', l1_h, l2_h, l3_h)"
                                             :corr-db="corr_dbs.hor_l3"
                                             :can-links="pivot_hor.l3_show_links"
+                                            :vert_widths="dataWidths(l1_h, l2_h, l3_h)"
+                                            @resize-finished="saveResizes(true)"
                                             @show-src-record="showSrcRecord"
                                     ></bi-pivot-header>
                                 </th>
@@ -127,22 +196,79 @@
                     </template>
                 </tr>
                 <tr v-if="multi_about > 1">
-                    <!-- multi about -->
-                    <th v-if="!pivot_spanned" v-for="i in c_s">
-                        <span>{{ pivot_labels.x_label || 'Rows labels' }}</span>
+                    <!-- Rows names -->
+                    <th v-if="hasRowNames() && !hasAboutUnits()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
                     </th>
+                    <th v-if="!pivot_spanned" v-for="i in c_s">
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
+                    </th>
+                    <!-- Multi about -->
                     <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
                         <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
                             <template v-for="(l3_h) in sorted_values.hor_l3" v-if="!isSubTot(l3_h) && showVal('hor', l1_h, l2_h, l3_h)">
 
-                                <th v-for="ma in multi_about">
-                                    <span @mouseover="(e) => {showCMP(e, ma, l1_h, l2_h, l3_h)}">{{ '#'+ma }}</span>
+                                <th v-for="ma in multi_about"
+                                    :style="{border: aboutOverLVL == ma ? '2px dashed #000' : null}"
+                                    :draggable="canEdit"
+                                    @mousedown.stop=""
+                                    @click.stop=""
+                                    @dragstart.stop="aboutFromLVL = ma"
+                                    @dragover.stop=""
+                                    @dragenter.stop="aboutOverLVL = ma"
+                                    @dragend.stop="reorderLevels('about')"
+                                    style="cursor: pointer"
+                                >
+                                    <span @mouseover="(e) => {showCMP(e, ma, l1_h, l2_h, l3_h)}">{{ aboutName(ma) }}</span>
                                     <hover-block v-if="helpCMP(ma, l1_h, l2_h, l3_h)"
                                                  :html_str="stringCMP(ma)"
                                                  :p_left="help_left"
                                                  :p_top="help_top"
                                                  @tooltip-blur="hideCMP()"
                                     ></hover-block>
+                                </th>
+
+                            </template>
+                        </template>
+                    </template>
+                </tr>
+                <tr v-if="hasAboutUnits()">
+                    <!-- Rows names -->
+                    <th v-if="hasRowNames()"
+                        v-for="i in c_s"
+                        :style="{border: overLVL == i ? '2px dashed #000' : null}"
+                        :draggable="canEdit"
+                        @mousedown.stop=""
+                        @click.stop=""
+                        @dragstart.stop="fromLVL = i"
+                        @dragover.stop=""
+                        @dragenter.stop="overLVL = i"
+                        @dragend.stop="reorderLevels('vertical')"
+                        style="cursor: pointer"
+                    >
+                        <span>{{ all_settings.pivot_table.vertical['l'+i+'_lvl_fname'] || '' }}</span>
+                    </th>
+                    <th v-if="!pivot_spanned" v-for="i in c_s">
+                        <span>{{ pivot_labels.x_label || 'Row Description' }}</span>
+                    </th>
+                    <!-- Units of abouts -->
+                    <template v-for="(l1_h) in sorted_values.hor_l1" v-if="!isSubTot(l1_h) && showVal('hor',l1_h)">
+                        <template v-for="(l2_h) in sorted_values.hor_l2" v-if="!isSubTot(l2_h) && showVal('hor',l1_h,l2_h)">
+                            <template v-for="(l3_h) in sorted_values.hor_l3" v-if="!isSubTot(l3_h) && showVal('hor', l1_h, l2_h, l3_h)">
+
+                                <th v-for="ma in multi_about" :style="aboutStyle(ma)">
+                                    <span>{{ aboutUnit(ma) }}</span>
                                 </th>
 
                             </template>
@@ -169,7 +295,7 @@
                                                             :corr_dbs="corr_dbs" :spanned="spanned" :sorted_values="sorted_values"
                                                             :gr_level="grlvl(v_l1, v_l2, v_l3, v_l4, v_l5)" :all_settings="all_settings"
                                                             :table_meta="table_meta" :all_variants="all_variants" :pivot="pivot"
-                                                            :about_1="about_1" :about_2="about_2" :about_3="about_3"
+                                                            :about_1="about_1" :about_2="about_2" :about_3="about_3" :about_4="about_4" :about_5="about_5"
                                                             @show-src-record="showSrcRecord" @start-resize="startResizes()" @resize-finished="saveResizes()"
                                     ></bi-pivot-sub-total-row>
                                     <!-- ^^^^^ -->
@@ -271,6 +397,16 @@
                                                                 <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(3, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h) }}</span>
                                                                 <span v-else-if="isSubTot(l3_h)" class="subtotal-clr--3">{{ subTotalCell(3, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', 'vert_l5', v_l5, l1_h, 'hor_l2', l2_h) }}</span>
                                                             </div>
+                                                            <div v-if="about_4 && all_settings.pivot_table.stack_about">
+                                                                <span v-if="isSubTot(l1_h)" class="subtotal-clr--1">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5) }}</span>
+                                                                <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h) }}</span>
+                                                                <span v-else-if="isSubTot(l3_h)" class="subtotal-clr--3">{{ subTotalCell(4, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', 'vert_l5', v_l5, l1_h, 'hor_l2', l2_h) }}</span>
+                                                            </div>
+                                                            <div v-if="about_5 && all_settings.pivot_table.stack_about">
+                                                                <span v-if="isSubTot(l1_h)" class="subtotal-clr--1">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5) }}</span>
+                                                                <span v-else-if="isSubTot(l2_h)" class="subtotal-clr--2">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'vert_l5', v_l5, 'hor_l1', l1_h) }}</span>
+                                                                <span v-else-if="isSubTot(l3_h)" class="subtotal-clr--3">{{ subTotalCell(5, 'vert_l1', v_l1, 'vert_l2', v_l2, 'vert_l3', v_l3, 'vert_l4', v_l4, 'hor_l1', 'vert_l5', v_l5, l1_h, 'hor_l2', l2_h) }}</span>
+                                                            </div>
                                                         </td>
                                                     </template>
 
@@ -280,14 +416,20 @@
                                                             :class="{'inner-subtotal--1': isSubTot(l1_h), 'inner-subtotal--2': isSubTot(l2_h), 'inner-subtotal--3': isSubTot(l3_h)}"
                                                             :style="getStyleCell(v_l1, v_l2, l1_h, l2_h)"
                                                         >
-                                                            <div>
-                                                                <span>{{ findValue(ma, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h) }}</span>
+                                                            <div :style="dataStyle(ma)">
+                                                                <span v-html="findValue(ma, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h)"></span>
                                                             </div>
-                                                            <div v-if="about_2 && all_settings.pivot_table.stack_about">
-                                                                <span>{{ findValue(2, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h) }}</span>
+                                                            <div v-if="about_2 && all_settings.pivot_table.stack_about" :style="dataStyle(2)">
+                                                                <span v-html="findValue(2, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h)"></span>
                                                             </div>
-                                                            <div v-if="about_3 && all_settings.pivot_table.stack_about">
-                                                                <span>{{ findValue(3, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h) }}</span>
+                                                            <div v-if="about_3 && all_settings.pivot_table.stack_about" :style="dataStyle(3)">
+                                                                <span v-html="findValue(3, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h)"></span>
+                                                            </div>
+                                                            <div v-if="about_4 && all_settings.pivot_table.stack_about" :style="dataStyle(4)">
+                                                                <span v-html="findValue(3, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h)"></span>
+                                                            </div>
+                                                            <div v-if="about_5 && all_settings.pivot_table.stack_about" :style="dataStyle(5)">
+                                                                <span v-html="findValue(3, v_l1, v_l2, v_l3, v_l4, v_l5, l1_h, l2_h, l3_h)"></span>
                                                             </div>
                                                         </td>
                                                     </template>
@@ -297,7 +439,9 @@
                                         </template>
 
                                         <!-- Actions -->
-                                        <td v-if="pivot_spanned && isFirstCell(i1, i2, i3, i4, i5, 2)" :rowspan="lenForSpan('vert', v_l1, v_l2)">
+                                        <td v-if="pivot_spanned && pivot_activness && isFirstCell(i1, i2, i3, i4, i5, 2)"
+                                            :rowspan="lenForSpan('vert', v_l1, v_l2)"
+                                        >
                                             <span class="indeterm_check__wrap">
                                                 <span class="indeterm_check" @click="toggleActive('row', v_l1, v_l2)">
                                                     <i v-if="!isExcluded('row', v_l1, v_l2)" class="glyphicon glyphicon-ok group__icon"></i>
@@ -317,11 +461,9 @@
             <div v-show="download_png" class="popup-wrapper">
                 <div class="png-file" ref="png_file"></div>
             </div>
-        </template>
+        </div>
 
-        <template v-else="">
-            <div class="flex flex--center full-height bold">All zero. Table not displayed.</div>
-        </template>
+        <div v-else="" class="flex flex--center full-height bold">All zero. Table not displayed.</div>
 
     </div>
 </template>
@@ -332,6 +474,7 @@
     import BiPivotMixin from "./BiPivotMixin";
 
     import {SpecialFuncs} from '../../../../../classes/SpecialFuncs';
+    import {UnitConversion} from "../../../../../classes/UnitConversion";
     import {ChartFunctions} from './ChartFunctions';
 
     import HeaderResizer from "../../../../CustomTable/Header/HeaderResizer";
@@ -355,6 +498,8 @@
                 about_1: [],
                 about_2: null,
                 about_3: null,
+                about_4: null,
+                about_5: null,
                 help_show: '',
                 help_left: 0,
                 help_top: 0,
@@ -377,6 +522,10 @@
                 max_cell_len: 0,
                 cannot_draw_error: '',
                 sorted_keys: { key: '', val: '' },
+                fromLVL: null,
+                overLVL: null,
+                aboutFromLVL: null,
+                aboutOverLVL: null,
             }
         },
         props: {
@@ -384,14 +533,38 @@
             table_data: Array,
             table_data_2: Array,
             table_data_3: Array,
+            table_data_4: Array,
+            table_data_5: Array,
             all_settings: Object,
             request_params: Object,
             chart_uuid: String,
             gridStack: Object,
+            extFilters: Array,
+            canEdit: Boolean,
         },
         computed: {
+            tbAlign() {
+                return {
+                    alignItems: this.all_settings.vert_align,
+                    justifyContent: this.all_settings.hor_align,
+                };
+            },
         },
         methods: {
+            reorderLevels(type) {
+                if (type === 'about' && this.aboutFromLVL != this.aboutOverLVL) {
+                    this.all_settings = ChartFunctions.reorderSettings(this.all_settings, type, this.aboutFromLVL, this.aboutOverLVL);
+                    this.$emit('active-change', 'about_reorder');
+                }
+                if (type === 'vertical' && this.fromLVL != this.overLVL) {
+                    this.all_settings = ChartFunctions.reorderSettings(this.all_settings, type, this.fromLVL, this.overLVL);
+                    this.$emit('active-change', 'vertical_reorder');
+                }
+                this.fromLVL = null;
+                this.aboutFromLVL = null;
+                this.overLVL = null;
+                this.aboutOverLVL = null;
+            },
             grlvl(l1, l2, l3, l4, l5) {
                 return this.isSubTot(l1) ? 1 : this.isSubTot(l2) ? 2 : this.isSubTot(l3) ? 3 : this.isSubTot(l4) ? 4 : this.isSubTot(l5) ? 5 : 0;
             },
@@ -402,7 +575,7 @@
                 this.help_top = e.clientY;
             },
             helpCMP(ma, l1_h, l2_h, l3_h) {
-                return (this.about_2 || this.about_3)
+                return (this.about_2 || this.about_3 || this.about_4 || this.about_5)
                     && this.help_show
                     && this.help_show === ma+'_'+l1_h+'_'+l2_h+'_'+l3_h;
             },
@@ -420,10 +593,26 @@
             hideCMP() {
                 this.help_show = '';
             },
+            aboutName(ma) {
+                let abo = ma > 1 ? this.all_settings.pivot_table['about_'+ma] : this.all_settings.pivot_table.about;
+                let fname = abo ? abo.lvl_fname : '';
+                return fname || ('#'+ma);
+            },
+            aboutUnit(ma) {
+                let fld = this.aboFld(ma);
+                return UnitConversion.showUnit(fld, this.table_meta)
+            },
+            aboutStyle(ma) {
+                let fld = this.aboFld(ma);
+                return {
+                    color: fld.unit == fld.unit_display ? '#55F' : null,
+                };
+            },
             startResizes() {
             },
-            saveResizes() {
-                this.$emit('active-change', 'pivot.vert_widths');
+            saveResizes(isdata) {
+                let key = isdata ? 'pivot.data_widths' : 'pivot.vert_widths';
+                this.$emit('active-change', key);
             },
 
             //EXPORT FUNCTIONS
@@ -435,7 +624,7 @@
                         + '\r\n'
                         + _.map(arr.r, (row) => { return row.join('\t') }).join('\r\n');
                     SpecialFuncs.strToClipboard( stringtable );
-                    Swal('Table Copied to Clipboard!');
+                    Swal('Info','Table Copied to Clipboard!');
                     this.spanned = true;
                 });
             },
@@ -521,7 +710,15 @@
                 }
             },
 
-            chartExportButtonHandler(uuid, key, export_name) {
+            chartExportButtonHandler(uuid, key, export_prefix) {
+                let ftrname = this.$root.oneFilterSelected(this.extFilters, 'show') || '';
+                let crtlabel = this.all_settings.pivot_table.labels.general || 'chart';
+                let arr = [export_prefix, ftrname, crtlabel, moment().format('MMDDYYYY_HHmmss')];
+                let export_name = _.filter(arr)
+                    .map((el) => {
+                        return _.trim( SpecialFuncs.strip_tags(el, '<none>') )
+                    })
+                    .join('_');
                 if (this.chart_uuid === uuid) {
                     switch (key) {
                         case 'copy':
@@ -531,15 +728,15 @@
                             this.printTable();
                             break;
                         case 'png':
-                            this.exportToPng(export_name);
+                            this.exportToPng(export_name+'.png');
                             break;
                         case 'pdf':
-                            this.dwnFromServerTable('pdf', export_name);
+                            this.dwnFromServerTable('pdf', export_name+'.pdf');
                             break;
                         case 'csv':
-                            this.dwnFromServerTable('csv', export_name);
+                            this.dwnFromServerTable('csv', export_name+'.csv');
                             break;
-                        default: Swal('Not working!');
+                        default: Swal('Info','Not working!');
                     }
                 }
             },
@@ -616,9 +813,9 @@
                     this.all_variants.rcs[key] = rcs;
                 });
 
-                let allvert = this.about_1.concat(this.about_2 || [], this.about_3 || []);
+                let allvert = this.about_1.concat(this.about_2 || [], this.about_3 || [], this.about_4 || [], this.about_5 || []);
                 allvert = this.addZeroValues(allvert, 'vert');
-                let allhor = this.about_1.concat(this.about_2 || [], this.about_3 || []);
+                let allhor = this.about_1.concat(this.about_2 || [], this.about_3 || [], this.about_4 || [], this.about_5 || []);
                 allhor = this.addZeroValues(allhor, 'hor');
 
                 this.subtotalToSorts();
@@ -701,7 +898,7 @@
                 //Add computed: 'SubTotal'
                 let tmp = {}; tmp[key+'_l'+(lvl+1)] = '__sub_total';
                 resu['__sub_total'] = (lvl >= ChartFunctions.maxLVL() ? _.clone(empobj) : this.groupViewedData([tmp], key, lvl+1, true));
-                resu['__sub_total']['__show'] = allshow || !!sett['l'+lvl+'_sub_total'] || lvl==1;//First subtotal alway active
+                resu['__sub_total']['__show'] = allshow || !!sett['l'+lvl+'_sub_total'];// || lvl==1 First subtotal always active
                 len += resu['__sub_total']['__show'] ? 1 : 0;
 
                 //For computed 'SubTotal' Col/Row span=1
@@ -717,11 +914,15 @@
                     return array;
                 }
                 let desc = fieldname && _.find(this.request_params.sort, {direction: 'desc', field: fieldname});
-                let ordered = array.sort();
-                if (desc) {
-                    ordered = ordered.reverse();
-                }
-                return ordered;
+                return array.sort((a, b) => {
+                    if (!isNaN(a) && !isNaN(b)) {
+                        a = to_float(a);
+                        b = to_float(b);
+                    }
+                    return desc
+                        ? a > b ? -1 : a < b ? 1 : 0
+                        : a < b ? -1 : a > b ? 1 : 0;
+                });
             },
             maxCellLength(input_data) {
                 let res = 0;
@@ -736,24 +937,44 @@
                 this.max_cell_len = res;
             },
             filterData(input) {
-                _.each(input, (el) => { //All data should be 'string' for correct working of grouping
-                    for (let i = 1; i <= ChartFunctions.maxLVL(); i++) {
-                        if (el['hor_l'+i] !== undefined) el['hor_l'+i] = String(el['hor_l'+i]);
-                        if (el['vert_l'+i] !== undefined) el['vert_l'+i] = String(el['vert_l'+i]);
-                    }
-                });
                 return _.filter(input, (el) => {
                     return to_float(el.y);
                 });
+            },
+            setDataWidths() {
+                _.each(this.sorted_values.hor_l1, (l1_h) => {
+                    if (this.sorted_values.hor_l2.length) {
+                        _.each(this.sorted_values.hor_l2, (l2_h) => {
+                            if (this.sorted_values.hor_l3.length) {
+                                _.each(this.sorted_values.hor_l3, (l3_h) => {
+                                    this.setOneDataWi(l1_h, l2_h, l3_h);
+                                });
+                            } else {
+                                this.setOneDataWi(l1_h, l2_h);
+                            }
+                        });
+                    } else {
+                        this.setOneDataWi(l1_h);
+                    }
+                });
+            },
+            setOneDataWi(l1_h, l2_h, l3_h) {
+                let key = this.getDataWiKey(l1_h, l2_h, l3_h);
+                if (!this.pivot_t.data_widths[key]) {
+                    this.$set(this.pivot_t.data_widths, key, {width: this.colWidthNum});
+                }
             },
         },
         mounted() {
             this.about_1 = this.table_data ? this.filterData(this.table_data) : null;
             this.about_2 = this.table_data_2 ? this.filterData(this.table_data_2) : null;
             this.about_3 = this.table_data_3 ? this.filterData(this.table_data_3) : null;
+            this.about_4 = this.table_data_4 ? this.filterData(this.table_data_4) : null;
+            this.about_5 = this.table_data_5 ? this.filterData(this.table_data_5) : null;
             if (this.table_data.length) {
-                this.prepareDataKeys( this.table_data );
+                this.prepareDataKeys(this.table_data);
                 this.maxCellLength(this.about_1);
+                this.setDataWidths();
             } else {
                 this.max_cell_len = 0;
             }
@@ -763,10 +984,10 @@
             }
 
             let y_axis_col = _.find(this.table_meta._fields, {field: this.all_settings.pivot_table.about.field});
-            this.currency = y_axis_col.f_type === 'Currency';
-            this.dec = y_axis_col.f_size - parseInt(y_axis_col.f_size);
-
-            console.log('BIBIBIBI:', this);
+            if (y_axis_col) {
+                this.currency = y_axis_col.f_type === 'Currency';
+                this.dec = y_axis_col.f_size - parseInt(y_axis_col.f_size);
+            }
 
             eventBus.$on('chart-export-button-click', this.chartExportButtonHandler);
         },

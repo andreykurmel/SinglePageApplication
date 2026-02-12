@@ -26,10 +26,14 @@ use Vanguard\User;
  * @property string $modified_on
  * @property int $filter
  * @property int $popup_header
+ * @property int $popup_header_val
  * @property int $is_floating
  * @property string $filter_type
+ * @property int $filter_search
  * @property int $show_zeros
  * @property string $col_align
+ * @property string $image_fitting
+ * @property int $fill_by_asterisk
  * @property int $show_history
  * @property-read \Vanguard\User|null $_created_user
  * @property-read \Vanguard\Models\Table\TableField $_field
@@ -47,7 +51,9 @@ class UserHeaders extends Model
     public $avail_override_fields = [
         'filter',
         'filter_type', // ['value', 'range']
+        'filter_search',
         'popup_header',
+        'popup_header_val',
         'is_floating',
         'min_width',
         'max_width',
@@ -56,6 +62,8 @@ class UserHeaders extends Model
         'col_align',
         'show_zeros',
         'show_history',
+        'image_fitting',
+        'fill_by_asterisk',
     ];
 
     protected $fillable = [
@@ -64,7 +72,9 @@ class UserHeaders extends Model
 
         'filter',
         'filter_type', // ['value', 'range']
+        'filter_search',
         'popup_header',
+        'popup_header_val',
         'is_floating',
         'min_width',
         'max_width',
@@ -74,6 +84,8 @@ class UserHeaders extends Model
         'col_align',
         'show_zeros',
         'show_history',
+        'image_fitting',
+        'fill_by_asterisk',
         //always override
         'order',
         'is_showed',

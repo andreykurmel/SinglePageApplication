@@ -7,15 +7,11 @@
 
             <partial-messages :settings="settings"></partial-messages>
 
-            <form role="form" :action="settings.root_url+'/register'" method="post" id="registration-form" autocomplete="off">
+            <form role="form" :action="settings.root_url+'/register'" method="post" id="registration-form" autocomplete="one-time-code">
                 <input type="hidden" :value="settings.csrf_token" name="_token">
                 <div class="form-group input-icon">
                     <i class="fa fa-at"></i>
                     <input type="email" ref="register_email" name="email" class="form-control" placeholder="Email" v-model="register_email">
-                </div>
-                <div class="form-group input-icon">
-                    <i class="fa fa-user"></i>
-                    <input type="text" ref="register_name" name="username" class="form-control" placeholder="Username" v-model="register_name">
                 </div>
                 <div class="form-group input-icon pwd_wrapper">
                     <i class="fa fa-lock"></i>
@@ -32,8 +28,8 @@
                             <li :class="[register_pass.match(/\d/) ? 'valid-i' : 'invalid-i']"
                                 :style="{background: register_pass.match(/\d/) ? valid_i_bg : in_valid_i_bg}"
                             >At least <strong>one number.</strong></li>
-                            <li :class="[register_pass.match(/[!$#%@]/) ? 'valid-i' : 'invalid-i']"
-                                :style="{background: register_pass.match(/[!$#%@]/) ? valid_i_bg : in_valid_i_bg}"
+                            <li :class="[register_pass.match(/[!@#$%^&*()\-=+_.,]/) ? 'valid-i' : 'invalid-i']"
+                                :style="{background: register_pass.match(/[!@#$%^&*()\-=+_.,]/) ? valid_i_bg : in_valid_i_bg}"
                             >At least <strong>one special character.</strong></li>
                             <li :class="[register_pass.length > 6 ? 'valid-i' : 'invalid-i']"
                                 :style="{background: register_pass.length > 6 ? valid_i_bg : in_valid_i_bg}"
@@ -73,11 +69,28 @@
                     </div>
                 </div>
 
+                <div v-if="settings.present_promo" class="form-group flex flex--center-v">
+                    <input type="text"
+                           ref="register_promo_value"
+                           v-model="register_promo_value"
+                           name="promo_value"
+                           class="form-control width-25"
+                           placeholder="Enter promo code."
+                           @change="updatedPromo"
+                    >
+                    <div class="width-75 ml10">
+                        <label v-if="! promo && promo_completed && register_promo_value" class="no-margin">Code Invalid.</label>
+                        <label v-else-if="promo && promo.is_active" class="no-margin">Valid/Active. ${{ promo.credit }} credit will be added to your account.</label>
+                        <label v-else-if="promo && ! promo.is_active" class="no-margin">Code Expired.</label>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <button type="submit"
                             class="btn btn-success btn-lg btn-block"
                             :title="!accept_tos ? 'Please accept the Terms of Service after reviewing' : ''"
                             :disabled="!accept_tos || !register_check || !register_pass_the_same"
+                            @click="(e) => $root.protectFormSubmitByCaptha(e, 'registration-form')"
                     >Register</button>
                 </div>
 
@@ -109,10 +122,13 @@
         },
         data: function () {
             return {
+                promo_completed: false,
+                promo: null,
                 register_email: this.settings.register_old_email || '',
                 register_name: this.settings.register_old_username || '',
                 register_pass: '',
                 register_pass_confirm: '',
+                register_promo_value: '',
                 register_check: false,
                 pass_the_same: false,
                 accept_tos: false,
@@ -143,6 +159,17 @@
             },
         },
         methods: {
+            updatedPromo() {
+                this.promo_completed = false;
+                axios.get('/ajax/promo-code', {
+                    params: {
+                        promo_value: this.register_promo_value,
+                    },
+                }).then(({data}) => {
+                    this.promo = data.code;
+                    this.promo_completed = true;
+                });
+            },
         },
         mounted() {
             this.register_pass = '';

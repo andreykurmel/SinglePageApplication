@@ -19,6 +19,7 @@
            class="btn btn-primary btn-sm blue-gradient flex flex--center"
            :href="help_link || 'javascript:void(0)'"
            :style="btnStyle"
+           @click="linkClick"
            @contextmenu.prevent="rightClick()"
         >
             <i class="fas fa-info"></i>
@@ -30,7 +31,7 @@
                     <div class="modal-content">
                         <div class="modal-header">Info/Support Link Settings</div>
                         <div class="modal-body">
-                            <label>Get Started Link:</label>
+                            <label>Get Started Link {{ txt }} :</label>
                             <textarea v-model="help_link" class="form-control" rows="3"></textarea>
                         </div>
                         <div class="modal-footer">
@@ -64,6 +65,7 @@
             app_sett_key: String,
             hgt: Number,
             use_hover: Boolean,
+            txt: String,
         },
         computed: {
             btnStyle() {
@@ -72,6 +74,9 @@
                 style.width = '25px';
                 style.borderRadius = '50%';
                 style.marginTop = '1px';
+                if (!this.help_link) {
+                    style.background = 'lightgray';
+                }
                 return style;
             },
         },
@@ -84,6 +89,11 @@
                 this.h_left = px || e.clientX;
                 this.h_top = py || e.clientY;
                 this.h_offset = Math.abs(bounds.top - bounds.bottom) || 0;
+            },
+            linkClick(e) {
+                if (!this.help_link) {
+                    e.preventDefault();
+                }
             },
             rightClick() {
                 if (this.$root.user.is_admin || this.$root.user.role_id == 3) {
@@ -102,7 +112,7 @@
                     }
                     this.show_edit = false;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

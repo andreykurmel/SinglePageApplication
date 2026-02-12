@@ -21,8 +21,8 @@
                     <input type="hidden" value="<?= csrf_token() ?>" name="_token">
                     <input type="hidden" value="<?= $_SERVER['REQUEST_URI'] ?>" name="cur_path">
 
-                    @if (Input::has('to'))
-                        <input type="hidden" value="{{ Input::get('to') }}" name="to">
+                    @if (request()->has('to'))
+                        <input type="hidden" value="{{ request()->get('to') }}" name="to">
                     @endif
 
                     <div class="form-group">

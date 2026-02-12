@@ -1,5 +1,6 @@
 .custom-table-wrapper {
   position: relative;
+  border: none;
   border: 1px solid #CCC;
 }
 
@@ -185,7 +186,8 @@ table {
   }
 }
 .custom-padd {
-  padding: 5px 10px;
+  padding: 4px 10px;
+  height: 28px;
 }
 .pagi-pos {
   position: absolute;

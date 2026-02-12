@@ -18,9 +18,16 @@ class CreateUserApiKeysTable extends Migration
             $table->unsignedInteger('user_id');
             $table->string('name', 255)->default('');
             $table->string('type', 32)->default('google');
-            $table->string('key', 512);
+            $table->string('model', 32)->nullable();
+            $table->string('key', 1024);
+            $table->string('auth_token', 1024)->nullable();
             $table->string('air_base', 128)->nullable();
             $table->string('air_type', 128)->nullable();
+            $table->string('twiml_app_id', 255)->nullable();
+            $table->string('twilio_phone', 128)->nullable();
+            $table->string('jira_email', 255)->nullable();
+            $table->string('jira_host', 128)->nullable();
+            $table->string('search_key', 255)->nullable();
             $table->string('notes', 255)->default('');
             $table->tinyInteger('is_active')->default(0);
 

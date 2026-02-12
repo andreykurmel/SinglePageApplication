@@ -2,8 +2,6 @@
     <div ref="color_button"
          class="color_wrapper full-height"
          title="Select Color"
-         @mouseenter="mousein=true"
-         @mouseleave="mousein=false"
          @mousedown="propStop"
          @mouseup="propStop"
     >
@@ -11,12 +9,12 @@
             class="color_button full-height"
             ref="color_smart"
             :style="{backgroundColor: showed_color, height: '100%'}"
-            @click="opnMenu()"
+            @click.stop.prevent="opnMenu"
         >{{ show_text }}</div>
 
-        <button v-if="showed_color && avail_null && can_edit && mousein"
+        <button v-if="showed_color && avail_null && can_edit"
                 class="btn btn-danger btn-sm btn-deletable flex flex--center"
-                @click.stop.prevent="delColor()"
+                @click.stop.prevent="delColor"
         >
             <span>×</span>
         </button>
@@ -73,7 +71,6 @@
         data: function () {
             return {
                 uuid: uuidv4(),
-                mousein: false,
                 prepared: false,
                 one_prevent: !!this.init_menu,
                 showed_color: null,
@@ -92,14 +89,14 @@
                 ],
                 spec_picker: null,
                 spec_pos: 'right',
-                no_stop: false,
+                no_stop: !!this.no_prop_stop,
                 custom_color: 0,
             }
         },
         props:{
             init_color: String|null,
             can_edit: {
-                type: Boolean,
+                type: Boolean|Number,
                 default: () => { return true; }
             },
             fixed_pos: Boolean,
@@ -107,6 +104,7 @@
             show_text: String,
             avail_null: Boolean,
             init_menu: Boolean,
+            no_prop_stop: Boolean,
         },
         computed: {
             wrapColorEdit() {
@@ -350,6 +348,7 @@
             right: 3px;
             bottom: 10%;
             padding: 0 3px;
+            display: none;
 
             span {
                 font-size: 1.4em;
@@ -433,6 +432,9 @@
                 }
             }
         }
+    }
+    .color_wrapper:hover .btn-deletable {
+        display: block;
     }
 </style>
 

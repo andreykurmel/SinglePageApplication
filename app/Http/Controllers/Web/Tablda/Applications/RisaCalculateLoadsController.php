@@ -3,6 +3,7 @@
 namespace Vanguard\Http\Controllers\Web\Tablda\Applications;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallInput;
 use Vanguard\Http\Controllers\Web\Tablda\Applications\Transfers\DirectCallOut;
@@ -45,11 +46,19 @@ class RisaCalculateLoadsController extends Controller implements AppControllerIn
     {
         $tds = new TableDataService();
         $errors_present = [];
-        $targetfile = $ma_table = $fld = $link_rows = $link = $link_table = $r3dfile = null;
+        $ma_table = $fld = $link_rows = $link = $link_table = $r3dfile = null;
 
         $serv = new HelperService();
-        $corrTB = $correspApp->_tables()->where('row_hash', '!=', $serv->sys_row_hash['cf_temp'])->first();
-        $corrFields = $corrTB->_fields()->where('row_hash', '!=', $serv->sys_row_hash['cf_temp'])->get();
+
+        $corrTB = $correspApp->_tables()->where(function ($inner) {
+            $inner->whereNotIn('row_hash', (new HelperService())->sys_row_hash);
+            $inner->orWhereNull('row_hash'); //Because only 'Where Not In' cannot get records with NULL
+        })->first();
+
+        $corrFields = $corrTB->_fields()->where(function ($inner) {
+            $inner->whereNotIn('row_hash', (new HelperService())->sys_row_hash);
+            $inner->orWhereNull('row_hash'); //Because only 'Where Not In' cannot get records with NULL
+        })->get();
 
         $jsonfile = storage_path('app/public/' . $request->json);
         if (!file_exists($jsonfile)) {
@@ -72,7 +81,7 @@ class RisaCalculateLoadsController extends Controller implements AppControllerIn
             $row = $tds->getDirectRow($ma_table, $request->row_id);
 
             [$rc, $link_rows] = $tds->getFieldRows($link_table, $link->toArray(), $row->toArray(), 1, 250);
-            $link_rows = array_first($link_rows);
+            $link_rows = Arr::first($link_rows);
         } catch (\Exception $e) {
             $errors_present[] = 'Link Param "row_id" not present or not present Geometry Row!';
         }
@@ -85,15 +94,6 @@ class RisaCalculateLoadsController extends Controller implements AppControllerIn
             }
         } catch (\Exception $e) {
             $errors_present[] = 'Link Param "r3d_formula_symbol" not present or Geometry Row doesn`t have R3D file in that column!';
-        }
-
-        try {
-            $filename = preg_replace('/.r3d$/i', 'w_loading.r3d', basename($r3dfile));
-            $content = file_get_contents($r3dfile);
-            $copied_file = (new FileRepository())->insertFileAlias($ma_table->id, $request->result_col, $request->row_id, $filename, $content);
-            $targetfile = storage_path('app/public/' . $copied_file->filepath . $copied_file->filename);
-        } catch (\Exception $e) {
-            $errors_present[] = 'Link Param "result_col" not present or r3d File didn`t copied!';
         }
 
         $usergroup_fld = $corrFields->where('app_field', '=', 'usergroup')->first();
@@ -110,20 +110,32 @@ class RisaCalculateLoadsController extends Controller implements AppControllerIn
                 'apppath' => '/apps'.$app->app_path,
                 'tiapath' => $this->url,
                 'jsonfile' => $jsonfile,
-                'targetfile' => $targetfile,
                 'usergroup' => $usergroup,
                 'model' => $model,
                 'errors_present' => $errors_present,
+                'no_settings' => 1,
+                'tbid' => $ma_table->id,
+                'fldid' => $request->result_col,
+                'rwid' => $request->row_id,
+                'fname' => $r3dfile,
             ]
         ));
     }
 
     /**
      * @param Request $request
+     * @return \Illuminate\Http\Response|string
      */
     public function post(Request $request)
     {
-        //
+        try {
+            $filename = preg_replace('/.r3d$/i', 'w_loading.r3d', basename($request->fname));
+            $content = file_get_contents($request->fname);
+            $copied_file = (new FileRepository())->insertFileAlias($request->tbid, $request->fldid, $request->rwid, $filename, $content);
+            return storage_path('app/public/' . $copied_file->filepath . $copied_file->filename);
+        } catch (\Exception $e) {
+            return response('Link Param "result_col" not present or r3d File didn`t copied!', 500);
+        }
     }
 
     /**

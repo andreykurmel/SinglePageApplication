@@ -9,7 +9,7 @@
                         :disabled="!file_present"
                         :title="file_present ? '' : 'File is not uploaded'"
                         @click="sendParse()"
-                >Parsing Existing</button>
+                >Parse Existing</button>
             </div>
             <div v-else="">
                 <label>Errors:</label>
@@ -89,9 +89,9 @@
                     column_id: this.file_col,
                 }).then(({ data }) => {
                     if (data.length) {
-                        Swal({ html: data.join('<br>') });
+                        Swal({ title: 'Info', html: data.join('<br>') });
                     } else {
-                        Swal('Successfully parsed!').then(() => {
+                        Swal('Info','Successfully parsed!').then(() => {
                             let data = {
                                 event_name: 'close-application',
                                 app_code: 'risa3d_parser',
@@ -100,7 +100,7 @@
                         });
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
         },

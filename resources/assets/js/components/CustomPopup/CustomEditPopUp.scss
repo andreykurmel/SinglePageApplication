@@ -28,6 +28,7 @@
   //top: 50%;
   //transform: translate(-50%, -50%);
   //transform-origin: top left;
+  max-height: 100%;
   height: 80%;
   width: 60%;
   max-width: 100%;
@@ -46,7 +47,7 @@
 }
 
 .vert-table {
-  padding-left: 10px;
+  padding-left: 5px;
 }
 
 .table {
@@ -123,7 +124,7 @@
 }
 
 .popup-main {
-  padding: 20px;
+  padding: 5px;
 
   .popup-buttons {
     min-height: 30px;
@@ -138,10 +139,16 @@
   }
 }
 
+.many-rows-collapsed {
+  width: 7px;
+  cursor: pointer;
+  background: #eee;
+  margin: 5px 0 5px 5px;
+}
 .many-rows {
   margin-right: 5px;
-  flex-basis: 220px;
-  padding: 20px 0 20px 20px;
+  flex-basis: 290px;
+  padding: 5px 0 16px 5px;
   position: relative;
 
   h4 {
@@ -162,7 +169,7 @@
     height: calc(100% - 36px);
     padding: 3px;
     overflow: auto;
-    width: 220px;
+    width: 290px;
 
     .active {
       background-color: #FFC;
@@ -195,4 +202,13 @@
       top: -1px;
     }
   }
+}
+
+.resizer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  cursor: se-resize;
 }

@@ -54,8 +54,7 @@
         data: function () {
             return {
                 menu_opened: false,
-                h_user: this.history._user || {},
-                h_to_user: this.history._to_user,
+                h_user: this.history._user || this.user,
                 h_field: this.history._table_field,
 
                 isActivityComment: this.isActivity && this.history._to_user,

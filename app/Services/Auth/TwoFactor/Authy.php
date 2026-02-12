@@ -4,6 +4,7 @@ namespace Vanguard\Services\Auth\TwoFactor;
 
 use Exception;
 use GuzzleHttp\Client as HttpClient;
+use Illuminate\Support\Facades\Log;
 use Vanguard\Services\Auth\TwoFactor\Contracts\Provider;
 use Vanguard\Services\Auth\TwoFactor\Contracts\Authenticatable as TwoFactorAuthenticatable;
 
@@ -27,21 +28,26 @@ class Authy implements Provider
      */
     public function register(TwoFactorAuthenticatable $user)
     {
-        $key = config('services.authy.key');
+        try {
+            $key = config('services.authy.key');
 
-        $response = json_decode((new HttpClient)->post('https://api.authy.com/protected/json/users/new?api_key='.$key, [
-            'form_params' => [
-                'user' => [
-                    'email' => $user->getEmailForTwoFactorAuth(),
-                    'cellphone' => preg_replace('/[^0-9]/', '', $user->getAuthPhoneNumber()),
-                    'country_code' => $user->getAuthCountryCode(),
+            $response = json_decode((new HttpClient)->post('https://api.authy.com/protected/json/users/new?api_key='.$key, [
+                'form_params' => [
+                    'user' => [
+                        'email' => $user->getEmailForTwoFactorAuth(),
+                        'cellphone' => preg_replace('/[^0-9]/', '', $user->getAuthPhoneNumber()),
+                        'country_code' => $user->getAuthCountryCode(),
+                    ],
                 ],
-            ],
-        ])->getBody(), true);
+            ])->getBody(), true);
 
-        $user->setTwoFactorAuthProviderOptions([
-            'id' => $response['user']['id'],
-        ]);
+            $user->setTwoFactorAuthProviderOptions([
+                'id' => $response['user']['id'],
+            ]);
+        } catch (Exception $e) {
+            Log::info('Authy Error - User:'.$user->id);
+            Log::info($e->getMessage());
+        }
     }
 
     /**
@@ -91,18 +97,22 @@ class Authy implements Provider
      * Delete the given user from the provider.
      *
      * @param TwoFactorAuthenticatable $user
-     * @return bool
      */
     public function delete(TwoFactorAuthenticatable $user)
     {
-        $key = config('services.authy.key');
+        try {
+            $key = config('services.authy.key');
 
-        $options = $user->getTwoFactorAuthProviderOptions();
+            $options = $user->getTwoFactorAuthProviderOptions();
 
-        (new HttpClient)->post(
-            'https://api.authy.com/protected/json/users/delete/'.$options['id'].'?api_key='.$key
-        );
+            (new HttpClient)->post(
+                'https://api.authy.com/protected/json/users/delete/'.$options['id'].'?api_key='.$key
+            );
 
-        $user->setTwoFactorAuthProviderOptions([]);
+            $user->setTwoFactorAuthProviderOptions([]);
+        } catch (Exception $e) {
+            Log::info('Authy Error - User:' . $user->id);
+            Log::info($e->getMessage());
+        }
     }
 }

@@ -89,8 +89,8 @@
                     this.isRequestDemo = false;
                     this.clearingForm();
                     Swal({
-                        title: 'Thanks for your interest. We will get back to you shortly.',
-                        text: '',
+                        title: 'Info',
+                        text: 'Thanks for your interest. We will get back to you shortly.',
                         timer: 3500
                     });
                 }).catch(errors => {
@@ -125,7 +125,7 @@
                     this.$root.settingsMeta.all_plans = data.all_plans;
                     this.$root.settingsMeta.all_addons = data.all_addons;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
             changeTableMetaHandler(meta) {},
@@ -140,6 +140,17 @@
             eventBus.$on('open-resource-popup', () => {
                 this.show_resource_popup = true;
             });
+
+            //open by url param
+            if (location.search.match(/^\?subscription/gi)) {
+                this.show_user_popup = true;
+            }
+            if (location.search.match(/^\?settings/gi)) {
+                this.show_resource_popup = true;
+            }
+            if (location.search.match(/^\?invites/gi)) {
+                this.show_invite = true;
+            }
 
             //move the 'follow buttons'
             $('#twitter-follow').append( $('.twitter-follow-button') );

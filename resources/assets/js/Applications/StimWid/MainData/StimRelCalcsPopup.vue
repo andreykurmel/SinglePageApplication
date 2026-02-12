@@ -6,7 +6,7 @@
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
-                        <div class="flex__elem-remain">Calculate RL Brackets</div>
+                        <div class="flex__elem-remain">RL Bracket Calculation</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="emit_event()"></span>
                         </div>
@@ -16,7 +16,7 @@
                     <div class="flex__elem__inner popup-main">
                         <div class="flex flex--col">
                             <div class="flex__elem-remain">
-                                <label>Found Equipments: {{ load_data ? load_data.eqs.collection.length : '...' }}</label>
+                                <label>Number of equipment attached to mount member found: {{ eqptsCnt() }}</label>
                                 <div v-if="is_process && load_data" class="bar-wrapper">
                                     <span>Calculating...</span>
                                     <div class="progress-wrapper">
@@ -70,6 +70,14 @@
             foundModel: FoundModel,
         },
         methods: {
+            eqptsCnt() {
+                if (this.load_data && this.loaded_master_model) {
+                    let helper = new ThreeHelper(this.load_data, this.loaded_master_model);
+                    return helper.affectedEqpts();
+                } else {
+                    return '...';
+                }
+            },
             loadData() {
                 if (!this.is_process) {
                     this.is_process = true;
@@ -80,7 +88,7 @@
                         this.load_data = data;
                         this.is_process = false;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 }
             },

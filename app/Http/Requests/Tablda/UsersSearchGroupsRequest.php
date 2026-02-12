@@ -26,6 +26,7 @@ class UsersSearchGroupsRequest extends FormRequest
         return [
             'q' => 'nullable|string',
             'table_id' => 'required|integer|exists:tables,id',
+            'ddl_id' => 'nullable|integer|exists:ddl,id',
         ];
     }
 }

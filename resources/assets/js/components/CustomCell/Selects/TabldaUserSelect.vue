@@ -17,9 +17,21 @@
 
             <div class="result-wrapper">
                 <div v-if="can_empty" class="result-item" @click="selectedItem( '' )">&nbsp;</div>
-                <div v-if="extra_vals.indexOf('visitor') > -1" class="result-item" @click="selectedItem( '{$visitor}' )">{$visitor}</div>
-                <div v-if="extra_vals.indexOf('user') > -1" class="result-item" @click="selectedItem( '{$user}' )">{$user}</div>
-                <div v-if="extra_vals.indexOf('group') > -1" class="result-item" @click="selectedItem( '{$group}' )">{$group}</div>
+                <div v-if="extra_vals.indexOf('visitor') > -1"
+                     :class="[is_selected('{$visitor}') ? 'result-item--selected' : '']"
+                     class="result-item"
+                     @click="selectedItem( '{$visitor}' )"
+                >{$visitor}</div>
+                <div v-if="extra_vals.indexOf('user') > -1"
+                     :class="[is_selected('{$user}') ? 'result-item--selected' : '']"
+                     class="result-item"
+                     @click="selectedItem( '{$user}' )"
+                >{$user}</div>
+                <div v-if="extra_vals.indexOf('group') > -1"
+                     :class="[is_selected('{$group}') ? 'result-item--selected' : '']"
+                     class="result-item"
+                     @click="selectedItem( '{$group}' )"
+                >{$group}</div>
 
                 <div v-for="group in users_in_groups">
                     <div>
@@ -27,7 +39,7 @@
                         <div class="result-item result-item--inline"
                              :class="[is_selected(group.id) ? 'result-item--selected' : '']"
                              :style="{fontWeight: group.found ? 'bold' : 'normal'}"
-                             @click="selectedItem(group.id)"
+                             @click="selectedItem(group.id, group.name)"
                         >{{ group.name || '&nbsp;' }}</div>
                     </div>
                     <div v-if="group.opened">
@@ -35,7 +47,7 @@
                              class="result-item result-item--space"
                              :class="[is_selected(user.id) ? 'result-item--selected' : '']"
                              :style="{fontWeight: user.found ? 'bold' : 'normal'}"
-                             @click="selectedItem(user.id)"
+                             @click="selectedItem(user.id, user.name)"
                         >{{ user.name || '&nbsp;' }}</div>
                     </div>
                 </div>
@@ -66,7 +78,7 @@
         props:{
             edit_value: Array|String|Number,
             show_selected: Boolean,
-            table_meta: Object,
+            table_field: Object,
             can_empty: Boolean,
             fixed_pos: Boolean,
             multiselect: Boolean,
@@ -114,8 +126,8 @@
             },
 
             //Standard DDL
-            selectedItem(key) {
-                this.$emit('selected-item', String(key));
+            selectedItem(key, string) {
+                this.$emit('selected-item', String(key), string);
                 if (!this.multiselect) {
                     this.hideSelect();
                 }
@@ -137,7 +149,8 @@
             searchUsersInGroups() {
                 axios.get('/ajax/user/search-in-groups', {
                     params: {
-                        table_id: this.table_meta.id,
+                        ddl_id: this.table_field.ddl_id,
+                        table_id: this.table_field.table_id,
                         q: this.search_text,
                     }
                 }).then(({ data }) => {
@@ -151,7 +164,7 @@
                     this.users_in_groups = data;
                     this.searching_process = false;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
         },

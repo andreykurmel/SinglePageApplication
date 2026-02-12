@@ -3,6 +3,7 @@
 namespace Vanguard\Classes;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Vanguard\Models\Table\Table;
 
 class BiPivotMaker
@@ -82,8 +83,8 @@ class BiPivotMaker
         $this->all_variants['rcs'] = $objobj;
 
         foreach ($this->fld_keys as $key) {
-            $this->corr_dbs[$key] = array_first($input)['_db_' . $key] ?? '';
-            $this->sorted_values[$key] = array_sort(array_unique(array_pluck($input, $key)));
+            $this->corr_dbs[$key] = Arr::first($input)['_db_' . $key] ?? '';
+            $this->sorted_values[$key] = Arr::sort(array_unique(Arr::pluck($input, $key)));
 
             $usrs = [];
             $rcs = [];
@@ -320,11 +321,11 @@ class BiPivotMaker
             if ($field = $this->corr_dbs['vert_l'.$i]) {
                 $fld = $this->table->_fields->where('field', '=', $field)->first();
                 if ($fld) {
-                    $headers[] = 'Rows Labels,'.$fld->name;
+                    $headers[] = 'Row Description,'.$fld->name;
                 }
             } else {
                 if ($i == 1) {
-                    $headers[] = 'Rows Labels';
+                    $headers[] = 'Row Description';
                 }
             }
         }

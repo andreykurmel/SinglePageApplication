@@ -3,14 +3,12 @@
 namespace Vanguard\Jobs;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
 use Vanguard\Models\Table\Table;
-use Vanguard\Services\Tablda\TableDataService;
-use Vanguard\User;
+use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 
 class RecalcTableFormula implements ShouldQueue
 {
@@ -19,6 +17,7 @@ class RecalcTableFormula implements ShouldQueue
     private $table;
     private $import_id;
     private $user_id;
+    private $changed_fields;
 
     /**
      * RecalcTableFormula constructor.
@@ -27,11 +26,12 @@ class RecalcTableFormula implements ShouldQueue
      * @param $user_id
      * @param $import_id
      */
-    public function __construct(Table $table, $user_id, $import_id)
+    public function __construct(Table $table, $user_id, $import_id, $changed_fields = [])
     {
         $this->table = $table;
         $this->import_id = $import_id;
         $this->user_id = $user_id;
+        $this->changed_fields = $changed_fields;
     }
 
     /**
@@ -41,7 +41,11 @@ class RecalcTableFormula implements ShouldQueue
      */
     public function handle()
     {
-        (new TableDataService())->recalcTableFormulas($this->table, $this->user_id, [], $this->import_id);
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '1200');
+
+        $evaluator = new FormulaEvaluatorRepository($this->table, $this->user_id, 0, $this->changed_fields);
+        $evaluator->recalcTableFormulas([], $this->import_id);
     }
 
     public function failed()

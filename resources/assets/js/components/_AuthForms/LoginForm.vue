@@ -19,7 +19,7 @@
                 <div class="form-group password-field input-icon">
                     <label class="sr-only">Password</label>
                     <i class="fa fa-lock"></i>
-                    <input type="password" name="password" class="form-control" placeholder="Password">
+                    <input type="password" name="password" class="form-control" placeholder="Password" v-model="login_pass">
                     <a href="javascript:void(0)" @click="$emit('show_remind')" class="forgot">Forgot my password</a>
                 </div>
                 <div class="form-group remember-row">
@@ -29,7 +29,11 @@
                     <a href="javascript:void(0)" @click="$emit('show_register')">Don't have an account?</a>
                 </div>
                 <div class="form-group">
-                    <button type="submit" class="btn btn-success btn-lg btn-block" id="btn-login">Log In</button>
+                    <button type="submit"
+                            class="btn btn-success btn-lg btn-block"
+                            id="btn-login"
+                            @click="(e) => $root.protectFormSubmitByCaptha(e, 'login-form')"
+                    >Log In</button>
                 </div>
             </form>
             <div class="divider-wrapper">
@@ -59,7 +63,8 @@
         },
         data: function () {
             return {
-                login_email: this.settings.register_old_email || '',
+                login_email: this.settings.login_old_email || '',
+                login_pass: this.settings.login_old_pass || '',
             }
         },
         props: {

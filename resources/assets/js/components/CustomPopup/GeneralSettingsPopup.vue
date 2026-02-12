@@ -8,8 +8,8 @@
                 </div>
                 <div class="flex__elem-remain popup-content" style="padding: 20px;">
                     <board-setting-block
-                            :board_view_height="tmp_view_height"
-                            :board_image_width="tmp_image_width"
+                            :tb_meta="tmp_meta"
+                            :board_settings="tmp_meta"
                             @val-changed="setVals"
                     ></board-setting-block>
                     <div class="popup-buttons" style="float: right;padding-top: 15px;">
@@ -40,8 +40,16 @@
         data: function () {
             return {
                 show_popup: false,
-                tmp_view_height: 0,
-                tmp_image_width: 0,
+                tmp_meta: {
+                    board_view_height: 0,
+                    board_title_width: 0,
+                    board_image_width: 0,
+                    board_image_height: 0,
+                    board_image_fld_id: 0,
+                    board_display_position: '',
+                    board_display_view: '',
+                    board_display_fit: '',
+                },
                 //PopupAnimationMixin
                 getPopupWidth: 750,
                 idx: 0,
@@ -53,32 +61,39 @@
         methods: {
             hide() {
                 this.show_popup = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
             },
             showGeneralSettings() {
-                this.tmp_view_height = this.tableMeta.board_view_height;
-                this.tmp_image_width = this.tableMeta.board_image_width;
+                this.tmp_meta.board_view_height = this.tableMeta.board_view_height;
+                this.tmp_meta.board_title_width = this.tableMeta.board_title_width;
+                this.tmp_meta.board_image_width = this.tableMeta.board_image_width;
+                this.tmp_meta.board_image_height = this.tableMeta.board_image_height;
+                this.tmp_meta.board_image_fld_id = this.tableMeta.board_image_fld_id;
+                this.tmp_meta.board_display_position = this.tableMeta.board_display_position;
+                this.tmp_meta.board_display_view = this.tableMeta.board_display_view;
+                this.tmp_meta.board_display_fit = this.tableMeta.board_display_fit;
+
                 this.show_popup = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             },
             setVals(prop_name, val) {
-                if (prop_name === 'board_view_height') {
-                    this.tmp_view_height = val;
-                }
-                if (prop_name === 'board_image_width') {
-                    this.tmp_image_width = val;
-                }
+                //
             },
             updateVals() {
-                this.tableMeta.board_view_height = this.tmp_view_height;
-                this.tableMeta.board_image_width = this.tmp_image_width;
+                this.tableMeta.board_view_height = this.tmp_meta.board_view_height;
+                this.tableMeta.board_image_width = this.tmp_meta.board_image_width;
+                this.tableMeta.board_image_height = this.tmp_meta.board_image_height;
+                this.tableMeta.board_image_fld_id = this.tmp_meta.board_image_fld_id;
+                this.tableMeta.board_display_position = this.tmp_meta.board_display_position;
+                this.tableMeta.board_display_view = this.tmp_meta.board_display_view;
+                this.tableMeta.board_display_fit = this.tmp_meta.board_display_fit;
 
                 this.$root.sm_msg_type = 1;
                 let data = Object.assign({ table_id: this.tableMeta.id, }, this.tableMeta);
                 axios.put('/ajax/table', data).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                     this.hide();
@@ -101,7 +116,7 @@
 
     .popup-wrapper {
         .popup {
-            height: 185px;
+            height: 230px;
             width: 550px;
             position: relative;
             margin: 3% auto;

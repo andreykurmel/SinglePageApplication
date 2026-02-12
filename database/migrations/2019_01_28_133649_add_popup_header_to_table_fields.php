@@ -15,6 +15,7 @@ class AddPopupHeaderToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->tinyInteger('popup_header')->after('filter')->default(0);
+            $table->tinyInteger('popup_header_val')->after('popup_header')->default(0);
         });
     }
 
@@ -27,6 +28,7 @@ class AddPopupHeaderToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('popup_header');
+            $table->dropColumn('popup_header_val');
         });
     }
 }

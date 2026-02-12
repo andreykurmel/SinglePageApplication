@@ -30,6 +30,7 @@ use Vanguard\User;
  * @property int $max_cell_rows
  * @property int $cell_height
  * @property int $left_menu_width
+ * @property int $right_menu_width
  * @property int $stim_filter_width
  * @property-read \Vanguard\Models\Table\TableView|null $_initial_view
  * @property-read \Vanguard\Models\Table\Table $_table
@@ -88,6 +89,7 @@ class TableUserSetting extends Model
         'max_cell_rows',
         'cell_height',
         'left_menu_width',
+        'right_menu_width',
         'stim_filter_width',
     ];
 
@@ -108,27 +110,25 @@ class TableUserSetting extends Model
      * @param User $user
      * @return string
      */
-    public function getUserStr(User $user)
+    public function getUserFilterStr(User $user)
     {
         if (!$user) {
             return '';
         }
 
         $res = [];
-        $res[] = $this->user_fld_show_image
-        ? '<img src="'.$user->avatarLink().'">'
-        : '';
+        $res[] = '<img src="'.$user->avatarLink().'">';
 
-        if ($this->user_fld_show_first) {
+        if ($user->first_name) {
             $res[] = $user->first_name;
         }
-        if ($this->user_fld_show_last) {
+        if ($user->last_name) {
             $res[] = $user->last_name;
         }
-        if ($this->user_fld_show_email) {
+        /*if ($user->email) {
             $res[] = $user->email ? '('.$user->email.')' : '';
-        }
-        if ($this->user_fld_show_username) {
+        }*/
+        if (count($res) <= 1) {
             $res[] = $user->username;
         }
 

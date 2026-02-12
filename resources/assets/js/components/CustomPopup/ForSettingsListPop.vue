@@ -18,19 +18,35 @@
                     <div class="flex__elem__inner">
                         <div v-if="tableMeta && tableRow" class="full-height basic-data">
 
-                            <div class="basic-menu">
-                                <button v-if="globalMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'inps'}" @click="activeTab = 'inps';redraw_tab=true;">
+                            <div class="basic-menu flex">
+                                <button v-if="globalMeta._is_owner" class="btn btn-default mr5" :class="{active: activeTab === 'inps'}" @click="activeTab = 'inps';redraw_tab=true;">
                                     Input
                                 </button>
-                                <button v-if="globalMeta._is_owner" class="btn btn-default" :class="{active: activeTab === 'columns'}" @click="activeTab = 'columns';redraw_tab=true;">
+                                <button v-if="globalMeta._is_owner" class="btn btn-default mr5" :class="{active: activeTab === 'columns'}" @click="activeTab = 'columns';redraw_tab=true;">
                                     Standard
                                 </button>
-                                <button class="btn btn-default" :class="{active: activeTab === 'customizable'}" @click="activeTab = 'customizable';redraw_tab=true;">
+                                <button class="btn btn-default mr5" :class="{active: activeTab === 'customizable'}" @click="activeTab = 'customizable';redraw_tab=true;">
                                     Customizable
                                 </button>
-                                <button class="btn btn-default" :class="{active: activeTab === 'bas_popup'}" @click="activeTab = 'bas_popup';redraw_tab=true;">
+                                <button class="btn btn-default mr5" :class="{active: activeTab === 'bas_popup'}" @click="activeTab = 'bas_popup';redraw_tab=true;">
                                     Pop-up
                                 </button>
+                                <button class="btn btn-default mr5" :class="{active: activeTab === 'others'}" @click="activeTab = 'others';redraw_tab=true;">
+                                    3rd Party
+                                </button>
+
+                                <div style="position:absolute; right: 10px; top: 3px;" class="flex flex--center-v">
+                                    <label class="no-margin">Related items only</label>
+                                    <label class="switch_t" style="margin: 0 5px">
+                                        <input type="checkbox" v-model="related_only">
+                                        <span class="toggler round"></span>
+                                    </label>
+
+                                    <row-space-button
+                                        :init_size="tableMeta.row_space_size"
+                                        @changed-space="smallSpace"
+                                    ></row-space-button>
+                                </div>
                             </div>
 
                             <div class="flex basic-tab" v-if="!redraw_tab">
@@ -64,8 +80,7 @@
                                                     :max-cell-rows="maxCellRows"
                                                     :behavior="'settings_display'"
                                                     :available-columns="getAvaCols"
-                                                    :forbidden-columns="forbiddenColumns"
-                                                    :is_small_spacing="is_small_spacing"
+                                                    :forbidden-columns="getForbidCols"
                                                     @updated-cell="checkRowAutocomplete"
                                                     @show-add-ddl-option="showAddDDLOption"
                                                     @show-src-record="showSrcRecord"
@@ -105,8 +120,8 @@
     import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
 
     import AttachmentsBlock from '../CommonBlocks/AttachmentsBlock';
-    import VerticalTable from '../CustomTable/VerticalTable';
     import AddOptionPopup from './AddOptionPopup';
+    import RowSpaceButton from "../Buttons/RowSpaceButton.vue";
 
     export default {
         name: "ForSettingsListPop",
@@ -116,12 +131,13 @@
             PopupAnimationMixin,
         ],
         components: {
+            RowSpaceButton,
             AddOptionPopup,
             AttachmentsBlock,
-            VerticalTable,
         },
         data: function () {
             return {
+                related_only: true,
                 redraw_tab: false,
                 activeTab: this.init_active || 'columns',
                 columns_field: 'name',
@@ -131,7 +147,6 @@
                     tableRow: null,
                 },
                 getPopupWidth: 1000,
-                is_small_spacing: readLocalStorage('is_small_spacing') || 'no',
             };
         },
         props:{
@@ -176,15 +191,48 @@
         },
         computed: {
             getAvaCols() {
+                let cols = [];
                 switch (this.activeTab) {
-                    case 'inps': return this.$root.availableInpsColumns;
-                    case 'columns': return this.$root.availableSettingsColumns;
-                    case 'bas_popup': return this.$root.availablePopupDisplayColumns;
-                    default: return this.$root.availableNotOwnerDisplayColumns;
+                    case 'inps': cols = this.$root.availableInpsColumns; break;
+                    case 'columns': cols = this.$root.availableSettingsColumns; break;
+                    case 'bas_popup': cols = this.$root.availablePopupDisplayColumns; break;
+                    case 'others': cols = this.$root.availableOthersColumns; break;
+                    default: cols = this.$root.availableNotOwnerDisplayColumns; break;
                 }
+                return cols;
+            },
+            getForbidCols() {
+                let cols = this.forbiddenColumns || [];
+                if (this.related_only) {
+                    let ddl_flds = ['ddl_id','ddl_add_option','ddl_auto_fill','ddl_style','is_inherited_tree'];
+                    let frm_flds = ['is_uniform_formula','f_formula'];
+                    let mirror_flds = ['mirror_rc_id','mirror_field_id','mirror_part','mirror_one_value','mirror_editable','mirror_edit_component'];
+                    let fetch_flds = ['fetch_source_id','fetch_by_row_cloud_id','fetch_one_cloud_id','fetch_uploading'];
+                    switch (this.tableRow.input_type) {
+                        case 'S-Select':
+                        case 'S-Search':
+                        case 'S-SS':
+                        case 'M-Select':
+                        case 'M-Search':
+                        case 'M-SS': cols = cols.concat(frm_flds, mirror_flds, fetch_flds);
+                            break;
+                        case 'Mirror': cols = cols.concat(ddl_flds, frm_flds, fetch_flds);
+                            break;
+                        case 'Formula': cols = cols.concat(ddl_flds, mirror_flds, fetch_flds);
+                            break;
+                        case 'Fetch': cols = cols.concat(ddl_flds, frm_flds, mirror_flds);
+                            break;
+                        default: cols = cols.concat(ddl_flds, frm_flds, mirror_flds, fetch_flds);
+                            break;
+                    }
+                }
+                return cols;
             },
         },
         methods: {
+            smallSpace(size) {
+                this.tableMeta.row_space_size = size;
+            },
             //sys methods
             popupInsert() {
                 if (this.$root.setCheckRequired(this.tableMeta, this.tableRow)) {
@@ -244,10 +292,6 @@
                 }
             },
 
-            smallSpace() {
-                this.is_small_spacing = (this.is_small_spacing == 'yes' ? 'no' : 'yes');
-                setLocalStorage('is_small_spacing', this.is_small_spacing);
-            },
             anotherRow(is_next) {
                 this.$emit('another-row', is_next);
             },

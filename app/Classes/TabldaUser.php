@@ -27,4 +27,36 @@ class TabldaUser
         }
         return $user;
     }
+
+    /**
+     * @return User
+     */
+    public static function unlogged(): User
+    {
+        $user = User::where('email', '=', 'unlogged@tablda.com')->first();
+        if (!$user) {
+            User::create([
+                'email' => 'unlogged@tablda.com',
+                'username' => 'Unlogged',
+                'password' => 'no-pass',
+                'role_id' => 2,
+                'status' => 'Active',
+            ]);
+            $user = User::where('email', '=', 'unlogged@tablda.com')->first();
+        }
+        return $user;
+    }
+
+    /**
+     * @return bool
+     */
+    public static function syncReloading(): bool
+    {
+        $user = auth()->id()
+            ? User::where('id', '=', auth()->id())->first()
+            : User::where('email', '=', 'unlogged@tablda.com')->first();
+
+        $user->sync_reloading++;
+        return $user->save();
+    }
 }

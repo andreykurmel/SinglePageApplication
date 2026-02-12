@@ -6,6 +6,7 @@ namespace Vanguard\Http\Controllers\Web\Tablda\App;
 use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\App\AppSettEditRequest;
+use Vanguard\Http\Requests\Tablda\App\FormulaHelperEditRequest;
 use Vanguard\Services\Tablda\App\AppSettingsService;
 
 class AppSettingsController extends Controller
@@ -31,6 +32,19 @@ class AppSettingsController extends Controller
     {
         return [
             'status' => $this->appSettingsService->updateAppSetting($request->app_key, $request->app_val)
+        ];
+    }
+
+    /**
+     * Update FormulaHelper.
+     *
+     * @param FormulaHelperEditRequest $request
+     * @return array
+     */
+    public function updateFormulaHelper(FormulaHelperEditRequest $request)
+    {
+        return [
+            'status' => $this->appSettingsService->updateFormulaHelper($request->formula, $request->notes)
         ];
     }
 }

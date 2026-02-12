@@ -5,6 +5,7 @@ namespace Vanguard\Repositories\Tablda\Permissions;
 
 use Ramsey\Uuid\Uuid;
 use Vanguard\Models\Dcr\TableDataRequest;
+use Vanguard\Models\Dcr\TableDataRequest2Fields;
 use Vanguard\Services\Tablda\HelperService;
 
 class CopyDataRequestRepository
@@ -30,25 +31,35 @@ class CopyDataRequestRepository
     /**
      * @param TableDataRequest $from
      * @param TableDataRequest $to
-     * @param bool $as_template
      * @param array $permis_fields
-     * @return mixed
+     * @param bool $full_copy
+     * @return bool
+     * @throws \Exception
      */
-    public function copyDataRequest(TableDataRequest $from, TableDataRequest $to, bool $as_template = false, array $permis_fields = [])
+    public function copyDataRequest(TableDataRequest $from, TableDataRequest $to, array $permis_fields = [], bool $full_copy = false)
     {
+        if ($from->id == $to->id) {
+            return false;
+        }
         $arr = [
+            'id' => $to->id,
             'name' => $to->name,
-            'is_template' => $as_template ? 1 : $to->is_template,
+            'is_template' => $to->is_template,
+            'link_hash' => Uuid::uuid4(),
             'dcr_hash' => Uuid::uuid4(),
         ];
         $updates = $permis_fields
             ? $this->service->filter_keys($from->toArray(), $permis_fields)
             : $from->toArray();
-        $res = TableDataRequest::where('id', '=', $to->id)->update(array_merge($this->service->delSystemFields($updates), $arr));
+        $updates = array_merge($this->service->delSystemFields($updates), $arr);
+        $res = TableDataRequest::where('id', '=', $to->id)->update($updates);
 
-        $this->copyDefaults($from, $to);
-        $this->copyColumnGroups($from, $to);
-        $this->copyLinkedTables($from, $to);
+        if ($from->table_id == $to->table_id && $full_copy) {
+            $this->copyDefaults($from, $to);
+            $this->copyColumnGroups($from, $to);
+            $this->copyLinkedTables($from, $to);
+            $this->copyFieldsPivot($from, $to);
+        }
 
         return $res;
     }
@@ -82,6 +93,21 @@ class CopyDataRequestRepository
                 $request_column->view,
                 $request_column->edit
             );
+        }
+    }
+
+    /**
+     * @param TableDataRequest $from
+     * @param TableDataRequest $to
+     */
+    protected function copyFieldsPivot(TableDataRequest $from, TableDataRequest $to): void
+    {
+        $to->_fields_pivot()->delete();
+        foreach ($from->_fields_pivot as $pivot) {
+            TableDataRequest2Fields::insert(array_merge($pivot->getAttributes(), [
+                'id' => null,
+                'table_data_requests_id' => $to->id
+            ]));
         }
     }
 

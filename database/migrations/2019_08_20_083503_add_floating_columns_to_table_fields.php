@@ -20,6 +20,9 @@ class AddFloatingColumnsToTableFields extends Migration
         Schema::table('user_headers', function (Blueprint $table) {
             $table->tinyInteger('is_floating')->default(0);
             $table->string('filter_type', 16)->default('value');
+            $table->tinyInteger('filter_search')->default(0);
+            $table->string('image_fitting', 16)->default('fill');
+            $table->tinyInteger('fill_by_asterisk')->default(0);
         });
     }
 
@@ -37,6 +40,9 @@ class AddFloatingColumnsToTableFields extends Migration
         Schema::table('user_headers', function (Blueprint $table) {
             $table->dropColumn('is_floating');
             $table->dropColumn('filter_type');
+            $table->dropColumn('filter_search');
+            $table->dropColumn('image_fitting');
+            $table->dropColumn('fill_by_asterisk');
         });
     }
 }

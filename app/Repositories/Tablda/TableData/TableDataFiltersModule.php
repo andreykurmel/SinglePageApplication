@@ -2,7 +2,11 @@
 
 namespace Vanguard\Repositories\Tablda\TableData;
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Vanguard\Classes\DropdownHelper;
+use Vanguard\Models\DDL;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\DDLRepository;
@@ -41,6 +45,28 @@ class TableDataFiltersModule
     }
 
     /**
+     * @param Model $filter
+     * @return array
+     */
+    protected function filterFields(Model $filter): array
+    {
+        return $filter->only([
+            'id',
+            'name',
+            'field',
+            'ddl_id',
+            'filter_type',
+            'filter_search',
+            'f_type',
+            'input_type',
+            'applied_index',
+            'values',
+            'error_msg',
+            'clarify_searching'
+        ]);
+    }
+
+    /**
      * get filters for user`s table.
      * values for not applied filters are only those, which present after applying filters.
      * so if applied filter by 'State=AL', then in 'City' filter will be present cities only for 'State=AL'.
@@ -50,13 +76,16 @@ class TableDataFiltersModule
      * @return array:
      * [
      *  0 => [
-     *      id: in,
+     *      id: int,
      *      field: string,
      *      name: string,
+     *      ddl_id: int,
      *      applied_index: int,
      *      filter_type: string,
+     *      filter_search: string,
      *      f_type: string,
      *      input_type: string,
+     *      error_msg: string,
      *      values: [
      *          0 => [
      *              checked: bool,
@@ -79,11 +108,11 @@ class TableDataFiltersModule
      *  ...
      * ]
      */
-    public function getFilters(array $data)
+    public function getFilters(array $data): array
     {
         //Visitor or user in View can activate temp filters.
         $applied_filter_fields = empty($data['user_id'])
-            ? array_pluck($data['applied_filters'] ?? [], 'field')
+            ? Arr::pluck($data['applied_filters'] ?? [], 'field')
             : [];
 
         //get Table Filters
@@ -98,7 +127,7 @@ class TableDataFiltersModule
 
         //select only with 'applied_index'
         $applied_filters = $this->prepareApplied($data['applied_filters'] ?? []);
-        $present_ids = array_pluck($applied_filters, 'id');
+        $present_ids = Arr::pluck($applied_filters, 'id');
 
         if (!count($filters)) {
             return [];
@@ -134,7 +163,7 @@ class TableDataFiltersModule
 
             }
 
-            $filters[$key] = $filter->only(['id', 'name', 'field', 'ddl_id', 'filter_type', 'f_type', 'input_type', 'applied_index', 'values']);
+            $filters[$key] = $this->filterFields($filter);
         }
 
         return $filters->toArray();
@@ -192,7 +221,7 @@ class TableDataFiltersModule
     protected function getAppliedFilterValues($filter, array $checked_values, int $applied_index)
     {
         try {
-            $uncheck_rows = $this->getFilterRows($filter, 0);
+            $uncheck_rows = $this->getFilterRows($filter, 0, false);
 
             $check_rows = [];
             foreach ($checked_values as $ar) {
@@ -204,15 +233,32 @@ class TableDataFiltersModule
             $rows_merged = $this->syncWithRowGroups($rows_merged, $filter);
 
             $filter->applied_index = $applied_index;
-            $filter->values = array_values(array_sort($rows_merged, 'show'));
+            $filter->values = $this->sortFilter($filter, $rows_merged);
 
             //filter values on sub-levels
-            $this->whereInMSel($filter, array_pluck($checked_values, 'val'));
+            $this->whereInMSel($filter, Arr::pluck($checked_values, 'val'));
         } catch (\Exception $exception) {
             $filter->applied_index = 0;
-            $filter->values = $exception->getMessage();
+            $filter->values = [];
+            $filter->error_msg = $exception->getMessage();
         }
         return $filter;
+    }
+
+    /**
+     * @param $filter
+     * @param array $all_values
+     * @return array
+     */
+    protected function sortFilter($filter, array $all_values): array
+    {
+        $ddl = $filter->ddl_id ? (new DDLRepository())->getDDL($filter->ddl_id) : null;
+        if ($ddl) {
+            $all_values = DropdownHelper::ddlSort($ddl, $all_values);
+        } else {
+            $all_values = array_values(Arr::sort($all_values, 'show'));
+        }
+        return $all_values;
     }
 
     /**
@@ -232,9 +278,11 @@ class TableDataFiltersModule
 
             if (MselectData::isMSEL($filter->input_type)) {
                 foreach ($values as $val) {
-                    $inner->orWhere(function ($sub) use ($applier, $val) {
-                        $applier->where($sub, 'Like', '%"'.$val.'"%');
-                    });
+                    if ($val) {
+                        $inner->orWhere(function ($sub) use ($applier, $val) {
+                            $applier->where($sub, 'Like', '%"' . $val . '"%');
+                        });
+                    }
                 }
             }
         });
@@ -256,8 +304,14 @@ class TableDataFiltersModule
         $sql = $is_rg_sql ? $this->rowgroup_sql : $this->query_sql;
         $sql->select( $this->tdq->getSqlFld($filter_field) );
         //check max filter elements
+        $ignore_limit = $this->table->_fields->where('filter_search', '=', 1)->count();
         if (!$is_rg_sql && $sql->count( $this->tdq->getSqlFld($filter_field) ) > $this->max_el) {
-            throw new \Exception('The number of distinctive values exceeds set limit: '.$this->max_el.'. The filter is not displayed. Try applying other filter(s) first and/or use SEARCH.');
+            $msg = 'The number of distinctive values exceeds set limit: ' . $this->max_el . '. The filter is not displayed. Try applying other filter(s) first and/or use SEARCH.';
+            if ($ignore_limit) {
+                $filter->error_msg = $msg;
+            } else {
+                throw new \Exception($msg, 1);
+            }
         }
         $all_vals = $sql->get()->pluck($filter_field)->toArray();
 
@@ -267,7 +321,7 @@ class TableDataFiltersModule
         //Special converts if f_type in 'User','RefTable','RefField'
         $all_vals = $this->prepareFtypes($all_vals, $filter);
 
-        //chage structure type
+        //change structure type
         $res_rows = [];
         foreach ($all_vals as $elem) {
             $res_rows['_' . $elem['val']] = [
@@ -327,12 +381,12 @@ class TableDataFiltersModule
             $show_settings = $this->table->_owner_settings;
             [$users, $groups] = (new TableDataRowsRepository())->getUsersAndGroups( collect($all_vals) );
             foreach ($all_vals as $val) {
-                $usrOrGr = $users->where('id', '=', $val)->first();
-                if (!$usrOrGr) {
-                    $usrOrGr = $groups->where('id', '=', $val)->first();
-                    $show = ($usrOrGr ? $usrOrGr->first_name . ' ' . $usrOrGr->last_name : $val);
+                $usr = $users->where('id', '=', $val)->first();
+                if (!$usr) {
+                    $gr = $groups->where('id', '=', $val)->first();
+                    $show = ($gr ? $gr->first_name . ' ' . $gr->last_name : $val);
                 } else {
-                    $show = $show_settings->getUserStr($usrOrGr) ?: $val;
+                    $show = $show_settings->getUserFilterStr($usr) ?: $val;
                 }
                 $new_vals[] = [
                     'val' => $val,
@@ -374,32 +428,36 @@ class TableDataFiltersModule
         elseif (
             $filter->ddl_id
             &&
-            $this->table->_ddls()->where('id', '=', $filter->ddl_id)->hasIdReferences()->count()
-            &&
-            $ref = (new DDLRepository())->ddlReferencesWhichIds( [$filter->ddl_id] )->first()
+            DDL::where('id', '=', $filter->ddl_id)->hasIdReferences()->count()
         ) {
-            $tar_field = $ref->_target_field ? $ref->_target_field->field : 'id';
-            $show_field = $ref->_show_field ? $ref->_show_field->field : $tar_field;
-
-            $new_vals = (new TableDataQuery($ref->_ref_condition->_ref_table))
-                ->getQuery()
-                ->whereIn($tar_field, $all_vals)
-                ->selectRaw('`' . $tar_field . '` as `val`, `' . $show_field . '` as `show`')
-                ->get()
+            $refer_rows = (new TableDataRowsRepository())
+                ->getReferencedRowsFromDdl(collect($all_vals), $filter->ddl_id)
+                ->map(function ($item) {
+                    return [
+                        'val' => $item->init_val,
+                        'show' => $item->show_val,
+                    ];
+                })
                 ->toArray();
-            if (in_array(null, $all_vals)) {
-                array_push($new_vals, ['val' => '', 'show' => '']);
-            }
+
+            $new_vals = array_merge($new_vals, $refer_rows);
         }
+
         //No special actions
-        else {
-            foreach ($all_vals as $val) {
-                $new_vals[] = [
-                    'val' => $val,
-                    'show' => $val,
-                ];
-            };
+        $is_id_val = !!$new_vals;
+        if ($new_vals) {
+            $new_vals_pluck = Arr::pluck($new_vals, 'val');
+            $all_vals = collect($all_vals)->filter(function ($val) use ($new_vals_pluck) {
+                $find = strlen($val) ? $val : '';
+                return !in_array($find, $new_vals_pluck);
+            });
         }
+        foreach ($all_vals as $val) {
+            $new_vals[] = [
+                'val' => $val,
+                'show' => $is_id_val ? "[$val]" : $val,
+            ];
+        };
         return $new_vals;
     }
 
@@ -417,7 +475,7 @@ class TableDataFiltersModule
             foreach ($rows as $k => $obj) {
                 if (empty($not_hidden_filter_values[$k])) {
                     $rows[$k]['rowgroup_disabled'] = true;
-                    $rows[$k]['checked'] = 0;
+                    //$rows[$k]['checked'] = 0;
                 }
             }
         }
@@ -472,7 +530,8 @@ class TableDataFiltersModule
 
         } catch (\Exception $exception) {
             $filter->applied_index = 0;
-            $filter->values = $exception->getMessage();
+            $filter->values = [];
+            $filter->error_msg = $exception->getMessage();
         }
         return $filter;
     }
@@ -495,10 +554,11 @@ class TableDataFiltersModule
             $rows = $this->syncWithRowGroups($rows, $filter);
 
             $filter->applied_index = 0;
-            $filter->values = array_values(array_sort($rows, 'show'));
+            $filter->values = $this->sortFilter($filter, $rows);
         } catch (\Exception $exception) {
             $filter->applied_index = 0;
-            $filter->values = $exception->getMessage();
+            $filter->values = [];
+            $filter->error_msg = $exception->getMessage();
         }
         return $filter;
     }

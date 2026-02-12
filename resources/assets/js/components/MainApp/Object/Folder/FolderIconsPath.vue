@@ -1,5 +1,5 @@
 <template>
-    <div class="folder-icons-path" :class="route_group ? 'stim-icons' : ''" :style="{zIndex: zi}">
+    <div id="top-logo" class="folder-icons-path" :class="route_group ? 'stim-icons' : ''" :style="{zIndex: zi}">
         <template v-if="$root.user.sub_icon">
             <img :src="$root.fileUrl({url:$root.user.sub_icon})" class="icon-img"/>
             <!--<span class="icon-divider"> / </span>-->
@@ -48,11 +48,12 @@
     .folder-icons-path {
         position: fixed;
         top: 0;
-        left: 250px;
+        left: 260px;
         height: 65px;
         z-index: 1000;
         display: flex;
         align-items: center;
+        transform: translateX(-100%);
 
         .icon-img {
             max-height: 40px;
@@ -66,12 +67,7 @@
     .stim-icons {
         left: initial;
         height: 80px;
-        right: 33%;
-    }
-
-    @media (max-width: 1440px) {
-        .stim-icons {
-            right: 22%;
-        }
+        right: 40%;
+        transform: translateX(100%);
     }
 </style>

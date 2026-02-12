@@ -24,7 +24,7 @@
                                         <input v-if="$filt.input_only" class="form-control" v-model="$filt.search" style="margin-bottom: 4px;"/>
                                         <single-td-field
                                             v-else=""
-                                            :table-meta="tableMeta"
+                                            :table-meta="tableMeta || tempMeta"
                                             :table-header="$filt.all_header"
                                             :td-value="$filt.search"
                                             :with_edit="true"
@@ -36,7 +36,7 @@
                                 </tr>
                             </table>
                             <div class="right-txt">
-                                <button class="btn btn-success" @click="findRecord()">OK</button>
+                                <button class="btn btn-success" @click="findRecord">OK</button>
                             </div>
                         </div>
                     </div>
@@ -47,10 +47,11 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
     import {eventBus} from '../../app';
 
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
-    import SingleTdField from "../CommonBlocks/SingleTdField";
 
     export default {
         name: "TableViewFilteringPopup",
@@ -58,7 +59,6 @@
             PopupAnimationMixin,
         ],
         components: {
-            SingleTdField
         },
         data: function () {
             return {
@@ -71,13 +71,19 @@
                 limit: 3,
             }
         },
-        props:{
+        props: {
             tableMeta: Object,
             tableView: Object,
         },
         computed: {
             getPopupHeight() {
-                return 170 + (this.filterParams.length*40) + 'px';
+                return 135 + (this.filterParams.length*40) + 'px';
+            },
+            tempMeta() {
+                return {
+                    id: this.tableView.table_id,
+                    is_system: 0,
+                };
             },
         },
         methods: {
@@ -88,14 +94,14 @@
                     $err = $err || !String(el.search || '').length;
                 });
                 if ($err) {
-                    Swal('Empty values are not allowed!');
+                    Swal('Info','Empty values are not allowed!');
                     return;
                 }
                 $.LoadingOverlay('show');
                 axios.post('/ajax/table-data/get', {
-                    ...SpecialFuncs.tableMetaRequest(this.tableMeta.id),
+                    ...SpecialFuncs.tableMetaRequest(this.tableView.table_id),
                     ...{
-                        table_id: this.tableMeta.id,
+                        table_id: this.tableView.table_id,
                         page: 1,
                         rows_per_page: 0,
                         search_view: this.filterParams,
@@ -110,11 +116,11 @@
                         } else {
                             this.limit--;
                             _.each(this.filterParams, (el) => { el.search = '' });
-                            Swal('Record not found!');
+                            Swal('Info','Record not found!');
                         }
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -122,29 +128,35 @@
             //additionals
             hide() {
                 this.show_this = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
             showTableViewsPopupHandler() {
                 this.show_this = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             },
         },
         mounted() {
             _.each(this.tableView._filtering, (el) => {
-                let ff = _.find(this.tableMeta._fields, {id: Number(el.field_id)});
                 this.filterParams.push({
-                    name: ff.name,
-                    field: ff.field,
+                    name: el._field.name,
+                    field: el._field.field,
                     search: '',
                     criteria: el.criteria,
                     input_only: el.input_only,
-                    all_header: ff,
+                    all_header: el._field,
                 });
             });
-            this.showTableViewsPopupHandler();
+            if (this.$root.user.view_filtering_row) {
+                _.each(this.filterParams, (filter) => {
+                    filter.search = this.$root.user.view_filtering_row[filter.field];
+                });
+                this.findRecord();
+            } else {
+                this.showTableViewsPopupHandler();
+            }
         },
         beforeDestroy() {
         }

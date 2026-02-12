@@ -7,13 +7,18 @@ namespace Vanguard\Services\Tablda;
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Classes\SysColumnCreator;
 use Vanguard\Jobs\AutoFillAllDdls;
+use Vanguard\Jobs\AutoUpdateDDLSingleMultiple;
 use Vanguard\Jobs\FillMirrorValues;
 use Vanguard\Jobs\WatchRemoteFiles;
 use Vanguard\Models\DDL;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
+use Vanguard\Models\Table\TableFieldLink;
+use Vanguard\Models\Table\TableView;
 use Vanguard\Models\Table\UserHeaders;
+use Vanguard\Modules\DdlShow\DdlShowModule;
 use Vanguard\Modules\Permissions\TableRights;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
@@ -87,7 +92,7 @@ class TableFieldService
             }
         }
 
-        //hide columns which were hidden in 'View'
+        //hide columns which were hi+dden in 'View'
         if (!empty($view_columns['temp_hidden'])) {
             $hide = $view_columns['temp_hidden'] ?? [];
             foreach ($settings as $col) {
@@ -126,6 +131,31 @@ class TableFieldService
             }
         }
 
+        //Is Linked Table
+        if ($permis->linked_view_fields->count()) {
+            $view_fields = $permis->linked_view_fields->toArray();
+            foreach ($settings as $col) {
+                if (!in_array($col->field, $view_fields)) {
+                    $col->is_showed = 0;
+                    $col->_permis_hidden = true;//equivalent of '_current_right.view_fields[i]
+                }
+            }
+        }
+
+        //Set default values for Front-end
+        $inlLinks = TableFieldLink::whereIn('table_field_id', $settings->pluck('id'))
+            ->where('inline_in_vert_table', 1)
+            ->where('inline_is_opened', 1)
+            ->get();
+        $wiFldLinks = TableFieldLink::whereIn('table_field_id', $settings->pluck('id'))
+            ->where('inline_in_vert_table', 1)
+            ->where('inline_width', '=', 'field')
+            ->get();
+        foreach ($settings as $col) {
+            $col->__inlined_link = !! $inlLinks->where('table_field_id', $col->id)->count();//For inlined Links in the VerticalTable
+            $col->__inlined_field_width = !! $wiFldLinks->where('table_field_id', $col->id)->count();//For "Field" links width in the VerticalTable
+        }
+
         return $this->fieldRepository->timestampsColumnsToEnd($settings);
     }
 
@@ -137,20 +167,35 @@ class TableFieldService
     {
         $table_fields->load([
             '_links' => function ($q) {
-                $q->with('_params');
+                $q->with([
+                    '_params',
+                    '_columns',
+                    '_eri_tables' => function ($q) {
+                        $q->with(['_eri_fields' => function ($in) {
+                            $in->with(['_conversions']);
+                            $in->orderBy('row_order');
+                        }]);
+                        $q->orderBy('row_order');
+                    },
+                    '_eri_parts' => function ($q) {
+                        $q->with(['_part_variables' => function ($in) {
+                            $in->orderBy('row_order');
+                        }]);
+                        $q->orderBy('row_order');
+                    },
+                    '_link_app_correspondences',
+                ]);
             },
             '_map_icons'
         ]);
-        //Load Kanban settings for table with relative Addon
-        if ($table->add_kanban) {
-            $table_fields->load([
-                '_kanban_setting' => function ($q) {
-                    $q->with('_fields_pivot');
-                },
-            ]);
-        }
+
+        $linkTable = $this->tableRepository->getTableByDB('table_field_links');
+        $repo = new TableDataRowsRepository();
         //Link Unit Fields with RC_id
-        (new TableDataRowsRepository())->attachRCidToUnits($table_fields, $table);
+        $repo->attachRCidToUnits($table_fields, $table);
+        foreach ($table_fields as $fld) {
+            $repo->attachSpecialFields($fld->_links, $linkTable, auth()->id(), ['conds']);
+        }
     }
 
     /**
@@ -201,10 +246,38 @@ class TableFieldService
      * @param $table_id
      * @param $field
      * @param $val
+     * @param array $limit_fields
      * @return mixed
      */
-    public function massSettingsUpdate($table_id, $field, $val) {
-        return $this->fieldRepository->massSettingsUpdate($table_id, $field, $val);
+    public function massSettingsUpdate($table_id, $field, $val, array $limit_fields = []) {
+        return $this->fieldRepository->massSettingsUpdate($table_id, $field, $val, $limit_fields);
+    }
+
+    /**
+     * @param TableFieldLink $link
+     * @param TableFieldLink $webLink
+     * @param TableView $view
+     * @param int $target_field_id
+     * @return TableFieldLink
+     */
+    public function fillMrvUrl(TableFieldLink $link, TableFieldLink $webLink, TableView $view, int $target_field_id): TableFieldLink
+    {
+        $viewHash = $link->share_can_custom && $view->custom_path ? $view->custom_path : $view->hash;
+        $webLink->share_is_web = 1;
+        $webLink->link_type = 'Web';
+        $webLink->web_prefix = '/link/'.$viewHash.'/';
+        $webLink->address_field_id = $target_field_id;
+        $webLink->share_record_link_id = $link->id;
+        $webLink->save();
+
+        $custom = $this->getField($link->getCustomField()) ?: new TableField(['name' => 'static_hash']);
+        $formula = '{'.($custom->formula_symbol ?: $custom->name).'}';
+
+        $this->updateSettingsRow($target_field_id, auth()->id(), 'input_type', 'Formula');
+        $this->updateSettingsRow($target_field_id, auth()->id(), 'f_formula', $formula);
+        $this->updateSettingsRow($target_field_id, auth()->id(), 'is_uniform_formula', 1);
+
+        return $webLink;
     }
 
     /**
@@ -216,7 +289,7 @@ class TableFieldService
      * @param $val
      * @return array
      */
-    public function updateSettingsRow($field_id, $user_id, string $field_name, $val, $recalc_ids) {
+    public function updateSettingsRow($field_id, $user_id, string $field_name, $val) {
         $field = $this->fieldRepository->getField($field_id);
         $field->load('_table');
 
@@ -224,47 +297,21 @@ class TableFieldService
         $fillableHeaders = (new UserHeaders())->getFillable();
 
         //can update only owner
-        if ($field && $field->_table->user_id === $user_id) {
-
-            //delete TableFieldLinks if Field's active_links was disabled
-            if ($field_name == 'active_links' && $val == 0 && $field->active_links) {
-                $field->_links()->delete();
+        if ($field && $field->_table->user_id === $user_id && in_array($field_name, $fillableFields)) {
+            //'Radio' can be checked only one
+            if (in_array($field_name, TableField::$radioFields)) {
+                $this->fieldRepository->updateMassTableField( $field->table_id, array_merge([$field_name => 0], $this->service->getModified()) );
             }
-
-            //add TableKanbanSettings if Field's kanban_group was activated
-            if ($field_name == 'kanban_group' && $val == 1 && !$field->kanban_group) {
-                $this->fieldRepository->addKanban($field_id);
-            }
-            //delete TableKanbanSettings if Field's kanban_group was disabled
-            if ($field_name == 'kanban_group' && $val == 0 && $field->kanban_group) {
-                $field->_kanban_setting()->delete();
-            }
+            //update field settings
+            $this->fieldRepository->updateTableField( $field->_table, $field_id, [$field_name => $val] );
 
             //Run background process to fill All DDLs in table if activated ddl_auto_fill
             if ($field_name == 'ddl_auto_fill' && $val == 1 && !$field->ddl_auto_fill) {
                 dispatch(new AutoFillAllDdls($field->_table, $user_id));
             }
 
-            //can update
-            if (in_array($field_name, $fillableFields)) {
-                //'Radio' can be checked only one
-                if (in_array($field_name, TableField::$radioFields)) {
-                    $this->fieldRepository->updateMassTableField( $field->table_id, array_merge([$field_name => 0], $this->service->getModified()) );
-                }
-                //update field settings
-                $resf = $this->fieldRepository->updateTableField( $field->_table, $field_id, [$field_name => $val], $recalc_ids );
-
-                //spec system setting
-                if (in_array($field_name, ['is_gantt_main_group','is_gantt_parent_group','is_gantt_group']) && $val) {
-                    $gantt_group_fld = $this->fieldRepository->getFieldsForTable($field->table_id);
-                    $gantt_group_fld = $gantt_group_fld->where('is_gantt_group', '=', 1)->first();
-                    $this->fieldRepository->updateMassTableField( $field->table_id, ['is_gantt_left_header' => 0] );
-                    $this->fieldRepository->updateTableField( $field->_table, $gantt_group_fld->id, ['is_gantt_left_header' => 1] );
-                }
-            }
-
             //Run background process to fill All DDLs in table if activated ddl_auto_fill
-            if ($field_name == 'mirror_rc_id' || $field_name == 'mirror_field_id' || $field_name == 'mirror_part') {
+            if ($field_name == 'mirror_rc_id' || $field_name == 'mirror_field_id' || $field_name == 'mirror_part' || $field_name == 'mirror_one_value') {
                 dispatch(new FillMirrorValues($field->id));
             }
 
@@ -274,9 +321,24 @@ class TableFieldService
             }
 
             //watch for sys columns
+            $new_field = $this->fieldRepository->getField($field_id);
             if ($field_name == 'input_type') {
-                $new_field = $this->fieldRepository->getField($field_id);
                 (new SysColumnCreator())->watchInputType($field->_table, $new_field);
+                //Run background process to convert SingleDDL to MultipleDDL
+                if (HelperService::isMSEL($val) && ! HelperService::isMSEL($field->input_type)) {
+                    dispatch(new AutoUpdateDDLSingleMultiple($field->_table, $field->field, true));
+                }
+                //Run background process to convert MultipleDDL to SingleDDL
+                if (! HelperService::isMSEL($val) && HelperService::isMSEL($field->input_type)) {
+                    dispatch(new AutoUpdateDDLSingleMultiple($field->_table, $field->field, false));
+                }
+            }
+            if ($new_field->ddl_id) {
+                (new DdlShowModule($field->_table))->columnForField($new_field);
+            }
+            //update default values in the database
+            if ($field_name == 'f_default') {
+                (new TableDataRepository())->updateDatabaseDefaults($field->_table, $new_field);
             }
         }
         else {
@@ -293,7 +355,11 @@ class TableFieldService
 
         $collect = $this->fieldRepository->getField([$field_id], $field->_table);
         $this->loadFldRelations($collect, $field->_table);
-        return $collect->first();
+        $updatedFld = $collect->first();
+
+        (new TableDataService())->dataToValOrShowIfNeeded($updatedFld);
+
+        return $updatedFld;
     }
 
     /**

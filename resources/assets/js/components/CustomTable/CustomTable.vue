@@ -2,92 +2,113 @@
     <div class="custom-table-wrapper" :class="{'flex flex--col': !!show_rows_sum, 'full-frame': !tableAutoHeight}">
         <div ref="scroll_wrapper"
              @scroll="tableScroll"
+             @click.self="unselectCell"
              :class="{'full-frame': !tableAutoHeight}"
              :style="{
                  overflowX: show_rows_sum ? 'hidden' : null,
-                 width: show_rows_sum ? 'fit-content' : null,
              }"
         >
             <sticky-table-component
-                    :tb_id="tb_id"
-                    :global-meta="globalMeta"
-                    :table-meta="tableMeta"
-                    :settings-meta="settingsMeta"
-                    :all-rows="allRows"
-                    :user="user"
-                    :is-full-width="isFullWidth"
-                    :cell-height="cellHeight"
-                    :max-cell-rows="behavior === 'list_view' ? maxCellRows : 1"
-                    :page="page"
-                    :rows-count="rowsCount"
-                    :cell_component_name="cell_component_name"
-                    :behavior="behavior"
-                    :sort="sort"
-                    :forbidden-columns="forbiddenColumns"
-                    :available-columns="availableColumns"
-                    :adding-row="addingRow"
-                    :selected-row="selectedRow"
-                    :condition-array="conditionArray"
-                    :headers-with-check="headersWithCheck"
-                    :ref_tb_from_refcond="ref_tb_from_refcond"
-                    :with_edit="with_edit"
-                    :table_id="table_id"
-                    :excluded_row_values="excluded_row_values"
-                    :del-restricted="delRestricted"
-                    :parent-row="parentRow"
-                    :headers-changer="headersChanger"
-                    :link_popup_conditions="link_popup_conditions"
-                    :use_theme="use_theme"
-                    :no_width="no_width"
-                    :is_visible="is_visible"
-                    :no_height_limit="no_height_limit"
+                v-if="canDraw"
+                :tb_id="tb_id"
+                :global-meta="globalMeta"
+                :table-meta="tableMeta"
+                :settings-meta="settingsMeta"
+                :all-rows="allRows"
+                :user="user"
+                :is-full-width="isFullWidth"
+                :cell-height="cellHeight"
+                :max-cell-rows="maxCellRows"
+                :page="page"
+                :rows-count="rowsCount"
+                :cell_component_name="cell_component_name"
+                :behavior="behavior"
+                :sort="sort"
+                :forbidden-columns="forbiddenColumns"
+                :available-columns="availableColumns"
+                :adding-row="addingRow"
+                :selected-row="selectedRow"
+                :condition-array="conditionArray"
+                :headers-with-check="headersWithCheck"
+                :ref_tb_from_refcond="ref_tb_from_refcond"
+                :with_edit="with_edit"
+                :table_id="table_id"
+                :excluded_row_values="excluded_row_values"
+                :parent-row="parentRow"
+                :headers-changer="headersChanger"
+                :required-changer="requiredChanger"
+                :link_popup_conditions="link_popup_conditions"
+                :use_theme="use_theme"
+                :no_width="no_width"
+                :is_visible="is_visible"
+                :no_height_limit="no_height_limit"
+                :foreign-special="foreignSpecial"
+                :special_extras="special_extras"
+                :link_popup_tablerow="link_popup_tablerow"
+                :is-link="isLink"
+                :active-height-watcher="activeHeightWatcher"
+                :has-float-actions="hasFloatActions"
+                :scroll-view="scrollView"
+                :external_align="external_align"
 
-                    :widths="widths"
-                    :list-view-actions="listViewActions"
-                    :max-rows-in-header="maxRowsInHeader"
-                    :selected-cell="selectedCell"
-                    :object-for-add="curObjectForAdd"
+                :widths="widths"
+                :list-view-actions="listViewActions"
+                :selected-cell="selectedCell"
+                :object-for-add="curObjectForAdd"
 
-                    @show-add-ddl-option="showAddDDLOption"
-                    @insert-pop-row="insertPopRow"
-                    @added-row="addRow"
-                    @updated-row="updatedRow"
-                    @delete-row="deleteRow"
-                    @delete-selected-rows="emitDeleteSelected"
-                    @row-index-clicked="rowIndexClicked"
-                    @check-row="checkClicked"
-                    @row-selected="rowSelected"
-                    @radio-checked="radioChecked"
-                    @sort-by-field="sortByField"
-                    @sub-sort-by-field="subSortByField"
-                    @toggle-favorite-row="toggleFavoriteRow"
-                    @toggle-all-favorites="toggleAllFavorites"
-                    @show-src-record="showSrcRecord"
-                    @resend-action="resendAction"
-                    @show-def-val-popup="showDefValPopup"
-                    @reorder-rows="reorderRows"
-                    @show-header-settings="showHeaderSettings"
-                    @show-add-ref-cond="showAddRefCond"
-                    @col-resized="colResized"
+                @show-add-ddl-option="showAddDDLOption"
+                @insert-pop-row="insertPopRow"
+                @added-row="addRow"
+                @updated-row="updatedRow"
+                @delete-row="deleteRow"
+                @delete-selected-rows="emitDeleteSelected"
+                @row-index-clicked="rowIndexClicked"
+                @check-row="checkClicked"
+                @row-selected="rowSelected"
+                @radio-checked="radioChecked"
+                @sort-by-field="sortByField"
+                @sub-sort-by-field="subSortByField"
+                @toggle-favorite-row="toggleFavoriteRow"
+                @toggle-all-favorites="toggleAllFavorites"
+                @show-src-record="showSrcRecord"
+                @resend-action="resendAction"
+                @call-back="sendCallBack"
+                @show-def-val-popup="showDefValPopup"
+                @reorder-rows="reorderRows"
+                @show-header-settings="showHeaderSettings"
+                @show-add-ref-cond="showAddRefCond"
+                @col-resized="colResized"
+                @total-tb-height-changed="totalTbHeightChanged"
+                @redraw-table="RedrawTable"
             ></sticky-table-component>
         </div>
 
 
         <!--Sum Total Rows-->
-        <rows-sum-block
+        <div class="sum_tot_wrap"
+             ref="sum_tot_wrap"
+             @scroll="sumTotWrapScroll"
+             :style="{overflowY: vertScroll ? 'scroll' : 'auto'}"
+        >
+            <rows-sum-block
                 v-if="show_rows_sum && can_sum"
+                :global-meta="globalMeta"
                 :table-meta="tableMeta"
                 :all-rows="allRows"
                 :widths="widths"
                 :list-view-actions="listViewActions"
                 :is-floating-table="false"
-                :has-float-columns="Boolean(floatingTableWidth)"
-                :is-full-width="false"
+                :is-full-width="isFullWidth"
                 :cell-height="cellHeight"
                 :behavior="behavior"
+                :is-link="isLink"
+                :special_extras="special_extras"
+                :external_align="external_align"
+                :has-float-actions="hasFloatActions"
                 :forbidden-columns="forbiddenColumns"
                 :available-columns="availableColumns"
-        ></rows-sum-block>
+            ></rows-sum-block>
+        </div>
 
 
         <!--Pagination Elements-->
@@ -95,13 +116,15 @@
                           :page="page"
                           :table-meta="tableMeta"
                           :rows-count="rowsCount"
+                          :vert-scroll="vertScroll"
+                          :hor-scroll="horScroll"
                           @change-page="changePage"
         ></table-pagination>
     </div>
 </template>
 
 <script>
-import {SelectedCells} from '../../classes/SelectedCells';
+import {JsFomulaParser} from "../../classes/JsFomulaParser";
 
 import {eventBus} from '../../app';
 
@@ -109,6 +132,7 @@ import StickyTableComponent from "./StickyTableComponent";
 import TablePagination from "./Pagination/TablePagination.vue";
 import RowsSumBlock from "../CommonBlocks/RowsSumBlock.vue";
 
+import SelectedCellMixin from './../_Mixins/SelectedCellMixin.vue';
 import IsShowFieldMixin from './../_Mixins/IsShowFieldMixin.vue';
 import LinkEmptyObjectMixin from './../_Mixins/LinkEmptyObjectMixin.vue';
 import CanEditMixin from '../_Mixins/CanViewEditMixin.vue';
@@ -119,6 +143,7 @@ import SrvMixin from "../_Mixins/SrvMixin.vue";
 export default {
         name: "CustomTable",
         mixins: [
+            SelectedCellMixin,
             IsShowFieldMixin,
             LinkEmptyObjectMixin,
             CanEditMixin,
@@ -133,8 +158,15 @@ export default {
         },
         data: function () {
             return {
-                selectedCell: new SelectedCells(),
-                floatingLeftPos: 0,
+                canDraw: true,
+                vertScroll: false,
+                horScroll: false,
+                scrollView: {
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    bottom: 0,
+                },
                 can_sum: true,
             }
         },
@@ -220,9 +252,9 @@ export default {
                     return [];
                 }
             },
-            delRestricted: Boolean,
             parentRow: Object,
             headersChanger: Object,
+            requiredChanger: Array,
             redraw_table: Number,
             link_popup_conditions: Object|Array,
             link_popup_tablerow: Object|Array, // for LinkEmptyObjectMixin.vue
@@ -234,6 +266,12 @@ export default {
             externalObjectForAdd: Object,
             is_visible: Boolean,
             tableAutoHeight: Boolean,
+            foreignSpecial: Object,
+            special_extras: Object,
+            activeHeightWatcher: Boolean,
+            hasFloatActions: Boolean,
+            external_align: String,
+            isLink: Object,//CanViewEditMixin.vue
         },
         computed: {
             floatingTableWidth() {
@@ -254,17 +292,6 @@ export default {
                 return Boolean(res);
             },
 
-            //multiheaders functions
-            maxRowsInHeader() {
-                let max = 0;
-                _.each(this.tableMeta._fields, (el) => {
-                    if (el.name && this.isShowField(el)) {
-                        max = Math.max(max, el.name.split(',').length);
-                    }
-                });
-                return max;
-            },
-
             //calc widths for system columns
             countStrLen() {
                 return this.tableMeta.rows_per_page
@@ -280,12 +307,16 @@ export default {
                     ? 35
                     : 45 + (this.countStrLen * 6);
 
-                let fav_c = this.canRemove ? 80 : 60;
+                let fz = Number(this.themeTextFontSize) * (this.themeTextFontFamily === 'monospace' ? 2 : 1.5);
+                let fav_c = 2*fz + 25;
+                if (this.canRemove) {
+                    fav_c += fz;
+                }
                 if (this.canSrvShow) {
-                    fav_c += 20;
+                    fav_c += fz;
                 }
 
-                let act_c = 55 + (this.behavior === 'invite_module' ? 45 : 0);
+                let act_c = 55 + (this.behavior === 'invite_module' ? 65 : 0);
 
                 if (this.widths_div) {
                     index_c /= this.widths_div;
@@ -329,27 +360,40 @@ export default {
             },
         },
         methods: {
+            sumTotWrapScroll(eve) {
+                this.$refs.scroll_wrapper.scrollLeft = eve.target.scrollLeft;
+            },
             isShowFieldElem(tableHeader) {
                 return this.isShowField(tableHeader);
             },
             RedrawTable() {
-                /*this.selectedCell.copy_mode = !this.selectedCell.copy_mode;
-                 this.$nextTick(() => {
-                 this.selectedCell.copy_mode = !this.selectedCell.copy_mode;
-                 });*/
+                this.canDraw = false;
+                this.$nextTick(() => {
+                    this.canDraw = true;
+                });
+            },
+            checkScrolls() {
+                if (this.$refs.scroll_wrapper) {
+                    this.vertScroll = this.$refs.scroll_wrapper.scrollHeight > this.$refs.scroll_wrapper.offsetHeight;
+                    this.horScroll = this.$refs.scroll_wrapper.scrollWidth > this.$refs.scroll_wrapper.offsetWidth;
+                }
             },
 
             //backend autocomplete
             checkRowAutocomplete() {
                 if (!this.tableMeta.is_system) {
                     this.$nextTick(() => {
-                        this.checkRowOnBackend(
+                        let promise = this.checkRowOnBackend(
                             this.tableMeta.id,
                             this.curObjectForAdd,
-                            this.getLinkParams(this.link_popup_conditions, this.link_popup_tablerow)
-                        ).then((data) => {
-                            this.$emit('backend-row-checked', this.curObjectForAdd, data); //STIM 3D APP
-                        });
+                            this.getLinkParams(this.link_popup_conditions, this.link_popup_tablerow),
+                            this.foreignSpecial
+                        );
+                        if (promise) {
+                            promise.then((data) => {
+                                this.$emit('backend-row-checked', this.curObjectForAdd, data); //STIM 3D APP
+                            });
+                        }
                     });
                 }
             },
@@ -358,29 +402,32 @@ export default {
             showAddDDLOption(tableHeader, tableRow) {
                 this.$emit('show-add-ddl-option', tableHeader, tableRow);
             },
-            insertPopRow(order, copy_row) {
-                this.newObject();
-                this.curObjectForAdd.row_order = order;
-                if (copy_row) {
-                    _.each(copy_row, (val, key) => {
-                        this.curObjectForAdd[key] = val;
-                    });
+            popupCopy(copy_row) {
+                if (this.$root.setCheckRequired(this.tableMeta, copy_row)) {
+                    this.$emit('copy-row', copy_row);
                 }
-                this.addRow(true, 'Set Default Values (DVs) for the fields with “Required” input, or use “Add” button for adding a new record.');
-                this.curObjectForAdd.row_order = null;
             },
-            addRow(no_new, spec_error_message) {
+            insertPopRow(order, selected_row, copy_row) {
+                if (copy_row) {
+                    this.popupCopy(copy_row);
+                } else {
+                    this.newObject();
+                    this.curObjectForAdd.row_order = order;
+                    this.addRow(selected_row, 'Set Default Values (DVs) for the fields with “Required” input, or use “Add” button for adding a new record.');
+                    this.curObjectForAdd.row_order = null;
+                }
+            },
+            addRow(selected_row, spec_error_message) {
                 if (this.$root.setCheckRequired(this.tableMeta, this.curObjectForAdd, spec_error_message)) {
                     let obj = Object.assign({}, this.curObjectForAdd);
                     this.newObject();
-
-                    this.$emit('added-row', obj, false, no_new);
+                    this.$emit('added-row', obj, false, selected_row);
                 }
                 this.$forceUpdate();
             },
-            updatedRow(params, hdr) {
-                if (this.$root.setCheckRequired(this.tableMeta, params)) {
-                    this.$emit('updated-row', params, hdr);
+            updatedRow(row, hdr) {
+                if (this.$root.setCheckRequired(this.tableMeta, row)) {
+                    this.$emit('updated-row', row, hdr);
                 }
                 this.$forceUpdate();
             },
@@ -388,9 +435,9 @@ export default {
                 this.$emit('delete-row', tableRow, index);
                 this.$forceUpdate();
             },
-            rowIndexClicked(index) {
+            rowIndexClicked(index, row) {
                 this.selectedCell.clear();
-                this.$emit('row-index-clicked', index);
+                this.$emit('row-index-clicked', index, row);
             },
             radioChecked(index) {
                 this.$emit('radio-checked', index);
@@ -400,6 +447,12 @@ export default {
             },
             showAddRefCond(refId) {
                 this.$emit('show-add-ref-cond', refId);
+            },
+            totalTbHeightChanged(height) {
+                if (this.show_rows_sum && this.can_sum && this.$refs.sum_tot_wrap) {
+                    height += to_float(this.$refs.sum_tot_wrap.clientHeight);
+                }
+                this.$emit('total-tb-height-changed', height);
             },
             colResized() {
                 this.can_sum = false;
@@ -445,98 +498,15 @@ export default {
                 this.$emit('show-src-record', lnk, header, tableRow);
             },
 
-            //global key handler
-            globalKeyHandler(e) {
-                if (this.behavior === 'list_view' && e.ctrlKey && e.keyCode === 13 && this.addingRow.active) {//ctrl + 'enter' + 'active top adding row'
-                    this.addRow();
-                }
-
-                if (['INPUT', 'TEXTAREA'].indexOf(e.target.nodeName) > -1) {
-                    return;
-                }
-
-                if (this.selectedCell.has_row() && this.selectedCell.has_col()) {
-                    if ((!this.$root.data_is_editing && !e.shiftKey) || (this.$root.data_is_editing && e.ctrlKey)) {
-                        if (e.keyCode === 37) {//left arrow
-                            this.selectedCell.next_col(this.tableMeta, false);
-                            let sel_fld = _.find(this.tableMeta._fields, {field: this.selectedCell.get_col()}) || {};
-                            $(this.$refs.scroll_wrapper).scrollLeft(this.$refs.scroll_wrapper.scrollLeft - Number(sel_fld.width));
-                        }
-                        if (e.keyCode === 38 && this.selectedCell.get_row() > 0) {//up arrow
-                            this.selectedCell.next_row(this.allRows, false);
-                            $(this.$refs.scroll_wrapper).scrollTop(this.$refs.scroll_wrapper.scrollTop - Number(this.tdCellHGT));
-                        }
-                        if (e.keyCode === 39) {//right arrow
-                            let old_field = _.find(this.tableMeta._fields, {field: this.selectedCell.get_col()}) || {};
-                            if (this.selectedCell.notFloatingOrNotFirst(this.tableMeta, old_field)) {
-                                let sel_fld = _.find(this.tableMeta._fields, {field: this.selectedCell.get_col()}) || {};
-                                $(this.$refs.scroll_wrapper).scrollLeft(this.$refs.scroll_wrapper.scrollLeft + Number(sel_fld.width));
-                            }
-                        }
-                        if (e.keyCode === 40 && this.selectedCell.get_row() < (this.allRows.length - 1)) {//down arrow
-                            this.selectedCell.next_row(this.allRows, true);
-                            $(this.$refs.scroll_wrapper).scrollTop(this.$refs.scroll_wrapper.scrollTop + Number(this.tdCellHGT));
-                        }
-                    }
-
-                    if (e.shiftKey && e.keyCode === 191) {//shift + '?'
-                        this.rowIndexClicked(this.selectedCell.get_row());
-                    }
-
-                    if (this.behavior === 'list_view') {
-                        if (e.ctrlKey && e.keyCode === 67) {//ctrl + 'c'
-                            this.selectedCell.start_copy(this.tableMeta, this.allRows);
-                        }
-                        if (e.ctrlKey && e.keyCode === 86 && this.canEditSelected()) {//ctrl + 'v'
-                            let sel_fld = _.find(this.tableMeta._fields, {field: this.selectedCell.get_col()}) || {};
-                            if (sel_fld.f_type === 'Attachment') {
-                                return;
-                            } else {
-                                this.pasteData();
-                            }
-                        }
-                        if (e.ctrlKey && e.keyCode === 90 && this.canEditSelected()) {//ctrl + 'z'
-                            let $rev_rows = this.$root.data_reverser.do_reverse(this.tableMeta.id);
-                            this.$emit('mass-updated-rows', $rev_rows);
-                        }
-                        if (e.keyCode === 46 && this.canEditSelected()) {//delete
-                            let $changed_rows = this.selectedCell.delete_in_selected(this.tableMeta, this.allRows);
-                            this.$emit('mass-updated-rows', $changed_rows);
-                        }
-                        if (e.keyCode === 27) {//esc
-                            this.selectedCell.clear();
-                        }
-                    }
-                }
-            },
-            canEditSelected() {
-                let can = true;
-                let idxs = this.selectedCell.idxs(this.tableMeta);
-                for (let r = idxs.row_start; r <= idxs.row_end; r++) {
-                    for (let c = idxs.col_start; c <= idxs.col_end; c++) {
-                        let fld = this.tableMeta._fields[c];
-                        can = can && this.canEditCell(fld, this.allRows[r]);
-                    }
-                }
-                return can;
-            },
-            pasteData() {
-                let envs = this.selectedCell.idxs(this.tableMeta, '');
-                let tocopy = this.selectedCell.idxs(this.tableMeta, 'copy_');
-                let len = Math.abs(envs.row_end - envs.row_start) || Math.abs(tocopy.row_end - tocopy.row_start);
-                this.$root.data_reverser.pre_change(this.allRows, envs.row_start, len);
-                this.selectedCell.fill_copy(this.tableMeta, this.allRows).then(($filled_rows) => {
-                    this.$root.data_reverser.after_change(this.tableMeta.id, this.allRows);
-                    this.$emit('mass-updated-rows', $filled_rows);
-                });
-            },
-
             //transits
             resendAction(tableRow) {
                 this.$emit('resend-action', tableRow);
             },
-            showDefValPopup(tableRow) {
-                this.$emit('show-def-val-popup', tableRow);
+            sendCallBack(tableRow) {
+                this.$emit('call-back', tableRow);
+            },
+            showDefValPopup(tableRow, moreParam) {
+                this.$emit('show-def-val-popup', tableRow, moreParam);
             },
             reorderRows() {
                 this.$emit('reorder-rows');
@@ -544,12 +514,18 @@ export default {
 
             //scrolls
             tableScroll() {
-                this.floatingLeftPos = this.$refs.scroll_wrapper.scrollLeft;
+                if (this.listViewActions) {
+                    this.scrollView.left = this.$refs.scroll_wrapper.scrollLeft;
+                    this.scrollView.right = this.$refs.scroll_wrapper.scrollLeft + this.$refs.scroll_wrapper.clientWidth;
+                    this.scrollView.top = this.$refs.scroll_wrapper.scrollTop;
+                    this.scrollView.bottom = this.$refs.scroll_wrapper.scrollTop + this.$refs.scroll_wrapper.clientHeight;
+                }
             },
 
             //events
-            addInlineClickedHandler() {
-                if (this.inArray(this.behavior, ['list_view', 'request_view'])) {
+            addInlineClickedHandler(db_name, behaviors) {
+                let avail = !db_name || db_name === this.tableMeta.db_name;
+                if (avail && this.is_visible && this.inArray(this.behavior, behaviors || ['list_view', 'request_view'])) {
                     this.addRow();
                 }
             },
@@ -558,18 +534,47 @@ export default {
                 this.createObjectForAdd();
                 this.checkRowAutocomplete();
             },
+            calculateAllTable(tbid, headerId, rowFormula) {
+                if (tbid === this.tableMeta.id) {
+                    _.each(this.allRows, (row) => {
+                        _.each(this.tableMeta._fields, (fld) => {
+                            if (fld.id == headerId) {
+                                row[fld.field+'_formula'] = rowFormula;
+                            }
+                        });
+                        JsFomulaParser.checkRowAndCalculate(this.tableMeta, row);
+                    });
+                }
+            },
         },
         mounted() {
+            if (this.inArray(this.behavior, ['link_popup','list_view','favorite','request_view','cond_format_overview'])) {
+                setInterval(() => {
+                    this.checkScrolls();
+                }, 1500);
+            }
+            this.tableScroll();
+
+            eventBus.$on('global-click', this.unselectCellOutside);
             eventBus.$on('global-keydown', this.globalKeyHandler);
             eventBus.$on('add-inline-clicked', this.addInlineClickedHandler);
+            eventBus.$on('table-formulas-recalculate', this.calculateAllTable);
         },
         beforeDestroy() {
+            eventBus.$off('global-click', this.unselectCellOutside);
             eventBus.$off('global-keydown', this.globalKeyHandler);
             eventBus.$off('add-inline-clicked', this.addInlineClickedHandler);
+            eventBus.$off('table-formulas-recalculate', this.calculateAllTable);
         }
     }
 </script>
 
 <style lang="scss" scoped>
     @import "./CustomTable.scss";
+
+    .sum_tot_wrap {
+        position: relative;
+        overflow-x: auto;
+        flex-shrink: 0;
+    }
 </style>

@@ -40,20 +40,31 @@
             <div class="modal-body">
                 <div class="row">
                     <div class="col-md-4 avatar-source" id="no-photo"
-                         data-url="{{ $updateUrl }}">
+                         onclick="
+                             document.getElementById('avatar-form').action = '{{ $updateUrl }}';
+                             document.getElementById('save-photo').click();
+                         ">
                         <img src="{{ url('assets/img/profile.png') }}" class="rounded-circle img-thumbnail img-responsive">
                         <p class="mt-3">@lang('app.no_photo')</p>
                     </div>
                     <div class="col-md-4 avatar-source">
                         <div class="btn btn-light btn-upload">
                             <i class="fa fa-upload"></i>
-                            <input type="file" name="avatar" id="avatar-upload">
+                            <input type="file"
+                                   name="avatar"
+                                   id="avatar-upload"
+                                   onchange="document.getElementById('save-photo').click()"
+                            >
                         </div>
                         <p class="mt-3">@lang('app.upload_photo')</p>
                     </div>
                     @if ($edit)
                         <div class="col-md-4 avatar-source source-external"
-                             data-url="{{ $updateUrl }}">
+                             onclick="
+                                 document.getElementById('avatar-form').action = '{{ $updateUrl }}';
+                                 document.getElementById('gravatar-url').value = '{{ $user->gravatar() }}';
+                                 document.getElementById('save-photo').click();
+                             ">
                             <img src="{{ $user->gravatar() }}" class="rounded-circle img-thumbnail img-responsive">
                             <p class="mt-3">@lang('app.gravatar')</p>
                         </div>
@@ -80,6 +91,7 @@
 </div><!-- /.modal -->
 
 <div class="d-none">
+    <input type="hidden" name="url" id="gravatar-url">
     <input type="hidden" name="points[x1]" id="points_x1">
     <input type="hidden" name="points[y1]" id="points_y1">
     <input type="hidden" name="points[x2]" id="points_x2">

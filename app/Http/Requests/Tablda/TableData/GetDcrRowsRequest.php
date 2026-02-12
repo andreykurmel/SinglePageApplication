@@ -23,7 +23,7 @@ class GetDcrRowsRequest extends FormRequest
     {
         return [
             'special_params' => 'array|required',
-            'parent_row_id' => 'integer|required',
+            'parent_row_dcr' => 'array|required',
         ];
     }
 }

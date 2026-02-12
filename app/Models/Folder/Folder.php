@@ -3,6 +3,7 @@
 namespace Vanguard\Models\Folder;
 
 use Illuminate\Database\Eloquent\Model;
+use Vanguard\Models\Pages\Pages;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\User;
@@ -14,9 +15,13 @@ use Vanguard\User;
  * @property int|null $user_id
  * @property string $name
  * @property string $structure
+ * @property string|null $description
  * @property int $is_opened
  * @property int $is_system
  * @property int $in_shared
+ * @property int|null $is_folder_link
+ * @property int|null $inside_folder_link
+ * @property int|null $shared_from_id
  * @property int|null $created_by
  * @property string|null $created_name
  * @property string $created_on
@@ -24,7 +29,6 @@ use Vanguard\User;
  * @property string|null $modified_name
  * @property string $modified_on
  * @property string|null $icon_path
- * @property int|null $is_folder_link
  * @property int|null $for_shared_user_id
  * @property int $menutree_order
  * @property-read \Vanguard\User|null $_created_user
@@ -62,13 +66,17 @@ class Folder extends Model
         'user_id',
         'name',
         'structure',
+        'description',
         'is_opened',
         'is_system',
         'in_shared',//0 - regular, 1 - in SHARED, 2 - in APPs
         'icon_path',
         'is_folder_link',
+        'inside_folder_link',
+        'shared_from_id',
         'for_shared_user_id',
         'menutree_order',
+        'menutree_accordion_panel',
 
         'import_source',
         'importfolder_airtable_save',
@@ -109,6 +117,14 @@ class Folder extends Model
             ->belongsToMany(Table::class, 'folders_2_tables', 'folder_id', 'table_id')
             ->as('link')
             ->withPivot(['id', 'user_id', 'type', 'structure', 'is_folder_link']);
+    }
+
+    public function _pages() {
+        return $this
+            ->belongsToMany(Pages::class, 'folders_2_entities', 'folder_id', 'entity_id')
+            ->where('entity_type', '=', 'page')
+            ->as('link')
+            ->withPivot(['id', 'user_id', 'entity_type', 'structure']);
     }
 
     public function _folder_views() {

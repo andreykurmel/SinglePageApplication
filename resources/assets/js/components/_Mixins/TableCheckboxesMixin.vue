@@ -1,36 +1,34 @@
 <script>
+    import {Endpoints} from "../../classes/Endpoints";
+
     export default {
         methods: {
             deleteSelectedRowsMix(tableRows, requestParams, tableId, listViewRowsCount) {
                 let check_obj = this.$root.checkedRowObject(tableRows);
 
                 Swal({
-                    title: 'Confirm to delete data for '+(check_obj.all_checked ? listViewRowsCount : check_obj.rows_ids.length)+' records?',
+                    title: 'Info',
+                    text: 'Confirm to delete data for '+(check_obj.all_checked ? listViewRowsCount : check_obj.rows_ids.length)+' records?',
                     confirmButtonClass: 'btn-danger',
                     confirmButtonText: 'Yes',
                     showCancelButton: true,
                     animation: 'slide-from-top'
                 }).then(response => {
                     if (response.value) {
-                        $.LoadingOverlay('show');
-
                         let request_params = _.cloneDeep(requestParams);
                         request_params.page = 1;
                         request_params.rows_per_page = 0;
 
-                        axios.post('/ajax/table-data/delete-selected', {
-                            table_id: tableId,
-                            rows_ids: (check_obj.all_checked ? null : check_obj.rows_ids),
-                            request_params: (check_obj.all_checked ? request_params : null)
-                        }).then(({ data }) => {
-                            if (check_obj.all_checked) {
-                                Swal('Deletion process is started. Table will be reloaded after finishing.');
-                            } else {
-                                this.getTableData('page');
-                            }
-                        }).catch(errors => {
-                            Swal('', getErrors(errors));
-                        }).finally(() => $.LoadingOverlay('hide'));
+                        if (check_obj.all_checked) {
+                            Swal('Info','The deletion process has started. The table will be reloaded once the process is complete.');
+                        }
+                        Endpoints.massDeleteRows(
+                            tableId,
+                            (check_obj.all_checked ? null : check_obj.rows_ids),
+                            (check_obj.all_checked ? request_params : null)
+                        ).then(({ data }) => {
+                            this.getTableData('page');
+                        });
                     }
                 });
             },
@@ -52,7 +50,7 @@
                             }
                         });
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });

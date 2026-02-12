@@ -1,6 +1,6 @@
 # TaBLDa-vue
 Requirements:
-PHP version ^7.2
+PHP version ^8.0
 MySQL version ^5.7
 Python version ^3.6
 
@@ -26,7 +26,7 @@ Docker:
 For activate Auto DropBox Backup:
 1 - fill in .env settings something like this:
 BACKUP_TO_DBOX=true
-DBOX_ADMIN_API=ei0TqpAAAAAAAAD70SXjNwA3L6YWvCheE2ZBB9GyRpzSxuVgcbgw3hi8M
+DBOX_ADMIN_API=ei0TqpAAAAAAAAD70SXjNwA3L6YWvCheE2ZBB9GyRpzSxuVgcbgw3test
 DBOX_UPLOADER_FILE=/var/www/main/storage/dropbox_uploader.sh
 2 - CHMOD DBOX_UPLOADER_FILE to execute.
 (https://github.com/andreafabrizi/Dropbox-Uploader).

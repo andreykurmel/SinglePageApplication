@@ -9,7 +9,10 @@ use Vanguard\Modules\CloudBackup\ApiModuleInterface;
 use Vanguard\Modules\CloudBackup\DropBoxApiModule;
 use Vanguard\Modules\CloudBackup\GoogleApiModule;
 use Vanguard\Modules\CloudBackup\OneDriveApiModule;
+use Vanguard\Modules\Jira\JiraApiModule;
+use Vanguard\Modules\Salesforce\SalesforceApiModule;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\User;
 
 class UserCloudRepository
 {
@@ -29,7 +32,8 @@ class UserCloudRepository
      * @param int $cloud_id
      * @return UserCloud
      */
-    public function getCloud(int $cloud_id) {
+    public function getCloud(int $cloud_id)
+    {
         return UserCloud::where('id', $cloud_id)
             ->first();
     }
@@ -66,7 +70,8 @@ class UserCloudRepository
         $module = $this->apiModuleResolve($cloud->cloud);
         $cloud->update([
             'msg_to_user' => $module->getCloudActivationUrl($cloud->id),
-            'token_json' => null
+            'token_json' => null,
+            'extra_params' => null,
         ]);
     }
 
@@ -83,9 +88,13 @@ class UserCloudRepository
                 break;
             case 'OneDrive': $class = OneDriveApiModule::class;
                 break;
-            default: throw new \Exception('ApiModule:Undefined strategy type');
+            case 'Jira': $class = JiraApiModule::class;
+                break;
+            case 'Salesforce': $class = SalesforceApiModule::class;
+                break;
+            default: throw new \Exception('UserCloud::apiModuleResolve - Undefined strategy type!');
         }
-        return new $class();
+        return new $class($cloud);
     }
 
     /**
@@ -102,10 +111,15 @@ class UserCloudRepository
             'name',
             'root_folder',
             'token_json',
+            'msg_to_user',
+            'extra_params',
         ])->toArray();
 
         if (!empty($data_filter['token_json'])) {
             $data_filter['token_json'] = TabldaEncrypter::encrypt($data_filter['token_json']);
+        }
+        if (is_array($data_filter['extra_params'] ?? null)) {
+            $data_filter['extra_params'] = json_encode($data_filter['extra_params']);
         }
 
         return UserCloud::where('id', $user_cloud_id)
@@ -140,10 +154,13 @@ class UserCloudRepository
             $module = $this->apiModuleResolve($cloud->cloud);
             $token = $module->getTokenFromCode($code);
 
-            $cloud->update([
+            $this->updateUserCloud($cloud_id, [
                 'msg_to_user' => null,
-                'token_json' => TabldaEncrypter::encrypt(json_encode($token))
+                'token_json' => json_encode($token),
             ]);
+            if ($cloud->cloud == 'Jira') {
+                $module->connectAccessibleResource($cloud->id);
+            }
 
             return 1;
         } else {
@@ -152,12 +169,32 @@ class UserCloudRepository
     }
 
     /**
-     * @param int $cloud_id
-     * @return string
+     * @param User $user
+     * @param string $type
+     * @return UserCloud|null
      */
-    public function getCloudToken(int $cloud_id)
+    public function firstActiveCloud(User $user, string $type = '')
     {
-        $cloud = UserCloud::where('id', '=', $cloud_id)->first();
+        $sql = UserCloud::where('user_id', '=', $user->id)
+            ->whereNotNull('token_json');
+        if ($type) {
+            $sql->where('cloud', '=', $type);
+        }
+        return $sql->first();
+    }
+
+    /**
+     * @param int|null $cloud_id
+     * @param string $type
+     * @return string|null
+     */
+    public function getCloudToken(int $cloud_id = null, string $type = '')
+    {
+        $cloud = UserCloud::where('id', '=', $cloud_id);
+        if ($type) {
+            $cloud->where('cloud', '=', $type);
+        }
+        $cloud = $cloud->first();
         return $cloud ? $cloud->gettoken() : '';
     }
 }

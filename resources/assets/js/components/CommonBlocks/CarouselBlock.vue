@@ -11,21 +11,36 @@
                     transition: 'all '+transition_duration+'s ease-in'
                 }"
             >
-                <div class="item-wrapper full-height">
-                    <img :src="$root.fileUrl(image)"
-                         class="item-image"
-                         @click="$emit('img-clicked', images, idx)"/>
-                </div>
+                <single-attachment-block
+                    :table_meta="table_meta"
+                    :table_header="table_header"
+                    :table_row="table_row"
+                    :attachment="image"
+                    :is_full_size="!can_click"
+                    @img-clicked="() => { can_click ? $emit('img-clicked', images, idx) : null }"
+                ></single-attachment-block>
             </div>
         </div>
 
         <!-- Controls -->
         <template v-if="images && images.length > 1">
-            <a class="left carousel-control" role="button" data-slide="prev" @click.stop.prevent="prevSlide()">
+            <a class="left carousel-control"
+               role="button"
+               data-slide="prev"
+               @click.stop.prevent="prevSlide()"
+               @mousedown.stop.prevent=""
+               @mouseup.stop.prevent=""
+            >
                 <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
                 <span class="sr-only">Previous</span>
             </a>
-            <a class="right carousel-control" role="button" data-slide="next" @click.stop.prevent="nextSlide()">
+            <a class="right carousel-control"
+               role="button"
+               data-slide="next"
+               @click.stop.prevent="nextSlide()"
+               @mousedown.stop.prevent=""
+               @mouseup.stop.prevent=""
+            >
                 <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
                 <span class="sr-only">Next</span>
             </a>
@@ -34,11 +49,13 @@
 </template>
 
 <script>
+    import SingleAttachmentBlock from "./SingleAttachmentBlock";
     export default {
         name: "CarouselBlock",
         mixins: [
         ],
         components: {
+            SingleAttachmentBlock
         },
         data: function () {
             return {
@@ -51,8 +68,12 @@
         computed: {
         },
         props:{
+            table_meta: Object,
+            table_header: Object,
+            table_row: Object,
             images: Array,
             image_idx: Number,
+            can_click: Boolean,
         },
         methods: {
             //controls
@@ -129,18 +150,6 @@
                 position: absolute;
                 width: 100%;
                 top: 0;
-
-                .item-wrapper {
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-
-                    .item-image {
-                        max-width: 100%;
-                        max-height: 100%;
-                        cursor: zoom-in;
-                    }
-                }
             }
         }
     }

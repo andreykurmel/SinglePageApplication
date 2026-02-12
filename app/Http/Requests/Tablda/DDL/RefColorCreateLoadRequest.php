@@ -25,7 +25,8 @@ class RefColorCreateLoadRequest extends FormRequest
     {
         return [
             'ddl_ref_id' => 'required|integer|exists:ddl_references,id',
-            'behavior' => 'required|string|in:create,clear,fill',
+            'behavior' => 'required|string',
+            'page' => 'required|integer',
         ];
     }
 }

@@ -27,6 +27,7 @@ class TransferTableRequest extends FormRequest
             'id' => 'required|integer|exists:tables,id',
             'new_user_or_group' => 'required|string',
             'table_with' => 'array',
+            'direct_folder_id' => 'nullable|integer|exists:folders,id',
         ];
     }
 }

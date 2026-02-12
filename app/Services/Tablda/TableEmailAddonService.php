@@ -6,17 +6,20 @@ use Carbon\Carbon;
 use Exception;
 use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\Jobs\DelayEmailAddon;
+use Vanguard\Jobs\SendSingleEmail;
 use Vanguard\Mail\TabldaMail;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableEmailAddonHistory;
 use Vanguard\Models\Table\TableEmailAddonSetting;
+use Vanguard\Models\Table\TableEmailRight;
+use Vanguard\Models\Table\TableField;
+use Vanguard\Models\Table\TableFieldLink;
+use Vanguard\Models\User\UserApiKey;
+use Vanguard\Models\User\UserEmailAccount;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
-use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableEmailAddonRepository;
-use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
-use Vanguard\Repositories\Tablda\TableFieldRepository;
 
 class TableEmailAddonService
 {
@@ -63,7 +66,7 @@ class TableEmailAddonService
         }
         return [
             'all_rows' => $all_rows,
-            'previews' => $previews,
+            'previews' => $previews ?: null,
         ];
     }
 
@@ -75,19 +78,9 @@ class TableEmailAddonService
      */
     protected function getRowsArray(Table $table, int $row_group_id = null, int $single_id = null)
     {
-        if (!$row_group_id) {
-            return [];
-        }
-
-        $query = new TableDataQuery($table);
-        $query->applySelectedRowGroup($row_group_id);
-
-        $query = $query->getQuery();
-        if ($single_id) {
-            $query->where('id', '=', $single_id);
-        }
-
-        return $query->get()->toArray();
+        return (new TableDataRepository())
+            ->getRowsByRowGroup($table, $row_group_id, $single_id)
+            ->toArray();
     }
 
     /**
@@ -185,33 +178,38 @@ class TableEmailAddonService
     protected function attachLinkTablesToBody(TableEmailAddonSetting $email, array $row, string $body, int $uid = null): string
     {
         if ($body) {
-            $body = preg_replace_callback('/\[Link:#(\d+)\/([^\/]+)@Col:#(\d+)\/([^\]]+)\]/mi', function ($match) use ($email, $row, $uid) {
+            $body = preg_replace_callback('/\[Link:([^\/]+)\/([^\/]+)\]/mi', function ($match) use ($email, $row, $uid) {
                 $table = $email->_table;
+                $field = $link = null;
 
-                $all_fields = $table->_fields()->get();
-                $field = $all_fields->filter(function ($el) use ($match) {
-                    return $this->prepName($el['name']) == $this->prepName($match[4]);
-                })->first();
+                $all_fields = $table->_fields()->with('_links')->get();
+                foreach ($all_fields as $header) {
+                    foreach ($header->_links as $heLink) {
+                        if ($heLink->name == $match[1]) {
+                            $field = $header;
+                            $link = $heLink;
+                        }
+                    }
+                }
 
-                $link = null;
-                if ($field) {
-                    $all_links = $field->_links()->get();
-                    $link = $all_links[$match[1]-1];
-                    $link = $link && $link->icon && $this->prepName($link->icon) == $this->prepName($match[2])
-                        ? $link
-                        : null;
+                $view = null;
+                switch ($match[2]) {
+                    case 'Board': $view = 'vertical'; break;
+                    case 'List': $view = 'list'; break;
+                    case 'Grid':
+                    default: $view = 'table'; break;
                 }
 
                 if ($field && $link && $link->table_ref_condition_id) {
-                    $table = $field->_table;
-                    [$rows_count, $rows_arr] = (new TableDataService())->getFieldRows($table, $link->toArray(), $row, 1, 50, $uid);
+                    $table = $link->_ref_condition ? $link->_ref_condition->_ref_table : $field->_table;
+                    [$rows_count, $rows_arr] = (new TableDataService())->getFieldRows($table, $link->toArray(), $row, 1, 50, ['uid' => $uid]);
 
                     $flds = $link->email_addon_fields ? json_decode($link->email_addon_fields) : [];
                     $fields_arr = $this->service->getFieldsArrayForEmailAddon($table, $flds);
 
                     $data = [
                         'table_header' => $field->name.' ('.$link->link_type.')',
-                        'mail_format' => 'table',
+                        'mail_format' => $view ?: $email->email_link_viewtype ?: 'table',
                         'fields_arr' => $fields_arr,
                         'all_rows_arr' => $rows_arr,
                         'rows_count' => $rows_count,
@@ -283,9 +281,9 @@ class TableEmailAddonService
     /**
      * @param Table $table
      */
-    public function loadForTable(Table $table)
+    public function loadForTable(Table $table, int $user_id = null)
     {
-        $this->addonRepo->loadForTable($table);
+        $this->addonRepo->loadForTable($table, $user_id);
     }
 
     /**
@@ -343,13 +341,33 @@ class TableEmailAddonService
             }
             if ($all_rows) {
                 $email->startPrepared(count($all_rows), !!$row_id);
-                $msg = count($all_rows) . ' emails are added to query!';
+                $msg = count($all_rows) . ' email(s) have been added to the queue for sending.';
             }
         }
         return [
             'result' => $msg,
             'prepared_emails' => $email->prepared_emails,
             'sent_emails' => $email->sent_emails,
+        ];
+    }
+
+    /**
+     * @param UserApiKey|UserEmailAccount $key
+     * @param array $email_data
+     * @param TableField $field
+     * @param int $row_id
+     * @return string[]
+     * @throws \SendGrid\Mail\TypeException
+     */
+    public function sendSingleEmail($key, array $email_data, TableField $field, int $row_id): array
+    {
+        $row = (new TableDataRepository())
+            ->getDirectRow($field->_table, $row_id)
+            ->toArray();
+        $hist = (new SendSingleEmail($key, $email_data, $field, $row, auth()->id()))->handle();
+        return [
+            'result' => 'Email is added to query.',
+            'history' => $hist,
         ];
     }
 
@@ -363,7 +381,7 @@ class TableEmailAddonService
         $queued = DelayEmailAddon::dispatch($email, $row, $uid);
         if ($email->email_send_time != 'now') {
             try {
-                $interval = $email->email_delay_by_rec
+                $interval = $email->email_send_time == 'field_specific'
                     ? ($email->_email_delay_record_fld ? $row[$email->_email_delay_record_fld->field] ?? '' : '')
                     : $email->email_delay_time;
 
@@ -392,12 +410,34 @@ class TableEmailAddonService
     /**
      * @param TableEmailAddonSetting $email
      * @param int|null $row_id
+     * @param int|null $history_id
      * @return array
      */
-    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null)
+    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null, int $history_id = null)
     {
         return [
-            'status' => $this->addonRepo->clearHistory($email, $row_id)
+            'status' => $this->addonRepo->clearHistory($email, $row_id, $history_id)
         ];
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param int $table_permis_id
+     * @param $can_edit
+     * @return TableEmailRight
+     */
+    public function toggleEmailRight(TableEmailAddonSetting $email, int $table_permis_id, $can_edit)
+    {
+        return $this->addonRepo->toggleEmailRight($email, $table_permis_id, $can_edit);
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param int $table_permis_id
+     * @return mixed
+     */
+    public function deleteEmailRight(TableEmailAddonSetting $email, int $table_permis_id)
+    {
+        return $this->addonRepo->deleteEmailRight($email, $table_permis_id);
     }
 }

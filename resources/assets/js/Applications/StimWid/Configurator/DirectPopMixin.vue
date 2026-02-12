@@ -24,6 +24,8 @@
                     case 'line_lib': this.popupLineLib(row_id); break;
                     case 'tech': this.popupTech(row_id); break;
                     case 'status': this.popupStatus(row_id); break;
+                    case 'elev': this.popupElev(row_id); break;
+                    case 'azimuth': this.popupAzimuth(row_id); break;
                 }
                 this.link_rows = this.vuex_fm[this.popup_app_tb] ? this.vuex_fm[this.popup_app_tb].rows : null;
             },
@@ -72,6 +74,16 @@
                 this.popup_app_tb = this.popup_tables.status_2d;
                 this.popup_type = 'status';
             },
+            popupElev(row_id) {
+                this.popup_row_id = row_id;
+                this.popup_app_tb = this.popup_tables.elevs_2d;
+                this.popup_type = 'elev';
+            },
+            popupAzimuth(row_id) {
+                this.popup_row_id = row_id;
+                this.popup_app_tb = this.popup_tables.azimuth_2d;
+                this.popup_type = 'azimuth';
+            },
             popupConn(row_id) {
                 this.popup_row_id = row_id;
                 this.popup_app_tb = this.popup_tables.linedata_2d;
@@ -94,6 +106,10 @@
                     case 'tech': app_tb = this.popup_tables.tech_2d;
                         break;
                     case 'status': app_tb = this.popup_tables.status_2d;
+                        break;
+                    case 'elev': app_tb = this.popup_tables.elevs_2d;
+                        break;
+                    case 'azimuth': app_tb = this.popup_tables.azimuth_2d;
                         break;
                 }
                 this.found_model_add = this.vuex_fm[app_tb];

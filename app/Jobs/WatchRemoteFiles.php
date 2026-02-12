@@ -8,8 +8,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Vanguard\Modules\MirrorModule;
-//use Vanguard\Modules\RemoteFilesModule;
+use Vanguard\Modules\RemoteFilesModule;
 
 class WatchRemoteFiles implements ShouldQueue
 {
@@ -26,7 +25,11 @@ class WatchRemoteFiles implements ShouldQueue
     /**
      * @var array
      */
-    protected $watchrow;
+    protected $newrow;
+    /**
+     * @var array
+     */
+    protected $oldrow;
     /**
      * @var bool
      */
@@ -35,13 +38,16 @@ class WatchRemoteFiles implements ShouldQueue
     /**
      * @param int $table_id
      * @param int|null $field_id
-     * @param array $watchrow
+     * @param array $newrow
+     * @param array $oldrow
+     * @param bool $remove
      */
-    public function __construct(int $table_id, int $field_id = null, array $watchrow = [], bool $remove = false)
+    public function __construct(int $table_id, int $field_id = null, array $newrow = [], array $oldrow = [], bool $remove = false)
     {
         $this->table_id = $table_id;
         $this->field_id = $field_id;
-        $this->watchrow = $watchrow;
+        $this->newrow = $newrow;
+        $this->oldrow = $oldrow;
         $this->remove = $remove;
     }
 
@@ -51,16 +57,25 @@ class WatchRemoteFiles implements ShouldQueue
     public function handle()
     {
         if (!$this->table_id) {
-            return;
+            return '';
         }
 
-        /*if ($this->watchrow && $this->field_id) {
-            (new RemoteFilesModule())->watch($this->table_id, $this->watchrow);
-        } elseif ($this->field_id) {
-            (new RemoteFilesModule())->fill($this->table_id, $this->watchrow);
-        } else {
-            (new RemoteFilesModule())->reFillAll($this->table_id);
-        }*/
+        $remote = new RemoteFilesModule($this->table_id);
+        if ($remote->hasRemotes()) {
+
+            if ($this->remove) {
+                $remote->clear($this->field_id, $this->newrow['id'] ?? null);
+            } else {
+                if ($this->newrow) {
+                    $remote->fillRow($this->newrow, $this->oldrow);
+                } else {
+                    $remote->fill($this->field_id);
+                }
+            }
+
+        }
+        return 'done';
+
     }
 
     /**

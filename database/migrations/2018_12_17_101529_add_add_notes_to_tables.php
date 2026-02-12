@@ -15,6 +15,9 @@ class AddAddNotesToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->text('add_notes')->nullable()->after('notes');
+            $table->string('table_engine', 32)->default('default');
+            $table->tinyInteger('auto_enable_virtual_scroll')->default(1);
+            $table->unsignedInteger('auto_enable_virtual_scroll_when')->default(1500);
         });
     }
 
@@ -27,6 +30,9 @@ class AddAddNotesToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->dropColumn('add_notes');
+            $table->dropColumn('table_engine');
+            $table->dropColumn('auto_enable_virtual_scroll');
+            $table->dropColumn('auto_enable_virtual_scroll_when');
         });
     }
 }

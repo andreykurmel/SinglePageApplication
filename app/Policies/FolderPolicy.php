@@ -21,6 +21,8 @@ class FolderPolicy
         return
             $user->id && $folder->user_id == $user->id
             ||
+            $user->id && $folder->is_folder_link == $user->id
+            ||
             $user->isAdmin() && is_null($folder->user_id);
     }
 }

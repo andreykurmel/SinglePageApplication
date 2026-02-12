@@ -1,16 +1,22 @@
 <template>
-    <div>
-        <div class="pagi-pos pagi-pos--left custom-pagination custom-padd blue-gradient" :style="themeButtonStyleNo">
-            <span v-if="!compact">Showing {{ (page-1)*perPage + 1 }} to {{ perPage ? (page*perPage > rowsCount ? rowsCount : page*perPage) : rowsCount }} of {{rowsCount}} entries</span>
-            <span v-else="">{{rowsCount}} entries</span>
+    <div ref="pager">
+        <div class="pagi-pos pagi-pos--left flex" :style="{bottom: horScroll && isDesc ? '20px' : 0}">
+            <div class="custom-pagination custom-padd blue-gradient" :style="themeButtonStyleNo">
+                <span v-if="!compact">
+                    {{ (page-1)*perPage + 1 }}
+                    to {{ perPage ? (page*perPage > rowsCount ? rowsCount : page*perPage) : rowsCount }}
+                    of {{rowsCount}}</span>
+                <span v-else="">{{rowsCount}} entries</span>
+                <span v-if="hasFiltered">| {{ tableMeta._global_rows_count - rowsCount }} filtered out.</span>
+            </div>
         </div>
-        <div class="pagi-pos pagi-pos--right flex flex--automargin">
-            <div v-if="!is_link" class="custom-pagination" :style="themeButtonStyleNo">
+        <div class="pagi-pos pagi-pos--right flex flex--automargin" :style="{bottom: horScroll && isDesc ? '20px' : 0, right: vertScroll && isDesc ? '20px' : 0}">
+            <div class="custom-pagination" :style="themeButtonStyleNo">
                 <row-per-page-button :row-per-page="perPage" @val-changed="rowPerPageChanged"></row-per-page-button>
             </div>
-            <div class="custom-pagination flex flex--automargin" :style="">
+            <div class="custom-pagination flex flex--automargin">
                 <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient p-first" :style="$root.themeButtonStyle" @click="changePage(1)">First</button>
-                <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient" :style="$root.themeButtonStyle" @click="changePage(page > 1 ? page-1 : 1)">Previous</button>
+                <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient" :style="$root.themeButtonStyle" @click="changePage(page > 1 ? page-1 : 1)">{{ isDesc ? 'Prev.' : '<' }}</button>
 
                 <template v-if="page <= 3">
                     <button v-for="i in Math.min(3, maxPage)"
@@ -48,7 +54,7 @@
                     <button class="btn btn-primary btn-sm blue-gradient" :style="btnActive(maxPage)" @click="changePage(maxPage)">{{ maxPage }}</button>
                 </template>
 
-                <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient" :style="$root.themeButtonStyle" @click="changePage(page < maxPage ? page+1 : maxPage)">Next</button>
+                <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient" :style="$root.themeButtonStyle" @click="changePage(page < maxPage ? page+1 : maxPage)">{{ isDesc ? 'Next' : '>' }}</button>
                 <button v-if="!compact" class="btn btn-primary btn-sm blue-gradient p-last" :style="$root.themeButtonStyle" @click="changePage(maxPage)">Last</button>
             </div>
         </div>
@@ -56,12 +62,17 @@
 </template>
 
 <script>
+    import {eventBus} from "../../../app";
+
     import PaginationButton from './PaginationButton';
     import RowPerPageButton from "../../Buttons/RowPerPageButton";
+
+    import IsShowFieldMixin from "../../_Mixins/IsShowFieldMixin";
 
     export default {
         name: "TablePagination",
         mixins: [
+            IsShowFieldMixin,
         ],
         components: {
             RowPerPageButton,
@@ -69,16 +80,22 @@
         },
         data: function () {
             return {
+                bottomPos: '0px',
             }
         },
         props: {
             page: Number,
             tableMeta: Object,
             rowsCount: Number,
-            is_link: Boolean,
+            is_link: Object,
             compact: Boolean,
+            vertScroll: Boolean,
+            horScroll: Boolean,
         },
         computed: {
+            isDesc() {
+                return window.innerWidth >= 768;
+            },
             perPage() {
                 return this.is_link ? this.tableMeta.max_rows_in_link_popup : this.tableMeta.rows_per_page;
             },
@@ -89,7 +106,10 @@
                 let style = _.cloneDeep(this.$root.themeButtonStyle);
                 style.border = 'none';
                 return style;
-            }
+            },
+            hasFiltered() {
+                return this.rowsCount < this.tableMeta._global_rows_count;
+            },
         },
         methods: {
             btnActive(need) {
@@ -101,22 +121,39 @@
                 this.$emit('change-page', page);
             },
             rowPerPageChanged(val) {
-                this.tableMeta.rows_per_page = val;
-                this.$emit('change-page', this.page);
+                if (this.is_link) {
+                    this.tableMeta.max_rows_in_link_popup = val;
+                } else {
+                    this.tableMeta.rows_per_page = val;
+                }
 
                 if (this.tableMeta._is_owner) {
-                    this.$root.sm_msg_type = 1;
-                    axios.put('/ajax/table', {
-                        table_id: this.tableMeta.id,
-                        rows_per_page: this.tableMeta.rows_per_page,
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    }).finally(() => {
-                        this.$root.sm_msg_type = 0;
-                    });
+
+                    if (this.is_link) {
+                        this.$root.updateTable(this.tableMeta, 'vert_tb_hdrwidth');
+                    } else {
+                        this.$root.sm_msg_type = 1;
+                        axios.put('/ajax/table', {
+                            table_id: this.tableMeta.id,
+                            rows_per_page: this.tableMeta.rows_per_page,
+                        }).then(() => {
+                            this.changePage(1);
+                        }).catch(errors => {
+                            Swal('Info', getErrors(errors));
+                        }).finally(() => {
+                            this.$root.sm_msg_type = 0;
+                        });
+                    }
+
                 }
+
+                this.$emit('change-page', this.page);
             },
         },
+        mounted() {
+        },
+        beforeDestroy() {
+        }
     }
 </script>
 

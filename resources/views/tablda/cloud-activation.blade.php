@@ -10,7 +10,8 @@
     <script>
         $(document).ready(() => {
             Swal({
-                title: $("#msg_val").val(),
+                title: 'Info',
+                text: $("#msg_val").val(),
                 confirmButtonText: 'OK',
                 showCancelButton: false,
             }).then(() => {

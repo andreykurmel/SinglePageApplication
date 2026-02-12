@@ -23,11 +23,11 @@
                         <input type="text"
                                class="form-control input-solid"
                                name="search"
-                               value="{{ Input::get('search') }}"
+                               value="{{ request()->get('search') }}"
                                placeholder="@lang('app.search_for_users')">
 
                         <span class="input-group-append">
-                            @if (Input::has('search') && Input::get('search') != '')
+                            @if (request()->has('search') && request()->get('search') != '')
                                 <a href="{{ route('user.list') }}"
                                        class="btn btn-light d-flex align-items-center text-muted"
                                        role="button">
@@ -42,7 +42,7 @@
                 </div>
 
                 <div class="col-md-2 mt-2 mt-md-0">
-                    {!! Form::select('status', $statuses, Input::get('status'), ['id' => 'status', 'class' => 'form-control input-solid']) !!}
+                    {!! Form::select('status', $statuses, request()->get('status'), ['id' => 'status', 'class' => 'form-control input-solid']) !!}
                 </div>
 
                 <div class="col-md-6">

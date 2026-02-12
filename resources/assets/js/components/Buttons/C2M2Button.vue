@@ -50,7 +50,7 @@
                         is_showed: set_status ? 1 : 0
                     }).then(({ data }) => {
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 }
             }

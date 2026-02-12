@@ -25,6 +25,7 @@ class DDLRefColorDirectRequest extends FormRequest
     {
         return [
             'ddl_ref_color_id' => 'required|integer|exists:ddl_reference_colors,id',
+            'page' => 'required|integer',
         ];
     }
 }

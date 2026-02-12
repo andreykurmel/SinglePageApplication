@@ -1,5 +1,7 @@
 import {columnSettRadioFields} from './../app';
 
+import {SpecialFuncs} from "./SpecialFuncs";
+
 export class MetaTabldaTable {
     /**
      * constructor
@@ -101,18 +103,7 @@ export class MetaTabldaTable {
      * @returns {{}}
      */
     emptyObject() {
-        let obj = {};
-        if (this.params) {
-            for (let i in this.params._fields) {
-                if (this.params._fields[i].f_type === 'Boolean') {
-                    obj[this.params._fields[i].field] = this.params._fields[i].f_default == '1';
-                } else {
-                    obj[this.params._fields[i].field] = null;
-                }
-            }
-        }
-        obj._temp_id = uuidv4();
-        return obj;
+        return this.params ? SpecialFuncs.emptyRow(this.params) : {};
     }
 
     /**
@@ -131,7 +122,7 @@ export class MetaTabldaTable {
                 this.loadHeaders();
             }
         }).catch(errors => {
-            Swal('', getErrors(errors));
+            Swal('Info', getErrors(errors));
         });
     }
 }

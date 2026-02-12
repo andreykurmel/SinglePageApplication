@@ -81,10 +81,10 @@ class FolderViewRepository
     public function addView($data)
     {
         $data['hash'] = Uuid::uuid4();
-        $data['side_top'] = $data['side_top'] ?? 'show';
+        $data['side_top'] = $data['side_top'] ?? 'na';
         $data['side_left_menu'] = $data['side_left_menu'] ?? 'show';
         $data['side_left_filter'] = $data['side_left_filter'] ?? 'show';
-        $data['side_right'] = $data['side_right'] ?? 'show';
+        $data['side_right'] = $data['side_right'] ?? 'na';
         $folder_view = FolderView::create( $this->service->delSystemFields($data) );
         $folder_view->_checked_tables = [];
         return $folder_view;

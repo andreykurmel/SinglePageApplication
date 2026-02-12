@@ -5,12 +5,10 @@ namespace Vanguard\Repositories\Tablda\Permissions;
 
 use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Models\User\UserGroup;
-use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
+use Vanguard\Models\User\UserGroup2User;
 use Vanguard\Models\User\UserGroupCondition;
-use Vanguard\Models\DataSetPermissions\TablePermissionDefaultField;
-use Vanguard\Models\DataSetPermissions\TablePermissionRow;
 use Vanguard\Models\User\UserGroupLink;
-use Vanguard\Models\Table\Table;
+use Vanguard\Models\User\UserGroupSubgroup;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
 
@@ -66,6 +64,16 @@ class UserGroupRepository
     }
 
     /**
+     * @param $model_id
+     * @return \Illuminate\Database\Eloquent\Model|object|UserGroup|null
+     */
+    public function getGroupSubgroup($model_id)
+    {
+        $model = UserGroupSubgroup::where('id', '=', $model_id)->first();
+        return UserGroup::where('id', '=', $model->usergroup_id)->first();
+    }
+
+    /**
      * Add Group.
      *
      * @param $data
@@ -82,6 +90,9 @@ class UserGroupRepository
         $user_group = $this->getGroup($created->id);
         $user_group->_individuals = [];
         $user_group->_conditions = [];
+        $user_group->_subgroups = [];
+        $user_group->_tables_shared = [];
+        $user_group->_table_permissions = [];
         return $user_group;
     }
 
@@ -142,9 +153,15 @@ class UserGroupRepository
                     '_individuals:'.$only_names,
                     '_conditions',
                     '_tables_shared',
-                    '_table_permissions'
+                    '_table_permissions',
+                    '_subgroups',
                 ]);
                 $ug->withCount('_individuals_all');
+            },
+            '_sys_user_groups' => function ($sug) use ($only_names) {
+                $sug->with([
+                    '_tables_shared',
+                ]);
             },
         ]);
     }
@@ -293,5 +310,73 @@ class UserGroupRepository
             return $userGroup->_links()->insert( $links->toArray() );
         }
         return 1;
+    }
+
+    /**
+     * @param array $data
+     * @return \Illuminate\Database\Eloquent\Model|UserGroupSubgroup
+     */
+    public function addSubGroup(array $data)
+    {
+        $subgroup = UserGroupSubgroup::create( $this->service->delSystemFields($data) );
+
+        $this->syncCachedUsers($subgroup->usergroup_id);
+
+        return $subgroup;
+    }
+
+    /**
+     * @param int $model_id
+     * @param array $data
+     * @return void
+     */
+    public function updateSubGroup(int $model_id, array $data)
+    {
+        $subgroup = UserGroupSubgroup::find($model_id);
+
+        UserGroupSubgroup::where('id', $model_id)
+            ->update( $this->service->delSystemFields($data) );
+
+        $this->syncCachedUsers($subgroup->usergroup_id);
+    }
+
+    /**
+     * @param int $model_id
+     * @return void
+     * @throws \Exception
+     */
+    public function deleteSubGroup(int $model_id)
+    {
+        $subgroup = UserGroupSubgroup::find($model_id);
+
+        UserGroupSubgroup::where('id', $model_id)->delete();
+
+        $this->syncCachedUsers($subgroup->usergroup_id);
+    }
+
+    /**
+     * @param int $usergroup_id
+     * @return void
+     * @throws \Exception
+     */
+    protected function syncCachedUsers(int $usergroup_id)
+    {
+        $usergroup = UserGroup::find($usergroup_id);
+        $subgroups = UserGroup::whereIn('id', $usergroup->_subgroups->pluck('subgroup_id'))
+            ->with('_individuals_all')
+            ->get();
+
+        $cachedUserIds = $subgroups->pluck('_individuals_all')->flatten()->pluck('id');
+
+        UserGroup2User::where('user_group_id', '=', $usergroup->id)
+            ->where('cached_from_conditions', '=', 1)
+            ->delete();
+        foreach ($cachedUserIds as $userId) {
+            UserGroup2User::create([
+                'user_group_id' => $usergroup->id,
+                'user_id' => $userId,
+                'cached_from_conditions' => 1,
+            ]);
+        }
     }
 }

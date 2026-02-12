@@ -1,12 +1,12 @@
 <template>
     <div ref="align_button" class="align-wrapper full-frame" title="Select an Align">
         <div class="content align-button full-frame" @click="menuToggle()" :style="{justifyContent: flexAlign}">
-            <i class="fas" :class="[iconAlign]" :style="textStyle"></i>
+            <i class="fas" :class="[iconAlign]" :style="textStyleNoFont"></i>
         </div>
         <div v-show="menu_opened" class="align-helper" :style="helperStyle">
-            <i class="fas fa-align-left" @click="setAlign('left')" :style="textStyle"></i>
-            <i class="fas fa-align-center" @click="setAlign('center')" :style="textStyle"></i>
-            <i class="fas fa-align-right" @click="setAlign('right')" :style="textStyle"></i>
+            <i class="fas fa-align-left" @click="setAlign('left')" :style="textStyleNoFont"></i>
+            <i class="fas fa-align-center" @click="setAlign('center')" :style="textStyleNoFont"></i>
+            <i class="fas fa-align-right" @click="setAlign('right')" :style="textStyleNoFont"></i>
         </div>
     </div>
 </template>
@@ -52,14 +52,18 @@
                     default : return 'center';
                 }
             },
+            textStyleNoFont() {
+                let obj = this.textStyle;
+                obj.fontFamily = null;
+                return obj;
+            },
         },
         methods: {
             menuToggle() {
                 this.menu_opened = !this.menu_opened;
             },
             setAlign(val) {
-                this.tableRow.col_align = val;
-                this.$emit('set-align');
+                this.$emit('set-align', val);
                 this.menu_opened = false;
             },
             hideAlignHelper(e) {

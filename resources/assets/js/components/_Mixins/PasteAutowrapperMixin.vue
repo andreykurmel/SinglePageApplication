@@ -32,7 +32,7 @@
                         this.paste_file = data.file_hash;
                         resolve(data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });

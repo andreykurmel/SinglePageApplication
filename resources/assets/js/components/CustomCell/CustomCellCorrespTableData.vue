@@ -1,15 +1,27 @@
 <template>
-    <td :style="getCellStyle"
+    <td :style="getCellStyle()"
+        :class="{'top_zi': isEditing()}"
         class="td-custom"
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <single-td-field
+            v-if="tableHeader.field === 'stimvis_value' && stimvisTable && stimvisField"
+            :table-meta="stimvisTable"
+            :table-header="stimvisField"
+            :td-value="editValue"
+            :with_edit="with_edit"
+            :force_edit="true"
+            :style="{width: '100%'}"
+            @updated-td-val="updateCheckedDDL"
+        ></single-td-field>
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+        <div v-else class="td-wrapper" :style="getTdWrappStyle()">
+
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content" :style="{textAlign: no_align ? 'left' : tableHeader.col_align}">
 
-                    <span v-if="hidden_by_format"></span>
+                    <span v-if="hidden_by_format" class="by_format_hidden"></span>
 
                     <label class="switch_t"
                            v-else-if="tableHeader.f_type === 'Boolean'"
@@ -53,7 +65,7 @@
             <tablda-user-select
                 v-if="tableHeader.f_type === 'User' && tableMeta.db_name === 'correspondence_stim_3d'"
                 :edit_value="editValue"
-                :table_meta="tableMeta"
+                :table_field="tableHeader"
                 :can_empty="true"
                 :fixed_pos="true"
                 :multiselect="$root.isMSEL(input_type)"
@@ -62,6 +74,19 @@
                 @selected-item="updateCheckedDDL"
                 @hide-select="hideEdit"
             ></tablda-user-select>
+
+            <tablda-select-simple
+                v-else-if="tableHeader.field === 'data_field'"
+                :options="not_present_corr_fields"
+                :refilter_options="refilter_options"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :can_empty="true"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
 
             <select
                     v-else-if="tableHeader.f_type === 'User'"
@@ -81,9 +106,10 @@
                     :for_single_select="true"
                     :empty_val="true"
                     :cur_val="editValue"
-                    :available_tables="$root.settingsMeta.available_tables"
+                    :available_tables="getAvailTables()"
                     :user="user"
-                    :is_obj_attr="'db_name'"
+                    :is_obj_attr="tableHeader.field == 'stimvis_table_id' ? 'id' : 'db_name'"
+                    :only_item="tableHeader.field == 'stimvis_table_id' ? 'public' : ''"
                     @sel-changed="(val) => {this.editValue = val;}"
                     @sel-closed="hideEdit();updateValue();"
                     class="form-control full-height"
@@ -91,21 +117,19 @@
             </select-with-folder-structure>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'link_field_db'"
-                    :options="linkFields()"
-                    :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
-                    :can_empty="true"
-                    :fixed_pos="true"
-                    :style="getEditStyle"
-                    @selected-item="updateCheckedDDL"
-                    @hide-select="hideEdit"
+                v-else-if="tableHeader.f_type === 'RefField'"
+                :options="nameFields()"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'data_field'"
-                    :options="not_present_corr_fields"
-                    :refilter_options="refilter_options"
+                    v-else-if="tableHeader.field === 'link_field_db'"
+                    :options="linkFields()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
@@ -134,6 +158,7 @@
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
                     :fixed_pos="true"
+                    :allowed_search="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
@@ -187,6 +212,30 @@
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'stimvis_status'"
+                    :options="stimvisStatus"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'stimvis_operator'"
+                    :options="stimvisOperator"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
             <!--STIM 3D-->
             <!--APP CORRESPONDENCES-->
 
@@ -206,6 +255,15 @@
                     @hide-select="hideEdit"
                     @embed-func="showAddDDLOption"
             ></tablda-select-ddl>
+
+            <input
+                v-else-if="inArray(tableHeader.field, ['row_order'])"
+                type="number"
+                v-model="editValue"
+                @blur="hideEdit();updateValue()"
+                ref="inline_input"
+                class="form-control full-height"
+                :style="getEditStyle"/>
 
             <textarea
                     v-else-if="tableHeader.f_type === 'String'"
@@ -305,12 +363,23 @@ export default {
                     { val: 'map', show: 'GSI', },
                     { val: 'configurator', show: 'Configurator', },
                 ],
+                stimvisStatus: [
+                    { val: 'Show', show: 'Show', },
+                    { val: 'Hide', show: 'Hide', },
+                ],
+                stimvisOperator: [
+                    { val: '=', show: '=', },
+                    { val: '!=', show: '!=', },
+                    { val: '>', show: '>', },
+                    { val: '<', show: '<', },
+                ],
             }
         },
         props:{
             tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
+            allRows: Object|null,
             rowIndex: Number,
             cellValue: String|Number,
             cellHeight: Number,
@@ -328,6 +397,8 @@ export default {
             isVertTable: Boolean,
             hasFloatColumns: Boolean,
             no_align: Boolean,
+            isSelectedExt: Boolean,
+            extraPivotFields: Array,
         },
         watch: {
             table_id: function (val) {
@@ -405,6 +476,10 @@ export default {
                 return Number(this.tableRow[this.tableHeader.field]);
             },
             canEdit() {
+                if (this.tableMeta.db_name === 'correspondence_stim_3d' && this.tableHeader.field === 'row_order') {
+                    return true;
+                }
+
                 let style_stim_3d = this.tableRow.style === 'accordion' ? ['horizontal','vertical'] : ['accordion'];
                 let res = this.with_edit
                     && ( //can edit only owner OR user with available rights
@@ -415,7 +490,6 @@ export default {
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields) //cannot edit system fields
                     && !this.freezed_by_format //cannot edit cells freezed by CondFormat
                     && !this.hidden_by_format //cannot edit cells hiden by CondFormat
-                    && !(this.behavior === 'request_view' && this.tableRow.id) //if embed request -> can edit only newly added rows
                     && (
                         !this.tableMeta.is_system // PERMISSIONS FOR EACH SYSTEM TABLE --->>>
                         || (this.tableMeta.db_name === 'correspondence_apps')
@@ -427,10 +501,46 @@ export default {
                 return Boolean(res);
             },
             isSelected() {
-                return this.selectedCell && this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex);
+                return this.isSelectedExt;
+            },
+
+            stimvisTable() {
+                return this.tableRow.stimvis_table_id
+                    ? _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow.stimvis_table_id)})
+                    : null;
+            },
+            stimvisField() {
+                return this.stimvisTable && this.tableRow.stimvis_field_id
+                    ? _.find(this.stimvisTable._fields || [], {id: Number(this.tableRow.stimvis_field_id)})
+                    : null;
             },
         },
         methods: {
+            getAvailTables() {
+                if (this.tableHeader.field == 'stimvis_table_id') {
+                    let corrTBS = _.filter(this.$root.settingsMeta.corr_uis || [], (tb) => {
+                        return tb.top_tab == this.tableRow.top_tab && tb.select == this.tableRow.select;
+                    });
+                    corrTBS = _.map(corrTBS, 'db_table');
+
+                    let app = _.find(this.$root.settingsMeta.table_apps_data, {code: 'stim_3d'}) || {};
+                    let appTables = _.filter(app._tables || [], (tb) => corrTBS.indexOf(tb.app_table) > -1);
+                    appTables = _.map(appTables, 'data_table');
+
+                    return _.filter(this.$root.settingsMeta.available_tables, (tb) => {
+                        return this.inArray(tb.db_name, appTables);
+                    });
+                }
+
+                return this.$root.settingsMeta.available_tables;
+            },
+            nameFields() {
+                let tbCol = _.find(this.tableMeta._fields, {f_type: 'RefTable'}) || {};
+                let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow[tbCol.field])}) || {};
+                return _.map(tb._fields || [], (hdr) => {
+                    return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
+                });
+            },
             setEditVal(val) {
                 this.editValue = this.unitConvert(val);
             },
@@ -444,7 +554,7 @@ export default {
             showEdit() {
                 //focus on cell
                 if (
-                    window.screen.width >= 768
+                    window.innerWidth >= 768
                     && this.selectedCell
                     && !this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex)
                 ) {
@@ -584,7 +694,7 @@ export default {
                     });
                     this.refilter_options++;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             linkFields() {
@@ -600,20 +710,6 @@ export default {
             showSrcRecord(link, header, tableRow) {
                 this.$emit('show-src-record', link, header, tableRow);
             },
-
-            //KEYBOARD
-            changeCol(is_next) {
-                if (this.editing) {
-                    this.hideEdit();
-                    this.updateValue();
-                    if (this.$refs.inline_input && $(this.$refs.inline_input).hasClass('select2-hidden-accessible')) {
-                        $(this.$refs.inline_input).select2('destroy');
-                    }
-                }
-                this.$nextTick(() => {
-                    this.selectedCell.next_col(this.tableMeta, is_next, this.isVertTable);
-                });
-            },
         },
         mounted() {
             eventBus.$on('global-keydown', this.globalKeydownHandler);
@@ -628,4 +724,8 @@ export default {
 
 <style lang="scss">
     @import "CustomCell";
+
+    .top_zi {
+        z-index: 250 !important;
+    }
 </style>

@@ -79,26 +79,6 @@
             behavior: String,
         },
         watch: {
-            maxCellRows(val) {
-                this.$nextTick(() => {
-                    this.recalcContent();
-                });
-            },
-            editValue(val) {
-                this.$nextTick(() => {
-                    this.recalcContent();
-                });
-            },
-            curWidth(val) {
-                this.$nextTick(() => {
-                    this.recalcContent();
-                });
-            },
-            fontSize(val) {
-                this.$nextTick(() => {
-                    this.recalcContent();
-                });
-            }
         },
         computed: {
             fldTypeSelect() {
@@ -167,21 +147,43 @@
                     res = moment.unix( this.tableRow[this.tableHeader.field] ).format('YYYY-MM-DD HH:mm:ss');
                 }
                 else
-                if (this.inArray(this.tableHeader.field, ['_data_table_id', 'data_table'])) {
-                    res = this.tableRow['__'+this.tableHeader.field]
-                        || (this.tableRow._table ? this.tableRow._table.data_table : this.tableRow[this.tableHeader.field]);
-                }
-                else
-                if (this.inArray(this.tableHeader.field, ['link_table_db'])) {
-                    res = this.tableRow['__'+this.tableHeader.field] || this.tableRow[this.tableHeader.field];
+                if (this.inArray(this.tableHeader.field, ['link_table_db','_data_table_id', 'data_table'])) {
+                    res = this.tableRow['__'+this.tableHeader.field];
+                    if (!res && this.tableRow._table && this.tableHeader.field != 'link_table_db') {
+                        let tb = _.find(this.$root.settingsMeta.available_tables, {db_name: this.tableRow._table.data_table}) || {};
+                        res = tb.name || this.tableRow._table.data_table;
+                    }
+                    if (!res) {
+                        let tb = _.find(this.$root.settingsMeta.available_tables, {db_name: this.editValue}) || {};
+                        return tb.name || this.editValue;
+                    }
                 }
                 else
                 if (this.inArray(this.tableHeader.field, ['data_field','link_field_db'])) {
-                    res = this.$root.uniqName(this.tableRow['__'+this.tableHeader.field] || this.tableRow[this.tableHeader.field]);
+                    res = this.tableRow['__'+this.tableHeader.field];
+                    if (!res) {
+                        let dbName = this.tableHeader.field == 'data_field' ? '_table_data_id' : 'link_table_db';
+                        let tb = _.find(this.$root.settingsMeta.available_tables, {db_name: this.tableRow[dbName]}) || {};
+                        let fld = _.find(tb._fields || [], {field: this.editValue}) || {};
+                        return fld.name || this.editValue;
+                    }
+                    res = this.$root.uniqName(res);
                 }
                 else
                 if (this.tableMeta.db_name === 'table_fields__for_tooltips' && this.tableHeader.field === 'table_id') {
                     res = this.tableRow.tb_name || this.tableRow.table_id;
+                }
+                else
+                if (this.tableHeader.f_type === 'RefTable') {
+                    let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.editValue)}) || {};
+                    res = tb.name || this.editValue;
+                }
+                else
+                if (this.tableHeader.f_type === 'RefField') {
+                    let tbCol = _.find(this.tableMeta._fields, {f_type: 'RefTable'}) || {};
+                    let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow[tbCol.field])}) || {};
+                    let opt = _.find(tb._fields || [], {id: Number(this.editValue)}) || {};
+                    res = this.$root.uniqName(opt.name || this.editValue);
                 }
                 else
                 if (editValue == '[]') {
@@ -194,16 +196,8 @@
             showSrcRecord(link, header, tableRow) {
                 this.$emit('show-src-record', link, header, tableRow);
             },
-
-            //content sizes
-            recalcContent() {
-                this.cont_height = Math.floor( $(this.$refs.content_elem).height() );
-                this.cont_width = Math.floor( $(this.$refs.content_elem).width() );
-                this.$emit('changed-cont-size', this.cont_height, this.cont_width, this.showField(this.editValue));
-            },
         },
         mounted() {
-            this.recalcContent();
         }
     }
 </script>

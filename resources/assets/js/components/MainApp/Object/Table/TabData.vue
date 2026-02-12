@@ -5,7 +5,7 @@
                 :disabled="!presentSource() || !canSave(typeKey)"
                 :style="$root.themeButtonStyle"
                 @click="importTable()"
-        >Save</button>
+        >{{ selectedType.key === 'transpose_import' ? 'Transpose' : 'Save' }}</button>
         <div class="data-menu">
             <button class="btn btn-default"
                     :class="{active: activeTab === 'method'}"
@@ -29,7 +29,7 @@
                     title="You can create schedule to backup your table with attachments to your Google drive or Dropbox"
                     @click="activeTab = 'storage-backup'"
             >
-                Storage &amp; Backup
+                Autobackup
             </button>
 
             <div class="info-icon">
@@ -37,16 +37,19 @@
                         v-show="activeTab === 'method'"
                         :app_sett_key="'help_link_import_methods'"
                         :hgt="22"
+                        :txt="'for Import/Method'"
                 ></info-sign-link>
                 <info-sign-link
                         v-show="activeTab === 'fields'"
                         :app_sett_key="'help_link_import_fields'"
                         :hgt="22"
+                        :txt="'for Import/Fields'"
                 ></info-sign-link>
                 <info-sign-link
                         v-show="activeTab === 'storage-backup'"
                         :app_sett_key="'help_link_table_backups'"
                         :hgt="22"
+                        :txt="'for Data/Autobackup'"
                 ></info-sign-link>
             </div>
         </div>
@@ -62,10 +65,19 @@
                             :sel_image="imgSource"
                             :sel_value="typeKey"
                             :is_disabled="disabledKeys"
-                            class="form-control w w-mid"
+                            class="form-control w w-method"
                             :style="textSysStyle"
                             @option-select="changeTab"
                         ></select-block>
+
+                        <select class="form-control w w-mid"
+                                :style="textSysStyle"
+                                v-model="csvAction"
+                                v-if="typeKey === 'csv'"
+                        >
+                            <option value="upload">Upload</option>
+                            <option value="url">Web URL</option>
+                        </select>
 
                         <select class="form-control w w-mid"
                                 :style="textSysStyle"
@@ -75,6 +87,62 @@
                         >
                             <option value="html">Import HTML</option>
                             <option value="xml">Import XML</option>
+                        </select>
+
+                        <!--JIRA-->
+                        <select class="form-control w w-mid"
+                                :style="textSysStyle"
+                                v-model="jira_item.action"
+                                v-if="typeKey === 'jira_import'"
+                                @change="saveJiraSett"
+                        >
+                            <option value="import">Import</option>
+                            <option value="sync">Sync</option>
+                        </select>
+                        <select class="form-control w w-mid"
+                                v-model="importAction"
+                                v-if="typeKey === 'jira_import' && jira_item.action === 'import'"
+                                :style="textSysStyle"
+                        >
+                            <option :disabled="!canGetAccess('not_only_append')" value="new">New</option>
+                            <option value="append">Append</option>
+                        </select>
+                        <select class="form-control w w-method"
+                                :style="textSysStyle"
+                                v-model="jira_item.sync_direction"
+                                v-if="typeKey === 'jira_import' && jira_item.action === 'sync'"
+                                @change="saveJiraSett"
+                        >
+                            <option value="to_tablda">From Jira to {{ $root.app_name }}</option>
+                            <option value="to_jira" :disabled="1">From {{ $root.app_name }} to Jira</option>
+                        </select>
+
+                        <!--SALESFORCE-->
+                        <select class="form-control w w-mid"
+                                :style="textSysStyle"
+                                v-model="salesforce_item.action"
+                                v-if="typeKey === 'salesforce_import'"
+                                @change="saveSalesforceSett"
+                        >
+                            <option value="import">Import</option>
+                            <option value="sync">Sync</option>
+                        </select>
+                        <select class="form-control w w-mid"
+                                v-model="importAction"
+                                v-if="typeKey === 'salesforce_import' && salesforce_item.action === 'import'"
+                                :style="textSysStyle"
+                        >
+                            <option :disabled="!canGetAccess('not_only_append')" value="new">New</option>
+                            <option value="append">Append</option>
+                        </select>
+                        <select class="form-control w w-method"
+                                :style="textSysStyle"
+                                v-model="salesforce_item.sync_direction"
+                                v-if="typeKey === 'salesforce_import' && salesforce_item.action === 'sync'"
+                                @change="saveSalesforceSett"
+                        >
+                            <option value="to_tablda">From Salesforce to {{ $root.app_name }}</option>
+                            <option value="to_salesforce" :disabled="1">From {{ $root.app_name }} to Salesforce</option>
                         </select>
 
                         <select class="form-control w w-mid"
@@ -134,14 +202,48 @@
                                 <span>First row as headers</span>
                             </label>
                         </template>
+
+                        <button v-if="selectedType.key === 'transpose_import'"
+                                class="btn btn-success absolute-right"
+                                :disabled="!transpose_item.source_tb_id"
+                                :style="$root.themeButtonStyle"
+                                @click="activeTab = 'fields'"
+                        >Next</button>
+                        <button v-if="selectedType.key === 'jira_import'"
+                                class="btn btn-success absolute-right"
+                                :disabled="(jira_item.action === 'import' && !jira_item.project_names.length && !jira_item.jql_query)
+                                    || (jira_item.action === 'sync' && !tableMeta.import_last_jira_action)"
+                                :style="$root.themeButtonStyle"
+                                @click="activeTab = 'fields'"
+                        >{{ jira_item.action === 'import' ? 'Next' : 'Sync' }}</button>
+                        <button v-if="selectedType.key === 'salesforce_import'"
+                                class="btn btn-success absolute-right"
+                                :disabled="(salesforce_item.action === 'import' && !salesforce_item.object_id)
+                                    || (salesforce_item.action === 'sync' && !tableMeta.import_last_salesforce_action)"
+                                :style="$root.themeButtonStyle"
+                                @click="activeTab = 'fields'"
+                        >{{ salesforce_item.action === 'import' ? 'Next' : 'Sync' }}</button>
                     </div>
                     <!--CSV settings-->
                     <div v-if="selectedType.key === 'csv'" :style="{height: 'calc(100% - 60px)'}">
                         <div class="row">
                             <div class="col-xs-12 form-group">
-                                <input ref="csv_upload" type="file" accept=".csv,.xls,.xlsx,.xlsm" class="form-control w w-long" :style="textSysStyle" @change="getFieldsFromCSV()"/>
-                                <span class="w">OR</span>
-                                <input type="text" class="form-control w w-long" v-model="csv_link" placeholder="www address of file" :style="textSysStyle" @change="getFieldsFromCSV()"/>
+                                <input v-show="csvAction === 'upload'"
+                                       ref="csv_upload"
+                                       type="file"
+                                       accept=".csv,.xls,.xlsx,.xlsm"
+                                       class="form-control w w-long"
+                                       :style="textSysStyle"
+                                       @change="getFieldsFromCSV()"
+                                />
+                                <input v-show="csvAction === 'url'"
+                                       type="text"
+                                       class="form-control w w-long"
+                                       v-model="csv_link"
+                                       placeholder="www address of file"
+                                       :style="textSysStyle"
+                                       @change="getFieldsFromCSV()"
+                                />
                             </div>
                         </div>
                         <div class="row" v-if="xlsSheets && xlsSheets.length">
@@ -153,57 +255,42 @@
                             </div>
                         </div>
                         <div class="row form-group">
-                            <div class="col-xs-12 col-md-6 col-lg-5">
+                            <div class="col-xs-12">
                                 <div class="row">
                                     <div class="col-xs-12">
                                         <label>
-                                            <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="csvSettings.firstHeader = !csvSettings.firstHeader;saveCsvSett();">
-                                                    <i v-if="csvSettings.firstHeader" class="glyphicon glyphicon-ok group__icon"></i>
-                                                </span>
-                                            </span>
-                                            <span>1st row as field header.</span>
+                                            <span>Row # </span>
+                                            <input type="number"
+                                                   min="1"
+                                                   class="form-control w w-mid"
+                                                   v-model="csvSettings.headerRowNum"
+                                                   :style="textSysStyle"
+                                                   style="width: 65px; margin-right: 0;"
+                                                   @change="changeCsvRowNum()">
+                                            <span>as field header.</span>
+                                        </label>
+                                        <label>Starting row:
+                                            <input type="number"
+                                                   min="1"
+                                                   class="form-control w w-mid"
+                                                   v-model="csvSettings.startRow"
+                                                   :style="textSysStyle"
+                                                   style="width: 65px;"
+                                                   @change="changeCsvRowNum()">
+                                        </label>
+                                        <label>Ending row:
+                                            <input type="number"
+                                                   :disabled="!csvSettings.startRow"
+                                                   min="1"
+                                                   class="form-control w w-mid"
+                                                   v-model="csvSettings.endRow"
+                                                   :style="textSysStyle"
+                                                   style="width: 65px;"
+                                                   @change="changeCsvRowNum()">
                                         </label>
                                     </div>
                                 </div>
-                                <div class="row">
-                                    <div class="col-xs-12">
-                                        <label>
-                                            <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="csvSettings.secondType = !csvSettings.secondType;saveCsvSett();">
-                                                    <i v-if="csvSettings.secondType" class="glyphicon glyphicon-ok group__icon"></i>
-                                                </span>
-                                            </span>
-                                            <span>2nd row as field type.</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-xs-12">
-                                        <label>
-                                            <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="csvSettings.thirdSize = !csvSettings.thirdSize;saveCsvSett();">
-                                                    <i v-if="csvSettings.thirdSize" class="glyphicon glyphicon-ok group__icon"></i>
-                                                </span>
-                                            </span>
-                                            <span>3rd row as field size.</span>
-                                        </label>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-xs-12">
-                                        <label>
-                                            <span class="indeterm_check__wrap">
-                                                <span class="indeterm_check" @click="csvSettings.fourthDefault = !csvSettings.fourthDefault;saveCsvSett();">
-                                                    <i v-if="csvSettings.fourthDefault" class="glyphicon glyphicon-ok group__icon"></i>
-                                                </span>
-                                            </span>
-                                            <span>4th row as field default value.</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-xs-12 col-md-6 col-lg-5">
+                                
                                 <div class="row">
                                     <div class="col-xs-12">
                                         <label>
@@ -215,8 +302,6 @@
                                             <span>Replace accents/diacriticals.</span>
                                         </label>
                                     </div>
-                                </div>
-                                <div class="row">
                                     <div class="col-xs-12">
                                         <label>
                                             <span class="indeterm_check__wrap">
@@ -227,8 +312,6 @@
                                             <span>Treat all quoting characted as data.</span>
                                         </label>
                                     </div>
-                                </div>
-                                <div class="row">
                                     <div class="col-xs-12">
                                         <label>
                                             <span class="indeterm_check__wrap">
@@ -239,8 +322,6 @@
                                             <span>Input CSV quoting character is apostrophe</span>
                                         </label>
                                     </div>
-                                </div>
-                                <div class="row">
                                     <div class="col-xs-12">
                                         <label>
                                             <span class="indeterm_check__wrap">
@@ -252,16 +333,6 @@
                                         </label>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col-xs-12">
-                                <label>Starting row:
-                                    <input type="number" class="form-control w w-mid" v-model="csvSettings.startRow" :style="textSysStyle" style="width: 65px;" @change="saveCsvSett()">
-                                </label>
-                                <label>Ending row:
-                                    <input type="number" class="form-control w w-mid" v-model="csvSettings.endRow" :style="textSysStyle" style="width: 65px;" @change="saveCsvSett()">
-                                </label>
                             </div>
                         </div>
                         <div class="row">
@@ -345,7 +416,7 @@
                                     <label>Select a connected Google Account:&nbsp;</label>
                                 </td>
                                 <td>
-                                    <select class="form-control form-group w w-long"
+                                    <select class="form-control form-group w w-mid"
                                             :style="textSysStyle"
                                             v-model="g_sheets_account"
                                             @change="gsheetTables"
@@ -356,13 +427,15 @@
                                         >{{ acc.name }}</option>
                                     </select>
                                 </td>
+                                <td></td>
+                                <td></td>
                             </tr>
                             <tr>
                                 <td>
                                     <label>Select a Google Sheets file:</label>
                                 </td>
                                 <td>
-                                    <select class="form-control form-group w w-long"
+                                    <select class="form-control form-group w w-mid"
                                             :style="textSysStyle"
                                             :disabled="!g_sheets_account"
                                             v-model="g_sheets_file"
@@ -373,13 +446,23 @@
                                         >{{ file.name }}</option>
                                     </select>
                                 </td>
+                                <td>
+                                    <label>Or paste public sheet URL:</label>
+                                </td>
+                                <td>
+                                    <input class="form-control form-group w w-long"
+                                           :style="textSysStyle"
+                                           :disabled="!g_sheets_account"
+                                           v-model="g_sheets_url"
+                                           @change="importFileUrl"/>
+                                </td>
                             </tr>
                             <tr>
                                 <td>
                                     <label>Select the Sheet to import:</label>
                                 </td>
                                 <td>
-                                    <select class="form-control form-group w w-long"
+                                    <select class="form-control form-group w w-mid"
                                             :style="textSysStyle"
                                             :disabled="!g_sheets_file"
                                             v-model="g_sheets_element"
@@ -389,6 +472,8 @@
                                                 :value="sheet.name"
                                         >{{ sheet.name }}</option>
                                     </select>
+                                </td>
+                                <td>
                                     <label>
                                         <span class="indeterm_check__wrap">
                                             <span class="indeterm_check" @click="gsheetHeaderTgl()">
@@ -398,6 +483,7 @@
                                         <span>First row as headers</span>
                                     </label>
                                 </td>
+                                <td></td>
                             </tr>
                         </table>
                     </div>
@@ -422,7 +508,7 @@
                                     <div class="html-xml-wi flex flex--center">
                                         <label>Elements:&nbsp;</label>
                                         <select class="form-control" v-model="web_html_part" @change="webPartChange()" :style="textSysStyle">
-                                            <option v-for="el in web_elems" :value="el.key">{{ el.val }}</option>
+                                            <option v-for="el in web_elems" :value="el.key">{{ uni(el.val) }}</option>
                                         </select>
                                     </div>
                                 </div>
@@ -481,6 +567,32 @@
                             </div>
                         </template>
                     </div>
+                    <!--TRANSPOSE settings-->
+                    <div v-if="selectedType.key === 'transpose_import'" :style="{height: 'calc(100% - 60px)'}">
+                        <transpose-import-block
+                                :transpose_item="transpose_item"
+                                @prop-changed="saveTransposeSett()"
+                                @src-changed="transposeFuzzyMatching(tableHeaders.def, transpose_item.source_tb_id)"
+                        ></transpose-import-block>
+                    </div>
+                    <!--JIRA settings-->
+                    <div v-if="selectedType.key === 'jira_import'" :style="{height: 'calc(100% - 60px)'}">
+                        <jira-import-block
+                                :table_meta="tableMeta"
+                                :jira_item="jira_item"
+                                @project-changed="jiraChanged"
+                                @jira-item-changed="saveJiraSett"
+                        ></jira-import-block>
+                    </div>
+                    <!--SALESFORCE settings-->
+                    <div v-if="selectedType.key === 'salesforce_import'" :style="{height: 'calc(100% - 60px)'}">
+                        <salesforce-import-block
+                                :table_meta="tableMeta"
+                                :salesforce_item="salesforce_item"
+                                @object-changed="salesforceChanged"
+                                @salesforce-item-changed="saveSalesforceSett"
+                        ></salesforce-import-block>
+                    </div>
                 </div>
                 <div class="container-fluid data-tab-footer">
                     <div class="row">
@@ -495,7 +607,7 @@
 
 
         <!--Tab with fields settings-->
-        <div class="data-tab data-tab-fixed" v-if="activeTab === 'fields'" :style="$root.themeMainBgStyle">
+        <div class="data-tab data-tab-fixed full-width" v-if="activeTab === 'fields'" :style="$root.themeMainBgStyle">
             <div class="fields-wrapper fields-wrapper-fixed">
 
                 <import-fields-block
@@ -506,8 +618,11 @@
                         :present-source="presentSource()"
                         :fields-columns="fieldsColumns"
                         :mysql-columns="mysqlColumns"
+                        :transpose_item="transpose_item"
+                        :name-converter="nameConverter"
                         @sel-ref-table="(v) => { sel_ref_table = v; }"
                         @reference-import="importTable"
+                        @store-transpose="saveTransposeSett()"
                 ></import-fields-block>
 
             </div>
@@ -531,10 +646,12 @@
         <!--Popup with transfer data progress bar-->
         <div v-if="import_progress_id" class="import-progressbar-wrapper">
             <div class="import-progressbar">
-                <h1>Importing Data To Table</h1>
+                <h1 v-if="import_progress_type === 'jira_import_sync'">Syncing Data To Table</h1>
+                <h1 v-else>Importing Data To Table</h1>
                 <div class="progressbar-wrapper">
                     <div ref="transfer_progressbar"></div>
                 </div>
+                <div v-if="import_progress_info" class="bold" v-html="import_progress_info"></div>
             </div>
         </div>
 
@@ -573,10 +690,16 @@
     import OcrImportBlock from "../../../CommonBlocks/OcrImportBlock";
     import AirtableImportBlock from "../../../CommonBlocks/AirtableImportBlock";
     import SelectBlock from "../../../CommonBlocks/SelectBlock";
+    import TransposeImportBlock from "../../../CommonBlocks/TransposeImportBlock.vue";
+    import JiraImportBlock from "../../../CommonBlocks/JiraImportBlock.vue";
+    import SalesforceImportBlock from "../../../CommonBlocks/SalesforceImportBlock.vue";
 
     export default {
         name: 'TabData',
         components: {
+            SalesforceImportBlock,
+            JiraImportBlock,
+            TransposeImportBlock,
             SelectBlock,
             AirtableImportBlock,
             OcrImportBlock,
@@ -594,6 +717,7 @@
         ],
         data: function () {
             return {
+                nameConverter: null,
                 add_err_msg: {
                     show: false,
                     header: 'Info',
@@ -602,6 +726,9 @@
                 },
 
                 import_progress_id: null,
+                import_progress_type: '',
+                import_progress_info: '',
+                import_progress_item: null,
                 activeTab: 'method',
                 importTypes: [
                     {
@@ -665,6 +792,24 @@
                         special_sources: true,
                         notes: 'to import data from Airtable.com.'
                     },
+                    {
+                        key: 'transpose_import',
+                        name: 'Transpose',
+                        has_action: false,
+                        notes: 'to transpose data.'
+                    },
+                    {
+                        key: 'jira_import',
+                        name: 'Jira Import/Sync',
+                        has_action: false,
+                        notes: 'to import/sync data from Jira.'
+                    },
+                    {
+                        key: 'salesforce_import',
+                        name: 'Salesforce Import/Sync',
+                        has_action: false,
+                        notes: 'to import/sync data from Salesforce.'
+                    },
                 ],
                 availableCodes: {
                     scratch: 'data_build',
@@ -681,11 +826,7 @@
                 csvSettings: {
                     xls_sheet:'',
                     filename: '',
-                    firstHeader: true,
-                    secondType: false,
-                    thirdSize: false,
-                    fourthDefault: false,
-                    fifthRequired: false,
+                    headerRowNum: 1,
                     replace: true,
                     quote: true,
                     apostrophe: true,
@@ -734,7 +875,48 @@
                     fromtype: 'single',
                 },
 
+                jira_item: {
+                    action: 'import',
+                    sync_direction: 'to_tablda',
+                    cloud_id: null,
+                    project_names: [],
+                    jql_query: '',
+                    remove_not_found: 0,
+                    add_new_records: 1,
+                    update_changed: 1,
+                },
+
+                salesforce_item: {
+                    action: 'import',
+                    sync_direction: 'to_tablda',
+                    cloud_id: null,
+                    object_id: null,
+                    object_name: '',
+                    remove_not_found: 0,
+                    add_new_records: 1,
+                    update_changed: 1,
+                },
+
+                transpose_item: {
+                    direction: 'direct',
+                    skip_empty: false,
+                    source_tb_id: null,
+                    row_group_id: null,
+                    grouper_field_id: null,
+                    reverse_val_field_id: null,
+                    options: [
+                        {val: 'inheritance', show: 'Saves the data of ->'},
+                        {val: 'field_name', show: 'Saves the Names of Columns after Transposing'},
+                        {val: 'field_values', show: 'Saves the Values of Columns to be Transposed from ->'},
+                    ],
+                    options_rev: [
+                        {val: 'inheritance', show: 'Saves the data of ->'},
+                        {val: 'reverse_group', show: 'Saves the Values of Rows to be Transposed from ->'},
+                    ],
+                },
+
                 disabledKeys: false,
+                csvAction: 'upload',
                 webAction: '',
                 importAction: '',
                 typeKey: '',
@@ -750,7 +932,9 @@
                 return this.tableMeta._fields.length - this.$root.systemFields.length;
             },
             selectedType() {
-                return this.typeKey !== '' ? _.find(this.importTypes, {key: this.typeKey}) : {};
+                return this.typeKey !== ''
+                    ? _.find(this.importTypes, {key: this.typeKey}) || {}
+                    : {};
             },
             imgSource() {
                 switch (this.typeKey) {
@@ -766,6 +950,19 @@
             table_id: Number,
         },
         methods: {
+            changeCsvRowNum() {
+                this.csvSettings.headerRowNum = Math.max(1, this.csvSettings.headerRowNum);
+
+                this.csvSettings.startRow = to_float(this.csvSettings.headerRowNum) > to_float(this.csvSettings.startRow)
+                    ? null
+                    : this.csvSettings.startRow;
+
+                this.csvSettings.endRow = to_float(this.csvSettings.startRow) > to_float(this.csvSettings.endRow)
+                    ? null
+                    : this.csvSettings.endRow;
+
+                this.saveCsvSett();
+            },
             importTypesOptions() {
                 let filter = _.filter(this.importTypes, (itype) => {
                     return this.canGetAccess(itype.key);
@@ -813,7 +1010,7 @@
             },
 
             canSave(typeKey) {
-                if (typeKey === 'table_ocr' || typeKey === 'airtable_import') {
+                if (['table_ocr', 'airtable_import', 'transpose_import', 'jira_import', 'salesforce_import'].indexOf(typeKey) > -1) {
                     return true;
                 }
                 return this.$root.checkAvailable(this.$root.user, this.availableCodes[typeKey]);
@@ -849,14 +1046,77 @@
                 if (this.selectedType.key === 'airtable_import') {
                     res = this.airtable_item.table_name && this.airtable_item.user_key_id;
                 }
+                if (this.selectedType.key === 'transpose_import') {
+                    res = this.transpose_item.source_tb_id;
+                }
+                if (this.selectedType.key === 'jira_import') {
+                    res = this.jira_item.cloud_id && (this.jira_item.project_names.length || this.jira_item.jql_query);
+                }
+                if (this.selectedType.key === 'salesforce_import') {
+                    res = this.salesforce_item.cloud_id && this.salesforce_item.object_id;
+                }
                 return Boolean(res && this.activeTab === 'fields');
             },
 
+            prepareImport() {
+                if (this.selectedType.key === 'transpose_import') {
+                    this.importAction = 'append';
+
+                    if (
+                        this.transpose_item.direction === 'direct'
+                        &&
+                        (
+                            !_.find(this.tableHeaders.def, {trps_type: 'field_name'})
+                            ||
+                            !_.find(this.tableHeaders.def, {trps_type: 'field_values'})
+                        )
+                    ) {
+                        Swal('Info', 'For transpose should be selected columns for "Name" and "Values" (Transpose Settings / Actions)!');
+                        return false;
+                    }
+
+                    if (
+                        this.transpose_item.direction === 'reverse'
+                        &&
+                        (
+                            ! this.transpose_item.grouper_field_id
+                            ||
+                            ! this.transpose_item.reverse_val_field_id
+                        )
+                    ) {
+                        Swal('Info', 'For transpose should be selected "Groups from Column" and "Column of Value"!');
+                        return false;
+                    }
+
+                    this.saveTransposeSett();
+                }
+                if (this.selectedType.key === 'jira_import') {
+                    if (this.jira_item.action === 'import') {
+                        let issKey = _.find(this.tableHeaders.def, {last_col_corr: "IssueId"});
+                        if (!issKey) {
+                            Swal('Info', '“Issue Id” needs to be available for implementing sync. function');
+                            return false;
+                        }
+                    }
+                    if (this.jira_item.action === 'sync') {
+                        this.importAction = 'append';
+                    }
+                }
+                return true;
+            },
             importTable() {
-                if (this.inArray(this.selectedType.key, ['csv','mysql','remote','paste','web_scrap','g_sheets','table_ocr','airtable_import']) && this.importAction === 'new') {
+                if (!this.prepareImport()) {
+                    return;
+                }
+
+                if (
+                    this.inArray(this.selectedType.key, ['csv','mysql','remote','paste','web_scrap','g_sheets','table_ocr','airtable_import','transpose_import','jira_import'])
+                    &&
+                    this.importAction === 'new'
+                ) {
                     Swal({
-                        title: "Import Data",
-                        text: "Choosing “New” for importing will erase all existing data and settings for current table. Confirm to proceed.",
+                        title: 'Info',
+                        text: "Import Data. Choosing “New” for importing will erase all existing data and settings for current table. Confirm to proceed.",
                         confirmButtonClass: "btn-danger",
                         confirmButtonText: "Yes",
                         cancelButtonText: "No",
@@ -873,8 +1133,13 @@
                 }
             },
             sendModifyRequest() {
-                if (!this.importAction && this.inArray(this.selectedType.key, ['csv','mysql','remote','paste','web_scrap','g_sheets'])) {
-                    Swal('Please select an option.');
+                if (!this.importAction && this.inArray(this.selectedType.key, ['csv','mysql','remote','paste','web_scrap','g_sheets','transpose_import','jira_import'])) {
+                    Swal('Info','Please select an option.');
+                    return;
+                }
+                let msg = this.theSameHeaders(this.tableHeaders.def);
+                if (msg) {
+                    Swal(msg);
                     return;
                 }
                 $.LoadingOverlay('show');
@@ -899,6 +1164,8 @@
                     first_header: this.ocr_item.firstHeader,
                     csv_source_file: this.ocr_item.sourceFile,
                 };
+
+                this.saveLastColsCorrespondence(this.tableHeaders.def);
                 axios.post('/ajax/import/modify-table', {
                     table_id: this.tableMeta.id,
                     columns: this.tableHeaders.def,
@@ -910,6 +1177,9 @@
                     referenced_table: this.sel_ref_table,
                     paste_settings: this.paste_settings,
                     paste_file: this.paste_file,
+                    transpose_item: this.transpose_item,
+                    jira_item: this.jira_item,
+                    salesforce_item: this.salesforce_item,
                     html_xml: htmlxml,
                     g_sheets: gsheet,
                     ocr_data: ocr_data,
@@ -918,11 +1188,15 @@
                     this.tableMeta.id = data.new_id || this.tableMeta.id;
                     if (data.job_id) {
                         this.import_progress_id = data.job_id;
+                        this.import_progress_type = this.jira_item && this.jira_item.action === 'sync'
+                            ? 'jira_import_sync'
+                            : this.selectedType.key;
+                        this.import_progress_item = this.jira_item;
                     } else {
                         this.$emit('import-finished', this.tableMeta.id);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -953,13 +1227,13 @@
                     }).then(({ data }) => {
                         this.remote_dbs = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 } else {
                     if (can_swal) {
-                        Swal('Select the connection', '', 'error');
+                        Swal('Info','Select the connection');
                     }
                 }
             },
@@ -976,7 +1250,7 @@
                     }).then(({ data }) => {
                         this.remote_tables = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -993,6 +1267,14 @@
                 if (datas.single_table_name) {
                     this.loadFieldsFromAirtable(this.tableHeaders, 'def', this.airtable_item);
                 }
+            },
+            jiraChanged() {
+                this.saveJiraSett();
+                this.loadFieldsFromJira(this.tableHeaders, 'def', this.jira_item);
+            },
+            salesforceChanged() {
+                this.saveSalesforceSett();
+                this.loadFieldsFromSalesforce(this.tableHeaders, 'def', this.salesforce_item);
             },
 
             //WEB SCRAPING
@@ -1025,16 +1307,19 @@
                             this.web_html_part = kkey || _.first(data.elems).key;
                             this.webPartChange();
                         } else {
-                            Swal('', 'Elements are not found!');
+                            Swal('Info', 'Elements are not found!');
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 } else {
-                    //Swal('Url is empty!', '', 'info');
+                    //Swal('Info','Url is empty!');
                 }
+            },
+            uni(txt) {
+                return unicodeToChar(txt);
             },
             webPartChange() {
                 let arr = String(this.web_html_part).split('_');
@@ -1080,11 +1365,24 @@
                 this.loadTableSheets();
                 this.saveGsheetSett();
             },
+            importFileUrl() {
+                let match = String(this.g_sheets_url || '').match(/\/d\/[^\/]+/gi);
+                match = _.first(match);
+                let shid = String(match || '').replace('/d/', '');
+                if (shid) {
+                    this.g_sheets_file = shid;
+                    this.loadTableSheets(null, shid);
+                    this.saveGsheetSett();
+                } else {
+                    Swal('Info','Incorrect Gsheet url.');
+                }
+            },
         },
         mounted() {
             this.importAction = this.tableMeta._global_rows_count ? 'append' : 'new';
             this.initSelects();
             this.applySaves();
+            this.applyLastColsCorrespondence(this.tableHeaders.def);
 
             setInterval(() => {
                 if (this.import_progress_id) {
@@ -1095,6 +1393,7 @@
                     }).then(({ data }) => {
                         let frst = _.first(data);
                         $(this.$refs.transfer_progressbar).css('width', frst.complete+'%');
+                        this.import_progress_info = frst.info;
                         if (frst.status === 'done') {
                             this.import_progress_id = false;
                             this.$emit('import-finished', this.tableMeta.id);

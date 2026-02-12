@@ -17,7 +17,7 @@
                                     :options="[
                                         { val:'google_drive', show:'Google Drive', img: '/assets/img/google-drive.png' },
                                         { val:'dropbox', show:'Dropbox' },
-                                        { val:'one_drive', show:'One Drive' },
+                                        { val:'one_drive', show:'OneDrive' },
                                         { val:'local_upload', show:'Local Upload' },
                                         { val:'table_ocr', show:'OCR Import' },
                                         { val:'airtable_import', show:'Airtable Base' },
@@ -96,7 +96,7 @@
                                 <label>Select a connected <a href="" @click.prevent="showUsrSetting">
                                     <span v-if="importobj.source === 'google_drive'">Google Account</span>
                                     <span v-if="importobj.source === 'dropbox'">Dropbox Account</span>
-                                    <span v-if="importobj.source === 'one_drive'">One Drive Account</span>
+                                    <span v-if="importobj.source === 'one_drive'">OneDrive Account</span>
                                 </a>:&nbsp;</label>
                             </td>
                             <td>
@@ -326,12 +326,12 @@
         methods: {
             //select options
             userCloudOptions() {
-                let cloud_key = this.importobj.source === 'google_drive' ? 'Google'
-                    : this.importobj.source === 'dropbox' ? 'Dropbox'
-                    : this.importobj.source === 'one_drive' ? 'OneDrive' : '';
+                let cloud_key = this.importobj.source === 'google_drive' ? ['Google']
+                    : this.importobj.source === 'dropbox' ? ['Dropbox']
+                    : this.importobj.source === 'one_drive' ? ['OneDrive'] : [];
 
                 let filtered = _.filter(this.$root.settingsMeta.user_clouds_data, (acc) => {
-                    return acc.cloud === cloud_key && acc.__is_connected;
+                    return cloud_key.indexOf(acc.cloud) > -1 && acc.__is_connected;
                 });
                 return _.map(filtered, (acc) => {
                     return {val:acc.id, show:acc.name};
@@ -369,7 +369,7 @@
                     folder_id: this.folderMeta.id,
                     fields: { import_source: this.importobj.source }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
                 this.applySavedSettings();
             },
@@ -409,7 +409,7 @@
                         case 'csv': mime = 'text/csv'; break;
                         case 'xml': mime = 'text/xml'; break;
                     }
-                    this.listCloudFiles('/ajax/import/google-drive/all-files',{
+                    this.fillCloudFiles('google',{
                         cloud_id: this.importobj.conn_account,
                         mime: mime || '',
                     });
@@ -422,7 +422,7 @@
                         case 'csv': extensions = ['csv']; break;
                         case 'xml': extensions = ['xml']; break;
                     }
-                    this.listCloudFiles('/ajax/import/dropbox/all-files',{
+                    this.fillCloudFiles('dropbox',{
                         cloud_id: this.importobj.conn_account,
                         extensions: extensions,
                     });
@@ -435,7 +435,7 @@
                         case 'csv': extns = 'csv'; break;
                         case 'xml': extns = 'xml'; break;
                     }
-                    this.listCloudFiles('/ajax/import/one-drive/all-files',{
+                    this.fillCloudFiles('one_drive',{
                         cloud_id: this.importobj.conn_account,
                         extension: extns,
                     });
@@ -520,6 +520,11 @@
                     if (!sheet.for_import) {
                         return;
                     }
+                    let msg = this.theSameHeaders(this.tableHeaders['sheet_'+i]);
+                    if (msg) {
+                        Swal(msg);
+                        return;
+                    }
 
                     let itype = '';
                     switch (this.importobj.filetype) {
@@ -568,13 +573,13 @@
                             this.import_progress_jobs.push(data.job_id);
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                     requests.push(promise);
                 });
 
                 Promise.all(requests).then(() => {
-                    //Swal('Done!');
+                    //Swal('Info','Done!');
                 });
             },
 
@@ -601,7 +606,7 @@
                     folder_id: this.folderMeta.id,
                     fields: { importfolder_airtable_save: JSON.stringify(json) }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             applySettAirtable() {
@@ -615,7 +620,7 @@
                     folder_id: this.folderMeta.id,
                     fields: { importfolder_ocr_save: JSON.stringify(datas) }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             applySettOcr() {
@@ -640,7 +645,7 @@
                     folder_id: this.folderMeta.id,
                     fields: json
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             applySettCloud(cloud) {

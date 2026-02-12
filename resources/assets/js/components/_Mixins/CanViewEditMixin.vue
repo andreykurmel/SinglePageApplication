@@ -1,11 +1,15 @@
 <script>
     import {SpecialFuncs} from "../../classes/SpecialFuncs";
+    import {RowDataHelper} from "../../classes/helpers/RowDataHelper";
 
     /**
      *  should be present:
      *
      *  this.linkTableMeta || this.globalMeta || this.$root.tableMeta: Object
      *  this.settingsMeta: Object
+     *
+     *  can be used:
+     *  this.isLink: Object
      *  */
     export default {
         data: function () {
@@ -27,6 +31,7 @@
                     'plans_view',
                     'plan_features',
                     'user_subscriptions',
+                    'automation_histories',
                 ],
             }
         },
@@ -44,14 +49,22 @@
                     return this.$root.tableMeta;
                 }
             },
+            cve_tableOwner() {
+                return this.cve_metaTable._is_owner
+                    && ! this.$root.user.see_view
+                    && ! this.$root.is_dcr_page;
+            },
             canAdd() {
+                if (this.isLink && this.isLink.id && !this.isLink.can_row_add) {
+                    return false;
+                }
                 if (!this.cve_metaTable || this.$root.user._app_cur_view || this.inArray(this.cve_metaTable.db_name, this.constant_tables)) {
                     return false;
                 }
-                let for_user = this.cve_metaTable._is_owner ? this.$root.user : this.cve_metaTable._user;
+                let for_user = this.cve_tableOwner ? this.$root.user : this.cve_metaTable._user;
 
                 return (
-                        this.cve_metaTable._is_owner
+                        this.cve_tableOwner
                         ||
                         (this.cve_metaTable._current_right && this.cve_metaTable._current_right.can_add)
                     )
@@ -69,7 +82,7 @@
                     return false;
                 }
 
-                let edit = this.cve_metaTable._is_owner;
+                let edit = this.cve_tableOwner;
                 _.each(this.cve_metaTable._fields, (tableHeader) => {
                     edit = edit
                         || (this.cve_metaTable._current_right && this.inArray(tableHeader.field, this.cve_metaTable._current_right.edit_fields));
@@ -81,12 +94,18 @@
                     this.cve_metaTable.db_name !== 'sum_usages';
             },
             canDelete() {
+                if (this.special_extras && this.special_extras.force_delete) {
+                    return true;
+                }
+                if (this.isLink && this.isLink.id && !this.isLink.can_row_delete) {
+                    return false;
+                }
                 if (!this.cve_metaTable || this.$root.user._app_cur_view || this.inArray(this.cve_metaTable.db_name, this.constant_tables)) {
                     return false;
                 }
 
                 return (
-                        this.cve_metaTable._is_owner
+                        this.cve_tableOwner
                         ||
                         (this.cve_metaTable._current_right && this.cve_metaTable._current_right.delete_row_groups.length)
                     );
@@ -121,15 +140,12 @@
                     return false;
                 }
 
-                return ( //can edit only owner
-                        this.cve_metaTable._is_owner
-                        || // OR user with available rights for edit Column
-                        (this.cve_metaTable._current_right && this.inArray(tableHeader.field, this.cve_metaTable._current_right.edit_fields))
-                    )
-                    &&
-                    !this.inArray(tableHeader.field, this.$root.systemFields);
+                return RowDataHelper.canEditColumn(this.cve_metaTable, tableHeader);
             },
             canDeleteRow(tableRow) {
+                if (this.special_extras && this.special_extras.force_delete) {
+                    return true;
+                }
                 //all needed data present
                 if (!this._all_present(tableRow)) { return false; }
 
@@ -141,28 +157,13 @@
                 let has_del_groups = tableRow._applied_row_groups.filter((gr_id) => {
                     return del_groups.includes(gr_id);
                 });
-                return this.canDelete && (this.cve_metaTable._is_owner || has_del_groups.length);
+                return this.canDelete && (this.cve_tableOwner || has_del_groups.length);
             },
             canEditRow(tableRow) {
                 //all needed data present
                 if (!this._all_present(tableRow)) { return false; }
 
-                // manager can edit additionally
-                if (SpecialFuncs.managerOfRow(this.cve_metaTable, tableRow)) { return true; }
-
-                //can edit only owner OR RowGroups are not set
-                let rg_present = this.cve_metaTable._current_right
-                    && this.cve_metaTable._current_right.view_row_groups
-                    && this.cve_metaTable._current_right.view_row_groups.length;
-                if (this.cve_metaTable._is_owner || !rg_present) {
-                    return true;
-                }
-                // OR user with available rights for edit Row
-                let edit_groups = (this.cve_metaTable._current_right ? this.cve_metaTable._current_right.edit_row_groups || [] : []);
-                let has_edit_groups = tableRow._applied_row_groups.filter((gr_id) => {
-                    return edit_groups.includes(gr_id);
-                });
-                return !!has_edit_groups.length;
+                return RowDataHelper.canEditRow(this.cve_metaTable, tableRow);
             },
             canEditCell(tableHeader, tableRow) {
                 return this.canEditHdr(tableHeader)
@@ -174,7 +175,7 @@
                 }
 
                 return (
-                        this.cve_metaTable._is_owner
+                        this.cve_tableOwner
                         ||
                         (this.cve_metaTable._current_right && this.inArray(tableHeader.field, this.cve_metaTable._current_right.view_fields))
                     )

@@ -18,6 +18,7 @@
                                     :table_id="tableMeta.id"
                                     :is_popup_type="show_popup"
                                     :foreign_sel_id="sel_id"
+                                    @show-src-record="showLinkedRows"
                             ></table-grouping-settings>
                         </div>
                     </div>
@@ -44,8 +45,8 @@
         },
         data: function () {
             return {
-                show_popup: null, //['col', 'row']
-                sel_id: null,
+                show_popup: this.init_show || null, //['col', 'row']
+                sel_id: this.foreign_id || null,
                 //PopupAnimationMixin
                 getPopupWidth: 1000,
                 idx: 0,
@@ -53,24 +54,33 @@
         },
         props:{
             tableMeta: Object,
-            user:  Object,
+            user: Object,
+            init_show: String,
+            foreign_id: Number,
         },
         methods: {
             hide() {
                 this.show_popup = null;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
+                this.$emit('hidden-form');
             },
             showGroupingSettings(db_name, type, sel_id) {
                 if (!db_name || db_name === this.tableMeta.db_name) {
                     this.show_popup = type;
                     this.sel_id = sel_id;
-                    this.$root.tablesZidx += 10;
+                    this.$root.tablesZidxIncrease();
                     this.zIdx = this.$root.tablesZidx;
                     this.runAnimation();
                 }
-            }
+            },
+            showLinkedRows(lnk, header, tableRow, behavior) {
+                this.$emit('show-src-record', lnk, header, tableRow, behavior);
+            },
         },
         mounted() {
+            if (this.init_show) {
+                this.runAnimation();
+            }
             eventBus.$on('global-keydown', this.hideMenu);
             eventBus.$on('show-grouping-settings-popup', this.showGroupingSettings);
         },

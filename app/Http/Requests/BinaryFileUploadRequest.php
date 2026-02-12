@@ -5,6 +5,7 @@ namespace Vanguard\Http\Requests;
 use Illuminate\Contracts\Filesystem\Filesystem;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Contracts\Validation\Validator;
+use Illuminate\Support\Str;
 
 abstract class BinaryFileUploadRequest extends Request
 {
@@ -47,9 +48,7 @@ abstract class BinaryFileUploadRequest extends Request
      */
     protected function getUploadedFile()
     {
-        $this->fileName = str_random(20);
-
-
+        $this->fileName = Str::random(20);
 
         $this->fs->put($this->fileName, $this->getContent());
 

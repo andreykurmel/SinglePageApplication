@@ -154,8 +154,12 @@
             camera.toOrthographic();
             camera.setZoom(1000);
             switch (orto_param) {
-                case 'top': camera.position.set(0,20,0); break;
-                case 'bot': camera.position.set(0,-20,0); break;
+                //Important NOTE: camera.rotation will be overwritten by controls.update(), so we had to use 'position' to change 'rotation' via this Vector.
+                //In 'top' case we have camera.position at [0,20,0] with looking at [0,0,0] and camera.up = [0,1,0]. So we cannot get x/y axis direction (all = 0)
+                //And moving position.x to negative we will get positive X vector for camera.up detection.
+                //Referenced code: camera.lookAt( camera.position, controls.target, camera.up ) //resources/assets/js/Applications/StimWid/3D/lib/threejs/three.js
+                case 'top': camera.position.set(-0.0001,20,0); break;
+                case 'bot': camera.position.set(0.0001,-20,0); break;
                 case 'front': camera.position.set(0,0,20); break;
                 case 'back': camera.position.set(0,0,-20); break;
                 case 'left': camera.position.set(20,0,0); break;
@@ -260,9 +264,14 @@
         Event(mode);
 
         dom.appendChild(renderer.domElement);
+        webgl._initialized = true;
     }
 
     function ChangeGridSettings(settings) {
+        if (!settings || !scene) {
+            return;
+        }
+
         var size = viewSettings.gridSize;
         var grid_size = 12;
         var step = 1;
@@ -339,6 +348,10 @@
     }
 
     function ChangeViewSettingsWID(settings) {
+        if (!settings || !scene) {
+            return;
+        }
+
         viewSettings = settings;
 
         viewSettings.fontSize = viewSettings.fontSize || 20;
@@ -463,7 +476,7 @@
 
                 if (child.single_type == 'rl_bracket') {
                     child.visible = !!viewSettings.rl_view;
-                    var $clr = Number( String(viewSettings.defRLColor || '#0000ff').replace('#', '0x'), 16);
+                    var $clr = Number( String(child.color_lc).replace('#', '0x'), 16);
                     child.material.color.setHex( $clr );
                 }
             }
@@ -1060,9 +1073,9 @@
         Event(mode);
     }
 
-    function Draw(cached, objects, state, type, lc_data, shrink, equipments, dc, sectionsInfo, rls) {
+    function Draw(cached, objects, state, type, lc_data, shrink, equipments, dc, sectionsInfo, rls, extra) {
         clearCached(cached);
-        drawRL(ais, equipments, rls);
+        drawRL(ais, equipments, rls, extra);
 
         var temp = [];
         var object = new THREE.Mesh();
@@ -1345,17 +1358,21 @@
                 var approach = "dirLth";
             }
 
+            let len = 0;
             switch (approach) {
                 case 'dirLth':
                     var app_p1 = "ny";
                     var app_p2 = item.length;
                     var app_p3 = "start";
+                    len = Number(item.length);
                     break;
                 case 'byNodes':
                     var app_p1 = item.other.node.s;
                     var app_p2 = item.other.node.e;
-
                     var app_p3 = '';
+                    var vec1 = new THREE.Vector3( parseFloat(item.other.node.s[0]), parseFloat(item.other.node.s[1]), parseFloat(item.other.node.s[2]) );
+                    var vec2 = new THREE.Vector3( parseFloat(item.other.node.e[0]), parseFloat(item.other.node.e[1]), parseFloat(item.other.node.e[2]) );
+                    len = vec1.distanceTo(vec2);
                     break;
                 default:
                     break;
@@ -1385,6 +1402,7 @@
             object.node_end_id = item.node_end_id;
             object.attached_eqpt_ids = item.attached_eqpt_ids || [];
             object.attached_postombrs = item.attached_postombrs || [];
+            object.member_len = len;
 
             object.visible = viewSettings.members;
             object._row_hash = setCached(item._row_hash, 'member');
@@ -1816,6 +1834,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -1875,6 +1894,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -1939,6 +1959,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             var newD = rotateLcNodes(lc_data, group, parent);
 
@@ -1999,6 +2020,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             var newD = rotateLcNodes(lc_data, group, parent);
 
@@ -2089,6 +2111,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -2170,6 +2193,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -2257,6 +2281,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -2354,6 +2379,7 @@
 
         if(lc_data) {
             group.lc_id = lc_data._id;
+            group._lc_extra = lc_data;
 
             let newD = rotateLcNodes(lc_data, group, parent);
 
@@ -2385,139 +2411,117 @@
     }
 
     function rotateLcNodes(lc, mesh, parent) {
-
-        var newCoords = {
-            dx: to_float(lc.dx),
-            dy: to_float(lc.dy),
-            dz: to_float(lc.dz)
-        };
-        let add_roty = 0;
-
-        //return to Global Coord System (instead of Member's local)
-        // let euler = new THREE.Euler( -(parent.rotation.x), -(parent.rotation.y), -(parent.rotation.z), 'ZYX' );
-        // let coord = new THREE.Vector3( newCoords.dx, newCoords.dy, newCoords.dz );
-        // coord.applyEuler(euler);
-        //
-        // newCoords.dx = (coord.x || 0);
-        // newCoords.dy = (coord.y || 0);
-        // newCoords.dz = (coord.z || 0);
-
         if (parent) {
-            //ZERO Y coord for Eqpts and shifting global 'Y' coord by 'GCtr' param
-            // let vec = new THREE.Vector3( 0, lc.elev_offset - parent.position.y, 0 );
-            // vec.applyEuler(euler);
-            //
-            // newCoords.dx += (vec.x || 0);
-            // newCoords.dy += (vec.y || 0);
-            // newCoords.dz += (vec.z || 0);
+            let glob_top = window.threeHelper.glob_top_vector(parent, false);
+            let glob_idx = Math.abs(glob_top.y);
 
-            let euler = new THREE.Euler( -(parent.rotation.x), -(parent.rotation.y), -(parent.rotation.z), 'ZYX' );
-            let dis = new THREE.Vector3( 0, to_float(lc.dist_to_node_s), 0 );
-            dis.applyEuler(euler);
+            //important centers
+            let global_center = to_float(lc._ma_gctr);
+            let g_member_center = global_center + to_float(parent.position.y);
+            let is_horizontal = glob_top.y == 0;
+            let changed = false;
 
-            let glob_top = new THREE.Vector3( 0, 1, 0 );
-            glob_top.applyEuler(euler);
+            //fill if empty
+            if (lc.elev_g === null) {
+                let value = g_member_center;
+                if (to_float(lc.dist_to_node_s) && window.threeHelper.consistent_data(lc, parent, 'dist_to_node_s')) {
+                    value += lc.dist_to_node_s * glob_idx;
+                }
+                lc.elev_g = Number(value).toFixed(2);
+                changed = true;
+            }
+            if (lc.dist_to_node_s === null || lc.dy === null) {
+                let value = 0;
+                if (to_float(lc.elev_g) && window.threeHelper.consistent_data(lc, parent, 'elev_g')) {
+                    value = (to_float(lc.elev_g) - g_member_center) / glob_idx;
+                }
+                if (lc.dist_to_node_s === null) {
+                    lc.dist_to_node_s = lc.dy || Number(value).toFixed(2);
+                }
+                if (lc.dy === null) {
+                    lc.dy = lc.dist_to_node_s || Number(value).toFixed(2);
+                }
+                changed = true;
+            }
 
-            let y_dist = to_float(dis.y).toFixed(2);
-            y_dist = (glob_top.y > 0 ? 1 : -1) * y_dist;
-
-            let gctr_for_zero = to_float(lc._ma_gctr) + to_float(parent.position.y);
-
-            if (
-                lc._ma_gctr
-                &&
-                lc._app_tb
-                &&
-                (
-                    (to_float(lc.dist_to_node_s) && !to_float(lc.elev_gctr)) //calc Gctr
-                    ||
-                    (!to_float(lc.dist_to_node_s) && !to_float(lc.elev_gctr)) //calc Gctr
-                    ||
-                    (!to_float(lc.dist_to_node_s) && to_float(lc.elev_gctr) && to_float(lc.elev_gctr) != gctr_for_zero) //calc Dist
-                )
-            ) {
-                //calc Gctr
-                if (
-                    (to_float(lc.dist_to_node_s) && !to_float(lc.elev_gctr))
-                    ||
-                    (!to_float(lc.dist_to_node_s) && !to_float(lc.elev_gctr))
-                ) {
-                    lc.elev_gctr = lc._ma_gctr + to_float(y_dist) + to_float(parent.position.y);
-                    if (!to_float(lc.elev_pd)) {
-                        lc.elev_pd = lc.elev_gctr;
+            //apply changes
+            let watched = window.threeHelper.watcher3d_check(lc);
+            if (watched) {
+                watched = window.threeHelper.limit_by_member(lc, parent, watched);
+                let w3d = window.threeHelper.watcher3d_field();
+                if (w3d === 'origin_elev' && to_float(watched.val) && Math.abs(to_float(watched.old_val) - to_float(watched.val)) > 0.1) {
+                    let elev_diff = to_float(watched.old_val) - to_float(watched.val);
+                    let new_dist = (Number(lc.dist_to_node_s) + elev_diff/glob_idx).toFixed(2);
+                    if (!is_horizontal && window.threeHelper.consistent_data(lc, parent, 'dist_to_node_s', new_dist)) {
+                        lc.dist_to_node_s = new_dist;
+                        lc.dy = lc.dist_to_node_s;
+                    } else {
+                        lc.elev_g = (to_float(lc.elev_g) + to_float(elev_diff)).toFixed(2);
                     }
-                    /*if (!to_float(lc.elev_rad)) {
-                        lc.elev_rad = lc.elev_gctr;
-                    }*/
                 }
-
-                //calc Dist
-                let dist_changed = false;
-                if ((!to_float(lc.dist_to_node_s) && to_float(lc.elev_gctr) && to_float(lc.elev_gctr) != gctr_for_zero)) {
-                    lc.dist_to_node_s = (lc.elev_gctr - lc._ma_gctr - to_float(parent.position.y)) / Math.abs(glob_top.y);
-                    dist_changed = true;
+                if (w3d === 'elev_g' && window.threeHelper.consistent_data(lc, parent, 'elev_g', watched.val)) {
+                    lc.elev_g = to_float(watched.val).toFixed(2);
+                    lc.dist_to_node_s = Number((to_float(lc.elev_g) - g_member_center) / glob_idx).toFixed(2);
+                    lc.dy = lc.dist_to_node_s;
                 }
+                if (['dist_to_node_s','dy'].indexOf(w3d) > -1 && window.threeHelper.consistent_data(lc, parent, 'dist_to_node_s', watched.val)) {
+                    lc.dist_to_node_s = to_float(watched.val).toFixed(2);
+                    lc.dy = lc.dist_to_node_s;
+                    lc.elev_g = Number(g_member_center + lc.dist_to_node_s * glob_idx).toFixed(2);
+                }
+                changed = true;
+                window.threeHelper.watcher3d_processed(lc);
+            }
 
+            //check consistence
+            if (!window.threeHelper.consistent_data(lc, parent, 'elev_g')) {
+                lc.elev_g = Number(g_member_center).toFixed(2);
+                changed = true;
+            }
+            if (!window.threeHelper.consistent_data(lc, parent, 'dist_to_node_s')) {
+                lc.dist_to_node_s = Number(0).toFixed(2);
+                lc.dy = lc.dist_to_node_s;
+                changed = true;
+            }
+            if (lc.dist_to_node_s != lc.dy) {
+                lc.dy = lc.dist_to_node_s;
+                changed = true;
+            }
+            let inconsistent_diff = Math.abs(to_float(lc.dist_to_node_s)*glob_idx - (to_float(lc.elev_g)-g_member_center)) > 0.1;
+            if (!is_horizontal && inconsistent_diff) {
+                lc.elev_g = Number(g_member_center).toFixed(2);
+                lc.dist_to_node_s = Number(0).toFixed(2);
+                lc.dy = lc.dist_to_node_s;
+                changed = true;
+            }
+
+            //save changes
+            if (changed) {
+                if (!to_float(lc.elev_pd)) {
+                    lc.elev_pd = lc.elev_g;
+                }
                 axios.post('?method=save_model', {
                     app_table: lc._app_tb,
                     model: {
                         _id: lc._id,
-                        elev_gctr: lc.elev_gctr,
-                        //elev_rad: lc.elev_rad,
+                        dy: lc.dy,
+                        elev_g: lc.elev_g,
                         elev_pd: lc.elev_pd,
                         dist_to_node_s: lc.dist_to_node_s,
                     },
                 }).then(({data}) => {
-                    if (dist_changed && typeof onDistCalc == "function") {
+                    if (typeof onDistCalc == "function") {
                         onDistCalc.call({}, lc);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             }
-
-
-            // if(lc.rotz) {
-            //     var oldX = newCoords.dx,
-            //         oldY = newCoords.dy,
-            //         rotZ = lc.rotz * (Math.PI/180);
-            //
-            //     newCoords.dx = oldX * Math.cos(rotZ) - oldY * Math.sin(rotZ);
-            //     newCoords.dy = oldX * Math.sin(rotZ) + oldY * Math.cos(rotZ);
-            // }
-
-            add_roty = (glob_top.y > 0 ? 0 : 180) * (Math.PI/180);
-            if(lc.roty || add_roty) {
-                var oldX = to_float(newCoords.dx),
-                    oldZ = to_float(newCoords.dz),
-                    rotY = -to_float(lc.roty) * (Math.PI/180);
-                rotY += add_roty;
-
-                newCoords.dx = oldX * Math.cos(rotY) - oldZ * Math.sin(rotY);
-                newCoords.dz = oldX * Math.sin(rotY) + oldZ * Math.cos(rotY);
-            }
-
-            // if(lc.rotx) {
-            //     var oldY = newCoords.dy,
-            //         oldZ = newCoords.dz,
-            //         rotX = lc.rotx * (Math.PI/180);
-            //
-            //     newCoords.dy = oldY * Math.cos(rotX) - oldZ * Math.sin(rotX);
-            //     newCoords.dz = oldY * Math.sin(rotX) + oldZ * Math.cos(rotX);
-            // }
-
-            newCoords.dy += (glob_top.y > 0 ? 1 : -1) * to_float(lc.dist_to_node_s);// || to_float(y_gctr);
         }
 
         // console.log(parent);
         // console.log(lc);
-
-        return {
-            dx: to_float(newCoords.dx).toFixed(2),
-            dy: to_float(newCoords.dy).toFixed(2),
-            dz: to_float(newCoords.dz).toFixed(2),
-            roty: add_roty,
-        };
+        return window.threeHelper.eqpt_center(lc, parent);
     }
 
     function createEdges(group) {
@@ -2880,15 +2884,22 @@
     /**
      *
      */
-    function drawRL(ais, equipments, rls)
+    function drawRL(ais, equipments, rls, extra)
     {
         clearRL(ais);
+        let hide_with_eqpt = extra && extra.rl_sett && extra.rl_sett.hidden;
 
         if (rls) {
             _.each(rls.rows, (el) => {
-                let eq_vis = _.find(equipments, (eq) => { return eq.lc.equipment == el.equipment });
+                let eq_vis = !hide_with_eqpt ||
+                    _.find(equipments, (eq) => {
+                        return eq.lc.equipment == el.equipment
+                            && eq.lc.mbr_id == el.lc_rec_id;
+                    });
                 if (el.mbr_node && el.eqpt_node && eq_vis) {
-                    var mbrMat = createPhongMaterial({color: (viewSettings.defRLColor || 'blue')});
+                    var lcolor = el.lc_color || viewSettings.defRLColor || '#0000ff';
+                    var mbrMat = createPhongMaterial({color: lcolor});
+                    mbrMat.needsUpdate = true;
                     var mbrNode = new THREE.Vector3( parseFloat(el.mbr_node.x), parseFloat(el.mbr_node.y), parseFloat(el.mbr_node.z) );
                     var eqptNode = new THREE.Vector3( parseFloat(el.eqpt_node.x), parseFloat(el.eqpt_node.y), parseFloat(el.eqpt_node.z) );
                     var RL_line = new THREE.Line3(mbrNode, eqptNode);
@@ -2903,6 +2914,7 @@
                     cylinder.rl_id = el._id;
                     cylinder.single_type = 'rl_bracket';
                     cylinder.visible = !!viewSettings.rl_view;
+                    cylinder.color_lc = lcolor;
                     rl_meshes.push(cylinder);
                     ais.add( cylinder );
                 }

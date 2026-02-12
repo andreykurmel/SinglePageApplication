@@ -94,6 +94,8 @@
                     :tech_list="tech_list"
                     :status_list="status_list"
                     :secpos_list="secpos_list"
+                    :elevs_list="elevs_list"
+                    :azimuth_list="azimuth_list"
                     :px_in_ft="pxInFt"
                     :ex_height="'calc(100% - 140px)'"
                     :def_collapse="true"
@@ -116,7 +118,7 @@
                     :user="$root.user"
                     :cell-height="$root.cellHeight"
                     :max-cell-rows="$root.maxCellRows"
-                    :available-columns="stim_link_add.avail_columns_for_app"
+                    :available-columns="stim_link_add.avail_cols_for_app"
                     @popup-insert="addPopupInsert"
                     @popup-close="closeAddPopUp"
             ></custom-edit-pop-up>
@@ -134,6 +136,113 @@
                         :style="$root.themeButtonStyle"
                         @click="rEqptSelected('lcs')"
                 >Equipment</button>
+            </div>
+            <!--eqpt sett menu-->
+
+            <!--Eqpt select menu-->
+            <div v-if="ma_eqpt_helper_row" class="float-elem" style="top:10px; right:50px;">
+                <table class="ma_helper_table">
+                    <tr class="tablda-like-bg" style="height: 30px">
+                        <th>Delta</th>
+                        <th colspan="2">dx</th>
+                        <th colspan="2">dy</th>
+                        <th colspan="2">dz</th>
+                        <th colspan="2">Dist to Mid</th>
+                    </tr>
+                    <tr class="tablda-like-bg">
+                        <th class="no-padding">
+                            <select class="form-control"
+                                    v-model="ma_eqpt_helper_row._top_delta_unit"
+                                    @change="eqptHelperUnitRecalc('_top_delta_unit')"
+                            >
+                                <option value="in">in.</option>
+                                <option value="ft">ft.</option>
+                            </select>
+                        </th>
+                        <th colspan="2">ft</th>
+                        <th colspan="2">ft</th>
+                        <th colspan="2">ft</th>
+                        <th colspan="2">ft</th>
+                    </tr>
+                    <tr>
+                        <td class="no-padding">
+                            <input class="form-control" v-model="ma_eqpt_helper_row._top_delta"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.dx" @change="updMaEqptRow('dx')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.dy" @change="updMaEqptRow('dy')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.dz" @change="updMaEqptRow('dz')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.dist_to_node_s" @change="updMaEqptRow('dist_to_node_s')"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="tablda-like-bg"></th>
+                        <td class="tb-btn" @click="updStep('dx', '_top_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('dx', '_top_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('dy', '_top_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('dy', '_top_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('dz', '_top_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('dz', '_top_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('dist_to_node_s', '_top_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('dist_to_node_s', '_top_delta', 'dec')">-</td>
+                    </tr>
+                    <tr class="tablda-like-bg" style="height: 30px">
+                        <th>Delta</th>
+                        <th colspan="2">rotx</th>
+                        <th colspan="2">roty</th>
+                        <th colspan="2">rotz</th>
+                        <th colspan="2">AZM</th>
+                    </tr>
+                    <tr class="tablda-like-bg">
+                        <th class="no-padding">
+                            <select class="form-control"
+                                    v-model="ma_eqpt_helper_row._bottom_delta_unit"
+                                    @change="eqptHelperUnitRecalc('_bottom_delta_unit')"
+                            >
+                                <option value="deg">deg.</option>
+                                <option value="rad">rad.</option>
+                            </select>
+                        </th>
+                        <th colspan="2">deg.</th>
+                        <th colspan="2">deg.</th>
+                        <th colspan="2">deg.</th>
+                        <th colspan="2">deg.</th>
+                    </tr>
+                    <tr>
+                        <td class="no-padding">
+                            <input class="form-control" v-model="ma_eqpt_helper_row._bottom_delta"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.rotx" @change="updMaEqptRow('rotx')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.roty" @change="updMaEqptRow('roty')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.rotz" @change="updMaEqptRow('rotz')"/>
+                        </td>
+                        <td class="no-padding" colspan="2">
+                            <input class="form-control" v-model="ma_eqpt_helper_row.azm" @change="updMaEqptRow('azm')"/>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th class="tablda-like-bg"></th>
+                        <td class="tb-btn" @click="updStep('rotx', '_bottom_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('rotx', '_bottom_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('roty', '_bottom_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('roty', '_bottom_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('rotz', '_bottom_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('rotz', '_bottom_delta', 'dec')">-</td>
+                        <td class="tb-btn" @click="updStep('azm', '_bottom_delta', 'inc')">+</td>
+                        <td class="tb-btn" @click="updStep('azm', '_bottom_delta', 'dec')">-</td>
+                    </tr>
+                </table>
             </div>
             <!--eqpt sett menu-->
 
@@ -450,10 +559,9 @@
 
             </div>
             <div id="2d" style="display: none;"></div>
-            <!-- TODO: add from WID -->
 
             <div class="viewByStatusPanel flex flex--col" v-show="GeomColors.filters_show">
-                <label v-for="(filter, key) in GeomColors.colors"
+                <label v-for="filter in GeomColors.colors"
                        v-if="filter.show"
                        class="status-filter"
                        :style="{backgroundColor: filter.model_val}"
@@ -463,12 +571,12 @@
                             <i v-if="filter.checked" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <span>{{key}}</span>
+                    <span>{{ filter.key == 'null' ? '' : filter.key }}</span>
                 </label>
             </div>
 
             <div class="viewByStatusPanel flex flex--col" v-show="MaClrStatuses.filters_show">
-                <label v-for="(filter, key) in MaClrStatuses.colors"
+                <label v-for="filter in MaClrStatuses.colors"
                        v-if="filter.show"
                        class="status-filter"
                        :style="{backgroundColor: filter.model_val}"
@@ -478,8 +586,18 @@
                             <i v-if="filter.checked" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <span>{{key}}</span>
+                    <span>{{ filter.key == 'null' ? '' : filter.key }}</span>
                 </label>
+                <div v-if="MaClrStatuses.rls.present" class="rls_checker">
+                    <label class="status-filter">
+                        <span class="indeterm_check__wrap">
+                            <span class="indeterm_check" @click="MaClrStatuses.rls.hidden = !MaClrStatuses.rls.hidden;drawWholeGeom()">
+                                <i v-if="MaClrStatuses.rls.hidden" class="glyphicon glyphicon-ok group__icon"></i>
+                            </span>
+                        </span>
+                        <span>Hide RLs</span>
+                    </label>
+                </div>
             </div>
             
             <div id="webgl"></div>
@@ -538,6 +656,9 @@
         },
         data() {
             return {
+                deboucedFullReload: _.debounce(() => {
+                    this.fullReload();
+                }, 1000),
                 direct_row_3d: null,
                 local_load_data: null,
                 sett_top: 0,
@@ -549,24 +670,30 @@
                 GeomColors: {
                     filters_show: false,
                     view_enabled: true,
-                    colors: {
-                        "color_code": {
+                    colors: [
+                        {
                             model_val: '#ffffff',
                             key: 'color_code',
                             check: true,
+                            show: true,
                         },
-                    },
+                    ],
                 },
 
                 MaClrStatuses: {
                     filters_show: false,
                     view_enabled: true,
-                    colors: {
-                        "status": {
+                    colors: [
+                        {
                             model_val: '#ffffff',
                             key: 'status',
                             check: true,
+                            show: true,
                         },
+                    ],
+                    rls: {
+                        present: false,
+                        hidden: true,
                     },
                 },
 
@@ -619,6 +746,7 @@
         },
         computed: {
             ...mapState({
+                vuex_cur_select: state => state.cur_select,
                 vuex_redraw_soft_counter: (state) => state.redraw_soft_counter,
                 vuex_redraw_counter: (state) => state.redraw_counter,
                 vuex_settings: state => state.stim_settings,
@@ -650,8 +778,10 @@
                         this.viewSettings.wireframeName = false;
                     }
 
-                    webgl.changeViewSettingsWID(this.viewSettings);
-                    webgl.changeGridSettings(this.viewSettings);
+                    if (this.webglReady()) {
+                        webgl.changeViewSettingsWID(this.viewSettings);
+                        webgl.changeGridSettings(this.viewSettings);
+                    }
                 },
                 deep: true,
             },
@@ -669,626 +799,736 @@
             cur_tab_sel: String,
         },
         methods: {
-                ...mapMutations([
-                    'SET_WIDTH_3D',
-                ]),
-                setEdgeclr(clr) {
-                    setTimeout(() => {
-                        this.viewSettings.edges_color = clr || null;
-                        this.can_save_sett = true;
-                        this.vSettSave();
-                    }, 100);
-                },
-                setclr(fld, clr) {
-                    setTimeout(() => {
-                        this.viewSettings[fld] = clr || '#aaaaaa';
-                        this.can_save_sett = true;
-                    }, 100);
-                },
-                settActCamera(cam) {
-                    this.viewSettings.active_camera = cam;
-                    this.change_Camera_Position();
-                },
-                vSettEL() {
-                    this.viewSettings.edges_members = !this.viewSettings.edges_members;
-                    this.viewSettings.edges_eqpts = !this.viewSettings.edges_eqpts;
-                },
-                vSettSave() {
-                    if (!this.$root.user.see_view) {
-                        this.viewSettings.saveSettings();
-                        this.drawWholeGeom();
-                    }
-                    this.can_save_sett = false;
-                    this.can_save_cam = false;
-                },
-                closeSettingsReload() {
-                    this.base.toggleSettingsMenu = false;
-                    this.GeomColors.filters_show = false;
-                    this.MaClrStatuses.filters_show = false;
-                    this.redrawModel('closeSettingsReload');
-                },
-                set_Default_Angle_WID() {
+            ...mapMutations([
+                'SET_WIDTH_3D',
+            ]),
+            setEdgeclr(clr) {
+                setTimeout(() => {
+                    this.viewSettings.edges_color = clr || null;
+                    this.can_save_sett = true;
+                    this.vSettSave();
+                }, 100);
+            },
+            setclr(fld, clr) {
+                setTimeout(() => {
+                    this.viewSettings[fld] = clr || '#aaaaaa';
+                    this.can_save_sett = true;
+                }, 100);
+            },
+            settActCamera(cam) {
+                this.viewSettings.active_camera = cam;
+                this.change_Camera_Position();
+            },
+            vSettEL() {
+                this.viewSettings.edges_members = !this.viewSettings.edges_members;
+                this.viewSettings.edges_eqpts = !this.viewSettings.edges_eqpts;
+            },
+            vSettSave() {
+                if (!this.$root.user.see_view) {
+                    this.viewSettings.saveSettings();
+                    this.drawWholeGeom();
+                }
+                this.can_save_sett = false;
+                this.can_save_cam = false;
+            },
+            closeSettingsReload() {
+                this.base.toggleSettingsMenu = false;
+                this.GeomColors.filters_show = false;
+                this.MaClrStatuses.filters_show = false;
+                this.redrawModel('closeSettingsReload');
+            },
+            set_Default_Angle_WID() {
+                if (this.webglReady()) {
                     this.viewSettings.defaultAngle = true;
                     webgl.changeViewSettingsWID(this.viewSettings);
                     this.viewSettings.setCameraP(-5, 8, 6);
                     this.viewSettings.defaultAngle = false;
-                },
-                change_Camera_Position() {
-                    let cam_pos = this.viewSettings.cameraPosGet();
-                    if (cam_pos) {
-                        webgl.changeCameraPosition(cam_pos.x, cam_pos.y, cam_pos.z);
-                    }
-                },
-                make_Screenshot() {
-                    let url = webgl.getCurentScreenshotURL();
+                }
+            },
+            change_Camera_Position() {
+                let cam_pos = this.viewSettings.cameraPosGet();
+                if (webgl && cam_pos) {
+                    webgl.changeCameraPosition(cam_pos.x, cam_pos.y, cam_pos.z);
+                }
+            },
+            make_Screenshot() {
+                if (!this.webglReady()) {
+                    return;
+                }
+                let url = webgl.getCurentScreenshotURL();
 
-                    if (!window.event.ctrlKey) {
-                        let a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'wid_view.png';
-                        a.click();
-                    }
-                    else {
-                        let w = window.open('', '');
-                        w.document.title = $('head title').text();
-                        let img = new Image();
-                        img.src = url;
-                        w.document.body.appendChild(img);
-                    }
-                },
-                checkMaStatusClrs(model_colors, all_statuses, excluded) {
-                    this.MaClrStatuses.colors = this.checkColors(model_colors, all_statuses, excluded);
-                },
-                checkGeomClrs(model_colors, all_statuses, excluded) {
-                    this.GeomColors.colors = this.checkColors(model_colors, all_statuses, excluded);
-                },
-                checkColors(model_colors, all_statuses, excluded) {
-                    let res = {};
-                    _.each(model_colors, (clr) => {
-                        res[clr.name] = {
-                            key: clr.name,
-                            model_val: clr.color,
-                            checked: !in_array(clr.name, excluded),
-                            show: in_array(clr.name, all_statuses),
-                        };
+                let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+                if (!cmdOrCtrl) {
+                    let a = document.createElement('a');
+                    a.href = url;
+                    a.download = this.screenshotname();
+                    a.click();
+                }
+                else {
+                    let w = window.open('', '');
+                    w.document.title = $('head title').text();
+                    let img = new Image();
+                    img.src = url;
+                    w.document.body.appendChild(img);
+                }
+            },
+            screenshotname() {
+                let strings = [];
+
+                let foundModel = this.vuex_fm[this.vuex_tab_object.master_table];
+                let stim_link_params = this.vuex_links[this.vuex_tab_object.master_table];
+                if (stim_link_params && foundModel && foundModel.meta && foundModel.meta.is_loaded) {
+                    let t_meta = foundModel.meta.params;
+                    let model_row = foundModel.masterRow();
+                    _.each(stim_link_params.top_columns_show, (db_name) => {
+                        let fld = _.find(t_meta._fields, {field: db_name});
+                        if (fld && fld.f_type === 'User') {
+                            let usr_string = this.$root.getUserFullStr(model_row, fld, t_meta._owner_settings);
+                            strings.push(usr_string);
+                        } else {
+                            strings.push(model_row[db_name]);
+                        }
                     });
-                    return res;
-                },
+                }
 
-                cameraChange(orto_type) {
+                return strings.join('_') + '_'
+                    + String(this.vuex_cur_select).toUpperCase() + '_3D_'
+                    + moment().format('YYYYMMDD_HHmmss') + '.png';
+            },
+            checkRLSClrs(rls) {
+                this.MaClrStatuses.rls.present = rls && rls.rows && rls.rows.length;
+            },
+            checkMaStatusClrs(model_colors, all_statuses, excluded) {
+                this.MaClrStatuses.colors = this.checkColors(model_colors, all_statuses, excluded);
+            },
+            checkGeomClrs(model_colors, all_statuses, excluded) {
+                this.GeomColors.colors = this.checkColors(model_colors, all_statuses, excluded);
+            },
+            checkColors(model_colors, all_statuses, excluded) {
+                all_statuses = _.map(all_statuses, (st) => { return st || 'null'; });
+                let res = [
+                    {
+                        key: 'null',
+                        model_val: this.viewSettings.defEqptColor || '#cccccc',
+                        checked: !in_array('null', excluded),
+                        show: in_array('null', all_statuses),
+                    }
+                ];
+                _.each(model_colors, (clr) => {
+                    res.push({
+                        key: clr.name,
+                        model_val: clr.color,
+                        checked: !in_array(clr.name, excluded),
+                        show: in_array(clr.name, all_statuses),
+                    });
+                });
+                return res;
+            },
+
+            cameraChange(orto_type) {
+                if (this.webglReady()) {
                     this.cur_cam_orto = orto_type;
                     webgl.cameraChange(orto_type);
-                },
-                redrawModel(from) { //v.3
-                    this.sync_in_process = true;
-                    let app_tb = this.vuex_tab_object.master_table;
-                    let cur_fm = this.vuex_fm[app_tb];
-                    let master_model = cur_fm.rows.get3D(0);
-                    master_model = master_model && master_model._id
-                        ? master_model
-                        : cur_fm.rows.getTemp3DRow();
+                }
+            },
+            redrawModel(from) { //v.3
+                console.log('redrawModel',from);
+                if (!this.webglReady()) {
+                    return;
+                }
+                this.sync_in_process = true;
+                let app_tb = this.vuex_tab_object.master_table;
+                let cur_fm = this.vuex_fm[app_tb];
+                let master_model = cur_fm && cur_fm.rows ? cur_fm.rows.get3D(0) : null;
+                master_model = master_model && master_model._id
+                    ? master_model
+                    : cur_fm.rows.getTemp3DRow();
 
-                    switch (this.vuex_tab_object.type_3d) {
-                        case '3d:equipment':
-                            let params = {
-                                found_model: master_model,
-                            };
-                            this.Three3dRedraw(params, 'equipment');
-                            break;
+                switch (this.vuex_tab_object.type_3d) {
+                    case '3d:equipment':
+                        let params = {
+                            found_model: master_model,
+                        };
+                        this.Three3dRedraw(params, 'equipment');
+                        break;
 
-                        case '3d:structure':
-                            if (master_model._id) {
-                                let excluded = _.map(_.filter(this.GeomColors.colors, {checked: false}), (clr) => {
-                                    return clr.key;
-                                });
-                                axios.post('?method=load_3d_rows', {
-                                    type_3d: '3d:structure',
-                                    app_table: app_tb,
-                                    master_model: master_model,
-                                    excluded_colors: excluded,
-                                    front_filters: this.getFrontFilters(),
-                                }).then(({data}) => {
-                                    this.checkGeomClrs(data.colors, _.map(data.params.materials, 'color_gr'), excluded);
-                                    this.Three3dRedraw(data.params, 'geometry');
-                                }).catch(errors => {
-                                    Swal('', getErrors(errors));
-                                });
-                            } else {
-                                this.Three3dRedraw(null);
-                            }
-                            break;
-
-                        case '3d:ma':
-                            if (master_model._id) {
-                                let excluded = _.map(_.filter(this.MaClrStatuses.colors, {checked: false}), (clr) => {
-                                    return clr.key;
-                                });
-                                axios.post('?method=load_3d_rows', {
-                                    type_3d: '3d:ma',
-                                    app_table: app_tb,
-                                    master_model: master_model,
-                                    excluded_colors: excluded,
-                                    front_filters: this.getFrontFilters(),
-                                }).then(({data}) => {
-                                    this.local_load_data = data;
-                                    this.checkMaStatusClrs(data.colors.ma, data.eqs.all_statuses, excluded);
-                                    this.checkGeomClrs(data.colors.geom, _.map(data.params.materials, 'color_gr'), []);
-                                    this.Three3dRedraw(data.params, 'geometry', data.eqs, data.libs, data.rls);
-                                }).catch(errors => {
-                                    Swal('', getErrors(errors));
-                                });
-                            } else {
-                                this.Three3dRedraw(null);
-                            }
-                            break;
-
-                        default:
+                    case '3d:structure':
+                        if (master_model._id) {
+                            let excluded = _.map(_.filter(this.GeomColors.colors, {checked: false}), (clr) => {
+                                return clr.key;
+                            });
+                            axios.post('?method=load_3d_rows', {
+                                type_3d: '3d:structure',
+                                app_table: app_tb,
+                                master_model: master_model,
+                                excluded_colors: excluded,
+                                front_filters: this.getFrontFilters(),
+                            }).then(({data}) => {
+                                this.checkGeomClrs(data.colors, _.map(data.params.materials, 'color_gr'), excluded);
+                                this.Three3dRedraw(data.params, 'geometry', null, null, null,{excluded_colors: excluded});
+                            }).catch(errors => {
+                                Swal('Info', getErrors(errors));
+                            });
+                        } else {
                             this.Three3dRedraw(null);
-                            break;
+                        }
+                        break;
+
+                    case '3d:ma':
+                        if (master_model._id) {
+                            let excluded = _.map(_.filter(this.MaClrStatuses.colors, {checked: false}), (clr) => {
+                                return clr.key;
+                            });
+                            axios.post('?method=load_3d_rows', {
+                                type_3d: '3d:ma',
+                                app_table: app_tb,
+                                master_model: master_model,
+                                excluded_colors: excluded,
+                                front_filters: this.getFrontFilters(),
+                            }).then(({data}) => {
+                                this.local_load_data = data;
+                                this.checkRLSClrs(data.rls);
+                                this.checkMaStatusClrs(data.colors.ma, data.eqs.all_statuses, excluded);
+                                this.checkGeomClrs(data.colors.geom, _.map(data.params.materials, 'color_gr'), []);
+                                this.Three3dRedraw(data.params, 'geometry', data.eqs, data.libs, data.rls, {
+                                    rl_sett: this.MaClrStatuses.rls
+                                });
+                            }).catch(errors => {
+                                Swal('Info', getErrors(errors));
+                            });
+                        } else {
+                            this.Three3dRedraw(null);
+                        }
+                        break;
+
+                    default:
+                        this.Three3dRedraw(null);
+                        break;
+                }
+
+                this.loadWidSettings(from);
+            },
+            checkDrawedArr(draw_arr, start_hash, table_row, type) {
+                _.each(draw_arr, (row, i) => {
+                    if (row && row._row_hash === start_hash) {
+                        switch (type) {
+                            case 'update':
+                                draw_arr.splice(i, 1, table_row);
+                                draw_arr[i]._row_hash = uuidv4();
+                                break;
+                            case 'del':
+                                draw_arr.splice(i, 1);
+                                break;
+                        }
+                    }
+                });
+            },
+            drawWholeGeom() {
+                this.redrawModel('drawWholeGeom');
+            },
+            getFrontFilters() {
+                let avail_app_tables = _.map(this.vuex_tab_object.tables, 'table');
+                let result = {};
+                _.each(this.vuex_fm, (el, app_tb) => {
+                    if (in_array(app_tb, avail_app_tables) && el.rows && el.rows.filters_active && el.rows.filters.length) {
+                        let fltrs = _.filter(el.rows.filters, (fl) => { return !!fl.applied_index; });
+                        if (fltrs && fltrs.length) {
+                            result[app_tb] = fltrs;
+                        }
+                    }
+                });
+                return result;
+            },
+
+            //Direct graph edits
+            masterParams(app_tb, master_row) {
+                app_tb = String(app_tb).toLowerCase();
+                let stim_link_params = this.vuex_links[app_tb];
+                let row = {};
+                _.each(stim_link_params.link_fields, (fld) => {
+                    row[fld.data_field] = master_row[fld.link_field_db];
+                });
+                return row;
+            },
+            tablda_push(tablda_elem, row_id) {
+                if (tablda_elem) {
+                    this.$root.tablda_highlights.push({
+                        table_id: tablda_elem.id,
+                        row_id: row_id,
+                    });
+                }
+            },
+            intersect_tablda(intersel_arr) {
+                this.$root.tablda_highlights = [];
+                //just standard click
+                _.each(intersel_arr, (itersect) => {
+                    if (!itersect) {
+                        return;
                     }
 
-                    this.loadWidSettings(from);
-                },
-                drawedEqptsCheck(start_hash, table_row, type) {
-                    if (this.drawed_equipments) {
-                        _.each(this.drawed_equipments.collection, (row, i) => {
-                            if (type === 'update') {
-                                if (row.lc._row_hash === start_hash) {
-                                    row.lc = table_row;
-                                    let origin = to_float(this.drawed_geometry.found_model.origin_elev);
-                                    let gctr = to_float(row.lc.elev_gctr);
-                                    //reverse offsets
-                                    row.lc.elev_offset = origin && gctr ? gctr - origin : 0;
-                                    row.lc._row_hash = uuidv4();
-                                    row.lc._app_tb = null;//this.vuex_settings.popups_models.lcs;
-                                }
-                                if (row.eq._row_hash === start_hash) {
-                                    row.eq = table_row;
-                                    row.eq._row_hash = uuidv4();
-                                }
-                                row._row_hash = row.eq._row_hash + row.lc._row_hash;
-                            } else {
-                                if (row.lc._row_hash === start_hash || row.eq._row_hash === start_hash) {
-                                    this.drawed_equipments.collection.splice(i, 1);
-                                }
-                            }
+                    let sel_ty = this.getMeshType(itersect);
+                    if (sel_ty === 'node' && this.tabldas.node) {
+                        this.tablda_push(this.tabldas.node, itersect.item);
+                    }
+                    if (sel_ty === 'member' && this.tabldas.memb) {
+                        this.tablda_push(this.tabldas.memb, itersect.item_no);
+                        this.tablda_push(this.tabldas.mat, itersect.parent.mat_id);
+                        this.tablda_push(this.tabldas.sect, itersect.parent.sec_id);
+                        this.tablda_push(this.tabldas.node, itersect.parent.node_start_id);
+                        this.tablda_push(this.tabldas.node, itersect.parent.node_end_id);
+                        _.each(itersect.parent.attached_eqpt_ids, (eq_id) => {
+                            this.tablda_push(this.tabldas.lcs, eq_id);
+                        });
+                        _.each(itersect.parent.attached_postombrs, (ptm_id) => {
+                            this.tablda_push(this.$pos_to_mbr_tb, ptm_id);
                         });
                     }
-                },
-                checkDrawedArr(draw_arr, start_hash, table_row, type) {
-                    _.each(draw_arr, (row, i) => {
-                        if (row && row._row_hash === start_hash) {
-                            switch (type) {
-                                case 'update':
-                                    draw_arr.splice(i, 1, table_row);
-                                    draw_arr[i]._row_hash = uuidv4();
-                                    break;
-                                case 'del':
-                                    draw_arr.splice(i, 1);
-                                    break;
-                            }
-                        }
-                    });
-                },
-                drawWholeGeom() {
-                    this.redrawModel('drawWholeGeom');
-                },
-                getFrontFilters() {
-                    let avail_app_tables = _.map(this.vuex_tab_object.tables, 'table');
-                    let result = {};
-                    _.each(this.vuex_fm, (el, app_tb) => {
-                        if (in_array(app_tb, avail_app_tables) && el.rows && el.rows.filters_active && el.rows.filters.length) {
-                            let fltrs = _.filter(el.rows.filters, (fl) => { return !!fl.applied_index; });
-                            if (fltrs && fltrs.length) {
-                                result[app_tb] = fltrs;
-                            }
-                        }
-                    });
-                    return result;
-                },
-
-                //Direct graph edits
-                masterParams(app_tb, master_row) {
-                    app_tb = String(app_tb).toLowerCase();
-                    let stim_link_params = this.vuex_links[app_tb];
-                    let row = {};
-                    _.each(stim_link_params.link_fields, (fld) => {
-                        row[fld.data_field] = master_row[fld.link_field_db];
-                    });
-                    return row;
-                },
-                tablda_push(tablda_elem, row_id) {
-                    if (tablda_elem) {
-                        this.$root.tablda_highlights.push({
-                            table_id: tablda_elem.id,
-                            row_id: row_id,
-                        });
+                    if (sel_ty === 'equipment' && this.tabldas.lcs) {
+                        this.tablda_push(this.tabldas.lcs, itersect.parent.lc_id);
                     }
-                },
-                intersect_tablda(intersel_arr) {
-                    this.$root.tablda_highlights = [];
-                    //just standard click
-                    _.each(intersel_arr, (itersect) => {
-                        let sel_ty = this.getMeshType(itersect);
-                        if (sel_ty === 'node' && this.tabldas.node) {
-                            this.tablda_push(this.tabldas.node, itersect.item);
-                        }
-                        if (sel_ty === 'member' && this.tabldas.memb) {
-                            this.tablda_push(this.tabldas.memb, itersect.item_no);
-                            this.tablda_push(this.tabldas.mat, itersect.parent.mat_id);
-                            this.tablda_push(this.tabldas.sect, itersect.parent.sec_id);
-                            this.tablda_push(this.tabldas.node, itersect.parent.node_start_id);
-                            this.tablda_push(this.tabldas.node, itersect.parent.node_end_id);
-                            _.each(itersect.parent.attached_eqpt_ids, (eq_id) => {
-                                this.tablda_push(this.tabldas.lcs, eq_id);
-                            });
-                            _.each(itersect.parent.attached_postombrs, (ptm_id) => {
-                                this.tablda_push(this.$pos_to_mbr_tb, ptm_id);
-                            });
-                        }
-                        if (sel_ty === 'equipment' && this.tabldas.lcs) {
-                            this.tablda_push(this.tabldas.lcs, itersect.parent.lc_id);
-                        }
-                        if (sel_ty === 'rl_bracket' && this.tabldas.rls) {
-                            this.tablda_push(this.tabldas.rls, itersect.rl_id);
-                        }
-                    });
-                    //scroll all tablda-components - to last clicked ////
-                    if (this.$root.tablda_highlights.length) {
-                        _.each(this.$root.tablda_highlights, (hgl) => {
-                            eventBus.$emit('scroll-tabldas-to-row', hgl.table_id, hgl.row_id);
-                        });
+                    if (sel_ty === 'rl_bracket' && this.tabldas.rls) {
+                        this.tablda_push(this.tabldas.rls, itersect.rl_id);
                     }
-                },
-                getMeshType(mesh) {
-                    return mesh.type === 'node'
-                        ? 'node'
-                        : (mesh.single_type || mesh.parent.type);
-                },
-                selectedFunction(mesh, intersel_arr) {
-                    if (mesh) {
-                        let sel_type = this.getMeshType(mesh);
-                        //has selected item in Lib
-                        //add Eqpt to Member
-                        if (sel_type === 'member' && mesh.item_no && mesh.parent && this.confSett.drag_eqpt) {
-                            let app = this.vuex_settings.popups_models.lcs;
-                            let model = {
-                                equipment: this.confSett.drag_eqpt.equipment,
-                                mbr_name: mesh.parent.Mbr_Name,
-                                dist_to_node_s: '0.01',
-                            };
-                            let master = this.masterParams(app, this.ma_tablda);
-                            this.save_model_func(app, model, master, true);
-                        }
-                        //add PosToMbr for the Member
-                        if (sel_type === 'member' && mesh.item_no && this.$pos_to_mbr_tb.app_table && this.$ma_3d && this.confSett.sel_secpos) {
-                            let model = {
-                                geometry: this.$ma_3d.structure,
-                                sector: this.confSett.sel_secpos.sec_name,
-                                pos: this.confSett.sel_secpos.posidx,
-                                member: mesh.parent.Mbr_Name,
-                            };
-                            let master = this.masterParams(this.$pos_to_mbr_tb.app_table, this.loa_tablda);
-                            this.save_model_func(this.$pos_to_mbr_tb.app_table, model, master, false, 'remove_prev');
-                        }
-                        //change Eqpt settings
-                        if (sel_type === 'equipment' && mesh.parent.lc_id && (this.confSett.sel_status || this.confSett.sel_tech)) {
-                            let app = this.vuex_settings.popups_models.lcs;
-                            let model = { _id: mesh.parent.lc_id };
+                });
+                //scroll all tablda-components - to last clicked ////
+                if (this.$root.tablda_highlights.length) {
+                    _.each(this.$root.tablda_highlights, (hgl) => {
+                        eventBus.$emit('scroll-tabldas-to-row', hgl.table_id, hgl.row_id);
+                    });
+                }
+            },
+            getMeshType(mesh) {
+                return mesh.type === 'node'
+                    ? 'node'
+                    : (mesh.single_type || mesh.parent.type);
+            },
+            selectedFunction(mesh, intersel_arr) {
+                this.hideMaEqptHelper();
+                if (mesh) {
+                    let sel_type = this.getMeshType(mesh);
+                    //has selected item in Lib
+                    //add Eqpt to Member
+                    if (sel_type === 'member' && mesh.item_no && mesh.parent && this.confSett.drag_eqpt) {
+                        let app = this.lcAppTb();
+                        let model = {
+                            equipment: this.confSett.drag_eqpt.equipment,
+                            mbr_name: mesh.parent.Mbr_Name,
+                            dist_to_node_s: '0.01',
+                        };
+                        let master = this.masterParams(app, this.ma_tablda);
+                        this.save_model_func(app, model, master, true);
+                    }
+                    //add PosToMbr for the Member
+                    if (sel_type === 'member' && mesh.item_no && this.$pos_to_mbr_tb.app_table && this.$ma_3d && this.confSett.sel_secpos) {
+                        let model = {
+                            geometry: this.$ma_3d.structure,
+                            sector: this.confSett.sel_secpos.sec_name,
+                            pos: this.confSett.sel_secpos.posidx,
+                            member: mesh.parent.Mbr_Name,
+                        };
+                        let master = this.masterParams(this.$pos_to_mbr_tb.app_table, this.loa_tablda);
+                        this.save_model_func(this.$pos_to_mbr_tb.app_table, model, master, false, 'remove_prev');
+                    }
+                    //change Eqpt settings
+                    if (sel_type === 'equipment' && mesh.parent.lc_id) {
+                        if (this.confSett.sel_status || this.confSett.sel_tech || this.confSett.sel_elev) {
+                            let app = this.lcAppTb();
+                            let model = {_id: mesh.parent.lc_id};
                             (this.confSett.sel_status ? model.status = this.confSett.sel_status.name : null);
                             (this.confSett.sel_tech ? model.tech = this.confSett.sel_tech.technology : null);
+                            if (this.confSett.sel_elev) {
+                                switch (this.confSett.elev_by) {
+                                    case "pd":
+                                        model.elev_pd = this.confSett.sel_elev.elev;
+                                        break;
+                                    case "gc":
+                                        model.elev_g = this.confSett.sel_elev.elev;
+                                        break;
+                                    case "pc":
+                                        model.elev_rad = this.confSett.sel_elev.elev;
+                                        break;
+                                }
+                            }
                             this.save_model_func(app, model, null, true);
-                        }
-                    } else {
-                        this.confSett.clearSel();
-                    }
-
-                    if (intersel_arr) {
-                        this.intersect_tablda(intersel_arr);
-                    }
-                },
-                save_model_func(app, model, master, no_clear, remove_prev) {//////
-                    axios.post('?method=save_model', {
-                        app_table: app,
-                        model: model,
-                        master_params: master,
-                        remove_prev: remove_prev,
-                    }).then(({data}) => {
-                        (!no_clear ? this.confSett.clearSel() : null);
-                        this.redrawModel('save_model_func');
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    });
-                },
-                rClickFunction(mesh, intersel_arr) {
-                    if (mesh) {
-                        this.popup_row_id = null;
-                        this.popup_type = this.getMeshType(mesh);
-                        //Node popup
-                        if (this.popup_type === 'node' && mesh.item) {
-                            this.setPopupParams(mesh.item, this.vuex_settings.popups_models.nodes);
-                        }
-                        //Member popup
-                        if (this.popup_type === 'member' && mesh.item_no) {
-                            this.setPopupParams(mesh.item_no, this.vuex_settings.popups_models.members);
-                        }
-                        //Eqpt menu popup
-                        if (this.popup_type === 'equipment' && mesh.parent.lc_id && mesh.parent.eqpt_id) {
-                            this.eqptPop = {
-                                lc_id: mesh.parent.lc_id,
-                                eqpt_id: mesh.parent.eqpt_id,
-                            };
-                            this.sett_top = this.$root.lastMouseClick.clientY;
-                            this.sett_left = this.$root.lastMouseClick.clientX;
-                        }
-                        //RL Bracket popup
-                        if (this.popup_type === 'rl_bracket' && mesh.rl_id) {
-                            this.setPopupParams(mesh.rl_id, this.vuex_settings.popups_models.rls);
-                        }
-                    }
-
-                    if (intersel_arr) {
-                        this.intersect_tablda(intersel_arr);
-                    }///////
-                },
-                rEqptSelected(type) {
-                    switch (type) {
-                        case 'lcs': this.setPopupParams(this.eqptPop.lc_id, this.vuex_settings.popups_models.lcs);
-                            break;
-                        case 'eqs': this.setPopupParams(this.eqptPop.eqpt_id, this.vuex_settings.popups_models.equipment);
-                            break;
-                    }
-                    this.eqptPop = null;
-                },
-                setPopupParams(row_id, app_tb) {
-                    this.popup_row_id = row_id;
-                    this.popup_app_tb = app_tb;
-                    this.link_rows = this.vuex_fm[app_tb] ? this.vuex_fm[app_tb].rows : null;
-                },
-
-                //direct popups
-                preInsert(startHash, tableRow) {
-                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
-                },
-                preUpdate(startHash, tableRow) {
-                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
-                    this.quickUpdate3D(startHash, this.direct_row_3d, 'update');
-                },
-                preDelete(startHash, tableRow) {
-                    this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
-                    this.quickUpdate3D(startHash, this.direct_row_3d, 'del');
-                },
-                directInsert(data) {
-                    if (data.rows && data.rows.length) {
-                        this.popup_row_id = data.rows[0].id;
-                        this.direct_row_3d._id = data.rows[0].id;
-                    }
-                    this.checkRecalcRL(false) || this.fullReload();
-                },
-                directUpdate(data) {
-                    this.checkRecalcRL(false) || this.fullReload();
-                },
-                directDelete(data) {
-                    this.popup_row_id = null;
-                    this.checkRecalcRL(true) || this.fullReload();
-                },
-                fullReload() {
-                    if (this.link_rows && this.link_rows.is_loaded) {
-                        this.link_rows.loadRows();
-                    }
-                    this.redrawModel('fullReload');
-                },
-                checkRecalcRL(to_delete) {
-                    let cur_stim_link = this.popup_app_tb ? this.vuex_links[this.popup_app_tb] : '';
-                    let avail = this.direct_row_3d
-                        && cur_stim_link
-                        && cur_stim_link.app_table_options.indexOf('recalc_rl:true') > -1;
-                    
-                    if (avail) {
-                        let app_tb = this.vuex_tab_object.master_table;
-                        let cur_fm = this.vuex_fm[app_tb];
-                        let master_model = cur_fm.rows.get3D(0);
-
-                        if (this.local_load_data) {
-                            this.rlstartRecalc(master_model, to_delete);
                         } else {
-                            ThreeHelper.loadDataServer(this.master_stim_link.app_table, master_model).then(({data}) => {
-                                this.local_load_data = data;
-                                this.rlstartRecalc(master_model, to_delete);
-                            }).catch(errors => {
-                                Swal('', getErrors(response.errors));
-                            });
+                            this.showMaEqptHelper(mesh.parent);
                         }
                     }
-                    
-                    return avail;
-                },
-                rlstartRecalc(master_model, to_delete) {
-                    if (to_delete) {
-                        this.direct_row_3d._id = null;
-                    }
-                    let helper = new ThreeHelper(this.local_load_data, master_model);
-                    helper.startCalculationRL(this.direct_row_3d);
-                    this.direct_row_3d = null;
+                } else {
+                    this.confSett.clearSel();
+                }
 
-                    this.progress_rl = 0;
-                    let timeint = setInterval(() => {
-                        this.progress_rl = helper.getProgress();
-                        if (this.progress_rl >= 100) {
-                            clearInterval(timeint);
-                            this.fullReload();
+                if (intersel_arr) {
+                    this.intersect_tablda(intersel_arr);
+                }
+            },
+            save_model_func(app, model, master, no_clear, remove_prev) {//
+                axios.post('?method=save_model', {
+                    app_table: app,
+                    model: model,
+                    master_params: master,
+                    remove_prev: remove_prev,
+                }).then(({data}) => {
+                    (!no_clear ? this.confSett.clearSel() : null);
+                    this.redrawModel('save_model_func');
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                });
+            },
+            rClickFunction(mesh, intersel_arr) {
+                if (mesh) {
+                    this.popup_row_id = null;
+                    this.popup_type = this.getMeshType(mesh);
+                    //Node popup
+                    if (this.popup_type === 'node' && mesh.item) {
+                        this.setPopupParams(mesh.item, this.vuex_settings.popups_models.nodes);
+                    }
+                    //Member popup
+                    if (this.popup_type === 'member' && mesh.item_no) {
+                        this.setPopupParams(mesh.item_no, this.vuex_settings.popups_models.members);
+                    }
+                    //Eqpt menu popup
+                    if (this.popup_type === 'equipment' && mesh.parent.lc_id && mesh.parent.eqpt_id) {
+                        this.eqptPop = {
+                            lc_id: mesh.parent.lc_id,
+                            eqpt_id: mesh.parent.eqpt_id,
+                        };
+                        this.sett_top = this.$root.lastMouseClick.clientY;
+                        this.sett_left = this.$root.lastMouseClick.clientX;
+                    }
+                    //RL Bracket popup1
+                    if (this.popup_type === 'rl_bracket' && mesh.rl_id) {
+                        this.setPopupParams(mesh.rl_id, this.vuex_settings.popups_models.rls);
+                    }
+                }
+
+                if (intersel_arr) {
+                    this.intersect_tablda(intersel_arr);
+                }
+            },
+            rEqptSelected(type) {
+                switch (type) {
+                    case 'lcs': this.setPopupParams(this.eqptPop.lc_id, this.vuex_settings.popups_models.lcs);
+                        break;
+                    case 'eqs': this.setPopupParams(this.eqptPop.eqpt_id, this.vuex_settings.popups_models.equipment);
+                        break;
+                }
+                this.eqptPop = null;
+            },
+            setPopupParams(row_id, app_tb) {
+                this.popup_row_id = row_id;
+                this.popup_app_tb = app_tb;
+                this.link_rows = this.vuex_fm[app_tb] ? this.vuex_fm[app_tb].rows : null;
+            },
+            updStep(key, step, inc) {
+                let un = this.ma_eqpt_helper_row[step+'_unit'];
+                let div = un === 'in' ? 12 : (un === 'rad' ? Math.PI/180 : 1);
+                let stepFloat = to_float(this.ma_eqpt_helper_row[step]) / div;
+
+                if (this.ma_eqpt_helper_row && stepFloat) {
+                    this.ma_eqpt_helper_row[key] = inc === 'inc'
+                        ? to_float(this.ma_eqpt_helper_row[key]) + stepFloat
+                        : to_float(this.ma_eqpt_helper_row[key]) - stepFloat;
+                    this.updMaEqptRow(key);
+                }
+            },
+            updMaEqptRow(key) {
+                let app_tb = this.lcAppTb();
+                let metaLcRows = this.vuex_fm[app_tb] ? this.vuex_fm[app_tb].rows : null;
+                let stimLinkParam = this.vuex_links[app_tb];
+                let lcMaps = metaLcRows ? metaLcRows.maps : null;
+
+                if (metaLcRows && lcMaps && this.ma_eqpt_helper_row) {
+                    let updatedRow = metaLcRows.convertTo3D(this.ma_eqpt_helper_row);
+                    updatedRow._old_val = this.ma_eqpt_old_row[key];
+                    updatedRow._changed_field = lcMaps[key];
+
+                    metaLcRows.massUpdatedRows(null, [updatedRow]).then(() => {
+                        this.ma_eqpt_old_row = _.clone(this.ma_eqpt_helper_row);
+                        let is3dLC = ThreeHelper.watched3d_is_needed_action(stimLinkParam.app_fields, [updatedRow]);
+                        if (is3dLC) {
+                            this.redrawModel('vuex_redraw_soft_counter');
+                        } else {
+                            this.direct_row_3d = _.clone(this.ma_eqpt_helper_row);
+                            this.checkRecalcRL(false) || this.fullReload();
                         }
-                    }, 500);
-                },
-                afterThreeJsDistanceCalc(lc) {
+                    });
+                }
+            },
+            eqptHelperUnitRecalc(key) {
+                switch (key) {
+                    case '_top_delta_unit': this.ma_eqpt_helper_row._top_delta = this.ma_eqpt_helper_row._top_delta_unit === 'ft'//changed to ft?
+                        ? to_float(this.ma_eqpt_helper_row._top_delta) * 12
+                        : to_float(this.ma_eqpt_helper_row._top_delta) / 12;
+                    break;
+                    case '_bottom_delta_unit': this.ma_eqpt_helper_row._bottom_delta = this.ma_eqpt_helper_row._bottom_delta_unit === 'rad'//changed to rad?
+                        ? to_float(this.ma_eqpt_helper_row._bottom_delta) * (Math.PI/180)
+                        : to_float(this.ma_eqpt_helper_row._bottom_delta) / (Math.PI/180);
+                    break;
+                }
+                this.ma_eqpt_helper_row._top_delta = Number(this.ma_eqpt_helper_row._top_delta).toFixed(1);
+                this.ma_eqpt_helper_row._bottom_delta = Number(this.ma_eqpt_helper_row._bottom_delta).toFixed(1);
+            },
+            lcAppTb() {
+                return this.vuex_settings.popups_models.lcs;
+            },
+
+            //direct popups
+            preInsert(startHash, tableRow) {
+                this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
+            },
+            preUpdate(startHash, tableRow) {
+                this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
+            },
+            preDelete(startHash, tableRow) {
+                this.direct_row_3d = this.vuex_fm[this.popup_app_tb].rows.convertOne(tableRow);
+            },
+            directInsert(data) {
+                if (data.rows && data.rows.length) {
+                    this.popup_row_id = data.rows[0].id;
+                    this.direct_row_3d._id = data.rows[0].id;
+                }
+                this.checkRecalcRL(false) || this.fullReload();
+            },
+            directUpdate(data) {
+                this.checkRecalcRL(false) || this.fullReload();
+            },
+            directDelete(data) {
+                this.popup_row_id = null;
+                this.checkRecalcRL(true) || this.fullReload();
+            },
+            fullReload() {
+                if (this.link_rows && this.link_rows.is_loaded) {
+                    let meta = this.vuex_fm[this.popup_app_tb] ? this.vuex_fm[this.popup_app_tb].meta.params : null;
+                    this.link_rows.loadRows(meta);
+                }
+                this.redrawModel('fullReload');
+            },
+            checkRecalcRL(to_delete) {
+                let cur_stim_link = this.popup_app_tb ? this.vuex_links[this.popup_app_tb] : '';
+                let avail = this.direct_row_3d
+                    && cur_stim_link
+                    && cur_stim_link.app_table_options.indexOf('recalc_rl:true') > -1;
+                
+                if (avail) {
                     let app_tb = this.vuex_tab_object.master_table;
                     let cur_fm = this.vuex_fm[app_tb];
-                    let master_model = cur_fm.rows.get3D(0);
-                    this.direct_row_3d = lc;
-                    this.rlstartRecalc(master_model);
-                    /*ThreeHelper.loadDataServer(this.master_stim_link.app_table, master_model).then(({data}) => {
-                        this.local_load_data = data;
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
-                    });*/
-                },
+                    let master_model = cur_fm && cur_fm.rows ? cur_fm.rows.get3D(0) : null;
 
-                //another popup row/////////////////////////////
-                getDrawedRows() {
-                    let rows = [];
-                    if (this.popup_type === 'node') {
-                        rows = this.drawed_geometry.nodes;
-                    }
-                    if (this.popup_type === 'member') {
-                        rows = this.drawed_geometry.members;
-                    }
-                    if (this.popup_type === 'equipment') {
-                        let collect = this.drawed_equipments ? this.drawed_equipments.collection : [];
-                        rows = _.map(collect, (elem) => {
-                            return elem.lc;
+                    if (this.local_load_data) {
+                        this.rlstartRecalc(master_model, to_delete);
+                    } else {
+                        ThreeHelper.loadDataServer(this.master_stim_link.app_table, master_model).then(({data}) => {
+                            this.local_load_data = data;
+                            this.rlstartRecalc(master_model, to_delete);
+                        }).catch(errors => {
+                            Swal('Info', getErrors(response.errors));
                         });
                     }
-                    if (this.popup_type === 'rl_bracket') {
-                        rows = this.drawed_rls.rows;
-                    }
-                    return rows;
-                },
-                anotherDirectRow(is_next) {
-                    let rows = this.getDrawedRows();
-                    this.$root.anotherPopup(rows, this.popup_row_id, is_next, this.selectAnotherRow);
-                },
-                selectAnotherRow(idx) {
+                    ////////
+                }
+                
+                return avail;
+            },
+            rlstartRecalc(master_model, to_delete) {
+                //NOTE: Auto-recalc of RL is disabled
+                this.direct_row_3d = null;
+                return;
+                // if (to_delete) {
+                //     this.direct_row_3d._id = null;
+                // }
+                // let helper = new ThreeHelper(this.local_load_data, master_model);
+                // helper.startCalculationRL(this.direct_row_3d);
+                // this.direct_row_3d = null;
+                //
+                // this.progress_rl = 0;
+                // let timeint = setInterval(() => {
+                //     this.progress_rl = helper.getProgress();
+                //     if (this.progress_rl >= 100) {
+                //         clearInterval(timeint);
+                //         this.deboucedFullReload();
+                //     }
+                // }, 500);
+            },
+            afterThreeJsDistanceCalc(lc) {
+                let app_tb = this.vuex_tab_object.master_table;
+                let cur_fm = this.vuex_fm[app_tb];
+                let master_model = cur_fm && cur_fm.rows ? cur_fm.rows.get3D(0) : null;
+                this.direct_row_3d = lc;
+                this.rlstartRecalc(master_model);
+            },
+
+            //another popup row
+            getDrawedRows() {
+                let rows = [];
+                if (this.popup_type === 'node') {
+                    rows = this.drawed_geometry.nodes;
+                }
+                if (this.popup_type === 'member') {
+                    rows = this.drawed_geometry.members;
+                }
+                if (this.popup_type === 'equipment') {
+                    let collect = this.drawed_equipments ? this.drawed_equipments.collection : [];
+                    rows = _.map(collect, (elem) => {
+                        return elem.lc;
+                    });
+                }
+                if (this.popup_type === 'rl_bracket') {
+                    rows = this.drawed_rls.rows;
+                }
+                return rows;
+            },
+            anotherDirectRow(is_next) {
+                let rows = this.getDrawedRows();
+                this.$root.anotherPopup(rows, this.popup_row_id, is_next, this.selectAnotherRow);
+            },
+            selectAnotherRow(idx) {
+                if (this.webglReady()) {
                     let rows = this.getDrawedRows();
                     this.popup_row_id = rows[idx]._id;
                     webgl.outerSelect(this.popup_type, this.popup_row_id);
-                },
+                }
+            },
 
-                hideSett(e) {
-                    let sett = $(this.$refs.wid_sett);
-                    let butt = $(this.$refs.wid_butt);
-                    if (this.base.toggleSettingsMenu && sett.has(e.target).length === 0 && butt.has(e.target).length === 0) {
-                        this.base.toggleSettingsMenu = false;
-                    }
-                    let menu = $(this.$refs.eqpt_menu);//only for left click
-                    if (this.eqptPop && e.button === 0 && menu.has(e.target).length === 0) {
-                        this.eqptPop = null;
-                    }
-                },
+            hideSett(e) {
+                let sett = $(this.$refs.wid_sett);
+                let butt = $(this.$refs.wid_butt);
+                if (this.base.toggleSettingsMenu && sett.has(e.target).length === 0 && butt.has(e.target).length === 0) {
+                    this.base.toggleSettingsMenu = false;
+                }
+                let menu = $(this.$refs.eqpt_menu);//only for left click
+                if (this.eqptPop && e.button === 0 && menu.has(e.target).length === 0) {
+                    this.eqptPop = null;
+                }
+            },
 
-                //Lib functions
-                libToggle(hidden) {
-                    //this.SET_WIDTH_3D({main: !hidden, d3: true});
-                },
-                set_id_obj(id_object, key, map) {
-                    if (this.tabldas[key]) {
-                        id_object[this.tabldas[key].id] = _.map(map, (el) => {
-                            return (key == 'lcs' ? el.lc._id : (key == 'eqs' ? el.eq._id : el._id));
-                        });
-                        return true;
-                    } else {
-                        return false;
-                    }
-                },
-                widPressKey(e) {
-                    if (e.keyCode === 46 && this.$root.tablda_highlights.length) { //delete key
-
-                        let promises = [];
-                        let del_array = _.groupBy(this.$root.tablda_highlights, 'table_id');
-                        _.each(del_array, (arr, tb_id) => {
-                            let row_ids = _.map(arr, 'row_id');
-                            let remover = new MetaTabldaRows({table_id: tb_id});
-                            promises.push( remover.deleteSelected(row_ids, true) );
-                        });
-                        Promise.all(promises).then(() => {
-                            this.redrawModel('widPressKey');
-                        });
-
-                    }
-                },
-                loadWidSettings(from) {
-                    if (['drawWholeGeom','fullReload'].indexOf(from) > -1) {
-                        return;
-                    }
-                    let app_tb = this.vuex_tab_object.master_table;
-                    let cur_fm = this.vuex_fm[app_tb];
-                    let master_model = cur_fm.rows.get3D(0);
-                    let curtab = this.vuex_tab_object.init_top+'_'+this.vuex_tab_object.init_select;
-
-                    axios.post('?method=load_3d_rows&t=wid_settings', {
-                        type_3d: 'wid_settings',
-                        usergroup: master_model ? master_model.usergroup || this.$root.user.id : this.$root.user.id,
-                        model: master_model ? master_model.model : ' ',
-                        curtab: curtab,
-                    }).then(({data}) => {
-                        let skip_pos = ['vuex_redraw_counter','closeSettingsReload'].indexOf(from) === -1;
-                        //EL is default disabled
-                        data = data || {};
-                        data.edges_eqpts = 0;
-                        data.edges_members = 0;
-                        this.viewSettings.applyProps(data, this.$root.user.id, skip_pos);
-                        this.change_Camera_Position();
-                    }).catch(errors => {
-                        Swal('', getErrors(errors));
+            //Lib functions1
+            libToggle(hidden) {
+                //this.SET_WIDTH_3D({main: !hidden, d3: true});
+            },
+            set_id_obj(id_object, key, map) {
+                if (this.tabldas[key]) {
+                    id_object[this.tabldas[key].id] = _.map(map, (el) => {
+                        return (key == 'lcs' ? el.lc._id : (key == 'eqs' ? el.eq._id : el._id));
                     });
-                },
+                    return true;
+                } else {
+                    return false;
+                }
+            },
+            widPressKey(e) {
+                if (e.keyCode === 46 && this.$root.tablda_highlights.length) { //delete key
 
-                //sync camera position
-                syncSettPosition(position) {
-                    this.can_save_cam = this.viewSettings.setCameraP(position.x, position.y, position.z);
-                },
-
-                //data changes watcher//
-                intervalTickHandler() {
-                    if (!this.drawed_geometry || this.sync_in_process || this.$root.sm_msg_type) {
-                        return;
-                    }
-
-                    let can = false;
-                    let id_object = {};
-
-                    can = this.set_id_obj(id_object, 'lcs', this.drawed_equipments ? this.drawed_equipments.collection : []) || can;
-                    can = this.set_id_obj(id_object, 'eqs', this.drawed_equipments ? this.drawed_equipments.collection : []) || can;
-                    can = this.set_id_obj(id_object, 'mat', this.drawed_geometry.materials) || can;
-                    can = this.set_id_obj(id_object, 'node', this.drawed_geometry.nodes) || can;
-                    can = this.set_id_obj(id_object, 'sect', this.drawed_geometry.sections) || can;
-                    can = this.set_id_obj(id_object, 'memb', this.drawed_geometry.members) || can;
-                    can = this.set_id_obj(id_object, 'rls', this.drawed_rls ? this.drawed_rls.rows : []) || can;
-
-                    if (!can) {
-                        return;
-                    }
-
-                    axios.post('/ajax/table/version_hash', {
-                        id_object: id_object,
-                    }).then(({ data }) => {
-                        let changed = (this.tabldas.lcs && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.lcs.version_hash; }))
-                            || (this.tabldas.eqs && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.eqs.version_hash; }))
-                            || (this.tabldas.mat && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.mat.version_hash; }))
-                            || (this.tabldas.node && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.node.version_hash; }))
-                            || (this.tabldas.sect && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.sect.version_hash; }))
-                            || (this.tabldas.memb && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.memb.version_hash; }))
-                            || (this.tabldas.rls && !_.find(data.version_hashes, (hash) => { return hash === this.tabldas.rls.version_hash; }));
-                        if (changed) {
-                            this.tabldas = {};
-                            this.redrawModel('intervalTickHandler');
-                        }
+                    let promises = [];
+                    let del_array = _.groupBy(this.$root.tablda_highlights, 'table_id');
+                    _.each(del_array, (arr, tb_id) => {
+                        let row_ids = _.map(arr, 'row_id');
+                        let remover = new MetaTabldaRows({table_id: tb_id});
+                        promises.push( remover.deleteSelected(row_ids, true) );
                     });
-                },
+                    Promise.all(promises).then(() => {
+                        this.redrawModel('widPressKey');
+                    });
+
+                }
+            },
+            loadWidSettings(from) {
+                if (['drawWholeGeom','fullReload'].indexOf(from) > -1) {
+                    return;
+                }
+                let app_tb = this.vuex_tab_object.master_table;
+                let cur_fm = this.vuex_fm[app_tb];
+                let master_model = cur_fm && cur_fm.rows ? cur_fm.rows.get3D(0) : null;
+                let curtab = this.vuex_tab_object.init_top+'_'+this.vuex_tab_object.init_select;
+
+                axios.post('?method=load_3d_rows&t=wid_settings', {
+                    type_3d: 'wid_settings',
+                    usergroup: master_model ? master_model.usergroup || this.$root.user.id : this.$root.user.id,
+                    model: master_model ? master_model.model : ' ',
+                    curtab: curtab,
+                }).then(({data}) => {
+                    let skip_pos = ['vuex_redraw_counter','closeSettingsReload'].indexOf(from) === -1;
+                    //EL is default disabled
+                    data = data || {};
+                    //data.edges_eqpts = 0;
+                    //data.edges_members = 0;
+                    this.viewSettings.applyProps(data, this.$root.user.id, skip_pos);
+                    this.change_Camera_Position();
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                });
+            },
+
+            //sync camera position
+            syncSettPosition(position) {
+                this.can_save_cam = this.viewSettings.setCameraP(position.x, position.y, position.z);
+            },
+
+            //data changes watcher//
+            intervalTickHandler() {
+                if (!this.drawed_geometry || this.sync_in_process || this.$root.sm_msg_type) {
+                    return;
+                }
+
+                let can = false;
+                let id_object = {};
+
+                can = this.set_id_obj(id_object, 'lcs', this.drawed_equipments ? this.drawed_equipments.collection : []) || can;
+                can = this.set_id_obj(id_object, 'eqs', this.drawed_equipments ? this.drawed_equipments.collection : []) || can;
+                can = this.set_id_obj(id_object, 'mat', this.drawed_geometry.materials) || can;
+                can = this.set_id_obj(id_object, 'node', this.drawed_geometry.nodes) || can;
+                can = this.set_id_obj(id_object, 'sect', this.drawed_geometry.sections) || can;
+                can = this.set_id_obj(id_object, 'memb', this.drawed_geometry.members) || can;
+                can = this.set_id_obj(id_object, 'rls', this.drawed_rls ? this.drawed_rls.rows : []) || can;
+
+                if (!can) {
+                    return;
+                }
+
+                axios.post('/ajax/table/version_hash', {
+                    id_object: id_object,
+                }).then(({ data }) => {
+                    if (!Object.values(this.tablda_hashes).length) {
+                        this.tablda_hashes = data.version_hashes;
+                        return;
+                    }
+
+                    let changed = _.difference(Object.values(data.version_hashes), Object.values(this.tablda_hashes));
+                    if (changed && changed.length) {
+                        this.tablda_hashes = data.version_hashes;
+                        this.redrawModel('intervalTickHandler');
+                    }
+
+                    if (data.job_msg) {
+                        Swal('Info', data.job_msg);
+                    }
+                });
+            },
+            webglReady() {
+                return webgl && webgl._initialized;
+            },
         },
         created() {
             //init root colors
             this.MaClrStatuses.colors = [];
             this.GeomColors.colors = [];
         },
-        mounted() {
-            webgl.run("#webgl", "wid");
-            webgl.changeViewSettingsWID(this.viewSettings);
-            webgl.selected(this.selectedFunction);
-            webgl.rightClickSelected(this.rClickFunction);
-            webgl.cameraUpdate(this.syncSettPosition);
-            webgl.onCalcDist(this.afterThreeJsDistanceCalc);
-
-            //this.loadWidSettings();//
+        mounted() {//
+            if (!window.threeHelper) {
+                window.threeHelper = ThreeHelper;
+            }
+            let ini = setInterval(() => {
+                if (webgl && webgl.run) {
+                    clearTimeout(ini);
+                    webgl.run("#webgl", "wid");
+                    webgl.changeViewSettingsWID(this.viewSettings);
+                    webgl.selected(this.selectedFunction);
+                    webgl.rightClickSelected(this.rClickFunction);
+                    webgl.cameraUpdate(this.syncSettPosition);
+                    webgl.onCalcDist(this.afterThreeJsDistanceCalc);
+                    this.redrawModel('vuex_redraw_counter');
+                }
+            }, 100);
 
             //sync datas with collaborators
             this.ticker = setInterval(() => {
@@ -1528,6 +1768,42 @@
         .inp_stl {
             width: 55px;
             display: inline-block;
+        }
+        .rls_checker {
+            border-top: 1px solid #ccc;
+            margin-top: 5px;
+            padding-top: 5px;
+        }
+
+        .ma_helper_table {
+            width: 325px;
+            background: white;
+            border: 2px solid #ccc;
+            border-collapse: collapse;
+
+            th, td {
+                font-size: 12px;
+                line-height: 14px;
+                padding: 0 3px;
+                text-align: center;
+                border: 1px solid #aaa;
+                vertical-align: center;
+
+                input, select {
+                    padding: 0 3px;
+                    font-size: 12px;
+                    height: 24px;
+                    text-align: center;
+                }
+            }
+
+            .tb-btn {
+                cursor: pointer;
+                background: #CCC;
+                height: 22px;
+                font-size: 16px;
+                font-weight: bold;
+            }
         }
     }
 </style>

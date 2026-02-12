@@ -14,7 +14,7 @@
                     </div>
                 </div>
                 <div class="flex__elem-remain popup-content">
-                    <div class="flex__elem__inner popup-main">
+                    <div class="flex__elem__inner popup-main" :class="[nopadding ? 'no-padding' : '']">
 
                         <div class="popup-overflow">
                             <slot name="body"></slot>
@@ -42,11 +42,14 @@
             return {
                 //PopupAnimationMixin
                 getPopupWidth: this.popup_width || 750,
+                getPopupHeight: this.popup_height ? this.popup_height+'px' : null,
                 idx: 0,
             }
         },
         props: {
             popup_width: Number,
+            popup_height: Number,
+            nopadding: Boolean,
         },
         methods: {
             hide() {

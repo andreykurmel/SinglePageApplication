@@ -1,67 +1,56 @@
 <template>
-    <div class="full-height flex flex--col filters--block" @contextmenu.prevent.self="contextFilterOnEmpty()">
+    <div class="flex filters--block"
+         :class="{
+            'flex--col': !fixedPos,
+            'full-height': placed !== 'top_filters',
+            'flex--wrap': placed === 'top_filters'
+        }"
+         @contextmenu.prevent.self="contextFilterOnEmpty()"
+    >
         <div v-for="filter in input_filters"
              v-if="canChangeFilter(filter) && availableInView(filter)"
-             :class="(filter.field === currentField ? 'flex__elem-remain flex flex--col' : '')"
+             :class="(!fixedPos && filter.field === currentField ? 'flex__elem-remain flex flex--col' : '')"
+             :style="{overflow: absoluteState ? 'visible' : 'hidden'}"
         >
-            <a @click.prevent="showFilter(filter.field)" class="btn-filter" :style="textSysStyle">
-                <div class="flex flex--center-v flex--space">
-                    <span>{{filterName(filter)}}</span>
-                    <div style="white-space: nowrap">
-                        <label v-if="filter.filter_type !== 'range'" class="single-wrapper">
-                            <input type="checkbox" @click.stop="" @change="filterSingleEnabled(filter)" v-model="filter._is_single">
-                            <span>Single</span>
-                        </label>
-                        <span class="state-shower">{{ filter.field === currentField ? '-' : '+' }}</span>
+            <div :class="{'wrap': fixedPos}"
+                 class="full-height flex flex--col"
+                 @mouseenter="hoverFilter(filter.field)"
+                 @mouseleave="() => { visibleMain = !fixedPos; }"
+            >
+                <a @click.prevent="showFilter(filter.field)"
+                   class="btn-filter"
+                   :class="{'fixed-btn': fixedPos}"
+                   :style="textSysStyle"
+                >
+                    <div class="flex flex--center-v flex--space no-wrap">
+                        <span v-html="filterName(filter)"></span>
+                        <div style="white-space: nowrap">
+                            <label v-if="filter.filter_type !== 'range'" class="single-wrapper">
+                                <input type="checkbox" @click.stop="" @change="filterSingleEnabled(filter)" v-model="filter._is_single">
+                                <span>Single</span>
+                            </label>
+                            <span v-if="!fixedPos" class="state-shower">{{ filter.field === currentField ? '-' : '+' }}</span>
+                        </div>
                     </div>
-                </div>
-            </a>
-            <div v-show="filter.field === currentField" class="filter-content" :style="textSysStyle">
-                <ul v-if="typeof filter.values !== 'object'">
-                    <li><label>{{ filter.values }}</label></li>
-                </ul>
-                <ul v-else-if="filter.filter_type === 'value'">
-                    <li>
-                        <label class="checkbox-container">
-                            <span>Check All</span>
-                            <input type="checkbox"
-                                   :checked="allIsChecked(filter)"
-                                   @change="filter._is_single ? applyRadio(filter, undefined) : toggleAll(filter, allIsChecked(filter))">
-
-                            <span v-if="filter._is_single" class="checkmark marktype--radio">
-                                <span v-if="filter._single_val === undefined" class="marktype--radio__checked"></span>
-                            </span>
-                            <span v-else="" class="indeterm_check flex flex--center-h">
-                                <i v-if="allIsChecked(filter) == 2" class="glyphicon glyphicon-ok group__icon"></i>
-                                <i v-if="allIsChecked(filter) == 1" class="glyphicon glyphicon-minus group__icon"></i>
-                            </span>
-
-                        </label>
-                    </li>
-                    <li v-for="group in get_values(filter)" v-if="group.length">
-                        <label class="checkbox-container"
-                               :class="group[0].rowgroup_disabled ? 'disabled' : ''"
-                               :title="group[0].rowgroup_disabled ? 'Disabled by RowGroups' : ''"
-                               :style="{opacity: (group[0].rowgroup_disabled ? '0.5' : '')}"
-                        >
-                            <span v-html="group[0].show"></span>&nbsp;
-                            <input type="checkbox"
-                                   :checked="group[0].checked"
-                                   :disabled="group[0].rowgroup_disabled"
-                                   @click="filter._is_single ? applyRadio(filter, group[0].show) : applyCheck(filter, group[0])"
-                            >
-                            <span class="checkmark" :class="{'marktype--radio': filter._is_single}">
-                                <span v-if="filter._is_single && filter._single_val === group[0].show" class="marktype--radio__checked"></span>
-                            </span>
-                        </label>
-                    </li>
-                </ul>
-                <div v-else-if="filter.filter_type === 'range' && filter.values.min && filter.values.max && filter.field === currentField">
-                    <slider-filter-elem
-                            :filter_values="filter.values"
-                            :f_type="filter.f_type"
-                            @changed-range="applyCheckedFilters(filter)"
-                    ></slider-filter-elem>
+                </a>
+                <div v-show="visibleMain && filter.field === currentField"
+                     class="filter-content"
+                     :class="{'fixed-pos': fixedPos && ! absoluteState, 'absolute-pos': fixedPos && absoluteState}"
+                     :style="textSysStyle"
+                >
+                    <values-filter-elem
+                        v-if="filter.filter_type === 'value'"
+                        :filter="filter"
+                        :table_meta="tableMeta"
+                        @apply-filter="applyCheckedFilters(filter)"
+                    ></values-filter-elem>
+                    <div v-else-if="filter.filter_type === 'range' && filter.values.min && filter.values.max && filter.field === currentField">
+                        <slider-filter-elem
+                                :filter_values="filter.values"
+                                :f_type="filter.f_type"
+                                @changed-range="applyCheckedFilters(filter)"
+                        ></slider-filter-elem>
+                    </div>
                 </div>
             </div>
         </div>
@@ -96,10 +85,12 @@
     import CellStyleMixin from "../_Mixins/CellStyleMixin";
 
     import SliderFilterElem from "../MainApp/LeftMenu/SliderFilterElem";
+    import ValuesFilterElem from "../MainApp/LeftMenu/ValuesFilterElem";
 
     export default {
         name: 'FiltersBlock',
         components: {
+            ValuesFilterElem,
             SliderFilterElem,
         },
         mixins: [
@@ -108,6 +99,7 @@
         ],
         data() {
             return {
+                visibleMain: !this.fixedPos,
                 currentField: null,
                 context_filter: { active: false, x:10, y:10, },
             }
@@ -116,6 +108,11 @@
             tableMeta: Object,
             input_filters: Array,
             availableColumns: Array,
+            no_right_click: Boolean,
+            fixedPos: Boolean,
+            absoluteState: Boolean,
+            ignoreCanChange: Boolean,
+            placed: String,
         },
         computed: {
             forbiddenFilter() {
@@ -124,14 +121,14 @@
             },
         },
         methods:{
-            get_values(filter) {
-                return _.groupBy(filter.values, 'show');
-            },
             availableInView(filter) {
                 let fld = _.find(this.tableMeta._fields, {field: filter.field});
                 return fld && !fld._permis_hidden;
             },
             canChangeFilter(filter) {
+                if (this.ignoreCanChange) {
+                    return true;
+                }
                 //can view filter if ( Owner OR has view permissions ) AND can see this Column
                 return this.tableMeta
                     && (
@@ -141,16 +138,24 @@
                     )
                     &&
                     (!this.availableColumns || this.availableColumns.indexOf(filter.field) > -1)
-                    &&
-                    _.find(this.tableMeta._fields, {field: filter.field, is_showed: 1})
+                    //&&
+                    //_.find(this.tableMeta._fields, {field: filter.field, is_showed: 1})
                     &&
                     filter.values;
             },
             showFilter(field) {
-                this.currentField = field !== this.currentField ? field : null;
+                if (!this.fixedPos) {
+                    this.currentField = field !== this.currentField ? field : null;
+                }
+            },
+            hoverFilter(field) {
+                if (this.fixedPos) {
+                    this.visibleMain = true;
+                    this.currentField = field;
+                }
             },
             filterName(filter) {
-                let name = filter.name + (filter.applied_index ? ' ('+filter.applied_index+')' : '');
+                let name = filter.name + (filter.applied_index ? ' ('+filter.applied_index+')' : '&nbsp;&nbsp;&nbsp;&nbsp;');
                 return this.$root.uniqName(name);
             },
             filterSingleEnabled(filter) {
@@ -166,25 +171,10 @@
                     ? 2
                     : unchecked.length < filter.values.length ? 1 : 0;
             },
-            toggleAll(filter, status) {
-                for (let i in filter.values) {
-                    filter.values[i].checked = !status;
-                }
-                this.applyCheckedFilters(filter);
-            },
             applyRadio(filter, selected) {
                 filter._single_val = selected;
                 for (let i in filter.values) {
                     filter.values[i].checked = selected === undefined || filter.values[i].show === selected;
-                }
-                this.applyCheckedFilters(filter);
-            },
-            applyCheck(filter, item) {
-                let stat = !item.checked;
-                for (let i in filter.values) {
-                    if (filter.values[i].show === item.show) {
-                        filter.values[i].checked = stat;
-                    }
                 }
                 this.applyCheckedFilters(filter);
             },
@@ -216,9 +206,11 @@
 
             //context filter
             contextFilterOnEmpty() {
-                this.context_filter.active = true;
-                this.context_filter.x = window.event.clientX - 10;
-                this.context_filter.y = window.event.clientY - 160;
+                if (!this.no_right_click) {
+                    this.context_filter.active = true;
+                    this.context_filter.x = window.event.clientX - 10;
+                    this.context_filter.y = window.event.clientY - 160;
+                }
             },
             activateFilter(fld) {
                 if (this.forbiddenFilter) {
@@ -244,24 +236,46 @@
         color: #6d6d6d;
         position: relative;
 
-        .indeterm_check {
+        .wrap {
+            position: relative;
+            width: min-content;
+        }
+        .fixed-btn {
+            margin-right: 3px;
+            height: 32px;
+            font-size: 14px !important;
+            padding: 4px 10px !important;
+        }
+        .fixed-pos, .absolute-pos {
+            z-index: 1000;
+            background: white;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            overflow: auto;
+        }
+        .fixed-pos {
+            transform: translateY(32px);
+            position: fixed;
+            width: 250px;
+            max-height: 80%;
+        }
+        .absolute-pos {
             position: absolute;
-            left: 0;
-            top: 0;
-            background-color: #EEE;
-            height: 15px;
-            width: 15px;
-            font-size: 12px;
+            top: 100%;
+            width: 250px;
+            max-height: 80vh;
+        }
 
-            &:hover {
-                background-color: #DDD;
-            }
+        .flex__elem-remain {
+            min-height: 150px;
         }
 
         .single-wrapper {
             position: relative;
             top: -3px;
-            margin: 0;
+            margin: 0 0 0 10px;
+            font-weight: normal;
 
             input {
                 position: relative;

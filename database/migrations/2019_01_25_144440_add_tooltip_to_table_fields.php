@@ -14,7 +14,7 @@ class AddTooltipToTableFields extends Migration
     public function up()
     {
         Schema::table('table_fields', function (Blueprint $table) {
-            $table->string('tooltip', 512)->after('ddl_id')->nullable();
+            $table->string('tooltip', 1024)->after('ddl_id')->nullable();
         });
     }
 

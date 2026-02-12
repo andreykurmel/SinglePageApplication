@@ -1,6 +1,6 @@
 <template>
-    <div class="full-height">
-        <div style="margin: 10px 0;">
+    <div class="flex flex--col" :style="$root.themeMainBgStyle">
+        <div style="margin: 10px 0;" :style="textSysStyleSmart">
             <label v-if="is_temp">Users may make temporary changes to the settings.</label>
             <label v-else="">
                 <span class="indeterm_check__wrap">
@@ -11,7 +11,7 @@
                 <span>Ask for confirmation / editing prior to execution.</span>
             </label>
         </div>
-        <div>
+        <div :style="textSysStyleSmart">
             <label>List of tables (in which records are to be added to):</label>
         </div>
         <div class="special_he">
@@ -39,8 +39,8 @@
             ></custom-table>
         </div>
         <div class="form-group"></div>
-        <div style="height: 36px;">
-            <label style="position: relative; top: 7px;">Details of adding new record for: {{ selAnrTable ? selAnrTable.name : '...' }}</label>
+        <div style="height: 36px;" :style="textSysStyleSmart">
+            <label>Details of adding new record for: {{ selAnrTable ? selAnrTable.name : '...' }}</label>
             <div v-if="selAnrTable && !is_temp" class="right-elem" style="height: 32px;">
                 <button class="btn btn-default btn-sm blue-gradient full-height"
                         :style="$root.themeButtonStyle"
@@ -83,6 +83,8 @@
 </template>
 
 <script>
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
+
     import CustomTable from "../../../../CustomTable/CustomTable";
     import SelectBlock from "../../../../CommonBlocks/SelectBlock";
 
@@ -92,6 +94,9 @@
             SelectBlock,
             CustomTable,
         },
+        mixins: [
+            CellStyleMixin,
+        ],
         data: function () {
             return {
                 tb_id_for_copy: null,
@@ -103,7 +108,7 @@
             }
         },
         props:{
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
             is_temp: Boolean,
             tableMeta: Object,
             alert_sett: Object,
@@ -159,7 +164,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._anr_tables = data._anr_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -176,7 +181,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._anr_tables = data._anr_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -191,7 +196,7 @@
                 }).then(({ data }) => {
                     this.alert_sett._anr_tables = data._anr_tables;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -208,7 +213,7 @@
                 }).then(({ data }) => {
                     this.selAnrTable._anr_fields = data._anr_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -225,7 +230,7 @@
                 }).then(({ data }) => {
                     this.selAnrTable._anr_fields = data._anr_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -240,7 +245,7 @@
                 }).then(({ data }) => {
                     this.selAnrTable._anr_fields = data._anr_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -254,7 +259,7 @@
                 }).then(({ data }) => {
                     this.selAnrTable._anr_fields = data._anr_fields;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -273,7 +278,7 @@
                     if (has_table_different) {
                         grs.push({
                             val: null,
-                            show: '//Alert: ' + al.name,
+                            show: '//ANA: ' + al.name,
                             style: title_style,
                             isTitle: true,
                         });
@@ -303,7 +308,7 @@
         margin: 0;
     }
     .special_he {
-        height: calc(50% - 56px);
+        height: 100%;
         border: 1px solid #CCC;
     }
 </style>

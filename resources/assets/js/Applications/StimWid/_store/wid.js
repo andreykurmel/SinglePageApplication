@@ -50,8 +50,8 @@ export default new Vuex.Store({
 
         cur_tab: '',
         cur_select: '',
-        redraw_counter: 0,
-        redraw_soft_counter: 0,
+        redraw_counter: 0,//redraw 3d model WITH camera changing
+        redraw_soft_counter: 0,//redraw 3d model WITHOUT changing of camera view
         width_main: 60,
         width_3d: 40,
     },

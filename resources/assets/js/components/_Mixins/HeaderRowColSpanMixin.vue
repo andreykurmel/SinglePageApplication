@@ -1,11 +1,5 @@
 <script>
     /**
-     *  should be present:
-     *
-     *  this.tableMeta: Object,
-     *  this.maxRowsInHeader: Number,
-     *  this.isShowFieldElem(header): Function,
-     *
      *  can be present:
      *
      *  this.headersChanger: Object,
@@ -14,12 +8,43 @@
         data: function () {
             return {
                 sub_header_remover: '',
+                maxRowsInHeader: 0,
+                multiSpan: {
+                    row: {},
+                    col: {},
+                },
             }
         },
         computed: {
         },
         methods: {
+            getMultiRowspan(hdrIndex, curHeaderRow) {
+                return this.multiSpan.row[curHeaderRow+'_'+hdrIndex];
+            },
+            getMultiColspan(hdrIndex, curHeaderRow) {
+                return this.multiSpan.col[curHeaderRow+'_'+hdrIndex];
+            },
+            fillHeaderRowColSpanCache(showMetaFields) {
+                this.maxRowsInHeader = this.getMaxRows(showMetaFields);
+                for (let curHeaderRow = 1; curHeaderRow <= this.maxRowsInHeader; curHeaderRow++) {
+                    _.each(showMetaFields, (header, index) => {
+                        this.multiSpan.row[curHeaderRow+'_'+index] = this.getMultiValueRowspan(header, curHeaderRow, showMetaFields);
+                        this.multiSpan.col[curHeaderRow+'_'+index] = this.getMultiValueColspan(index, curHeaderRow, showMetaFields);
+                    });
+                }
+            },
             //multiheaders functions
+            getMaxRows(showMetaFields) {
+                let max = 0;
+                _.each(showMetaFields, (el) => {
+                    if (el.name) {
+                        max = Math.max(max, el.name.split(',').length);
+                    }
+                });
+                this.headerHasRows = max;
+                this.metaFieldsCount = showMetaFields.length;
+                return max;
+            },
             splitName(name) {
                 name = String(name).replace(this.sub_header_remover, '');
                 return name.split(',');
@@ -42,7 +67,7 @@
                 return res;
             },
             //span table header rows
-            getMultiRowspan(tableHeader, curHeaderRow) {
+            getMultiValueRowspan(tableHeader, curHeaderRow, showMetaFields) {
                 if (this.maxRowsInHeader === 1) {
                     return (tableHeader.unit || tableHeader.unit_display) ? 1 : 2;
                 }
@@ -76,15 +101,15 @@
                 return rowspan;
             },
             //span table header columns
-            getMultiColspan(index, curHeaderRow, meta_fields) {
+            getMultiValueColspan(index, curHeaderRow, showMetaFields) {
                 if (this.maxRowsInHeader === 1) {
                     return 1;
                 }
 
                 let colspan = 0;
-                let prev_names = (index > 0 ? this.splitName(meta_fields[index-1].name) : []);
-                let names = this.splitName(meta_fields[index].name);
-                let next_names = (index < (meta_fields.length-1) ? this.splitName(meta_fields[index+1].name) : []);
+                let prev_names = (index > 0 ? this.splitName(showMetaFields[index-1].name) : []);
+                let names = this.splitName(showMetaFields[index].name);
+                let next_names = (index < (showMetaFields.length-1) ? this.splitName(showMetaFields[index+1].name) : []);
                 let i = curHeaderRow - 1;
 
                 if (curHeaderRow <= names.length) {
@@ -93,27 +118,23 @@
                         &&
                         _.trim(names[i]) === _.trim(prev_names[i])
                         &&
-                        this.isShowFieldElem(meta_fields[index-1])
-                        &&
-                        this.getMultiRowspan(meta_fields[index], curHeaderRow) === this.getMultiRowspan(meta_fields[index-1], curHeaderRow)
+                        this.getMultiValueRowspan(showMetaFields[index], curHeaderRow, showMetaFields) === this.getMultiValueRowspan(showMetaFields[index-1], curHeaderRow, showMetaFields)
                     ) {
                         //if column name is the same as previous column name and is visible -> then it column name is spanned and don`t print it again
                         colspan = 0;
                     } else {
                         //span visible header columns with the same names and equal rowspans
                         while (
-                            index < (meta_fields.length-1)
+                            index < (showMetaFields.length-1)
                             &&
                             _.trim(names[i]) === _.trim(next_names[i])
                             &&
-                            this.isShowFieldElem(meta_fields[index+1])
-                            &&
-                            this.getMultiRowspan(meta_fields[index], curHeaderRow) === this.getMultiRowspan(meta_fields[index+1], curHeaderRow)
+                            this.getMultiValueRowspan(showMetaFields[index], curHeaderRow, showMetaFields) === this.getMultiValueRowspan(showMetaFields[index+1], curHeaderRow, showMetaFields)
                         ) {
                             colspan += 1;
                             index++;
                             names = next_names;
-                            next_names = (index < (meta_fields.length-1) ? this.splitName(meta_fields[index+1].name) : []);
+                            next_names = (index < (showMetaFields.length-1) ? this.splitName(showMetaFields[index+1].name) : []);
                         }
 
                         //min colspan for printing = 1
@@ -123,9 +144,9 @@
                 return colspan;
             },
             //is last row
-            lastRow(tableHeader, curHeaderRow) {
+            lastRow(tableHeader, curHeaderRow, showMetaFields) {
                 return (
-                        this.getMultiRowspan(tableHeader, curHeaderRow)
+                        this.getMultiValueRowspan(tableHeader, curHeaderRow, showMetaFields)
                         +
                         curHeaderRow - ((tableHeader.unit || tableHeader.unit_display) ? 1 : 2)
                     ) === (this.maxRowsInHeader);

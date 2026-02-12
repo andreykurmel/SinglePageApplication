@@ -2,7 +2,7 @@
     <div class="kanban_card"
          @dragover.prevent="stopper"
          @dragenter="stopper"
-         :style="{width: tableMeta.kanban_card_width+'px', borderColor: cardSelected ? '#A55' : null}"
+         :style="cardStl"
     >
         <div class="card_wrap" @click="cardClick">
             <div class="card_header"
@@ -10,21 +10,11 @@
                  @click="$emit('show-popup', tableRow)"
             >
                 <div class="drag-bkg"
-                     draggable="true"
+                     :draggable="canEdit"
                      @dragstart="cardClick"
                      @drag="$emit('drag-move')"
                 ></div>
-                <single-td-field
-                        v-if="!redraw"
-                        :table-meta="tableMeta"
-                        :table-header="headerFld"
-                        :td-value="tableRow[headerFld.field]"
-                        :ext-row="tableRow"
-                        :no_width="true"
-                        :with_edit="false"
-                        style="background-color: transparent;"
-                        class="single-td"
-                ></single-td-field>
+                <span v-if="!redraw" v-html="getCardHeader()"></span>
                 <span class="glyphicon glyphicon-resize-full"
                       v-if="extCollapse"
                       style="cursor: pointer;position: absolute;right: 25px;top: 5px;"
@@ -37,9 +27,24 @@
             <div class="card_body"
                  v-show="!extCollapse"
                  :class="tHeader ? 'flex' : ''"
-                 :style="{ height: tableMeta.kanban_card_height+'px', overflowY: tableMeta.kanban_card_height ? 'auto' : 'hidden' }"
+                 :style="{ height: kanbanSett.kanban_card_height+'px', overflowY: kanbanSett.kanban_card_height ? 'auto' : 'hidden' }"
                  @click="$emit('show-popup', tableRow)"
             >
+                <div v-if="tHeader && kanbanSett.kanban_picture_position === 'left'"
+                     class="attach_part"
+                     :style="{width: (kanbanSett.kanban_picture_width)+'%'}"
+                >
+                    <show-attachments-block
+                        :image-fit="cardAttachImageFit"
+                        :show-type="cardAttachShowType"
+                        :table-header="tHeader"
+                        :table-meta="tableMeta"
+                        :table-row="tableRow"
+                        :just-first="true"
+                        :can-edit="canEdit"
+                    ></show-attachments-block>
+                </div>
+
                 <div class="table_part" :style="tablePartStyle">
                     <vertical-table
                             :td="$root.tdCellComponent(tableMeta.is_system)"
@@ -52,11 +57,12 @@
                             :user="$root.user"
                             :behavior="'kanban_view'"
                             :disabled_sel="true"
+                            :with_edit="canEdit"
                             :hide-borders="fieldsHideBorders"
-                            :is_small_spacing="'yes'"
                             :available-columns="cardFields"
                             :hide-names="fieldsHideNames"
                             :parent-row="kanbanSett"
+                            :extra-pivot-fields="kanbanSett._fields_pivot"
                             :widths="{ name: '35%', col: '65%', history: 0, unit: 0, }"
                             style="table-layout: auto"
                             @show-src-record="showSrcRecord"
@@ -64,7 +70,10 @@
                     ></vertical-table>
                 </div>
 
-                <div v-if="tHeader" class="attach_part" :style="{width: (tableMeta.kanban_picture_width)+'%'}">
+                <div v-if="tHeader && kanbanSett.kanban_picture_position === 'right'"
+                     class="attach_part"
+                     :style="{width: (kanbanSett.kanban_picture_width)+'%'}"
+                >
                     <show-attachments-block
                         :image-fit="cardAttachImageFit"
                         :show-type="cardAttachShowType"
@@ -72,6 +81,7 @@
                         :table-meta="tableMeta"
                         :table-row="tableRow"
                         :just-first="true"
+                        :can-edit="canEdit"
                     ></show-attachments-block>
                 </div>
             </div>
@@ -82,8 +92,6 @@
 <script>
     import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
 
-    import VerticalTable from "../../../../CustomTable/VerticalTable";
-    import SingleTdField from "../../../../CommonBlocks/SingleTdField";
     import CarouselBlock from "../../../../CommonBlocks/CarouselBlock";
     import ShowAttachmentsBlock from "../../../../CommonBlocks/ShowAttachmentsBlock";
 
@@ -92,8 +100,6 @@
         components: {
             ShowAttachmentsBlock,
             CarouselBlock,
-            SingleTdField,
-            VerticalTable,
         },
         data: function () {
             return {
@@ -106,14 +112,24 @@
             kanbanSett: Object,
             extCollapse: Boolean,
             cardSelected: Boolean,
+            canEdit: Boolean,
             dragRow: Object,
         },
         computed: {
-            fieldsPivots() {
-                return this.kanbanSett._fields_pivot;
+            cardStl() {
+                return {
+                    width: this.kanbanSett.kanban_card_width+'px',
+                    maxWidth: (window.innerWidth - 25)+'px',
+                    borderColor: this.cardSelected ? '#A55' : null,
+                };
+            },
+            visibleFieldsPivots() {
+                return _.filter(this.kanbanSett._fields_pivot, (pv) => {
+                    return pv.table_show_value;
+                });
             },
             attachmentPivot() {
-                return _.find(this.fieldsPivots, {table_field_id: Number(this.tHeader.id)});
+                return _.find(this.visibleFieldsPivots, {table_field_id: Number(this.tHeader.id)});
             },
             cardAttachShowType() {
                 return this.attachmentPivot ? this.attachmentPivot.picture_style : '';
@@ -122,36 +138,34 @@
                 return this.attachmentPivot ? this.attachmentPivot.picture_fit : '';
             },
             cardFields() {
-                return this.mapFromField(this.fieldsPivots);
+                return this.mapFromField(this.visibleFieldsPivots);
             },
             fieldsHideNames() {
-                let filtered = _.filter(this.fieldsPivots, (pivot) => { return !!pivot.table_show_name; });
+                let filtered = _.filter(this.visibleFieldsPivots, (pivot) => { return !!pivot.table_show_name; });
                 return this.mapFromField(filtered);
             },
             fieldsHideBorders() {
-                let filtered = _.filter(this.fieldsPivots, (pivot) => { return !pivot.cell_border; });
+                let filtered = _.filter(this.visibleFieldsPivots, (pivot) => { return !pivot.cell_border; });
                 return this.mapFromField(filtered);
-            },
-            headerFld() {
-                return _.find(this.tableMeta._fields, {id: Number(this.kanbanSett.kanban_group_field_id)});
             },
             tablePartStyle() {
                 if (this.tHeader) {
                     return {
-                        paddingRight: '10px',
-                        width: (100 - this.tableMeta.kanban_picture_width)+'%',
+                        paddingLeft: this.kanbanSett.kanban_picture_position === 'left' ? '10px' : null,
+                        paddingRight: this.kanbanSett.kanban_picture_position === 'right' ? '10px' : null,
+                        width: (100 - this.kanbanSett.kanban_picture_width)+'%',
                     };
                 } else {
                     return {};
                 }
             },
             tHeader() {
-                return _.find(this.tableMeta._fields, {id: Number(this.tableMeta.kanban_picture_field)});
+                return _.find(this.tableMeta._fields, {id: Number(this.kanbanSett.kanban_picture_field)});
             },
             hdrBgClr() {
                 return {
-                    backgroundColor: this.tableMeta.kanban_header_color,
-                    color: SpecialFuncs.smartTextColorOnBg(this.tableMeta.kanban_header_color)
+                    backgroundColor: this.kanbanSett.kanban_header_color,
+                    color: SpecialFuncs.smartTextColorOnBg(this.kanbanSett.kanban_header_color)
                 };
             },
         },
@@ -164,6 +178,25 @@
             },
         },
         methods: {
+            getCardHeader() {
+                let res = [];
+                _.each(this.kanbanSett._fields_pivot, (pivot) => {
+                    if (pivot.is_header_show || pivot.is_header_value) {
+                        let hdr = _.find(this.tableMeta._fields, {id: Number(pivot.table_field_id)});
+                        if (hdr) {
+                            let row_value = this.tableRow
+                                ? SpecialFuncs.showhtml(hdr, this.tableRow, this.tableRow[hdr.field], this.tableMeta)
+                                : '';
+                            let ar = pivot.is_header_show ? [this.$root.uniqName(hdr.name)] : [];
+                            if (pivot.is_header_value) {
+                                ar.push(row_value)
+                            }
+                            res.push(ar.join(': '));
+                        }
+                    }
+                });
+                return res.length ? res.join(' | ') : '';
+            },
             mapFromField(arrData) {
                 return _.map(arrData, (pivot) => {
                     let fld = _.find(this.tableMeta._fields, {id: Number(pivot.table_field_id)});
@@ -237,7 +270,7 @@
                 }
             }
             .card_body {
-                padding: 0 5px;
+                padding: 5px 5px 0 5px;
                 overflow: auto;
 
                 .table_part {

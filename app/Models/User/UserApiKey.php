@@ -6,6 +6,9 @@ use Eloquent;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Vanguard\Classes\TabldaEncrypter;
+use Vanguard\Modules\AiRequests\GeminiAiApi;
+use Vanguard\Modules\AiRequests\OpenAiApi;
+use Vanguard\Modules\AiRequests\StdAiCalls;
 use Vanguard\User;
 
 /**
@@ -14,9 +17,16 @@ use Vanguard\User;
  * @property int $id
  * @property int $user_id
  * @property string $type
- * @property string $key
+ * @property string $this
+ * @property string|null $model
+ * @property string|null $auth_token
  * @property string|null $air_base
  * @property string|null $air_type
+ * @property string|null $twilio_phone
+ * @property string|null $twiml_app_id
+ * @property string|null $search_key
+ * @property string|null $jira_email
+ * @property string|null $jira_host
  * @property int $is_active
  * @property-read User $_user
  * @mixin Eloquent
@@ -42,10 +52,17 @@ class UserApiKey extends Model
     protected $fillable = [
         'user_id',
         'name',
-        'type', // 'google','sendgrid','extracttable','airtable'
+        'type', // 'google','sendgrid','extracttable','airtable','twilio','jira','openai','gemini'
         'key',
+        'model',
+        'auth_token',
         'air_base', // used in key
         'air_type',
+        'twilio_phone',
+        'twiml_app_id',
+        'jira_email',
+        'jira_host',
+        'search_key',
         'notes',
         'is_active',
     ];
@@ -57,6 +74,40 @@ class UserApiKey extends Model
     public function decryptedKey()
     {
         return TabldaEncrypter::decrypt($this->key ?? '');
+    }
+
+    /**
+     * @return string
+     */
+    public function decryptedToken()
+    {
+        return TabldaEncrypter::decrypt($this->auth_token ?? '');
+    }
+
+    /**
+     * @return GeminiAiApi|OpenAiApi|null
+     */
+    public function AiInteface()
+    {
+        if ($this->type == 'openai') {
+            return new OpenAiApi($this->decryptedKey(), $this->getAiModel());
+        }
+        if ($this->type == 'gemini') {
+            return new GeminiAiApi($this->decryptedKey(), $this->getAiModel());
+        }
+        return null;
+    }
+
+    public function getAiModel(): string
+    {
+        $model = '';
+        if ($this->type == 'openai') {
+            $model = $this->model ?: 'gpt-4o-mini';
+        }
+        if ($this->type == 'gemini') {
+            $model = $this->model ?: '2.5-flash';
+        }
+        return strtolower($model);
     }
 
 

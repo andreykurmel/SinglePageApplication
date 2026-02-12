@@ -5,7 +5,10 @@
         @click="showEdit()"
     >
         <single-td-field
-                v-if="behavior === 'alert_notif' && inArray(tableHeader.field, ['new_value']) && tbField && canCellEdit"
+                v-if="inArray(behavior, ['alert_notif', 'alert_notif_clicktoupdate'])
+                    && inArray(tableHeader.field, ['new_value'])
+                    && tbField
+                    && canCellEdit"
                 :table-meta="globalMeta"
                 :table-header="tbField"
                 :td-value="tableRow[tableHeader.field]"
@@ -37,9 +40,9 @@
                 @updated-td-val="updateSingle"
         ></single-td-field>
 
-        <div v-else="" class="td-wrapper" :style="getTdWrappStyle">
+        <div v-else="" class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
 
                     <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
@@ -47,9 +50,9 @@
                         <span class="toggler round"></span>
                     </label>
 
-                    <div v-if="tableHeader.field === 'table_id'" class="inner-content">
+                    <div v-else-if="tableHeader.field === 'table_id'" class="inner-content">
                         <a target="_blank"
-                           title="Open the “Visiting” view in a new tab."
+                           title="Open the “Visiting” MRV in a new tab."
                            :href="showField('__visiting_url')"
                            @click.stop=""
                            v-html="showField()"></a>
@@ -136,6 +139,31 @@
             ></tablda-select-simple>
             <!--^^^ANR^^^-->
 
+            <!--SNAPSHOT-->
+            <tablda-select-simple
+                    v-else-if="(behavior === 'alert_snapshot' && inArray(tableHeader.field, ['current_field_id']))
+                        || (behavior === 'alert_notif_clicktoupdate' && inArray(tableHeader.field, ['table_field_id']))"
+                    :options="nameFields(globalMeta)"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="behavior === 'alert_snapshot' && inArray(tableHeader.field, ['source_field_id'])"
+                    :options="nameFields(ref_tb_from_refcond)"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+            <!--^^^ANR^^^-->
+
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'mail_col_group_id'"
                     :options="globalColGroups()"
@@ -215,6 +243,12 @@
                     :style="getEditStyle"
             ></textarea>
 
+            <input v-else-if="inArray(tableHeader.f_type, ['Date', 'Date Time', 'Time'])"
+                   ref="inline_input"
+                   @blur="hideDatePicker()"
+                   class="form-control full-height"
+                   :style="getEditStyle"/>
+
             <input
                     v-else-if="inArray(tableHeader.field, ['name','qty','temp_name','temp_qty'])"
                     v-model="tableRow[tableHeader.field]"
@@ -238,7 +272,6 @@ import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
 import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
 import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
-import SingleTdField from "../CommonBlocks/SingleTdField";
 import SelectWithFolderStructure from "./InCell/SelectWithFolderStructure";
 import SelectBlock from "../CommonBlocks/SelectBlock";
 
@@ -246,7 +279,6 @@ export default {
         components: {
             SelectBlock,
             SelectWithFolderStructure,
-            SingleTdField,
             TabldaSelectSimple,
         },
         name: "CustomCellAlertNotif",
@@ -262,7 +294,7 @@ export default {
         },
         computed: {
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
+                let obj = this.getCellStyle();
                 if (this.inArray(this.behavior, ['alert_ufv','alert_anr'])) {
                     if (
                         (this.tableRow.source === 'Inherit' && this.tableHeader.field === 'input')
@@ -297,11 +329,11 @@ export default {
             },
             //update automations
             referTable() {
-                if (this.parentRow.table_ref_cond_id) {
+                if (Number(this.parentRow.table_ref_cond_id)) {
                     let rc = _.find(this.globalMeta._ref_conditions, {id: Number(this.parentRow.table_ref_cond_id)});
                     return _.find(this.$root.settingsMeta.available_tables, {id: Number(rc ? rc.ref_table_id : null)});
                 }
-                return null;
+                return this.globalMeta;
             },
             referTbHeader() {
                 return this.referTable
@@ -349,6 +381,9 @@ export default {
                     this.oldValue = this.tableRow[this.tableHeader.field];
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {
+                            if (this.inArray(this.tableHeader.f_type, ['Date Time', 'Date', 'Time'])) {
+                                this.showHideDatePicker(true);
+                            } else
                             if (this.$refs.inline_input && this.$refs.inline_input.nodeName === 'SELECT'){
                                 this.showHideDDLs(this.$root.selectParam);
                                 this.ddl_cached = false;
@@ -363,6 +398,20 @@ export default {
             },
             hideEdit() {
                 this.editing = false;
+            },
+            hideDatePicker() {
+                this.hideEdit();
+                let value = $(this.$refs.inline_input).val();
+                switch (this.tableHeader.f_type) {
+                    case 'Date': value = moment( value ).format('YYYY-MM-DD'); break;
+                    case 'Date Time': value = moment( value ).format('YYYY-MM-DD HH:mm:ss'); break;
+                    case 'Time': value = moment( '0001-01-01 '+value ).format('HH:mm:ss'); break;
+                }
+                if (value === 'Invalid date') {
+                    value = '';
+                }
+                this.tableRow[this.tableHeader.field] = value;
+                this.updateValue();
             },
             updateSingle(val, header, ddl_option) {
                 this.tableRow[this.tableHeader.field] = val;
@@ -423,6 +472,12 @@ export default {
                     res = reFld ? this.$root.uniqName(reFld.show) : this.tableRow[this.tableHeader.field];
                 }
                 else
+                if (this.behavior === 'alert_snapshot' && this.tableRow[this.tableHeader.field]) {
+                    let tM = this.tableHeader.field === 'current_field_id' ? this.globalMeta : this.ref_tb_from_refcond;
+                    let reFld = _.find(this.nameFields(tM), {val: Number(this.tableRow[this.tableHeader.field])});
+                    res = reFld ? this.$root.uniqName(reFld.show) : this.tableRow[this.tableHeader.field];
+                }
+                else
                 if (
                     this.inArray(this.tableHeader.field, ['table_field_id','inherit_field_id','temp_inherit_field_id','ufv_inherit_field_id'])
                     && this.tableRow[this.tableHeader.field]
@@ -432,7 +487,7 @@ export default {
                 }
                 else
                 if (this.tableHeader.field === 'table_ref_cond_id') {
-                    let selOpt = _.find(this.globalRefCondsSpecial(), {val: Number(this.tableRow.table_ref_cond_id)});
+                    let selOpt = _.find(this.globalRefCondsSpecial(), {val: this.tableRow.table_ref_cond_id});
                     if (selOpt) {
                         res = selOpt.show;
                     } else {
@@ -463,7 +518,7 @@ export default {
                 else {
                     res = this.tableRow[this.tableHeader.field];
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
 
             //arrays for selects
@@ -480,7 +535,10 @@ export default {
                     textDecoration: 'none'
                 };
 
-                let grs = [ { val:null, show:'All' } ];
+                let grs = [
+                    { val:'this_row', show:'THIS' },
+                    { val:null, show:'ALL' },
+                ];
                 grs.push({
                     val: null,
                     show: '//Row Groups:',
@@ -504,8 +562,7 @@ export default {
                 });
                 _.each(this.globalMeta._fields, (fld) => {
                     if (
-                        fld.active_links
-                        && fld._links.length
+                        fld._links.length
                         && _.find(fld._links, (lnk) => { return this.lnkIsRec(lnk) })
                     ) {
                         grs.push({
@@ -518,7 +575,7 @@ export default {
                             if (this.lnkIsRec(lnk)) {
                                 grs.push({
                                     val: lnk.table_ref_condition_id,
-                                    show: lnk.icon,
+                                    show: lnk.name || lnk.icon,
                                     style: {color: '#333'},
                                     is: 'displaylink',
                                 });
@@ -570,9 +627,9 @@ export default {
                             break;
                         case 'displaylink':
                             let lnk = _.find(this.globalMeta._fields, (fl) => {
-                                return fl.active_links && _.find(fl._links, {table_ref_condition_id: ref_id});
+                                return _.find(fl._links, {table_ref_condition_id: ref_id});
                             }) || {};
-                            eventBus.$emit('show-display-links-settings-popup', lnk.table_field_id, lnk.id);
+                            eventBus.$emit('show-display-links-settings-popup', lnk.id);
                             break;
                     }
                 }

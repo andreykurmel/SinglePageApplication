@@ -4,127 +4,268 @@
             borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
             marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
         }"></div>
-        <template v-for="avails in availGroups">
-            <div v-show="!!avails.showthis" :class="[scrlFlow ? '' : 'flex__elem-remain']">
-                <div class="flex__elem__inner">
-                    <div class="new-row new-row--main"
-                         :style="{
-                                backgroundColor: frm_color,
-                                boxShadow: box_shad,
-                                borderTopLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderTopRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                            }"
+
+        <div v-if="scrlTabs" class="flex flex--col full-height" :style="{backgroundColor: frm_color}">
+            <div class="flex flex--center-h" style="flex-wrap: wrap;">
+                <div v-for="(avails, idx) in availGroups"
+                     class="accordion_btn tab_btn flex flex--center-v"
+                     @click="showAccTab(avails)"
+                     :style="tabStyle()"
+                     :class="{tab_btn_active: avails.showitem}"
+                >{{ accTabItemName(avails) }}</div>
+            </div>
+            <div class="full-height" style="border-top: 1px solid #ccc; overflow: auto;">
+                <template v-for="(avails, idx) in availGroups">
+                    <request-form-view-element
+                        v-show="avails.showitem"
+                        :avail-gr="avails"
+                        :user="user"
+                        :settings-meta="settingsMeta"
+                        :cell-height="cellHeight"
+                        :dcr-object="dcrObject"
+                        :dcr-linked-rows="dcrLinkedRows"
+                        :table-row="tableRow"
+                        :scrl-groups="scrlGroups"
+                        :frm_color="frm_color"
+                        :box_shad="box_shad"
+                        :with_edit="with_edit"
+                        @linked-rows-changed="checkRowAutocomplete"
+                        @scroll-fields="scrollEvent"
+                        @check-row-autocomplete="checkRowAutocomplete"
+                        @show-src-record="showSrcRecord"
+                        @show-add-ddl="showAddDDLOption"
+                    ></request-form-view-element>
+                </template>
+            </div>
+            <div v-if="dcrObject.dcr_form_line_bot" :style="{
+                    borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
+                    marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
+                }"></div>
+            <request-form-buttons
+                :clear-after-submis="clearAfterSubmis"
+                :has-changes="hasChanges"
+                :table-row="tableRow"
+                :can-add-row="canAddRow"
+                :available-adding="availableAdding"
+                :dcr-object="dcrObject"
+                :box_shad="box_shad"
+                :frm_color="frm_color"
+                @add-row="addRow"
+                @store-rows-click="storeRows"
+                @clear-submission-changed="clearSubmisClicked"
+            ></request-form-buttons>
+        </div>
+
+        <div v-else-if="scrlAccordion" class="flex flex--col flex--space full-height" style="overflow: auto;">
+            <div>
+                <template v-for="(avails, idx) in availGroups">
+                    <div class="accordion_btn flex flex--center-v mt3"
+                         :style="tabStyle()"
+                         @click="showAccTab(avails)"
                     >
-                        <div class="flex flex--col" style="background-color: transparent">
-                            <div v-if="partHasAttachments(avails.fields)">
-                                <button class="btn btn-default"
-                                        :class="{active: avails.activetab === 'details'}"
-                                        @click="avails.activetab = 'details'"
-                                >Details</button>
-                                <button class="btn btn-default"
-                                        :class="{active: avails.activetab === 'attachments'}"
-                                        @click="avails.activetab = 'attachments'"
-                                >Attachments (P: {{ imgCount }}, F: {{ fileCount }})</button>
-                            </div>
-                            <div v-show="avails.activetab === 'details'"
-                                 :class="[scrlFlow ? '' : 'flex__elem-remain']"
-                                 class="form-tab"
-                                 :ref="'scroll_elem'"
-                                 @scroll="scrollEvent"
-                            >
-                                <div class="flex__elem__inner form-inner">
-                                    <vertical-table
-                                            :td="$root.tdCellComponent($root.tableMeta.is_system)"
-                                            :global-meta="$root.tableMeta"
-                                            :table-meta="$root.tableMeta"
-                                            :settings-meta="settingsMeta"
-                                            :table-row="tableRow"
-                                            :user="user"
-                                            :cell-height="$root.cellHeight"
-                                            :max-cell-rows="$root.maxCellRows"
-                                            :behavior="'list_view'"
-                                            :with_edit="!!with_edit"
-                                            :available-columns="avails.avail_columns"
-                                            :forbidden-columns="$root.systemFields"
-                                            :dcr-object="dcrObject"
-                                            :dcr-linked-rows="dcrLinkedRows"
-                                            style="background-color: transparent"
-                                            :style="{color: txtClr}"
-                                            @linked-update="hasChanges = true"
-                                            @updated-cell="checkRowAutocomplete"
-                                            @show-src-record="showSrcRecord"
-                                            @show-add-ddl-option="showAddDDLOption"
-                                            @showed-elements="(val) => {changeShows(avails, val)}"
-                                    ></vertical-table>
-                                </div>
-                            </div>
-                            <div v-show="avails.activetab === 'attachments'" :class="[scrlFlow ? '' : 'flex__elem-remain']" class="form-tab">
-                                <div class="flex__elem__inner">
-                                    <attachments-block
-                                            :table-meta="$root.tableMeta"
-                                            :table-row="tableRow"
-                                            :role="'add'"
-                                            :user="user"
-                                            :reqest_edit="with_edit"
-                                            :behavior="'request_view'"
-                                            :tab_style="{ minHeight: 'max-content' }"
-                                            :special_params="specialParams"
-                                            style="background-color: transparent"
-                                    ></attachments-block>
-                                </div>
-                            </div>
-                        </div>
+                        <span style="width: 15px">{{ avails.showitem ? '-' : '+' }}</span>
+                        <span>{{ accTabItemName(avails) }}</span>
                     </div>
+                    <request-form-view-element
+                        :avail-gr="avails"
+                        :user="user"
+                        :settings-meta="settingsMeta"
+                        :cell-height="cellHeight"
+                        :dcr-object="dcrObject"
+                        :dcr-linked-rows="dcrLinkedRows"
+                        :table-row="tableRow"
+                        :scrl-groups="scrlGroups"
+                        :frm_color="frm_color"
+                        :box_shad="box_shad"
+                        :with_edit="with_edit"
+                        :style="{
+                            maxHeight: avails.showitem ? '100%' : '0',
+                            overflow: 'hidden',
+                            transition: 'all 0.5s linear',
+                        }"
+                        @linked-rows-changed="checkRowAutocomplete"
+                        @scroll-fields="scrollEvent"
+                        @check-row-autocomplete="checkRowAutocomplete"
+                        @show-src-record="showSrcRecord"
+                        @show-add-ddl="showAddDDLOption"
+                    ></request-form-view-element>
+                </template>
+            </div>
+            <div v-if="dcrObject.dcr_form_line_bot" :style="{
+                    borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
+                    marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
+                }"></div>
+            <request-form-buttons
+                :clear-after-submis="clearAfterSubmis"
+                :has-changes="hasChanges"
+                :table-row="tableRow"
+                :can-add-row="canAddRow"
+                :available-adding="availableAdding"
+                :dcr-object="dcrObject"
+                :box_shad="box_shad"
+                :frm_color="frm_color"
+                @add-row="addRow"
+                @store-rows-click="storeRows"
+                @clear-submission-changed="clearSubmisClicked"
+            ></request-form-buttons>
+        </div>
+
+        <div v-else-if="scrlConversational"
+             class="carousel slide"
+             data-ride="carousel"
+             :style="carouselStyle"
+        >
+            <!-- Wrapper for slides -->
+            <div class="carousel-inner full-height" role="listbox">
+                <div
+                    v-for="(avails, idx) in availGroups"
+                    class="item full-height flex flex--col"
+                    :style="{
+                        opacity: (idx === active_idx) ? 1 : 0,
+                        left: getOffset(idx, false),
+                        right: getOffset(idx, true),
+                    }"
+                >
+                    <template v-if="avails.isSlideTitle">
+                        <main-request-title
+                            :dcr-object="dcrObject"
+                            :is_embed="is_embed"
+                            :loaded="true"
+                            :dcr_form_msg="dcrFormMsage"
+                            :get_ava_rows="getAvaRows"
+                            style="margin: auto 0 5px 0;"
+                        ></main-request-title>
+                        <request-form-buttons
+                            :clear-after-submis="clearAfterSubmis"
+                            :hide-part="'buttons'"
+                            :can-add-row="canAddRow"
+                            :available-adding="availableAdding"
+                            :dcr-object="dcrObject"
+                            :box_shad="box_shad"
+                            :frm_color="frm_color"
+                            style="margin: 5px 0 auto 0;"
+                            @store-rows-click="storeRows"
+                            @clear-submission-changed="clearSubmisClicked"
+                        ></request-form-buttons>
+                    </template>
+                    <request-form-view-element
+                        v-else
+                        :avail-gr="avails"
+                        :user="user"
+                        :settings-meta="settingsMeta"
+                        :cell-height="cellHeight"
+                        :dcr-object="dcrObject"
+                        :dcr-linked-rows="dcrLinkedRows"
+                        :table-row="tableRow"
+                        :scrl-groups="scrlGroups"
+                        :frm_color="frm_color"
+                        :box_shad="box_shad"
+                        :with_edit="with_edit"
+                        style="margin: auto 0 5px 0;"
+                        @linked-rows-changed="checkRowAutocomplete"
+                        @scroll-fields="scrollEvent"
+                        @check-row-autocomplete="checkRowAutocomplete"
+                        @show-src-record="showSrcRecord"
+                        @show-add-ddl="showAddDDLOption"
+                    ></request-form-view-element>
+
+                    <request-form-buttons
+                        v-if="idx == 0 && !dcrObject.dcr_sec_slide_top_header"
+                        :clear-after-submis="clearAfterSubmis"
+                        :hide-part="'buttons'"
+                        :can-add-row="canAddRow"
+                        :available-adding="availableAdding"
+                        :dcr-object="dcrObject"
+                        :box_shad="box_shad"
+                        :frm_color="frm_color"
+                        style="margin: auto 0 5px 0;"
+                        @store-rows-click="storeRows"
+                        @clear-submission-changed="clearSubmisClicked"
+                    ></request-form-buttons>
+                    <request-form-buttons
+                        v-else-if="idx == availGroups.length-1"
+                        :hide-part="'notes'"
+                        :has-changes="hasChanges"
+                        :table-row="tableRow"
+                        :can-add-row="canAddRow"
+                        :available-adding="availableAdding"
+                        :dcr-object="dcrObject"
+                        :box_shad="box_shad"
+                        :frm_color="frm_color"
+                        style="margin: 5px 0 auto 0;"
+                        @add-row="addRow"
+                        @store-rows-click="storeRows"
+                    ></request-form-buttons>
+                    <div v-else style="margin: 5px 0 auto 0;"></div>
+
                 </div>
             </div>
+            <a v-if="active_idx > 0"
+               class="left carousel-control"
+               role="button"
+               data-slide="prev"
+               @click.stop.prevent="prevSlide()"
+            >
+                <span class="glyphicon glyphicon-chevron-left" aria-hidden="true"></span>
+                <span class="sr-only">Previous</span>
+            </a>
+            <a v-if="active_idx < availGroups.length-1"
+               class="right carousel-control"
+               role="button"
+               data-slide="next"
+               @click.stop.prevent="nextSlide()"
+            >
+                <span class="glyphicon glyphicon-chevron-right" aria-hidden="true"></span>
+                <span class="sr-only">Next</span>
+            </a>
+        </div>
+
+        <template v-else v-for="(avails, idx) in availGroups">
+            <request-form-view-element
+                :avail-gr="avails"
+                :user="user"
+                :settings-meta="settingsMeta"
+                :cell-height="cellHeight"
+                :dcr-object="dcrObject"
+                :dcr-linked-rows="dcrLinkedRows"
+                :table-row="tableRow"
+                :scrl-groups="scrlGroups"
+                :frm_color="frm_color"
+                :box_shad="box_shad"
+                :with_edit="with_edit"
+                @linked-rows-changed="checkRowAutocomplete"
+                @scroll-fields="scrollEvent"
+                @check-row-autocomplete="checkRowAutocomplete"
+                @show-src-record="showSrcRecord"
+                @show-add-ddl="showAddDDLOption"
+            ></request-form-view-element>
             <div v-if="dcrObject.dcr_form_line_bot && !!avails.showthis" :style="{
                 borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
                 marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
             }"></div>
+            <request-form-buttons
+                v-if="idx == availGroups.length-1"
+                :clear-after-submis="clearAfterSubmis"
+                :has-changes="hasChanges"
+                :table-row="tableRow"
+                :can-add-row="canAddRow"
+                :available-adding="availableAdding"
+                :dcr-object="dcrObject"
+                :box_shad="box_shad"
+                :frm_color="frm_color"
+                @add-row="addRow"
+                @store-rows-click="storeRows"
+                @clear-submission-changed="clearSubmisClicked"
+            ></request-form-buttons>
         </template>
-        <div class="new-row popup-buttons flex flex--center-v flex--space"
-             :style="{
-                    backgroundColor: frm_color,
-                    boxShadow: box_shad,
-                    borderTopLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                    borderTopRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                    borderBottomLeftRadius: dcrObject.dcr_form_line_radius+'px',
-                    borderBottomRightRadius: dcrObject.dcr_form_line_radius+'px',
-                }"
-        >
-            <span class="req-fields">
-                <span class="required-wildcart">*</span> Input Required<br>
-                Never submit passwords through TablDA DCR Forms.
-            </span>
 
-            <div class="buttons-block">
-                <button class="btn btn-success"
-                        v-if="availSave(tableRow)"
-                        :style="$root.themeButtonStyle"
-                        @click="addRow('submit', 'Saved')"
-                >Save</button>
-                <button class="btn btn-success"
-                        v-if="availSubmit(tableRow)"
-                        :style="$root.themeButtonStyle"
-                        :disabled="!canAddRow"
-                        @click="addRow('submit', 'Submitted')"
-                >Submit</button>
-                <button class="btn btn-success"
-                        v-if="availUpdate(tableRow)"
-                        :disabled="!hasChanges"
-                        :style="$root.themeButtonStyle"
-                        @click="addRow('submit', 'Updated')"
-                >Update</button>
-                <button class="btn btn-success"
-                        :style="$root.themeButtonStyle"
-                        :disabled="!canAddRow"
-                        v-if="availAdd(tableRow)"
-                        @click="addRow('insert', '')"
-                >Add</button>
-            </div>
-        </div>
+        <!--Progress Bar-->
+        <progress-bar
+            v-if="scrlConversational && dcrObject.dcr_sec_slide_progresbar"
+            :pr_val="scrlProgrs"
+            :ignore_format="true"
+            style="position: absolute; left: 0; right: 0; bottom: 0; height: 30px"
+        ></progress-bar>
 
         <!--Add Select Option Popup-->
         <add-option-popup
@@ -143,34 +284,36 @@
 </template>
 
 <script>
+    import {VerticalTableFldObject} from "../CustomTable/VerticalTableFldObject";
     import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
     import {SpecialFuncs} from "../../classes/SpecialFuncs";
     import {RequestFuncs} from "./RequestFuncs";
 
-    import RequestMixin from "./RequestMixin.vue";
-    import CanEditMixin from './../_Mixins/CanViewEditMixin';
     import CheckRowBackendMixin from './../_Mixins/CheckRowBackendMixin';
     import SortFieldsForVerticalMixin from './../_Mixins/SortFieldsForVerticalMixin.vue';
 
-    import VerticalTable from './../CustomTable/VerticalTable';
-    import AttachmentsBlock from "./../CommonBlocks/AttachmentsBlock";
     import AddOptionPopup from "../CustomPopup/AddOptionPopup";
+    import RequestFormButtons from "./RequestFormButtons";
+    import RequestFormViewElement from "./RequestFormViewElement";
+    import MainRequestTitle from "./MainRequestTitle";
+    import ProgressBar from "../CustomCell/InCell/ProgressBar";
 
     export default {
         name: "RequestFormView",
         mixins: [
-            RequestMixin,
-            CanEditMixin,
             CheckRowBackendMixin,
             SortFieldsForVerticalMixin,
         ],
         components: {
+            ProgressBar,
+            MainRequestTitle,
+            RequestFormViewElement,
+            RequestFormButtons,
             AddOptionPopup,
-            AttachmentsBlock,
-            VerticalTable,
         },
         data: function () {
             return {
+                scrlProgrs: 0,
                 addOptionPopup: {
                     show: false,
                     tableHeader: null,
@@ -178,32 +321,23 @@
                 },
                 availGroups: [],
                 hasChanges: false,
+
+                //carousel
+                prev_idx: null,
+                next_idx: null,
+                active_idx: 0,
             };
         },
         computed: {
-            specialParams() {
-                return SpecialFuncs.specialParams();
-            },
-            imgCount() {
-                let res = 0;
-                for (let key in this.tableRow) {
-                    if (key && key.indexOf('_images_for_') > -1 && this.tableRow[key]) {
-                        res += this.tableRow[key].length;
-                    }
+            carouselStyle() {
+                let wi = this.dcrObject.dcr_form_line_thick || 1;
+                if (this.scrlConversational && this.dcrObject.dcr_sec_slide_progresbar) {
+                    wi += 35;
                 }
-                return res;
+                return {height: 'calc(100% - '+wi+'px)'};
             },
-            fileCount() {
-                let res = 0;
-                for (let key in this.tableRow) {
-                    if (key && key.indexOf('_files_for_') > -1 && this.tableRow[key]) {
-                        res += this.tableRow[key].length;
-                    }
-                }
-                return res;
-            },
-            txtClr() {
-                return SpecialFuncs.smartTextColorOnBg(this.dcrObject.dcr_form_bg_color);
+            scrlGroups() {
+                return this.scrlFlow || this.scrlConversational || this.scrlAccordion || this.scrlTabs;
             },
         },
         props:{
@@ -218,7 +352,15 @@
             frm_color: String,
             box_shad: String,
             scrlFlow: Boolean,
+            scrlConversational: Boolean,
+            scrlAccordion: Boolean,
+            scrlTabs: Boolean,
             with_edit: Boolean,
+            is_embed: Boolean,
+            dcrFormMsage: String,
+            getAvaRows: String|Number,
+            clearAfterSubmis: Boolean,
+            availableAdding: Boolean,
         },
         watch: {
             'tableRow.id': function (val) {
@@ -226,22 +368,14 @@
             }
         },
         methods: {
-            //sys methods
-            inArray(item, array) {
-                return $.inArray(item, array) > -1;
+            storeRows(status) {
+                this.$emit('store-rows-click', status);
+            },
+            clearSubmisClicked(val) {
+                this.$emit('clear-submission-changed', val);
             },
             addRow(param, new_status) {
-                if (this.$root.setCheckRequired(this.$root.tableMeta, this.tableRow)) {
-                    this.hasChanges = false;
-
-                    let status_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_status_id');
-                    if (status_hdr) {
-                        this.tableRow[status_hdr.field] = new_status;
-                    }
-
-                    this.tableRow._new_status = new_status;
-                    this.$emit(param, this.tableRow);
-                }
+                this.$emit('add-row', param, new_status, this.tableRow);
             },
             scrollEvent(e) {
                 this.$emit('scroll-fields');
@@ -261,7 +395,9 @@
                 this.hasChanges = true;
                 RefCondHelper.updateRGandCFtoRow(this.$root.tableMeta, this.tableRow);
 
-                this.checkRowOnBackend( this.$root.tableMeta.id, this.tableRow, null, this.specialParams );
+                let specParams = SpecialFuncs.specialParams();
+                specParams.dcr_rows_linked = this.dcrLinkedRows;
+                this.checkRowOnBackend(this.$root.tableMeta.id, this.tableRow, null, specParams, true);
             },
             //src record and tables function
             showSrcRecord(lnk, field, tableRow) {
@@ -269,88 +405,160 @@
             },
             //
             makeGroups(tableMeta, tableRow) {
-                let fld_objects = this.sortAndFilterFields(tableMeta, tableMeta._fields, tableRow, true);
-                this.availGroups = [];
-                let ava = [];
-                _.each(fld_objects, (fld) => {
-                    if (fld.is_dcr_section && this.scrlFlow) {
-                        this.availGroups.push({
-                            fields: ava,
-                            avail_columns: _.map(ava, 'field'),
-                            showthis:1,
-                            activetab:'details'
-                        });
-                        ava = [];
-                    }
-                    ava.push(fld);
-                });
-                if (ava && ava.length) {
-                    this.availGroups.push({
-                        fields: ava,
-                        avail_columns: _.map(ava, 'field'),
-                        showthis:1,
-                        activetab:'details'
-                    });
+                let availGroups = [];
+                if (this.scrlConversational && this.dcrObject.dcr_sec_slide_top_header) {
+                    availGroups.push({ isSlideTitle: true, fields:[], avail_columns:[], showthis:1, showitem:0, activetab:'Fields', uuid:uuidv4() });
+                }
+                this.availGroups = this.getSectionGroups(tableMeta, tableRow, this.dcrObject._fields_pivot, availGroups, this.scrlGroups, 'dcr', this.dcrObject._dcr_linked_tables || []);
+                if (this.scrlTabs) {
+                    _.first(this.availGroups).showitem = 1;
                 }
             },
-            changeShows(avails, val) {
-                avails.showthis = val;
+
+            //accordion/tabs
+            showAccTab(group) {
+                let someWasVisible = _.sumBy(this.availGroups, 'showitem');
+                let oneAcc = this.scrlAccordion && this.dcrObject.dcr_accordion_single_open;
+                if (oneAcc || this.scrlTabs) {
+                    _.each(this.availGroups, (gr) => {
+                        if (!oneAcc || gr.uuid != group.uuid) {
+                            gr.showitem = 0;
+                        }
+                    });//hide all tabs
+                }
+
+                if (oneAcc && someWasVisible) {
+                    window.setTimeout(() => {
+                        group.showitem = Number( !group.showitem );//delay to close tabs, then open new
+                    }, 1000);
+                } else {
+                    group.showitem = Number( !group.showitem );
+                }
+            },
+            accTabItemName(group) {
+                let fld = _.first(group.fields) || {name: ''};
+                let sectionName = VerticalTableFldObject.fieldSetting('dcr_section_name', fld, this.dcrObject._fields_pivot, 'dcr');
+                return sectionName || fld.name;
+            },
+            fontStyleObj() {
+                return SpecialFuncs.fontStyleObj('dcr_tab_font', this.dcrObject);
+            },
+            tabStyle() {
+                let stl = this.fontStyleObj();
+                stl.backgroundColor = this.dcrObject.dcr_tab_bg_color || '#BBB';
+                stl.height = this.dcrObject.dcr_tab_height ? (this.dcrObject.dcr_tab_height+'px') : 'auto';
+                return stl;
+            },
+
+            //carousel
+            nextSlide() {
+                if (this.prev_idx === null && this.next_idx === null) {
+                    if (this.active_idx === this.availGroups.length - 1) {
+                        this.next_idx = 0;
+                        this.moveImages(true);
+                    } else {
+                        this.next_idx = this.active_idx + 1;
+                        this.moveImages(true);
+                    }
+                }
+            },
+            prevSlide() {
+                if (this.prev_idx === null && this.next_idx === null) {
+                    if (this.active_idx === 0) {
+                        this.prev_idx = this.availGroups.length - 1;
+                        this.moveImages(false);
+                    } else {
+                        this.prev_idx = this.active_idx - 1;
+                        this.moveImages(false);
+                    }
+                }
+            },
+            moveImages(forvard) {
+                setTimeout(() => {
+                    if (forvard) {
+                        this.prev_idx = this.active_idx;
+                        this.active_idx = this.next_idx;
+                    } else {
+                        this.next_idx = this.active_idx;
+                        this.active_idx = this.prev_idx;
+                    }
+                    this.scrlProgrs = this.active_idx / (this.availGroups.length - 1);
+                    setTimeout(this.clearMoving, 500);
+                }, 100);
+            },
+            clearMoving() {
+                this.prev_idx = null;
+                this.next_idx = null;
+            },
+            getOffset(idx, right) {
+                let left;
+                if (idx === this.active_idx) {
+                    left = 0;
+                } else
+                if (idx < this.active_idx) {
+                    left = right ? '100%' : '-100%';
+                } else
+                if (idx > this.active_idx) {
+                    left = right ? '-100%' : '100%';
+                }
+                return left;
             },
         },
         mounted() {
             this.makeGroups(this.$root.tableMeta, this.tableRow);
-            this.checkRowOnBackend( this.$root.tableMeta.id, this.tableRow, null, this.specialParams );
+
+            let specParams = SpecialFuncs.specialParams();
+            specParams.dcr_rows_linked = this.dcrLinkedRows;
+            this.checkRowOnBackend(this.$root.tableMeta.id, this.tableRow, null, specParams);
             this.$emit('set-form-elem', _.first(this.$refs.scroll_elem));
+
+            document.addEventListener('keydown', (e) => {
+                if ((e.keyCode === 37 || e.keyCode === 38) && this.active_idx > 0) {//left/home/PgUp arrow
+                    this.prevSlide();
+                }
+                if ((e.keyCode === 39 || e.keyCode === 40) && this.active_idx < this.availGroups.length-1) {//right/End/PgDn arrow
+                    this.nextSlide();
+                }
+            });
         }
     }
 </script>
 
 <style lang="scss" scoped>
-    .new-row {
-        padding: 10px;
-        background-color: #fff;
-
-        .req-fields {
-            font-size: 14px;
-            font-style: italic;
-            color: #F00;
+    .carousel {
+        .left.carousel-control {
+            left: -15%;
+            background: transparent;
         }
-
-        .form-tab {
-            height: 100%;
-            position: relative;
-            top: -3px;
-            /*border-top: 1px solid #CCC;*/
-            /*border-bottom: 1px solid #CCC;*/
+        .right.carousel-control {
+            right: -15%;
+            background: transparent;
+        }
+        .item {
+            display: flex !important;
             overflow: auto;
-            border-radius: 4px;
-            padding: 5px;
-            background-color: transparent;
+            transition: all 1s ease-in;
+            perspective: none;
+            opacity: 1;
 
-            .form-inner {
-                padding: 0 10px;
-            }
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
     }
-    .new-row--main {
-        border-radius: 2px;
-        height: 100%;
+    .accordion_btn {
+        background: #BBB;
+        color: #000;
+        padding: 5px 10px;
+        font-weight: bold;
+        cursor: pointer;
     }
-
-    .popup-buttons {
-        padding-top: 3px;
+    .tab_btn {
+        margin: 5px 0 0 5px;
     }
-
-    .flex__elem-remain {
-        overflow: visible;
-    }
-
-    @media all and (max-width: 767px) {
-        .new-row {
-            display: block;
-        }
-        .buttons-block {
-            text-align: right;
-        }
+    .tab_btn_active {
+        background-color: #DDD !important;
     }
 </style>

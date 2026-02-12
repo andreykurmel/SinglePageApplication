@@ -3,6 +3,8 @@
 namespace Vanguard\Services\Tablda;
 
 
+use Carbon\Carbon;
+use Illuminate\Support\Arr;
 use PayPal\Api\Amount;
 use PayPal\Api\CreditCard;
 use PayPal\Api\CreditCardToken;
@@ -18,6 +20,7 @@ use PayPalCheckoutSdk\Core\SandboxEnvironment;
 use PayPalCheckoutSdk\Orders\OrdersCaptureRequest;
 use PayPalCheckoutSdk\Orders\OrdersCreateRequest;
 use PayPalCheckoutSdk\Orders\OrdersGetRequest;
+use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\User\UserCard;
 use Vanguard\User;
 
@@ -58,8 +61,8 @@ class PaymentService
             }
 
             $customer = \Stripe\Customer::retrieve($user->stripe_user_id);
-            $customer->sources->create(["source" => $token['id']]);
-            //\Stripe\Customer::update($user->stripe_user_id, ['source' => $token['id']]);
+            $source = \Stripe\Customer::createSource($customer->id, ['source' => $token['id']]);
+
             $card = UserCard::create([
                 'user_id' => $user->id,
                 'stripe_card_id' => $token['card']['id'],
@@ -119,9 +122,8 @@ class PaymentService
                 } catch (\Exception $e) {
                     $customer = \Stripe\Customer::create();
                 }
-                $customer->sources->create(["source" => $card_token['id']]);
+                $card = \Stripe\Customer::createSource($customer->id, ['source' => $card_token['id']]);
                 $selected_card = ['stripe_card_last' => $card_token['card']['last4']];
-                $card = $customer->sources->retrieve($card_token['card']['id']);
             }
             else {
                 //Pay by User's saved card for Tablda.com
@@ -131,7 +133,7 @@ class PaymentService
                     $selected_card->where('id', '=', $user->selected_card);
                 }
                 $selected_card = $selected_card->first();
-                $card = $customer->sources->retrieve($selected_card->stripe_card_id);
+                $card = \Stripe\Customer::retrieveSource($customer->id, $selected_card->stripe_card_id);
             }
 
         } catch (\Exception $e) {
@@ -353,12 +355,51 @@ class PaymentService
         if (
             $response->result->status == 'COMPLETED'
             &&
-            $unit = array_first($response->result->purchase_units)
+            $unit = Arr::first($response->result->purchase_units)
         ) {
             $ord_amount = $unit->amount->value;
             return $this->returnArray($unit->reference_id, $ord_amount,'PayPal',$token, $response->result->id);
         } else {
             return ['error' => 'Paypal Return Url Error'];
+        }
+    }
+
+    /**
+     * @param User $user
+     * @return void
+     */
+    public function checkRenewalNotification(User $user): void
+    {
+        $params = [
+            'from.account' => 'noreply',
+            'to.address' => $user->email,
+        ];
+        $data = [
+            'greeting' => "Hello, {$user->email},",
+            'has_recurrent' => !!$user->recurrent_pay,
+            'avail_credit' => $user->avail_credit,
+            'end_date' => Carbon::now()->addDays($user->_subscription->left_days)->format('Y-m-d'),
+        ];
+
+        $expiredCards = $user->_cards()
+            ->where('stripe_exp_year', '<=', Carbon::now()->year)
+            ->get();
+        foreach ($expiredCards as $card) {
+            if ($card->stripe_exp_year < Carbon::now()->year || $card->stripe_exp_month < Carbon::now()->month) {
+                $data['has_expired'] = $card->stripe_card_last;
+                $mailer = new EmailWithSettings('credit_card_expiring', $user->email);
+                $mailer->queue($params, $data);
+            }
+        }
+
+        if (!$user->_next_subscription && !$user->recurrent_pay) {
+            $mailer = new EmailWithSettings('auto_renewal_off', $user->email);
+            $mailer->queue($params, $data);
+        }
+
+        if (!$user->_next_subscription && $user->recurrent_pay && $user->use_credit && $user->avail_credit < $user->_subscription->cost) {
+            $mailer = new EmailWithSettings('credit_balance_low', $user->email);
+            $mailer->queue($params, $data);
         }
     }
 

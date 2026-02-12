@@ -98,12 +98,9 @@ import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 import LinkEmptyObjectMixin from "../_Mixins/LinkEmptyObjectMixin";
 import CheckRowBackendMixin from "../_Mixins/CheckRowBackendMixin";
 
-import VerticalTable from "../CustomTable/VerticalTable";
-
 export default {
         name: "AddOptionPopup",
         components: {
-            VerticalTable
         },
         mixins: [
             PopupAnimationMixin,
@@ -163,7 +160,7 @@ export default {
                 return ref ? ref.name : '';
             },
             postNewOption() {
-                if (!this.$root.setCheckRequired(this.linkTableMeta, this.objectForAdd)) {
+                if (this.linkTableMeta && !this.$root.setCheckRequired(this.linkTableMeta, this.objectForAdd)) {
                     return;
                 }
 
@@ -190,7 +187,7 @@ export default {
 
                     this.hide();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
 
@@ -207,7 +204,7 @@ export default {
                         this.createObjectForAdd();
                         this.checkRowAutocomplete();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
@@ -243,7 +240,7 @@ export default {
                     }).then(({ data }) => {
                         this.extraOptions.image_path = data.filepath + data.filename;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -274,7 +271,7 @@ export default {
             .popup-content {
 
                 .popup-main {
-                    padding: 10px;
+                    padding: 5px;
                     font-size: 16px;
                 }
 

@@ -11,6 +11,9 @@ return [
     'discourse_url_login' => env('DISCOURSE_URL_LOGIN', ''),
     'discourse_uri' => env('DISCOURSE_URI', ''),
 
+    'recaptcha_key' => env('GOOGLE_RECAPTCHA_KEY', ''),
+    'recaptcha_front_key' => env('GOOGLE_RECAPTCHA_FRONT_KEY', ''),
+
     'tablda' => [
         'sys_conn' => env('TABLDA_SYS_CONN', 'mysql_correspondence'),
         'data_conn' => env('TABLDA_DATA_CONN', 'mysql_data'),
@@ -168,6 +171,32 @@ return [
 
     'providers' => [
 
+        /**
+         * Third-Party Service Providers
+         */
+
+        Proengsoft\JsValidation\JsValidationServiceProvider::class,
+        Anhskohbo\NoCaptcha\NoCaptchaServiceProvider::class,
+        Laravel\Socialite\SocialiteServiceProvider::class,
+        Vanguard\Providers\HtmlServiceProvider::class,
+        Webpatser\Countries\CountriesServiceProvider::class,
+        //Intervention\Image\ImageServiceProvider::class,
+        anlutro\LaravelSettings\ServiceProvider::class,
+        Jenssegers\Agent\AgentServiceProvider::class,
+        Maatwebsite\Excel\ExcelServiceProvider::class,
+
+        /*
+         * Application Service Providers...
+         */
+        Vanguard\Services\Auth\Api\JWTServiceProvider::class,
+        Vanguard\Providers\AppServiceProvider::class,
+        Vanguard\Providers\AuthServiceProvider::class,
+        Vanguard\Providers\EventServiceProvider::class,
+        Vanguard\Providers\RouteServiceProvider::class,
+        Vanguard\Services\Auth\TwoFactor\AuthyServiceProvider::class,
+        Vanguard\Providers\StandAloneModulesProvider::class,
+        Tablda\DataReceiver\TabldaDataServiceProvider::class,
+
         /*
          * Laravel Framework Service Providers...
          */
@@ -192,35 +221,7 @@ return [
         Illuminate\Session\SessionServiceProvider::class,
         Illuminate\Translation\TranslationServiceProvider::class,
         Illuminate\Validation\ValidationServiceProvider::class,
-        Illuminate\View\ViewServiceProvider::class,
-
-        /**
-         * Third-Party Service Providers
-         */
-
-        Proengsoft\JsValidation\JsValidationServiceProvider::class,
-        Anhskohbo\NoCaptcha\NoCaptchaServiceProvider::class,
-        Laravel\Socialite\SocialiteServiceProvider::class,
-        Vanguard\Providers\HtmlServiceProvider::class,
-        Webpatser\Countries\CountriesServiceProvider::class,
-        Intervention\Image\ImageServiceProvider::class,
-        anlutro\LaravelSettings\ServiceProvider::class,
-        Jenssegers\Agent\AgentServiceProvider::class,
-        Maatwebsite\Excel\ExcelServiceProvider::class,
-
-        /*
-         * Application Service Providers...
-         */
-        Vanguard\Services\Auth\Api\JWTServiceProvider::class,
-        Vanguard\Providers\AppServiceProvider::class,
-        Vanguard\Providers\AuthServiceProvider::class,
-        // App\Providers\BroadcastServiceProvider::class,
-        Vanguard\Providers\EventServiceProvider::class,
-        Vanguard\Providers\RouteServiceProvider::class,
-        Vanguard\Services\Auth\TwoFactor\AuthyServiceProvider::class,
-        Vanguard\Providers\StandAloneModulesProvider::class,
-
-        Tablda\DataReceiver\TabldaDataServiceProvider::class
+        Illuminate\View\ViewServiceProvider::class
     ],
 
     /*
@@ -235,6 +236,18 @@ return [
     */
 
     'aliases' => [
+
+        'JsValidator' => Proengsoft\JsValidation\Facades\JsValidatorFacade::class,
+        'Socialite' => Laravel\Socialite\Facades\Socialite::class,
+        'Form' => Collective\Html\FormFacade::class,
+        'HTML' => Collective\Html\HtmlFacade::class,
+        'Countries' => Webpatser\Countries\CountriesFacade::class,
+        'Image' => Intervention\Image\Facades\Image::class,
+        'Settings' => anlutro\LaravelSettings\Facade::class,
+        'Authy' => Vanguard\Services\Auth\TwoFactor\Facade::class,
+        'JWTAuth' => Tymon\JWTAuth\Facades\JWTAuth::class,
+        'Agent' => Jenssegers\Agent\Facades\Agent::class,
+        'Excel' => Maatwebsite\Excel\Facades\Excel::class,
 
         'App'       => Illuminate\Support\Facades\App::class,
         'Artisan'   => Illuminate\Support\Facades\Artisan::class,
@@ -270,18 +283,6 @@ return [
         'Validator' => Illuminate\Support\Facades\Validator::class,
         'View'      => Illuminate\Support\Facades\View::class,
         'Notification' => Illuminate\Support\Facades\Notification::class,
-
-        'JsValidator' => Proengsoft\JsValidation\Facades\JsValidatorFacade::class,
-        'Socialite' => Laravel\Socialite\Facades\Socialite::class,
-        'Form' => Collective\Html\FormFacade::class,
-        'HTML' => Collective\Html\HtmlFacade::class,
-        'Countries' => Webpatser\Countries\CountriesFacade::class,
-        'Image' => Intervention\Image\Facades\Image::class,
-        'Settings' => anlutro\LaravelSettings\Facade::class,
-        'Authy' => Vanguard\Services\Auth\TwoFactor\Facade::class,
-        'JWTAuth' => Tymon\JWTAuth\Facades\JWTAuth::class,
-        'Agent' => Jenssegers\Agent\Facades\Agent::class,
-        'Excel' => Maatwebsite\Excel\Facades\Excel::class,
 
     ],
 

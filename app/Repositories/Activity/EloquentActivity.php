@@ -2,9 +2,14 @@
 
 namespace Vanguard\Repositories\Activity;
 
+use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Services\Logging\UserActivity\Activity;
 use Carbon\Carbon;
 use DB;
+use Vanguard\Services\Tablda\TableAlertService;
+use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Services\Tablda\TableService;
+use Vanguard\User;
 
 class EloquentActivity implements ActivityRepository
 {
@@ -13,7 +18,20 @@ class EloquentActivity implements ActivityRepository
      */
     public function log($data)
     {
-        return Activity::create($data);
+        $activ = Activity::create($data);
+
+        //check ANA addon
+        $table = (new TableRepository())->getTableByDB('user_activity');
+        $datas = (new TableDataService())->getRows([
+            'table_id' => $table->id,
+            'page' => 1,
+            'rows_per_page' => 0,
+            'row_id' => $activ->id
+        ], $activ->user_id);
+        $special = ['user_id' => $table->user_id, 'permission_id' => null];
+        (new TableAlertService())->checkAndSendNotifArray($table, 'added', $datas['rows'], [], $special);
+
+        return $activ;
     }
 
     /**

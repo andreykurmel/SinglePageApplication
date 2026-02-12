@@ -8,13 +8,19 @@
                 <div class="modal-dialog modal-sm">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h4 class="modal-title">Select a view for {{ assignedTable ? assignedTable.name : '' }}</h4>
+                            <h4 class="modal-title">
+                                Select a
+                                <a @click.prevent="openMrvPopup">MRV</a>
+                                for table: {{ assignedTable ? assignedTable.name : '' }}
+                            </h4>
                         </div>
                         <div class="modal-body">
-                            <select v-model="assigned_view_id" class="form-control">
-                                <option></option>
-                                <option v-for="view in table_views" :value="view.id">{{ view.name }}</option>
-                            </select>
+                            <select-block
+                                :options="tbViews()"
+                                :sel_value="assigned_view_id"
+                                :link_path="tbViewLink(assigned_view_id)"
+                                @option-select="(opt) => { assigned_view_id = opt.val }"
+                            ></select-block>
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-success" @click="saveFolderViewTable()">Save</button>
@@ -28,8 +34,11 @@
 </template>
 
 <script>
+    import SelectBlock from "../../../CommonBlocks/SelectBlock.vue";
+
     export default {
         name: 'FolderViewsTree',
+        components: {SelectBlock},
         data() {
             return {
                 table_views: null,
@@ -50,7 +59,31 @@
                 return _.find(this.$root.settingsMeta.available_tables, {id: Number(this.table_id)});
             },
         },
-        methods:{
+        methods: {
+            tbViewLink(viewId, tableId) {
+                let finder = viewId ? {id: Number(viewId)} : {is_system: 1};
+                let view = _.find(this.table_views, finder);
+                if (!view && tableId) {
+                    let table = _.find(this.$root.settingsMeta.available_tables, {id: Number(tableId)}) || {};
+                    view = _.find(table._views || [], finder);
+                }
+                if (view) {
+                    return this.$root.clear_url + '/mrv/' + view.hash;
+                }
+                return '#';
+            },
+            tbViews() {
+                return _.map(this.table_views || [], (view) => {
+                    return {
+                        val: view.id,
+                        show: view.name,
+                    };
+                });
+            },
+            openMrvPopup() {
+                this.$emit('open-view-assign', this.assignedTable ? this.assignedTable.id : null);
+                this.table_views = null;
+            },
             saveFolderViewTable() {
                 axios.put('/ajax/folder/view/checked-table', {
                     folder_view_id: this.folder_view_id,
@@ -74,7 +107,7 @@
 
                     this.table_views = null;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                 });
             },
@@ -118,7 +151,7 @@
                     }).then(({ data }) => {
                         this.$emit('updated-views', data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                     });
                 }
@@ -134,20 +167,31 @@
                     this.no_handle = false;
 
                     if ($node.state.selected && $node.li_attr['data-type'] === 'table') {
-                        axios.get('/ajax/folder/view/checked-table', {
-                            params: {
-                                folder_view_id: this.folder_view_id,
-                                table_id: $node.li_attr['data-id']
-                            }
-                        }).then(({ data }) => {
-                            this.table_views = data.table_views;
-                            this.assigned_view_id = data.folder_view_table.assigned_view_id;
-                            this.table_id = data.folder_view_table.table_id;
-                            this.assigned_node = $node;
-                        }).catch(errors => {
-                            Swal('', getErrors(errors));
-                        }).finally(() => {
-                        });
+
+                        if (evt.target.className.indexOf('jstree-aview') > -1) {
+                            window.open(evt.target.href, '_blank').focus();
+                        } else
+                        if (evt.target.className.indexOf('jstree-icon') > -1) {
+                            this.$emit('open-view-assign', $node.li_attr['data-id']);
+                        } else {
+                            axios.get('/ajax/folder/view/checked-table', {
+                                params: {
+                                    folder_view_id: this.folder_view_id,
+                                    table_id: $node.li_attr['data-id']
+                                }
+                            }).then(({data}) => {
+                                this.table_views = data.table_views;
+                                this.assigned_view_id = data.folder_view_table.assigned_view_id;
+                                if (!this.assigned_view_id) {
+                                    this.assigned_view_id = (_.find(this.table_views, {is_system: 1}) || {}).id;
+                                }
+                                this.table_id = data.folder_view_table.table_id;
+                                this.assigned_node = $node;
+                            }).catch(errors => {
+                                Swal('Info', getErrors(errors));
+                            }).finally(() => {
+                            });
+                        }
                     }
                 }
             },
@@ -175,10 +219,16 @@
 
                     if (el.li_attr['data-type'] === 'table') {
                         //in checked tables
-                        el.state.selected = _.findIndex(this.checked_tables, {id: el.li_attr['data-id']}) > -1;
+                        let tableId = el.li_attr['data-id'];
+                        el.state.selected = _.findIndex(this.checked_tables, {id: tableId}) > -1;
                         //has assigned view
-                        let assigned_view = _.find(this.assigned_views, {table_id: el.li_attr['data-id']});
-                        el.text = el.init_name + (assigned_view ? ' (View: '+assigned_view.name+')' : '');
+                        let assigned_view = el.state.selected
+                            ? _.find(this.assigned_views, {table_id: el.li_attr['data-id']}) || {name: 'Visiting'}
+                            : null;
+                        el.text = '<a class="jstree-aview" href="'
+                            + (assigned_view ? this.tbViewLink(assigned_view.id, tableId) : '#')
+                            +'">' + el.init_name + '</a>'
+                            + (assigned_view ? ' <span class="jstree-tpart">(View: '+assigned_view.name+')</span>' : '');
                     }
                 });
             }
@@ -192,6 +242,16 @@
     }
 </script>
 
+<style>
+    .jstree-aview {
+        color: rgb(99, 107, 111);
+    }
+    .jstree-aview:hover,
+    .jstree-tpart:hover,
+    .jstree-icon:hover {
+        text-decoration: underline;
+    }
+</style>
 <style lang="scss" scoped>
     .tab-pane {
         position: relative;

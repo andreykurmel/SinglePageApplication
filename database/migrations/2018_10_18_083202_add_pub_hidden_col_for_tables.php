@@ -15,6 +15,8 @@ class AddPubHiddenColForTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->tinyInteger('pub_hidden')->nullable();
+            $table->tinyInteger('filters_on_top')->nullable();
+            $table->string('filters_ontop_pos', 16)->default('start');
         });
     }
 
@@ -27,6 +29,8 @@ class AddPubHiddenColForTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->dropColumn('pub_hidden');
+            $table->dropColumn('filters_on_top');
+            $table->dropColumn('filters_ontop_pos');
         });
     }
 }

@@ -26,7 +26,7 @@ class TableBackupsController extends Controller
     }
 
     /**
-     * Add DDL
+     * Add Backup
      *
      * @param Request $request
      * @return mixed
@@ -36,11 +36,11 @@ class TableBackupsController extends Controller
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->bkpService->addTableBackup( array_merge($request->fields, ['table_id' => $table->id]) );
+        return $this->bkpService->addTableBackup( array_merge($request->fields, ['table_id' => $table->id]), $request->table_url );
     }
 
     /**
-     * Update DDL.
+     * Update Backup.
      *
      * @param Request $request
      * @return array
@@ -51,13 +51,12 @@ class TableBackupsController extends Controller
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return [
-            'status' => $this->bkpService->updateTableBackup( $table_backup->id, array_merge($request->fields, ['table_id' => $table->id]) )
-        ];
+        $this->bkpService->updateTableBackup( $table_backup->id, array_merge($request->fields, ['table_id' => $table->id]), $request->table_url );
+        return $this->bkpService->getTableBackup($table_backup->id);
     }
 
     /**
-     * Delete DDL
+     * Delete Backup
      *
      * @param Request $request
      * @return mixed

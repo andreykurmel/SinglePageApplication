@@ -2,28 +2,27 @@
 
 namespace Vanguard\Http\Controllers\Web\Auth;
 
+use Auth;
+use Authy;
+use Illuminate\Cache\RateLimiter;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
-use Ramsey\Uuid\Uuid;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Vanguard\Classes\DiscourseSso;
 use Vanguard\Events\User\Confirmed;
 use Vanguard\Events\User\LoggedIn;
-use Vanguard\Events\User\LoggedOut;
 use Vanguard\Events\User\Registered;
+use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Auth\LoginRequest;
 use Vanguard\Http\Requests\Auth\RegisterRequest;
+use Vanguard\Mail\EmailWithSettings;
+use Vanguard\Models\PromoCode;
 use Vanguard\Repositories\Role\RoleRepository;
 use Vanguard\Repositories\User\UserRepository;
 use Vanguard\Services\Auth\TwoFactor\Contracts\Authenticatable;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Support\Enum\UserStatus;
-use Auth;
-use Authy;
-use Carbon\Carbon;
-use Illuminate\Cache\RateLimiter;
-use Illuminate\Http\Request;
-use Vanguard\Http\Controllers\Controller;
-use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Validator;
 
 class AuthController extends Controller
 {
@@ -86,20 +85,22 @@ class AuthController extends Controller
                 $this->incrementLoginAttempts($request);
             }
 
-            return redirect()->to('login' . $to)
-                ->withErrors(trans('auth.failed'));
+            Session::flash('last_login_name', $request->username);
+            Session::flash('last_login_pass', $request->password);
+            return redirect()->to('/?login')->withErrors('Incorrect email or password.');
         }
 
         $user = Auth::getProvider()->retrieveByCredentials($credentials);
         $user->disconnectOtherSessions();
 
         if ($user->isUnconfirmed()) {
-            return redirect()->to('login' . $to)
-                ->withErrors(trans('app.please_confirm_your_email_first'));
+            Session::flash('last_login_name', $request->username);
+            Session::flash('last_login_pass', $request->password);
+            return redirect()->to('/?login')->withErrors('The account has not been verified.');
         }
 
         if ($user->isBanned()) {
-            return redirect()->to('login' . $to)
+            return redirect()->to('/?login')
                 ->withErrors(trans('app.your_account_is_banned'));
         }
 
@@ -131,6 +132,17 @@ class AuthController extends Controller
 
         event(new LoggedIn);
 
+        $path = $this->getIntendedPath($request);
+
+        return redirect($path);
+    }
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse|string
+     */
+    protected function getIntendedPath(Request $request)
+    {
         if ($request->has('to')) {
             return redirect()->to($request->get('to'));
         }
@@ -140,9 +152,7 @@ class AuthController extends Controller
         $path = $serv->matchReferer('apps', $request->cur_path ?: '') ?: $path;
         $path = $serv->matchReferer('getstarted', $request->cur_path ?: '') ?: $path;
 
-        $path = (new DiscourseSso())->checkLogin($path);
-
-        return redirect($path);
+        return (new DiscourseSso())->checkLogin($path);
     }
 
     /**
@@ -164,11 +174,13 @@ class AuthController extends Controller
      */
     protected function logoutAndRedirectToTokenPage(Request $request, Authenticatable $user)
     {
+        Log::alert("2FA logoutAndRedirectToTokenPage");
         $this->logout();
 
         $request->session()->put('auth.2fa.id', $user->id);
+        $request->session()->put('auth.2fa.intended', $this->getIntendedPath($request));
 
-        return redirect()->route('auth.token');
+        return redirect()->route('auth.token', ['user' => $user]);
     }
 
     /**
@@ -181,7 +193,16 @@ class AuthController extends Controller
             if ($user->two_factor_type == 'sms') {
                 Authy::sendSmsToken($user);
             }
-            return view('auth.token');
+            if ($user->two_factor_type == 'email') {
+                $user->two_factor_etoken = random_int(100000, 999999);
+                $user->save();
+                $mail = new EmailWithSettings('email_2fa_auth', $user->email);
+                $mail->send(
+                    ['to.address' => $user->email, 'subject' => 'Auth code: '.$user->two_factor_etoken],
+                    ['code' => $user->two_factor_etoken, 'greeting' => "Hello, {$user->full_name()},"]
+                );
+            }
+            return view('auth.token', ['user' => $user]);
         } else {
             return redirect('login');
         }
@@ -194,6 +215,7 @@ class AuthController extends Controller
     public function postToken(Request $request)
     {
         $this->validate($request, ['token' => 'required']);
+        $token = strtoupper($request->token);
 
         if (! session('auth.2fa.id')) {
             return redirect('login');
@@ -206,8 +228,13 @@ class AuthController extends Controller
         if (! $user) {
             throw new NotFoundHttpException;
         }
+        Log::alert("2FA postToken {$token}: {$user->id}, {$user->email}, {$user->two_factor_etoken}");
 
-        if (! Authy::tokenIsValid($user, $request->token)) {
+        $valid = $user->two_factor_type == 'email'
+            ? $token == $user->two_factor_etoken
+            : Authy::tokenIsValid($user, $token);
+
+        if (! $valid) {
             return redirect()->to('login')->withErrors(trans('app.2fa_token_invalid'));
         }
 
@@ -216,7 +243,7 @@ class AuthController extends Controller
 
         event(new LoggedIn);
 
-        return redirect()->intended('/');
+        return redirect()->to($request->session()->pull('auth.2fa.intended', '/data'));
     }
 
     /**
@@ -227,7 +254,7 @@ class AuthController extends Controller
     public function getLogout()
     {
         (new DiscourseSso())->logout();
-        return redirect()->back();
+        return redirect()->to(config('app.url'));
     }
 
     /**
@@ -386,13 +413,15 @@ class AuthController extends Controller
 
         $role = $roles->findByName('User');
 
-        // Add the user to database
-        $user = $this->users->create(array_merge(
-            $request->only('email', 'username', 'password'),
-            ['status' => $status, 'role_id' => $role->id]
-        ));
+        $data = $request->only('email', 'password');
+        $data['username'] = $data['email'];
+        $data['status'] = $status;
+        $data['role_id'] = $role->id;
 
-        event(new Registered($user));
+        // Add the user to database
+        $user = $this->users->create($data);
+
+        event(new Registered($user, $request->promo_value));
 
         $message = settings('reg_email_confirmation')
             ? trans('app.account_create_confirm_email')
@@ -427,5 +456,16 @@ class AuthController extends Controller
 
         return redirect()->to('login')
             ->withErrors(trans('app.wrong_confirmation_token'));
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     */
+    public function getPromoCode(Request $request)
+    {
+        return [
+            'code' => PromoCode::where('code', '=', $request->promo_value)->first(),
+        ];
     }
 }

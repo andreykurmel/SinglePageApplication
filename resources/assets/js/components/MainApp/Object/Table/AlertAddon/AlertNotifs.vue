@@ -1,22 +1,30 @@
 <template>
     <div class="full-height permissions-tab" :style="textSysStyle">
         <div class="permissions-menu-header">
-            <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'mails'}" @click="activeTab = 'mails'">
+            <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'mails'}" @click="changeTab('mails')">
                 Emails
             </button>
-            <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'sms'}" @click="activeTab = 'sms'">
+            <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeTab === 'sms'}" @click="changeTab('sms')">
                 SMS
             </button>
-        </div>
-        <div class="permissions-menu-body" style="border: 1px solid #CCC;">
 
-            <div class="full-height permissions-panel" v-show="activeTab === 'mails'">
-                <table class="spaced-table" style="table-layout: fixed">
+            <div v-if="activeTab" class="flex flex--center-v flex--end" style="position: absolute; top: 0; right: 0; height: 32px;" :style="textSysStyleSmart">
+                <span>Enabled:&nbsp;</span>
+                <label class="switch_t">
+                    <input type="checkbox" :checked="sliderKey()" :disabled="!can_edit" @click="sliderChange()">
+                    <span class="toggler round" :class="{'disabled': !can_edit}"></span>
+                </label>
+            </div>
+        </div>
+        <div class="permissions-menu-body" style="border: 1px solid #CCC; right: 1px;">
+
+            <div class="full-frame pl5" v-show="activeTab === 'mails' && alert_sett.enabled_email" :style="$root.themeMainBgStyle">
+                <table class="spaced-table" style="table-layout: fixed; width: calc(100% - 11px)" :style="$root.themeMainBgStyle">
                     <colgroup>
-                        <col width="80px">
+                        <col width="100px">
                         <col width="">
                     </colgroup>
-                    <tbody>
+                    <tbody :style="textSysStyleSmart">
 
                     <tr>
                         <td colspan="2" class="pad-bot"></td>
@@ -30,7 +38,7 @@
                     <tr>
                         <td colspan="2" class="pad-bot">
                             <div class="flex flex--center-v full-height">
-                                <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;To:&nbsp;</label>
+                                <label class="pad-left" style="min-width: 55px">To:&nbsp;</label>
                                 <select
                                         v-model="alert_sett.row_mail_field_id"
                                         :style="textSysStyle"
@@ -40,14 +48,14 @@
                                 >
                                     <option></option>
                                     <option v-for="field in tableMeta._fields"
-                                            v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                            v-if="inArray(field.f_type, ['Email'])"
                                             :value="field.id">{{ $root.uniqName(field.name) }}</option>
                                 </select>
                                 <label>&nbsp;&nbsp;&nbsp;and:&nbsp;</label>
                                 <input type="text" :style="textSysStyle" v-model="alert_sett.recipients" :disabled="!can_edit" @change="sendUpdate()" class="form-control"/>
                             </div>
                             <div class="flex flex--center-v full-height">
-                                <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;Cc:&nbsp;</label>
+                                <label class="pad-left" style="min-width: 55px">Cc:&nbsp;</label>
                                 <select
                                         v-model="alert_sett.cc_row_mail_field_id"
                                         :style="textSysStyle"
@@ -57,14 +65,14 @@
                                 >
                                     <option></option>
                                     <option v-for="field in tableMeta._fields"
-                                            v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                            v-if="inArray(field.f_type, ['Email'])"
                                             :value="field.id">{{ $root.uniqName(field.name) }}</option>
                                 </select>
                                 <label>&nbsp;&nbsp;&nbsp;and:&nbsp;</label>
                                 <input type="text" :style="textSysStyle" v-model="alert_sett.cc_recipients" :disabled="!can_edit" @change="sendUpdate()" class="form-control"/>
                             </div>
                             <div class="flex flex--center-v full-height">
-                                <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;Bcc:&nbsp;</label>
+                                <label class="pad-left" style="min-width: 55px">Bcc:&nbsp;</label>
                                 <select
                                         v-model="alert_sett.bcc_row_mail_field_id"
                                         :style="textSysStyle"
@@ -74,7 +82,7 @@
                                 >
                                     <option></option>
                                     <option v-for="field in tableMeta._fields"
-                                            v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                            v-if="inArray(field.f_type, ['Email'])"
                                             :value="field.id">{{ $root.uniqName(field.name) }}</option>
                                 </select>
                                 <label>&nbsp;&nbsp;&nbsp;and:&nbsp;</label>
@@ -106,7 +114,8 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
-                                        style="padding: 0;"
+                                        style="padding: 0; color: #333;"
+                                        @close-formula="formula_mail_subject = false"
                                         @set-formula="sendUpdate"
                                 ></formula-helper>
                             </div>
@@ -136,7 +145,8 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
-                                        style="padding: 0;"
+                                        style="padding: 0; color: #333;"
+                                        @close-formula="formula_mail_addressee = false"
                                         @set-formula="sendUpdate"
                                 ></formula-helper>
                             </div>
@@ -166,7 +176,8 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
-                                        style="padding: 0;"
+                                        style="padding: 0; color: #333;"
+                                        @close-formula="formula_mail_message = false"
                                         @set-formula="sendUpdate"
                                 ></formula-helper>
                             </div>
@@ -174,7 +185,26 @@
                     </tr>
 
                     <tr>
-                        <td class="pad-bot">
+                        <td class="pad-bot" colspan="2">
+                            <label>Content:</label>
+                        </td>
+                    </tr>
+
+                    <!-- Pad Left -->
+                    <tr>
+                        <td class="pad-bot pad-left" colspan="2">
+                            <div class="flex flex--center-v">
+                                <label class="switch_t" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
+                                    <input type="checkbox" :checked="alert_sett.notif_email_add_tabledata" :disabled="!can_edit" @click="sendBoolUpdate('notif_email_add_tabledata')">
+                                    <span class="toggler round" :class="{'disabled': !can_edit}"></span>
+                                </label>
+                                <label>&nbsp;Record data</label>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-show="alert_sett.notif_email_add_tabledata">
+                        <td class="pad-bot pad-left-2">
                             <label>Format:</label>
                         </td>
                         <td class="pad-bot">
@@ -185,7 +215,7 @@
                                     <option value="list">Listing</option>
                                 </select>
 
-                                <label style="width: 90px;flex-shrink: 0;">&nbsp;&nbsp;&nbsp;&nbsp;Col. Group:&nbsp;</label>
+                                <label style="white-space: nowrap;">&nbsp;&nbsp;Col. Group:&nbsp;</label>
                                 <select-block
                                     :options="colGroups()"
                                     :sel_value="alert_sett.mail_col_group_id"
@@ -200,6 +230,69 @@
                             </div>
                         </td>
                     </tr>
+
+                    <tr>
+                        <td class="pad-bot pad-left" colspan="2">
+                            <div class="flex flex--center-v">
+                                <label class="switch_t" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
+                                    <input type="checkbox" :checked="alert_sett.notif_email_add_clicklink" :disabled="!can_edit" @click="sendBoolUpdate('notif_email_add_clicklink')">
+                                    <span class="toggler round" :class="{'disabled': !can_edit}"></span>
+                                </label>
+                                <label>&nbsp;A link for clicking to update field values:</label>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-show="alert_sett.notif_email_add_clicklink">
+                        <td class="pad-bot pad-left-2" colspan="2">
+                            <custom-table
+                                :cell_component_name="'custom-cell-alert-notif'"
+                                :global-meta="tableMeta"
+                                :table-meta="$root.settingsMeta['table_alert_click_updates']"
+                                :all-rows="alert_sett._click_updates"
+                                :rows-count="alert_sett._click_updates.length"
+                                :cell-height="1"
+                                :max-cell-rows="0"
+                                :is-full-width="true"
+                                :can_edit="can_edit"
+                                :user="$root.user"
+                                :behavior="'alert_notif_clicktoupdate'"
+                                :adding-row="{ active: true, position: 'bottom', }"
+                                :available-columns="['table_field_id','new_value']"
+                                :use_theme="true"
+                                @added-row="addClickUpdate"
+                                @updated-row="updateClickUpdate"
+                                @delete-row="deleteClickUpdate"
+                            ></custom-table>
+                        </td>
+                    </tr>
+
+                    <tr v-show="alert_sett.notif_email_add_clicklink">
+                        <td colspan="2" class="pad-bot pad-left-2">
+                            <div class="flex flex--center-v no-wrap">
+                                <label>Introductory message for the link:&nbsp;</label>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-show="alert_sett.notif_email_add_clicklink">
+                        <td colspan="2" class="pad-bot pad-left-2">
+                            <div class="flex flex--center-v no-wrap">
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.click_introduction" :disabled="!can_edit" @change="sendUpdate()" class="form-control"/>
+                                <input type="text" :style="textSysStyle" :value="alertClickLink" disabled class="form-control"/>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-show="alert_sett.notif_email_add_clicklink">
+                        <td colspan="2" class="pad-bot pad-left-2">
+                            <div class="flex flex--center-v no-wrap">
+                                <label>Message confirming successful updating:&nbsp;</label>
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.click_success_message" :disabled="!can_edit" @change="sendUpdate()" class="form-control"/>
+                            </div>
+                        </td>
+                    </tr>
+                    <!-- ^^^^^ Pad Left ^^^^^ -->
 
                     <tr>
                         <td class="pad-bot">
@@ -221,8 +314,87 @@
                 </table>
             </div>
 
-            <div class="full-height permissions-panel" v-show="activeTab === 'sms'">
-                <!--NONE-->
+            <div class="full-height permissions-panel" v-show="activeTab === 'sms' && alert_sett.enabled_sms" :style="$root.themeMainBgStyle">
+                <table class="spaced-table" style="table-layout: fixed" :style="$root.themeMainBgStyle">
+                    <colgroup>
+                        <col width="80px">
+                        <col width="">
+                    </colgroup>
+                    <tbody :style="textSysStyleSmart">
+
+                    <tr>
+                        <td colspan="2" class="pad-bot"></td>
+                    </tr>
+
+                    <tr>
+                        <td colspan="2" class="pad-bot">
+                            <div class="flex flex--center-v full-height">
+                                <label>Recipients&nbsp;To:&nbsp;</label>
+                                <select
+                                    v-model="alert_sett.row_sms_field_id"
+                                    :style="textSysStyle"
+                                    :disabled="!can_edit"
+                                    @change="sendUpdate()"
+                                    class="form-control"
+                                >
+                                    <option></option>
+                                    <option v-for="field in tableMeta._fields"
+                                            v-if="inArray(field.f_type, ['Phone Number'])"
+                                            :value="field.id">{{ $root.uniqName(field.name) }}</option>
+                                </select>
+                                <label>&nbsp;&nbsp;&nbsp;and:&nbsp;</label>
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.sms_recipients" :disabled="!can_edit" @change="sendUpdate()" class="form-control"/>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td colspan="2" class="pad-bot">
+                            <div style="position: relative;">
+                                <textarea rows="5"
+                                          :style="textSysStyle"
+                                          v-model="alert_sett.sms_body"
+                                          :disabled="!can_edit"
+                                          @keyup="recreaFormula('formula_sms_body')"
+                                          @focus="formula_sms_body = true"
+                                          class="form-control"
+                                ></textarea>
+                                <formula-helper
+                                    v-if="formula_sms_body"
+                                    :user="$root.user"
+                                    :table-meta="tableMeta"
+                                    :table-row="alert_sett"
+                                    :header-key="'sms_body'"
+                                    :can-edit="true"
+                                    :no-function="true"
+                                    :no_prevent="true"
+                                    :pop_width="'100%'"
+                                    style="padding: 0; color: #333;"
+                                    @close-formula="formula_sms_body = false"
+                                    @set-formula="sendUpdate"
+                                ></formula-helper>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr>
+                        <td class="pad-bot">
+                            <label>Delay:</label>
+                        </td>
+                        <td class="pad-bot">
+                            <div class="flex flex--center-v">
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.sms_delay_hour" :disabled="!can_edit" class="form-control" @change="sendUpdate"/>
+                                <label style="width: 90px;flex-shrink: 0;">&nbsp;hours&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.sms_delay_min" :disabled="!can_edit" class="form-control" @change="sendUpdate"/>
+                                <label style="width: 90px;flex-shrink: 0;">&nbsp;minutes&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                                <input type="text" :style="textSysStyle" v-model="alert_sett.sms_delay_sec" :disabled="!can_edit" class="form-control" @change="sendUpdate"/>
+                                <label style="width: 90px;flex-shrink: 0;">&nbsp;seconds&nbsp;&nbsp;&nbsp;&nbsp;</label>
+                            </div>
+                        </td>
+                    </tr>
+
+                    </tbody>
+                </table>
             </div>
 
         </div>
@@ -230,18 +402,18 @@
 </template>
 
 <script>
-    import FormulaHelper from "../../../../CustomCell/InCell/FormulaHelper";
-    import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+    import {eventBus} from "../../../../../app";
 
     import CellStyleMixin from "../../../../_Mixins/CellStyleMixin";
 
-    import {eventBus} from "../../../../../app";
+    import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+    import CustomTable from "../../../../CustomTable/CustomTable.vue";
 
     export default {
         name: "AlertNotifs",
         components: {
+            CustomTable,
             SelectBlock,
-            FormulaHelper,
         },
         mixins: [
             CellStyleMixin,
@@ -249,18 +421,23 @@
         data: function () {
             return {
                 activeTab: 'mails',
+                formula_sms_body: false,
                 formula_mail_subject: false,
                 formula_mail_addressee: false,
                 formula_mail_message: false,
             }
         },
-        props:{
+        props: {
             table_id: Number,
             tableMeta: Object,
             alert_sett: Object,
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
         },
         computed: {
+            alertClickLink() {
+                let firstRow = _.first(this.$root.listTableRows);
+                return this.$root.clear_url + '/ana_click?link=' + uuidv4() + '_' + this.alert_sett.id + '_' + (firstRow ? firstRow.id : 1) + '_' + uuidv4();
+            },
         },
         watch: {
             table_id(val) {
@@ -268,6 +445,25 @@
             }
         },
         methods: {
+            sliderKey() {
+                let key = '';
+                switch (this.activeTab) {
+                    case 'mails': key = 'enabled_email'; break;
+                    case 'sms': key = 'enabled_sms'; break;
+                }
+                return this.alert_sett[key];
+            },
+            sliderChange() {
+                switch (this.activeTab) {
+                    case 'mails': this.alert_sett.enabled_email = this.alert_sett.enabled_email ? 0 : 1; break;
+                    case 'sms': this.alert_sett.enabled_sms = this.alert_sett.enabled_sms ? 0 : 1; break;
+                }
+                this.sendUpdate();
+            },
+            changeTab(key) {
+                this.activeTab = key;
+                this.$emit('set-sub-tab', key);
+            },
             inArray(type, array) {
                 return array.indexOf(type) > -1;
             },
@@ -284,7 +480,12 @@
                 this.alert_sett.mail_col_group_id = opt.val;
                 this.sendUpdate();
             },
+            sendBoolUpdate(key) {
+                this.alert_sett[key] = this.alert_sett[key] ? 0 : 1;
+                this.sendUpdate();
+            },
             sendUpdate() {
+                this.formula_sms_body = false;
                 this.formula_mail_subject = false;
                 this.formula_mail_addressee = false;
                 this.formula_mail_message = false;
@@ -333,6 +534,54 @@
                     this[param] = true;
                 });
             },
+            addClickUpdate(tableRow) {
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                $.LoadingOverlay('show');
+                axios.post('/ajax/table/alert/click-to-update', {
+                    table_alert_id: this.alert_sett.id,
+                    fields: fields
+                }).then(({ data }) => {
+                    this.alert_sett._click_updates = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            updateClickUpdate(tableRow) {
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                $.LoadingOverlay('show');
+                axios.put('/ajax/table/alert/click-to-update', {
+                    table_alert_id: this.alert_sett.id,
+                    id: tableRow.id,
+                    fields: fields
+                }).then(({ data }) => {
+                    this.alert_sett._click_updates = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            deleteClickUpdate(tableRow) {
+                $.LoadingOverlay('show');
+                axios.delete('/ajax/table/alert/click-to-update', {
+                    params: {
+                        table_alert_id: this.alert_sett.id,
+                        id: tableRow.id,
+                    }
+                }).then(({ data }) => {
+                    this.alert_sett._click_updates = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
         },
         mounted() {
             this.createSearchUser();
@@ -344,6 +593,9 @@
 
 <style lang="scss" scoped>
     @import "./../SettingsModule/TabSettingsPermissions";
+    .permissions-tab {
+        position: relative;
+    }
 
     .spaced-table {
         width: 100%;
@@ -356,12 +608,16 @@
             padding-bottom: 15px;
         }
 
+        .pad-left {
+            padding-left: 15px;
+        }
+        .pad-left-2 {
+            padding-left: 30px;
+        }
+
         .search-user-wrapper {
             width: 100%;
             max-width: 380px;
         }
-    }
-    .btn-default {
-        height: 30px;
     }
 </style>

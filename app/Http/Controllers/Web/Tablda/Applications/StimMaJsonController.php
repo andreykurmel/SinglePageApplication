@@ -51,6 +51,7 @@ class StimMaJsonController extends Controller implements AppControllerInterface
                 'embed' => $lightweight,
                 'errors_present' => $errors_present,
                 'warnings_present' => $warnings_present,
+                'no_settings' => 1,
             ]
         ));
     }

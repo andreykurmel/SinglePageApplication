@@ -17,7 +17,7 @@
         </div>
         <div class="flexer" v-else="">
             <div>
-            <label>Results:</label>
+                <label>Results:</label>
                 <label>- Json file has been created successfully!</label>
             </div>
         </div>

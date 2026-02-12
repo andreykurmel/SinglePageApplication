@@ -9,28 +9,42 @@
                         <div class="flasher--ctr" :style="{opacity: flash_show ? 1 : 0}">{{ flash_msg }}</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
+                            <div style="position: absolute; right: 25px; z-index: 100;">
+                                <info-sign-link v-if="$root.settingsMeta.is_loaded"
+                                                :app_sett_key="'help_link_views_pop'"
+                                                :hgt="24"
+                                                :txt="'for Views'"
+                                ></info-sign-link>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="flex__elem-remain popup-content">
-                    <div class="flex__elem__inner permissions-tab" :style="$root.themeMainBgStyle">
-                        <div class="permissions-panel full-height">
-                            <div class="permissions-menu-header">
+                    <div class="flex__elem__inner permissions-tab" style="background: #FFF;">
+                        <div v-if="isLimited === 'MRV'" class="permissions-panel full-height">
+                            <table-view-module
+                                :table-meta="tableMeta"
+                                :no-grid-view-relation="true"
+                                @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
+                            ></table-view-module>
+                        </div>
+                        <div v-else class="permissions-panel full-height">
+                            <div class="permissions-menu-header" style="padding-left: 5px">
                                 <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'multiple'}" @click="activeRightTab = 'multiple'">
                                     Multiple-Record Views (MRV)
                                 </button>
-                                <button class="btn btn-default btn-sm":style="textSysStyle" :class="{active : activeRightTab === 'single'}" @click="activeRightTab = 'single'">
+                                <button class="btn btn-default btn-sm" :style="textSysStyle" :class="{active : activeRightTab === 'single'}" @click="activeRightTab = 'single'">
                                     Single-Record View (SRV)
                                 </button>
                             </div>
                             <div class="permissions-menu-body">
-                                <div v-if="activeRightTab === 'multiple'" class="full-frame" style="background-color: #047">
+                                <div v-show="activeRightTab === 'multiple'" class="full-frame">
                                     <table-view-module
                                             :table-meta="tableMeta"
                                             @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
                                     ></table-view-module>
                                 </div>
-                                <div v-if="activeRightTab === 'single'" class="full-frame" style="background-color: #FFF">
+                                <div v-show="activeRightTab === 'single'" class="full-frame">
                                     <single-view-module
                                             :table-meta="tableMeta"
                                             @flash-msg="(msg, show) => { flash_msg = msg; flash_show = show; }"
@@ -55,6 +69,8 @@
     import CustomTable from "../CustomTable/CustomTable";
     import TableViewModule from "../MainApp/Object/Table/SettingsModule/TableViewModule";
     import SingleViewModule from "../MainApp/Object/Table/SettingsModule/SingleViewModule";
+    import InfoSignLink from "../CustomTable/Specials/InfoSignLink.vue";
+    import PermissionsSettingsPopup from "./PermissionsSettingsPopup.vue";
 
     export default {
         name: "TableViewsPopup",
@@ -63,6 +79,8 @@
             CellStyleMixin,
         ],
         components: {
+            PermissionsSettingsPopup,
+            InfoSignLink,
             SingleViewModule,
             TableViewModule,
             CustomTable,
@@ -82,24 +100,33 @@
         },
         props:{
             tableMeta: Object,
+            isLimited: String,
+            init_show: Boolean,
         },
         methods: {
             //additionals
             hide() {
                 this.show_this = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
-            showTableViewsPopupHandler(db_name) {
+            showTableViewsPopupHandler(db_name, right_tab) {
                 if (!db_name || db_name === this.tableMeta.db_name) {
+                    if (right_tab) {
+                        this.activeRightTab = right_tab;
+                    }
                     this.show_this = true;
-                    this.$root.tablesZidx += 10;
+                    this.$root.tablesZidxIncrease();
                     this.zIdx = this.$root.tablesZidx;
                     this.runAnimation();
                 }
             },
         },
-        created() {
+        mounted() {
+            if (this.init_show) {
+                this.showTableViewsPopupHandler(this.tableMeta.db_name);
+            }
+
             eventBus.$on('global-keydown', this.hideMenu);
             eventBus.$on('show-table-views-popup', this.showTableViewsPopupHandler);
         },

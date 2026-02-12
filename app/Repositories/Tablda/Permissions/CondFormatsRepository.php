@@ -7,6 +7,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Vanguard\Models\DataSetPermissions\CondFormat;
 use Vanguard\Models\DataSetPermissions\CondFormatUserSetting;
+use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Singletones\OtherUserModule;
 
@@ -122,7 +123,10 @@ class CondFormatsRepository
         $auth = new OtherUserModule($user_id);
 
         if (is_null($user_id)) {
-            $res = $format->_table_permissions->where('is_system', 1);
+            $permis = TableRights::permissions($format->_table);
+            $res = $format->_table_permissions->filter(function($item) use ($permis) {
+                return $item->is_system || in_array($item->id, $permis->permis_ids);
+            });
         } else {
             $res = $format->_table_permissions->whereIn('id', $auth->getTablePermissionIdsMember());
         }

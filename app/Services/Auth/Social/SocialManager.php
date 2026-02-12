@@ -2,6 +2,7 @@
 
 namespace Vanguard\Services\Auth\Social;
 
+use Illuminate\Support\Str;
 use Laravel\Socialite\Contracts\User as SocialUser;
 use Vanguard\Repositories\Role\RoleRepository;
 use Vanguard\Repositories\User\UserRepository;
@@ -53,7 +54,7 @@ class SocialManager
 
             $user = $this->users->create([
                 'email' => $socialUser->getEmail(),
-                'password' => str_random(10),
+                'password' => Str::random(10),
                 'first_name' => $firstName,
                 'last_name' => $lastName,
                 'status' => UserStatus::ACTIVE,

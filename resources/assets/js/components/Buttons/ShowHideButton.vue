@@ -22,12 +22,11 @@
                                     <i v-if="rowsAllChecked() == 1" class="glyphicon glyphicon-minus group__icon"></i>
                                 </span>
                             </span>
-                            <span> Check/Uncheck All</span>
+                            <span> All Groups</span>
                         </label>
                     </div>
                     <div v-for="row_gr in tableMeta._row_groups" v-show="!row_gr._group_hidden">
                         <label :style="{backgroundColor: (row_gr._show_status ? '#CCC;' : ''), opacity: (row_gr._filter_disabled ? '0.5' : '')}"
-                               :title="row_gr._filter_disabled ? 'Disabled by Filters' : ''"
                                :class="row_gr._filter_disabled ? 'disabled' : ''"
                         >
                             <span class="indeterm_check__wrap">
@@ -38,7 +37,10 @@
                                     <i v-if="row_gr._show_status && row_gr._show_status == 2" class="glyphicon glyphicon-ok group__icon"></i>
                                     <i v-if="row_gr._show_status && row_gr._show_status == 1" class="glyphicon glyphicon-minus group__icon"></i>
                                 </span>
-                            </span> {{ row_gr.name }}
+                            </span>
+                            <a :title="row_gr._filter_disabled ? 'Disabled by Filter(s).' : 'Open records/rows of the group.'"
+                               @click.stop="showLinkedRows(row_gr)"
+                            >{{ row_gr.name }}</a>
                         </label>
                     </div>
                 </div>
@@ -53,12 +55,12 @@
                     <div v-if="meta_column_groups.length">
                         <label>
                             <span class="indeterm_check__wrap">
-                                <span class="indeterm_check" @click="toggleAllColumns()">
+                                <span class="indeterm_check" @click="toggleAllColumns(!columnsAllChecked)">
                                     <i v-if="columnsAllChecked == 2" class="glyphicon glyphicon-ok group__icon"></i>
                                     <i v-if="columnsAllChecked == 1" class="glyphicon glyphicon-minus group__icon"></i>
                                 </span>
                             </span>
-                            <span> Check/Uncheck All</span>
+                            <span> All Groups</span>
                         </label>
                     </div>
                     <div v-for="col_gr in meta_column_groups">
@@ -207,10 +209,9 @@
                         ids.push(el.id);
                     }
                 });
-                this.$emit('show-changed', ids, set_status);
+                this.emitShowChanged(ids, set_status);
             },
-            toggleAllColumns() {
-                let set_status = !this.columnsAllChecked;
+            toggleAllColumns(set_status) {
                 let ids = [];
                 _.each(this.meta_column_groups, (col_gr) => {
                     _.each(this.tableMeta._fields, (el) => {
@@ -220,14 +221,14 @@
                         }
                     });
                 });
-                this.$emit('show-changed', _.uniq(ids), set_status);
+                this.emitShowChanged(_.uniq(ids), set_status);
             },
 
             //single columns
             visibleChanged(fld) {
                 fld.is_showed = !fld.is_showed;
                 this.setStatus(fld, fld.is_showed);
-                this.$emit('show-changed', [fld.id], fld.is_showed);
+                this.emitShowChanged([fld.id], fld.is_showed);
             },
             toggleAll() {
                 let set_status = this.allChecked ? 0 : 1;
@@ -238,11 +239,15 @@
                         ids.push(el.id);
                     }
                 });
-                this.$emit('show-changed', ids, set_status);
+                this.emitShowChanged(ids, set_status);
+            },
+            emitShowChanged(ids, status) {
+                this.$emit('show-changed', ids, status);
+                eventBus.$emit('show-hide-button-has-been-changed', this.tableMeta.db_name);
             },
             setStatus(el, status) {
                 el.is_showed = status;
-                let filter_el = _.find(this.$root.tableMeta._fields, {id: el.id});
+                let filter_el = _.find(this.tableMeta._fields, {id: el.id});
                 if (filter_el) {
                     filter_el.is_showed = status ? 1 : 0;
                 }
@@ -270,77 +275,47 @@
             showGroupingSettings(type) {
                 eventBus.$emit('show-grouping-settings-popup', this.tableMeta.db_name, type);
             },
+            showLinkedRows(rowGroup) {
+                let lif = _.find(this.tableMeta._fields, {field: rowGroup.listing_field});
+                let lnk = {
+                    id: null,
+                    link_type: 'Record',
+                    link_display: 'Popup',
+                    popup_display: 'Table',
+                    always_available: true,
+                    name: rowGroup.name,
+                    listing_field_id: lif ? lif.id : null,
+                    table_ref_condition_id: rowGroup.row_ref_condition_id || undefined,
+                    dir_table_id: !rowGroup.row_ref_condition_id ? rowGroup.table_id : null,
+                    extra_ids: rowGroup._regulars ? _.map(rowGroup._regulars, 'field_value') : null,
+                };
+                this.$emit('show-linked-rows', lnk, {field:''}, {}, 'list_view');
+            },
+            showHideOnlyColGroup(table_id, col_group_id) {
+                let col_group = _.find(this.tableMeta._column_groups, {id: Number(col_group_id)});
+                if (table_id === this.tableMeta.id && col_group) {
+                    this.toggleAllColumns(false);
+                    this.colGroupToggle(col_group);
+                }
+            },
         },
         created() {
             eventBus.$on('global-click', this.hideMenu);
             eventBus.$on('global-keydown', this.hideMenu);
             eventBus.$on('page-reloaded', this.pageReloadedHandler);
+            eventBus.$on('show-hide-only-col-group', this.showHideOnlyColGroup);
+            eventBus.$on('hide-table-column', this.visibleChanged);
         },
         beforeDestroy() {
             eventBus.$off('global-click', this.hideMenu);
             eventBus.$off('global-keydown', this.hideMenu);
             eventBus.$off('page-reloaded', this.pageReloadedHandler);
+            eventBus.$off('show-hide-only-col-group', this.showHideOnlyColGroup);
+            eventBus.$off('hide-table-column', this.visibleChanged);
         }
     }
 </script>
 
 <style scoped lang="scss">
-    .show_hide_button {
-        cursor: pointer;
-        width: 35px;
-        height: 30px;
-        padding: 0;
-        font-size: 22px;
-        background-color: transparent;
-        position: relative;
-        outline: none;
-    }
-    .show_hide_button > .blue-gradient {
-        padding: 0;
-        position: relative;
-        width: 100%;
-    }
-    .show_hide_button > .blue-gradient > img {
-        height: 30px;
-    }
-
-    .show_hide_menu {
-        position: absolute;
-        right: 100%;
-        top: 100%;
-        z-index: 500;
-        max-height: 500px;
-        background-color: #EEE;
-        border: 1px solid #777;
-        border-radius: 5px;
-        display: flex;
-
-        .fa-plus {
-            font-size: 14px;
-            margin-right: 5px;
-            cursor: pointer;
-        }
-        .menu_part {
-            margin: 5px;
-            width: 175px;
-            overflow: auto;
-        }
-        .vert_line {
-            width: 1px;
-            border-right: 1px solid #777;
-        }
-        .menu_part > div {
-            border-bottom: 1px dashed #CCC;
-            line-height: 20px;
-        }
-        .menu_part > div > label {
-            white-space: nowrap;
-            font-size: 0.7em;
-            margin: 0;
-        }
-    }
-    .title-elem {
-        text-align: center;
-        background-color: #DDD;
-    }
+    @import "ShowHide";
 </style>

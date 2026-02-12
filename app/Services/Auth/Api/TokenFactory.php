@@ -4,6 +4,7 @@ namespace Vanguard\Services\Auth\Api;
 
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Vanguard\User;
 use Illuminate\Contracts\Config\Repository as ConfigContract;
 
@@ -40,7 +41,7 @@ class TokenFactory
         $ttl = $this->config->get('jwt.ttl');
 
         $token = (new Token)->forceFill([
-            'id' => str_random(40),
+            'id' => Str::random(40),
             'user_id' => $user->id,
             'ip_address' => $this->request->ip(),
             'user_agent' => $this->getUserAgent(),

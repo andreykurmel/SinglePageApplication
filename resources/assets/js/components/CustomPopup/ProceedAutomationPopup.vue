@@ -14,7 +14,7 @@
                     </div>
                 </div>
 
-                <div class="popup-content full-height">
+                <div class="popup-content full-height" :style="$root.themeMainBgStyle">
                     <div class="flex flex--col">
                         <!--<div>-->
                             <!--<label>Turn On/Off ANR items in the list to bypass the execution:</label>-->
@@ -103,7 +103,7 @@
                     }
                     this.base_updating = false;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             postAnr() {
@@ -112,7 +112,7 @@
                 }).then(({ data }) => {
                     this.hide();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             terminateAnr() {

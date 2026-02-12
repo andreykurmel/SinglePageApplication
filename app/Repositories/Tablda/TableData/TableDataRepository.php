@@ -2,31 +2,46 @@
 
 namespace Vanguard\Repositories\Tablda\TableData;
 
+use Carbon\Carbon;
 use Error;
 use Exception;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use Vanguard\AppsModules\AppOnChangeHandler;
 use Vanguard\Classes\DropdownHelper;
+use Vanguard\Helpers\ColorHelper;
+use Vanguard\Jobs\DDLChangedWatcherJob;
+use Vanguard\Jobs\FillFieldsForCorrespondenceTable;
 use Vanguard\Jobs\WatchMirrorValues;
 use Vanguard\Jobs\WatchRemoteFiles;
+use Vanguard\Models\Correspondences\CorrespTable;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\DDL;
 use Vanguard\Models\DDLReference;
 use Vanguard\Models\FavoriteRow;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\Table\UserHeaders;
+use Vanguard\Modules\ColumnAutoSizer;
+use Vanguard\Modules\InheritColumnModule;
 use Vanguard\Modules\Permissions\PermissionObject;
 use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\HistoryRepository;
 use Vanguard\Repositories\Tablda\ImportRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\TableSavedFilterRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
+use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Support\PrefixSufixHelper;
+use Vanguard\Support\SimilarityHelper;
 
 class TableDataRepository
 {
@@ -40,7 +55,30 @@ class TableDataRepository
     {
         $this->service = new HelperService();
         $this->permissionsService = new UserPermissionsService();
-        $this->dbcolRepository = new ImportRepository();
+        $this->dbcolRepository = new ColumnAutoSizer();
+    }
+
+    /**
+     * @param Table $table
+     * @param int|null $row_group_id
+     * @param int|null $single_id
+     * @return Collection
+     */
+    public function getRowsByRowGroup(Table $table, int $row_group_id = null, int $single_id = null): Collection
+    {
+        if (!$row_group_id) {
+            return collect([]);
+        }
+
+        $query = new TableDataQuery($table);
+        $query->applySelectedRowGroup($row_group_id);
+
+        $query = $query->getQuery();
+        if ($single_id) {
+            $query->where('id', '=', $single_id);
+        }
+
+        return $query->get();
     }
 
     /**
@@ -53,14 +91,7 @@ class TableDataRepository
      */
     public function getDistinctiveField(Table $table, TableField $field, int $limit = 1000): array
     {
-        $sql = new TableDataQuery($table, true);
-
-        $rows = $sql->getQuery()
-            ->distinct()
-            ->select($field->field)
-            ->limit($limit)
-            ->get();
-        $rows = (new TableDataRowsRepository())->attachSpecialFields($rows, $table, auth()->id(), ['refs']);
+        $rows = $this->distRows($table, $field, $limit);
 
         $res = [];
         if ($field->f_type == 'User') {
@@ -93,6 +124,39 @@ class TableDataRepository
     }
 
     /**
+     * @param Table $table
+     * @param TableField $field
+     * @param int $limit
+     * @return array
+     */
+    public function distinctForFrontEnd(Table $table, TableField $field, int $limit = 1000): array
+    {
+        return $this->distRows($table, $field, $limit)
+            ->map(function ($row) use ($field) {
+                return DropdownHelper::forFrontEndSelect($field->field, $row);
+            })
+            ->toArray();
+    }
+
+    /**
+     * @param Table $table
+     * @param TableField $field
+     * @param int $limit
+     * @return Collection
+     */
+    protected function distRows(Table $table, TableField $field, int $limit = 1000)
+    {
+        $sql = new TableDataQuery($table, true);
+
+        $rows = $sql->getQuery()
+            ->distinct()
+            ->select($field->field)
+            ->limit($limit)
+            ->get();
+        return (new TableDataRowsRepository())->attachSpecialFields($rows, $table, auth()->id(), ['refs','users']);
+    }
+
+    /**
      * Save To AttachmentCell Last File Path.
      *
      * @param array $data
@@ -114,7 +178,7 @@ class TableDataRepository
                         ->where('id', $row_id)
                         ->update([$header->field => $file_path_with_name]);
                 } catch (Exception $e) {
-                    //
+                    Log::error('TableDataRepository::saveToCellLastFilePath - '.$e->getMessage());
                 }
             }
         }
@@ -155,14 +219,24 @@ class TableDataRepository
      * @param array $row
      * @param string $search
      * @param int $limit
+     * @param array $moreParams
      * @return array of items: [
      *  'value' => string,
+     *  'show' => string,
      *  'description' => string,
      *  'image' => string,
+     *  'color' => string,
      * ]
      */
-    public function getDDLvalues(DDL $ddl, array $row = [], string $search = '', int $limit = 200)
+    public function getDDLvalues(DDL $ddl, array $row = [], string $search = '', int $limit = 200, array $moreParams = []): array
     {
+        if (!empty($moreParams['ddl_applied_field_id'])) {
+            $moreParams['field'] = TableField::where('table_id', '=', $ddl->table_id)
+                ->where('id', '=', $moreParams['ddl_applied_field_id'])
+                ->first();
+            $moreParams['table'] = $moreParams['field']?->_table;
+        }
+
         $ddl->loadMissing((new DDLRepository())->ddlRelationsForGetValues());
 
         $results = [];
@@ -176,29 +250,56 @@ class TableDataRepository
                     || !$ref->apply_target_row_group_id
                     || in_array($ref->apply_target_row_group_id, $applied_row_groups)
                 ) {
-                    $ref_rows = $this->getRowsFromDdlReference($ddl, $ref, $row, $search, $limit);
+                    $ref_rows = $this->getRowsFromDdlReference($ddl, $ref, $row, $search, $limit, false, $moreParams);
+                    if ($ddl->keep_sort_order) {
+                        $ref_rows = DropdownHelper::ddlSort($ddl, $ref_rows);
+                    }
                     $results = array_merge($results, $ref_rows);
                 }
             }
         }
 
+        $searchArr = TableDataQuery::searchStringToArr($search);
+
         $ddl_items = [];
         foreach ($ddl->_items as $item) {
-            $found = !$search || strpos(strtolower($item->option), $search) !== false;
+            $show = (string)$item->show_option ?: (string)$item->option ?: null;
+
+            if (!$search) {
+                $found = true;
+            } else {
+                $found = true;
+                foreach ($searchArr as $part) {
+                    if ($part['type'] == 'or') {
+                        $found = $found || str_contains(strtolower($show), $part['word']);
+                    } else {
+                        $found = $found && str_contains(strtolower($show), $part['word']);
+                    }
+                }
+            }
+
             if ($found) {
                 //Empty TargetRowGroup or Row belong to TargetRowGroup
                 if (!$item->apply_target_row_group_id || in_array($item->apply_target_row_group_id, $applied_row_groups)) {
-                    $ddl_items[] = [
-                        'value' => $item->option ?: null,
-                        'show' => $item->show_option ?: $item->option ?: null,
-                        'description' => $item->description ?: null,
-                        'image' => $item->image_path ?: null,
-                        'color' => $item->opt_color ?: null,
-                    ];
+                    //Max Selection has not been reached
+                    if (!$this->maxSelectionsPresentAndReached($item->option ?: null, $item->max_selections ?: 0, $moreParams)) {
+                        $ddl_items[] = [
+                            'value' => (string)$item->option ?: null,
+                            'show' => $show,
+                            'description' => $item->description ?: null,
+                            'image' => $item->image_path ?: null,
+                            'color' => $item->opt_color ?: null,
+                            'max_selections' => $item->max_selections ?: '',
+                            'search_similarity' => strlen($search) >= 3 ? SimilarityHelper::check($search, $show) : 0,
+                        ];
+                    }
                 }
             }
         }
         if (count($results) < $limit) {
+            if ($ddl->keep_sort_order) {
+                $ddl_items = DropdownHelper::ddlSort($ddl, $ddl_items);
+            }
             if ($ddl->items_pos == 'before') {
                 $results = array_merge($ddl_items, $results);
             } else {
@@ -206,12 +307,39 @@ class TableDataRepository
             }
         }
 
-        usort($results, function ($a, $b) use ($ddl) {
-            return strtolower($ddl->datas_sort) == 'desc'
-                ? $b['show'] <=> $a['show'] //desc
-                : $a['show'] <=> $b['show'];//asc
-        });
-        return $results;
+        if (strlen($search) >= 3) {
+            usort($results, function ($a, $b) {
+                return $b['search_similarity'] <=> $a['search_similarity']; //desc
+            });
+        } elseif (!$ddl->keep_sort_order) {
+            $results = DropdownHelper::ddlSort($ddl, $results);
+        }
+
+        return collect($results)
+            ->unique(function ($item) {
+                return $item['value'] . $item['show'];
+            })
+            ->toArray();
+    }
+
+    /**
+     * @param $value
+     * @param int $maxSelections
+     * @param array $moreParams
+     * @return bool
+     */
+    protected function maxSelectionsPresentAndReached($value, int $maxSelections, array $moreParams): bool
+    {
+        if ($maxSelections && !empty($moreParams['field']) && !empty($moreParams['table'])) {
+
+            $presentSelections = (new TableDataQuery($moreParams['table']))
+                ->getQuery()
+                ->where($moreParams['field']->field, '=', $value)
+                ->count();
+
+            return $presentSelections >= $maxSelections;
+        }
+        return false;
     }
 
     /**
@@ -220,43 +348,83 @@ class TableDataRepository
      * @param array $row
      * @param string $search
      * @param int $limit
+     * @param bool $no_individ
+     * @param array $moreParams
      * @return array
      */
-    public function getRowsFromDdlReference(DDL $ddl, DDLReference $ref, array $row, string $search = '', int $limit = 200): array
+    public function getRowsFromDdlReference(DDL $ddl, DDLReference $ref, array $row, string $search = '', int $limit = 200, bool $no_individ = false, array $moreParams = []): array
     {
         if (!$ref->ref_table()) {
             return [];
         }
+        $ddlRepo = new DDLRepository();
 
         $target_fld = $ref->_target_field ? $ref->_target_field->field : 'id';
         $image_fld = $ref->_image_field ? $ref->_image_field->field : null;
+        $color_fld = $ref->_color_field ? $ref->_color_field->field : null;
+        $max_selections_fld = $ref->_max_selections_field ? $ref->_max_selections_field->field : null;
         $show_fld = $ref->_show_field ? $ref->_show_field->field : null;
 
         $sql = new TableDataQuery($ref->ref_table(), true);
         $sql->applyRefConditionRow($ref->_ref_condition, $row, false);
+        $sql->applyRowRightsForUser(auth()->id());
         $sql = $sql->getQuery();
 
-        $sel_columns = array_filter([$target_fld, $image_fld, $show_fld]);
+        $sel_columns = array_filter([$target_fld, $image_fld, $color_fld, $show_fld]);
         $sql->select($sel_columns);
         $sql->distinct();
         if ($search) {
-            $sql->where($show_fld ?: $target_fld, 'like', "%$search%");
+            $searchArr = TableDataQuery::searchStringToArr($search);
+            foreach ($searchArr as $part) {
+                if ($part['type'] == 'or') {
+                    $sql->orWhere($show_fld ?: $target_fld, 'like', "%".$part['word']."%");
+                } else {
+                    $sql->where($show_fld ?: $target_fld, 'like', "%".$part['word']."%");
+                }
+            }
         }
-        $sql->orderBy($target_fld, strtolower($ddl->datas_sort) ?: 'asc');
+        if ($ddl->datas_sort) {
+            $sql->orderBy($target_fld, strtolower($ddl->datas_sort) ?: 'asc');
+        }
 
         try {
-            $def_color = $ref->_reference_colors->where('ref_value', '=', 'Default:')->first();
+            $def_clr_img = $ref->search_in_ref_colors()->where('ref_value', '=', 'Default:')->first();
             $sql_rows = $sql->limit($limit)
                 ->get()
-                ->map(function ($row) use ($ref, $target_fld, $image_fld, $show_fld, $def_color) {
-                    $ref_color = $ref->_reference_colors->where('ref_value', '=', 'Default:')->first() ?: $def_color;
+                ->map(function ($row) use ($ref, $target_fld, $image_fld, $color_fld, $show_fld, $max_selections_fld, $def_clr_img, $no_individ, $ddlRepo, $search) {
+                    $showval = $row[$show_fld ?: $target_fld] ?: null;
+                    $ref_clr_img = $ref->search_in_ref_colors()->where('ref_value', '=', $showval)->first() ?: $def_clr_img;
+                    $refclr = $ref_clr_img && $ref_clr_img->color
+                        ? $ref_clr_img->color
+                        : null;
+                    $refimg = $ref_clr_img && $ref_clr_img->image_ref_path
+                        ? $ref_clr_img->image_ref_path
+                        : null;
+                    $refmax_selections = $ref_clr_img && $ref_clr_img->max_selections
+                        ? $ref_clr_img->max_selections
+                        : null;
+
+                    if (!$no_individ && $ref->has_individ_colors && !$refclr) {
+                        $ddlColor = $ddlRepo->addDDLReferenceColor($ref->id, [
+                            'ref_value' => $showval,
+                            'color' => ColorHelper::randomHex()
+                        ]);
+                        $ref->_reference_clr_img->push($ddlColor);
+                        $refclr = $ddlColor->color;
+                    }
+
                     return [
                         'value' => $row[$target_fld] ?: null,
-                        'show' => $row[$show_fld ?: $target_fld] ?: null,
-                        'image' => $row[$image_fld] ?: null,
+                        'show' => $showval,
+                        'image' => !$no_individ && $ref->has_individ_images ? $refimg : ($row[$image_fld] ?: null),
                         'description' => null,
-                        'color' => $ref_color ? $ref_color->color : null,
+                        'color' => !$no_individ && $ref->has_individ_colors ? $refclr : ($row[$color_fld] ?: null),
+                        'max_selections' => !$no_individ && $ref->has_individ_max_selections ? $refmax_selections : ($row[$max_selections_fld] ?: null),
+                        'search_similarity' => strlen($search) >= 3 ? SimilarityHelper::check($search, $showval) : 0,
                     ];
+                })
+                ->filter(function ($row) use ($moreParams) {
+                    return !$this->maxSelectionsPresentAndReached($row['value'], $row['max_selections'] ?: 0, $moreParams);
                 })
                 ->toArray();
         } catch (Exception $e) {
@@ -375,6 +543,15 @@ class TableDataRepository
     }
 
     /**
+     * @param Table $table
+     * @return Builder
+     */
+    public function getTDQ(Table $table)
+    {
+        return (new TableDataQuery($table))->getQuery();
+    }
+
+    /**
      * Get data from user`s table
      *
      * @param array $data
@@ -459,14 +636,15 @@ class TableDataRepository
      *  ]
      * ]
      * @param int $user_id
+     * @param int|null $is_copy
      * @return int
      */
-    public function insertRow(Table $table_info, array $fields, $user_id)
+    public function insertRow(Table $table_info, array $fields, $user_id, int $is_copy = null)
     {
         $this->rowIsUniqueCheck($table_info, $fields);
 
         $table_info->loadMissing('_fields');
-        $fields = $this->setDefaults($table_info, $fields, $user_id);
+        $fields = $this->setDefaults($table_info, $fields, $user_id, $is_copy);
 
         $table_info->num_rows += 1;
         Table::where('id', $table_info->id)
@@ -474,31 +652,48 @@ class TableDataRepository
 
         $sql = (new TableDataQuery($table_info, true))->getQuery();
 
-        $dataSave = array_merge(
+        $beforePrefix = array_merge(
             $this->service->delSystemFields($fields),
             $this->service->getModified($table_info),
             $this->service->getCreated($table_info)
         );
-        $dataSave = $this->setSpecialValues($table_info, $dataSave);
-        $dataSave['static_hash'] = Uuid::uuid4();
+        $beforePrefix = $this->setSpecialValues($table_info, $beforePrefix);
+        $beforePrefix = $this->setBeforeInsertValues($table_info, $beforePrefix);
+        $beforePrefix['row_order'] = $beforePrefix['row_order'] ?? 0;
+        $dataSave = $is_copy
+            ? PrefixSufixHelper::applyToRow($table_info, $beforePrefix)
+            : $beforePrefix;
 
-        $row_id = $sql->insertGetId($dataSave);
-        $dataSave['id'] = $row_id;
-
-        $after_inserts = ['row_order' => $fields['row_order'] ?? $row_id];
-        foreach ($fields as $key => $val) {
-            $hdr = $table_info->_fields->where('field', $key)->first();
-            if ($hdr && $hdr->f_type == 'Auto Number') {
-                $after_inserts[$key] = $row_id;
+        try {
+            $row_id = $sql->insertGetId($dataSave);
+        } catch (\Exception $e) {
+            if (ExceptionFixer::handle($e, $table_info)) {
+                $row_id = $sql->insertGetId($dataSave);
+            } else {
+                throw $e;
             }
         }
+
+        $beforePrefix['_new_id'] = $row_id;
+        $dataSave['id'] = $row_id;
+
+        $after_inserts = ['row_order' => $dataSave['row_order'] ?? $row_id];//mark: new rows to the end
         (new TableDataQuery($table_info, true))->getQuery()
             ->where('id', $row_id)
             ->update($after_inserts);
 
-        (new WatchMirrorValues($table_info->id, $dataSave))->handle();
+        (new WatchMirrorValues($table_info->id, $dataSave))->handle();//Must be dispatched to work with Formulas!
         dispatch(new WatchRemoteFiles($table_info->id, null, $dataSave));
+        if ($table_info->db_name == 'correspondence_tables') {
+            dispatch(new FillFieldsForCorrespondenceTable($row_id));
+        }
 
+        $inh = new InheritColumnModule($table_info);
+        if ($is_copy && $inh->hasChildren()) {
+            $inh->checkForCopy($beforePrefix);
+        }
+
+        $this->service->tableModified($table_info->id);
         return $row_id;
     }
 
@@ -525,7 +720,7 @@ class TableDataRepository
             //check that row with these columns already present
             if ($query->count() > 0) {
                 $uniq_fields = $table->_unique_fields->pluck('name')->toArray();
-                throw new Exception('Columns "' . implode(', ', $uniq_fields) . '" should be unique!', 1);
+                throw new Exception('Field value or the combination of field values "' . implode(', ', $uniq_fields) . '" must be unique!', 1);
             }
         }
     }
@@ -535,10 +730,11 @@ class TableDataRepository
      *
      * @param Table $table
      * @param array $fields
-     * @param $user_id
+     * @param int|null $user_id
+     * @param int|null $is_copy
      * @return array
      */
-    public function setDefaults(Table $table, array $fields, $user_id)
+    public function setDefaults(Table $table, array $fields, int $user_id = null, int $is_copy = null)
     {
         if (!empty($fields['_defaults_applied'])) {
             $fields = $this->setDefaultsBySpecialRules($table, $fields, $user_id);
@@ -555,7 +751,7 @@ class TableDataRepository
 
         $fields = $this->setDefaultsFromColumnDatabase($table, $fields);
 
-        $fields = $this->service->setAutoStringArray($table, $fields);
+        $fields = $this->service->setDefaultAutoValues($table, $fields, $is_copy);
 
         $fields['_defaults_applied'] = true;
 
@@ -570,7 +766,7 @@ class TableDataRepository
      * @param $user_id
      * @return array
      */
-    private function setDefaultsBySpecialRules(Table $table, array $fields, $user_id)
+    protected function setDefaultsBySpecialRules(Table $table, array $fields, $user_id)
     {
         if ($user_id && $table->user_id != $user_id) {
             //set Defaults from UserRights
@@ -583,18 +779,34 @@ class TableDataRepository
         if ($table->db_name == 'correspondence_tables') {
             $fields['active'] = empty($fields['active']) ? 0 : 1;
 
-            $fields['data_table'] = $fields['data_table'] ?? 0;
-            $tble = (new TableRepository())->findByDbOrId($fields['data_table']);
+            $fields['data_table'] = $fields['data_table'] ?? '';
+            $tble = (new TableRepository())->getTableByDB($fields['data_table']);
             $fields['data_table'] = $tble ? $tble->db_name : $fields['data_table'];
             $fields['__data_table'] = $tble ? $tble->name : '';
         }
         if ($table->db_name == 'correspondence_fields') {
-            $fields['app_field'] = empty($fields['app_field']) ? ($fields['data_field'] ?? '') : $fields['app_field'];
+            if (empty($fields['app_field']) && !empty($fields['data_field'])) {
+                $corrTable = CorrespTable::find($fields['correspondence_table_id'] ?? null);
+                $tble = (new TableRepository())->findByDbOrId($corrTable ? $corrTable->data_table : null);
+                $fld = TableField::where('field', $fields['data_field'])
+                    ->where('table_id', '=', $tble ? $tble->id : null)
+                    ->first();
+
+                $fldVal = $fld ? preg_replace('/[\s,]+/i', '_', $fld->name) : null;
+                $fldVal = preg_replace('/[^\w\d_]/i', '', $fldVal);
+                $fields['app_field'] = strtolower($fldVal);
+            }
 
             $fields['link_table_db'] = $fields['link_table_db'] ?? null;
             $tble = (new TableRepository())->findByDbOrId($fields['link_table_db']);
             $fields['link_table_db'] = $tble ? $tble->db_name : $fields['link_table_db'];
             $fields['__link_table_db'] = $tble ? $tble->name : '';
+        }
+        if ($table->db_name == 'promo_codes' && ($fields['_changed_field'] ?? '') != 'is_active') {
+            $fields['start_at'] = $fields['start_at'] ?? now()->toDateString();
+            $fields['end_at'] = $fields['end_at'] ?? now()->addMonth()->toDateString();
+            $fields['is_active'] = now()->toDateString() >= $fields['start_at']
+                && now()->toDateString() <= $fields['end_at'];
         }
         return $fields;
     }
@@ -611,7 +823,8 @@ class TableDataRepository
                 ? $field
                 : $field . '_formula';
 
-            if ($fld_key && (string)$default['default'] && empty($fields[$fld_key])) {
+            $should_set = empty($fields[$fld_key]) || Str::startsWith($fields[$fld_key], '{$');
+            if ((string)$default['default'] && $should_set) {
                 $fields[$fld_key] = $this->parseDefval($default['default']);
             }
         }
@@ -622,7 +835,7 @@ class TableDataRepository
      * @param $def_val
      * @return string
      */
-    private function parseDefval($def_val)
+    protected function parseDefval($def_val)
     {
         $user = auth()->user();
         switch ($def_val) {
@@ -649,12 +862,12 @@ class TableDataRepository
      * @param array $fields
      * @return array
      */
-    private function setDefaultsFromColumnDatabase(Table $table, array $fields)
+    protected function setDefaultsFromColumnDatabase(Table $table, array $fields)
     {
         //set Defaults from Column DataBase
         foreach ($table->_fields as $col) {
             $col_val = isset($fields[$col->field]) ? (string)$fields[$col->field] : '';
-            if (!strlen($col_val) && $col->f_default) {
+            if (!strlen($col_val) && strlen($col->f_default)) {
                 $fields[$col->field] = $this->parseDefval($col->f_default);
             }
             $frm_key = $col->field . '_formula';
@@ -670,63 +883,45 @@ class TableDataRepository
      * @param Table $table
      * @param array $fields
      * @return array
-     * @throws Error
+     * @throws Exception
      */
-    protected function setSpecialValues(Table $table, array $fields)
+    public function setSpecialValues(Table $table, array $fields)//NOTE: before each row insert/update
     {
         $fields['row_hash'] = Uuid::uuid4();
-        $columns = [];
+        $present_keys = array_keys($fields);
         $all_len = 0;
         foreach ($table->_fields as $hdr) {
-            if (isset($fields[$hdr->field]) && !$fields[$hdr->field]) {
-                $fields[$hdr->field] = null;
+            if (in_array($hdr->field, $present_keys) && !strlen($fields[$hdr->field])) {
+                $fields[$hdr->field] = $this->service->isStringType($hdr->f_type)
+                    ? '' //String types can be "", not NULL!
+                    : null;
             }
 
             $val = $fields[$hdr->field] ?? '';
-
-            //SmartSize functionality
-            if ($this->dbcolRepository->notEnoughSize($hdr->f_type, $hdr->f_size, $val)) {
-                $this->calc_fsize($hdr, $val);
-                $hdr->save();
-                $columns[] = $hdr->getAttributes();
-            }
-
-            //Formula col functionality
-            if ($hdr->input_type === 'Formula') {
-                $frmla = $fields[$hdr->field . '_formula'] ?? '';
-                $fields[$hdr->field] = strlen($val) ? $val : '';
-                $fields[$hdr->field . '_formula'] = strlen($frmla) ? $frmla : '';
-                if (strlen($frmla) > 256) {
-                    $this->dbcolRepository->IncFormulaSize($table, $hdr->field . '_formula', strlen($frmla));
-                }
-            }
-            $all_len += in_array($hdr->f_type, ['Text', 'Long Text', 'Vote']) ? 16 : $hdr->f_size;
+            $frmla = $fields[$hdr->field . '_formula'] ?? '';
+            $all_len += $this->dbcolRepository->increaseIfNeeded($table, $hdr, $val, $frmla);
         }
         if ($all_len > 65535) {
-            throw new Error('Table Row Size more 65535 (without Text columns) table_id:' . $table->id);
+            throw new Exception('Table Row Size more 65535 (without Text columns) table_id:' . $table->id, 1);
         }
-        $this->dbcolRepository->IncreaseColSize($table, $columns);
         return $fields;
     }
 
     /**
-     * @param TableField $hdr
-     * @param $val
-     * @param int $depth
+     * @param Table $table
+     * @param array $fields
+     * @return array
+     * @throws Exception
      */
-    protected function calc_fsize(TableField $hdr, $val, $depth = 1)
+    public function setBeforeInsertValues(Table $table, array $fields): array
     {
-        $hdr->f_size = $this->dbcolRepository->increaseSize($hdr->f_type, $hdr->f_size, $val);
-        if ($hdr->f_size > 2048) {
-            $hdr->f_type = 'Text';
+        if ($table->_srv_url && empty($fields[$table->_srv_url->field])) {
+            $fields[$table->_srv_url->field] = Uuid::uuid4();
         }
-        if ($hdr->f_size > 32768) {
-            $hdr->f_type = 'Long Text';
+        if (!$table->is_system) {
+            $fields['static_hash'] = Uuid::uuid4();
         }
-
-        if ($depth <= 3 && $this->dbcolRepository->notEnoughSize($hdr->f_type, $hdr->f_size, $val)) {
-            $this->calc_fsize($hdr, $val, $depth + 1);
-        }
+        return $fields;
     }
 
     /**
@@ -743,21 +938,19 @@ class TableDataRepository
     }
 
     /**
-     * Fill rows with new default value
      * @param Table $table
-     * @param string $field
-     * @param string $f_default
+     * @param TableField $header
      * @return int
      */
-    public function updateDatabaseDefaults(Table $table, string $field, string $f_default)
+    public function updateDatabaseDefaults(Table $table, TableField $header)
     {
-        if (strlen($f_default)) {
+        if (strlen($header->f_default)) {
             return (new TableDataQuery($table))
                 ->getQuery()
-                ->where($field, '=', '')
-                ->orWhereNull($field)
+                ->where($header->field, '=', '')
+                ->orWhereNull($header->field)
                 ->update([
-                    $field => $f_default
+                    $header->field => $header->f_default
                 ]);
         } else {
             return 0;
@@ -778,12 +971,12 @@ class TableDataRepository
     }
 
     /**
-     * Insert Mass Rows into Table.
-     *
      * @param Table $table
      * @param array $rows
+     * @return array
+     * @throws Exception
      */
-    public function insertMass(Table $table, array $rows)
+    public function insertMass(Table $table, array $rows): array
     {
         $max_id = (new TableDataQuery($table))->getQuery()
             ->orderBy('id', 'desc')
@@ -799,13 +992,23 @@ class TableDataRepository
                 $this->service->getCreated($table)
             );
             $dataSave = $this->setSpecialValues($table, $dataSave);
-            $dataSave['static_hash'] = Uuid::uuid4();
+            $dataSave = $this->setBeforeInsertValues($table, $dataSave);
             $dataSave['row_order'] = $max_id + $r_index;
             $rows[$r_index] = $dataSave;
         }
 
         $sql = new TableDataQuery($table);
         $sql->getQuery()->insert($rows);
+        $this->service->tableModified($table->id);
+
+        //new ids
+        return $sql->getQuery()
+            ->where('id', '>', $max_id)
+            ->orderBy('id')
+            ->select(['id'])
+            ->get()
+            ->pluck('id')
+            ->toArray();
     }
 
     /**
@@ -818,13 +1021,14 @@ class TableDataRepository
      *      table_field: value,
      *      ...
      *  ]
-     * @param int $user_id :
-     * @param array $extra :
+     * @param int $user_id
+     * @param array $extra
+     * @param int $lvl
      *
      * @return bool|null
      * @throws Exception
      */
-    public function updateRow(Table $table_info, $row_id, array $fields, $user_id, array $extra = [])
+    public function updateRow(Table $table_info, $row_id, array $fields, $user_id, array $extra = [], int $lvl = 1)
     {
         $this->rowIsUniqueCheck($table_info, $fields, $row_id);
 
@@ -837,16 +1041,21 @@ class TableDataRepository
         $new_row = array_merge($old_row, $fields);
         //$new_row = $this->setDefaults($table_info, $new_row, $user_id);
         if (!isset($extra['nohandler'])) {
-            $new_row = (new AppOnChangeHandler($table_info))->testRow($new_row, $old_row);
+            [$new_row, $appld] = (new AppOnChangeHandler($table_info))->testRow($new_row, $old_row);
         }
 
         $data_fields = $this->storeInHistory($table_info, $old_row, $row_id, $new_row, $user_id);
-        $result = $this->updateWithRowHash($table_info, $dataQuery, $row_id, $data_fields);
+        $result = $this->updateWithRowHash($table_info, $row_id, $new_row);
 
         if (empty($extra['nowatchers'])) {
-            //dispatch(new DDLChangedWatcherJob($table_info, $new_row, $old_row));
+            dispatch(new DDLChangedWatcherJob($table_info->id, $new_row, $old_row));
+            dispatch(new WatchRemoteFiles($table_info->id, null, $new_row, $old_row));
             (new WatchMirrorValues($table_info->id, $new_row))->handle();
-            dispatch(new WatchRemoteFiles($table_info->id, null, $new_row));
+        }
+
+        $inh = new InheritColumnModule($table_info);
+        if ($inh->hasChildren(true)) {
+            $inh->checkForUpdate($old_row, $new_row, $lvl);
         }
 
         return $result;
@@ -862,7 +1071,7 @@ class TableDataRepository
      * @param $user_id
      * @return array
      */
-    private function storeInHistory(Table $table_info, array $old_row, $row_id, array $fields, int $user_id = null)
+    protected function storeInHistory(Table $table_info, array $old_row, $row_id, array $fields, int $user_id = null)
     {
         $user_id = $user_id ?: $table_info->user_id;
 
@@ -896,23 +1105,46 @@ class TableDataRepository
 
     /**
      * @param Table $table
-     * @param TableDataQuery $dataQuery
      * @param int $row_id
      * @param array $fields
      * @return int
      */
-    protected function updateWithRowHash(Table $table, TableDataQuery $dataQuery, int $row_id, array $fields)
+    protected function updateWithRowHash(Table $table, int $row_id, array $fields)
     {
         if (!$table->is_system) {
             $fields = array_merge($fields, $this->service->getModified($table));
             $fields = $this->setSpecialValues($table, $fields);
         } else {
-            $fields = $this->setDefaults($table, $fields, null);
+            $fields = $fields ? $this->setDefaults($table, $fields, null) : [];
         }
 
-        return $dataQuery->getQuery()
-            ->where($dataQuery->getSqlFld(), '=', $row_id)
-            ->update($this->service->delSystemFields($fields, true));
+        return $this->sqlUpdateTdq($table, $row_id, $fields);
+    }
+
+    /**
+     * @param Table $table
+     * @param int $row_id
+     * @param array $fields
+     * @return int
+     */
+    protected function sqlUpdateTdq(Table $table, int $row_id, array $fields): int
+    {
+        $this->service->tableModified($table->id);
+        if ($fields && $row_id) {
+            $tdq = (new TableDataQuery($table, true));
+            $query = $tdq->getQuery(false)->where($tdq->getSqlFld(), '=', $row_id);
+
+            try {
+                return $query->update($this->service->delSystemFields($fields, true));
+            } catch (\Exception $e) {
+                if (ExceptionFixer::handle($e, $table)) {
+                    return $query->update($this->service->delSystemFields($fields, true));
+                } else {
+                    throw $e;
+                }
+            }
+        }
+        return 0;
     }
 
     /**
@@ -924,14 +1156,10 @@ class TableDataRepository
      */
     public function quickUpdate(Table $table_info, int $row_id, array $fields = [], bool $with_hash = true)
     {
-        $fields = $this->setSpecialValues($table_info, $fields);
-        $dataQuery = (new TableDataQuery($table_info, true));
         if ($with_hash) {
-            return $this->updateWithRowHash($table_info, $dataQuery, $row_id, $fields);
+            return $this->updateWithRowHash($table_info, $row_id, $fields);
         } else {
-            return $dataQuery->getQuery()
-                ->where($dataQuery->getSqlFld(), '=', $row_id)
-                ->update($this->service->delSystemFields($fields, true));
+            return $this->sqlUpdateTdq($table_info, $row_id, $fields);
         }
     }
 
@@ -942,7 +1170,7 @@ class TableDataRepository
      * @param array $updated_row
      * @return mixed
      */
-    public function saveInDbNewRow(Table $table, array $updated_row)
+    public function saveInDbTempRow(Table $table, array $updated_row)
     {
         $sql = (new TableDataQuery($table, true))
             ->getQuery(false)
@@ -950,6 +1178,7 @@ class TableDataRepository
 
         $upd_data = $this->setSpecialValues($table, $updated_row);
         $upd_data = $this->service->delSystemFields($upd_data);
+        $upd_data = $this->service->clearAllAutoNumbers($table, $upd_data);
         $upd_data['row_hash'] = $this->service->sys_row_hash['cf_temp'];
 
         if ($sql->count()) {
@@ -957,6 +1186,9 @@ class TableDataRepository
         } else {
             $sql->insert($upd_data);
         }
+
+        $row = $sql->first();
+        (new WatchMirrorValues($table->id, $row->toArray()))->handle();
 
         return $sql->first();
     }
@@ -985,9 +1217,15 @@ class TableDataRepository
 
         if ($oldrow) {
             dispatch(new WatchMirrorValues($table_info->id, $oldrow->toArray()));
-            dispatch(new WatchRemoteFiles($table_info->id, null, $oldrow));
+            dispatch(new WatchRemoteFiles($table_info->id, null, $oldrow->toArray(), [], true));
+
+            $inh = new InheritColumnModule($table_info);
+            if ($inh->hasChildren()) {
+                $inh->checkForDelete($oldrow->toArray());
+            }
         }
 
+        $this->service->tableModified($table_info->id);
         return $res;
     }
 
@@ -996,7 +1234,7 @@ class TableDataRepository
      *
      * @param Table $table
      * @param int $row_id
-     * @return mixed
+     * @return TableData|null
      */
     public function getDirectRow(Table $table, int $row_id = null)
     {
@@ -1010,6 +1248,20 @@ class TableDataRepository
     }
 
     /**
+     * @param Table $table
+     * @param string $field
+     * @param string $row_hash
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function getRowBy(Table $table, string $field, string $row_hash)
+    {
+        return (new TableDataQuery($table))
+            ->getQuery(!!$table->is_system)
+            ->where($field, $row_hash)
+            ->first();
+    }
+
+    /**
      * Update Mass Check Boxes for One Table column.
      *
      * @param Table $table_info
@@ -1020,6 +1272,7 @@ class TableDataRepository
      */
     public function updateMassCheckBoxes(Table $table_info, array $row_ids, string $field, $status)
     {
+        $this->service->tableModified($table_info->id);
         $sql = new TableDataQuery($table_info);
         $dataSave = array_merge([$field => $status], $this->service->getModified($table_info));
         return $sql->getQuery()
@@ -1063,12 +1316,22 @@ class TableDataRepository
         $sql->applyWhereClause($data, $user_id);
         $sql = $sql->getQuery();
 
+        $inh = new InheritColumnModule($table_info);
+        if ($inh->hasChildren()) {
+            (clone $sql)->chunk(100, function ($old_rows) use ($inh) {
+                foreach ($old_rows as $old_row) {
+                    $inh->checkForDelete($old_row->toArray());
+                }
+            });
+        }
+
         $all_ids = (clone $sql)->select('id')->get()->pluck('id')->toArray();
         $sql->delete();
 
         dispatch(new WatchMirrorValues($table_info->id));
-        dispatch(new WatchRemoteFiles($table_info->id));
+        dispatch(new WatchRemoteFiles($table_info->id, null, [], [], true));
 
+        $this->service->tableModified($table_info->id);
         return $all_ids;
     }
 
@@ -1077,22 +1340,33 @@ class TableDataRepository
      *
      * @param Table $table
      * @param array $rows_ids
+     * @param int $lvl
      * @return bool
      */
-    public function deleteSelectedRows(Table $table, array $rows_ids)
+    public function deleteSelectedRows(Table $table, array $rows_ids, int $lvl = 1)
     {
         if (!$rows_ids) {
             return false;
         }
 
         $sql = new TableDataQuery($table, true);
-        $res = $sql->getQuery()
-            ->whereIn('id', $rows_ids)
-            ->delete();
+        $sql = $sql->getQuery()->whereIn('id', $rows_ids);
+
+        $inh = new InheritColumnModule($table);
+        if ($inh->hasChildren()) {
+            (clone $sql)->chunk(100, function ($old_rows) use ($inh, $lvl) {
+                foreach ($old_rows as $old_row) {
+                    $inh->checkForDelete($old_row->toArray(), $lvl);
+                }
+            });
+        }
+
+        $res = $sql->delete();
 
         dispatch(new WatchMirrorValues($table->id));
         dispatch(new WatchRemoteFiles($table->id));
 
+        $this->service->tableModified($table->id);
         return $res;
     }
 
@@ -1102,9 +1376,10 @@ class TableDataRepository
      * @param Table $table
      * @param array $rows_ids
      * @param array $only_columns
+     * @param int $lvl
      * @return array : [from_id => to_id]
      */
-    public function massCopy(Table $table, array $rows_ids, array $only_columns = [])
+    public function massCopy(Table $table, array $rows_ids, array $only_columns = [], int $lvl = 1)
     {
         $sql = new TableDataQuery($table);
         $rows = $sql->getQuery()
@@ -1120,28 +1395,45 @@ class TableDataRepository
             return $i . '_formula';
         }, $only_columns));
 
+        $datas = [];
         $sql = new TableDataQuery($table, true);
         foreach ($rows as $row) {
-            $data = !empty($only_columns)
+            $beforePrefix = !empty($only_columns)
                 ? collect($row)->only($only_columns)->toArray()
                 : $row;
-            $data = $this->service->delSystemFields($data);
-            $data = array_merge($data, $this->service->getModified($table), $this->service->getCreated($table));
-            $data = $this->setSpecialValues($table, $data);
+            $beforePrefix = $this->service->delSystemFields($beforePrefix);
+            $beforePrefix = array_merge($beforePrefix, $this->service->getModified($table), $this->service->getCreated($table));
+            $beforePrefix = $this->setSpecialValues($table, $beforePrefix);
+            $beforePrefix = $this->setBeforeInsertValues($table, $beforePrefix);
+            $beforePrefix = $this->service->setDefaultAutoValues($table, $beforePrefix, true);
+            $data = PrefixSufixHelper::applyToRow($table, $beforePrefix);
             $new_row_id = $sql->getQuery()->insertGetId($data);
 
             if ($new_row_id) {
+                //NOTE: new rows to the end
                 (clone $sql->getQuery())
                     ->where($sql->getSqlFld(), '=', $new_row_id)
                     ->update(['row_order' => $new_row_id]);
                 $added_ids[$row['id']] = $new_row_id;
+
+                $beforePrefix['id'] = $row['id'];
+                $beforePrefix['_new_id'] = $new_row_id;
+                $datas[] = $beforePrefix;
             }
         }
 
-        $mirror = count($rows) == 1 ? array_first($rows) : [];
-        dispatch(new WatchMirrorValues($table->id, $mirror));
+        $mirror = count($rows) == 1 ? Arr::first($rows) : [];
+        (new WatchMirrorValues($table->id, $mirror))->handle();
         dispatch(new WatchRemoteFiles($table->id, null, $mirror));
 
+        $inh = new InheritColumnModule($table);
+        if ($inh->hasChildren()) {
+            foreach ($datas as $data) {
+                $inh->checkForCopy($data, $lvl);
+            }
+        }
+
+        $this->service->tableModified($table->id);
         return $added_ids;
     }
 
@@ -1198,7 +1490,7 @@ class TableDataRepository
     /**
      * @param Collection $tableFildIds
      */
-    private function reorderSysHeaders(Collection $tableFildIds)
+    protected function reorderSysHeaders(Collection $tableFildIds)
     {
         $sys_hdrs = UserHeaders::whereHas('_field', function ($q) {
             $q->whereIn('field', $this->service->c2m2_fields);
@@ -1279,21 +1571,25 @@ class TableDataRepository
      * @param Table $table
      * @param array $request_params
      * @param array $excluded_vals // ['verts','hors']
-     * @param int|null $row_group_id
+     * @param string $data_range
      * @return Builder|TableDataQuery
      */
-    public function getSqlForChart(Table $table, array $request_params, array $excluded_vals, int $row_group_id = null)
+    public function getSqlForChart(Table $table, array $request_params, array $excluded_vals, string $data_range)
     {
-        //prepare table SQL
-        $sql = new TableDataQuery($table, true, auth()->id());
-        //apply searching, filtering, row rules to getRows
-        $sql->testViewAndApplyWhereClauses($request_params, auth()->id());
-        $sql->applySorting($request_params['sort'] ?? []);
-        //apply 'row group' if selected
-        if ($row_group_id) {
-            $sql->applySelectedRowGroup($row_group_id);
+        if (!empty($request_params['link']) && !empty($request_params['table_row'])) {
+            $sql = (new TableDataService())->fieldRowsSql($table, $request_params['link'], $request_params['table_row']);
+        } else {
+            //prepare table SQL
+            $sql = new TableDataQuery($table, true, auth()->id());
+            //apply searching, filtering, row rules to getRows
+            $sql->testViewAndApplyWhereClauses($request_params, auth()->id());
+            $sql->applySorting($request_params['sort'] ?? []);
+            $sql->checkAndApplyDataRange($data_range ?: '0');
+            $sql = $sql->getQuery();
+            if (!empty($request_params['rows_per_page'])) {
+                $sql->limit($request_params['rows_per_page']);
+            }
         }
-        $sql = $sql->getQuery();
 
         //apply excluded values
         $this->applyExcluded($sql, $excluded_vals['hors']);
@@ -1371,12 +1667,23 @@ class TableDataRepository
     }
 
     /**
+     * @param Table $table
+     * @return int
+     */
+    public function count(Table $table): int
+    {
+        return (new TableDataQuery($table, true))
+            ->getQuery()
+            ->count();
+    }
+
+    /**
      * Get Column Size.
      *
      * @param array $col
      * @return int
      */
-    private function colSize($col)
+    protected function colSize($col)
     {
         $res = 255;
         if ($col) {

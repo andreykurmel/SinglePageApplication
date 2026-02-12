@@ -13,10 +13,6 @@ class AddSharedReferencingToTablePermissions extends Migration
      */
     public function up()
     {
-        Schema::table('table_permissions', function (Blueprint $table) {
-            $table->tinyInteger('referencing_shared')->default(0)->after('can_reference');
-        });
-
         Schema::dropIfExists('folder_permissions_2_tables');
         Schema::dropIfExists('folder_permissions');
     }
@@ -28,8 +24,5 @@ class AddSharedReferencingToTablePermissions extends Migration
      */
     public function down()
     {
-        Schema::table('table_permissions', function (Blueprint $table) {
-            $table->dropColumn('referencing_shared');
-        });
     }
 }

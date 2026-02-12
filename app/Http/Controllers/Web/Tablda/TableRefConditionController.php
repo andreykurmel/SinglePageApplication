@@ -3,7 +3,11 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
+use Vanguard\Http\Requests\Tablda\GetTableRequest;
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionAddRequest;
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionCopyRequest;
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionDeleteRequest;
@@ -14,6 +18,7 @@ use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefConditionUpdateReque
 use Vanguard\Http\Requests\Tablda\TableRefCondition\TableRefIcomingUpdateRequest;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\Table\TableData;
+use Vanguard\Modules\InheritColumnModule;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Services\Tablda\TableService;
 use Vanguard\Support\DirectDatabase;
@@ -39,7 +44,7 @@ class TableRefConditionController extends Controller
      * Add Referencing Condition
      *
      * @param TableRefConditionAddRequest $request
-     * @return mixed
+     * @return array
      */
     public function insertRefCondition(TableRefConditionAddRequest $request)
     {
@@ -47,27 +52,15 @@ class TableRefConditionController extends Controller
 
         $this->authorize('isOwner', [TableData::class, $table]);
 
-        return $this->refConditionRepository->addRefCondition(
+        $refCond = $this->refConditionRepository->addRefCondition(
             array_merge($request->fields, ['table_id' => $request->table_id]),
-            $table,
-            auth()->id()
+            $table
         );
-    }
 
-    /**
-     * Update Referencing Condition
-     *
-     * @param TableRefConditionUpdateRequest $request
-     * @return mixed
-     */
-    public function updateRefCondition(TableRefConditionUpdateRequest $request)
-    {
-        $ref_cond = $this->refConditionRepository->getRefCondition($request->table_ref_condition_id);
-        $table = $this->tableService->getTable($ref_cond->table_id);
-
-        $this->authorize('isOwner', [TableData::class, $table]);
-
-        return $this->refConditionRepository->updateRefCondition($ref_cond->id, $request->fields);
+        return [
+            'ref_cond' => $refCond,
+            '_rcmap_positions' => $table->_rcmap_positions()->get(),
+        ];
     }
 
     /**
@@ -92,7 +85,8 @@ class TableRefConditionController extends Controller
      * @param TableRefIcomingUpdateRequest $request
      * @return array
      */
-    public function updIncomRef(TableRefIcomingUpdateRequest $request) {
+    public function updIncomRef(TableRefIcomingUpdateRequest $request)
+    {
         $ref_cond = $this->refConditionRepository->getRefCondition($request->table_ref_condition_id);
         $table = $this->tableService->getTable($ref_cond->ref_table_id);
 
@@ -101,6 +95,27 @@ class TableRefConditionController extends Controller
         $new_link = $this->refConditionRepository->updateRefCondition($ref_cond->id, ['incoming_allow' => $request->incoming_allow ? 1 : 0]);
         return [
             '__incoming_links' => DirectDatabase::loadIncomingLinks($table->id)
+        ];
+    }
+
+    /**
+     * Update Referencing Condition
+     *
+     * @param TableRefConditionUpdateRequest $request
+     * @return mixed
+     */
+    public function updateRefCondition(TableRefConditionUpdateRequest $request)
+    {
+        $ref_cond = $this->refConditionRepository->getRefCondition($request->table_ref_condition_id);
+        $table = $this->tableService->getTable($ref_cond->table_id);
+
+        $this->authorize('isOwner', [TableData::class, $table]);
+
+        $refCond = $this->refConditionRepository->updateRefCondition($ref_cond->id, $request->fields);
+
+        return [
+            'ref_cond' => $refCond,
+            '_rcmap_positions' => $table->_rcmap_positions()->get(),
         ];
     }
 
@@ -122,6 +137,20 @@ class TableRefConditionController extends Controller
         $this->authorize('isOwner', [TableData::class, $table_to]);
 
         return $this->refConditionRepository->copyRefCondition($from_cond, $to_cond);
+    }
+
+    /**
+     * @param Request $request
+     * @return TableRefCondition
+     * @throws AuthorizationException
+     */
+    public function addReverseRefCond(Request $request)
+    {
+        $refCond = $this->refConditionRepository->getRefCondition($request->ref_cond_id);
+        $table = $this->tableService->getTable($refCond->ref_table_id);
+        $this->authorize('isOwner', [TableData::class, $table]);
+
+        return $this->refConditionRepository->addReverseRefCond($refCond);
     }
 
     /**
@@ -181,5 +210,58 @@ class TableRefConditionController extends Controller
         $this->refConditionRepository->deleteRefConditionItem($request->table_ref_condition_item_id);
 
         return $this->refConditionRepository->loadRefCondWithRelations($ref_cond->id);
+    }
+
+    /**
+     * @param GetTableRequest $request
+     * @return array
+     * @throws AuthorizationException
+     */
+    public function getIncomingForTable(GetTableRequest $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->authorize('isOwner', [TableData::class, $table]);
+        return $this->refConditionRepository->loadIncomingRefConds($table->id);
+    }
+
+    /**
+     * @param GetTableRequest $request
+     * @return array
+     * @throws AuthorizationException
+     */
+    public function getInheritedTree(GetTableRequest $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->authorize('load', [TableData::class, $table]);
+        return InheritColumnModule::childrenTables([$table->id]);
+    }
+
+    /**
+     * @param Request $request
+     * @return \Vanguard\Models\DataSetPermissions\TableRcmapPosition
+     * @throws AuthorizationException
+     */
+    public function updateOrCreateRcMaps(Request $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->authorize('isOwner', [TableData::class, $table]);
+        return $this->refConditionRepository->updateOrCreateRcMaps(
+            array_merge($request->all(), [
+                'table_id' => $table->id,
+                'user_id' => auth()->id(),
+            ])
+        );
+    }
+
+    /**
+     * @param Request $request
+     * @return \Vanguard\Models\DataSetPermissions\TableRcmapPosition[]
+     * @throws AuthorizationException
+     */
+    public function deleteRcMaps(Request $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->authorize('isOwner', [TableData::class, $table]);
+        return $this->refConditionRepository->deleteRcMaps($table->id, $request->position);
     }
 }

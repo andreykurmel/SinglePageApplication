@@ -3,6 +3,17 @@
         <div class="form-group">
             <div class="row">
                 <div class="col-3">
+                    <label class="vertical-flex" for="username">@lang('app.username')</label>
+                </div>
+                <div class="col-9">
+                    <input type="text" class="form-control" id="username"
+                           name="username" placeholder="@lang('app.username')" value="{{ $user ? $user->username : '' }}">
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <div class="row">
+                <div class="col-3">
                     <label class="vertical-flex" for="first_name">@lang('app.role')</label>
                 </div>
                 <div class="col-9">
@@ -33,7 +44,7 @@
                 </div>
             </div>
         </div>
-        <div class="form-group">
+        <div style="margin-bottom: 26px">
             <div class="row">
                 <div class="col-3">
                     <label class="vertical-flex" for="last_name">@lang('app.last_name')</label>
@@ -89,7 +100,8 @@
                     <input type="text"
                            name="birthday"
                            id='birthday'
-                           value="{{ $user ? $user->present()->birthday : '' }}"
+                           value="{{ $user ? $user->present()->birthdayDate : '' }}"
+                           placeholder="Month/Day/Year"
                            class="form-control" />
                 </div>
             </div>
@@ -126,7 +138,7 @@
                 </div>
             </div>
         </div>
-        <div class="form-group">
+        <div style="margin-bottom: 8px">
             <div class="row">
                 <div class="col-3">
                     <label class="vertical-flex" for="company">@lang('app.company')</label>
@@ -139,13 +151,22 @@
         </div>
         <div class="form-group">
             <div class="row">
+                <div class="col-3"></div>
+                <div class="col-9" style="font-size: 12px; color: #555;">Paid user only.</div>
+            </div>
+            <div class="row">
                 <div class="col-3">
                     <label class="vertical-flex" for="subdomain">@lang('app.subdomain')</label>
                 </div>
                 <div class="col-9">
-                    <input type="text" class="form-control" id="subdomain"
-                           disabled="{{ auth()->user()->_available_features->apps_are_avail ? '' : 'disabled' }}"
-                           name="subdomain" placeholder="@lang('app.subdomain')" value="{{ $user ? $user->subdomain : '' }}">
+                    @if($user && $user->_available_features->apps_are_avail)
+                        <input type="text" class="form-control" id="subdomain"
+                               name="subdomain" placeholder="@lang('app.subdomain')" value="{{ $user ? $user->subdomain : '' }}">
+                    @else
+                        <input type="text" class="form-control" id="subdomain"
+                               disabled="disabled"
+                               name="subdomain" placeholder="@lang('app.subdomain')" value="{{ $user ? $user->subdomain : '' }}">
+                    @endif
                 </div>
             </div>
         </div>

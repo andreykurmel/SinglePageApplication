@@ -17,6 +17,7 @@ class AddStatColsToTables extends Migration
             $table->integer('num_rows')->nullable();
             $table->integer('num_columns')->nullable();
             $table->integer('num_collaborators')->nullable();
+            $table->integer('row_space_size')->default(50);
         });
     }
 
@@ -31,6 +32,7 @@ class AddStatColsToTables extends Migration
             $table->dropColumn('num_rows');
             $table->dropColumn('num_columns');
             $table->dropColumn('num_collaborators');
+            $table->dropColumn('row_space_size');
         });
     }
 }

@@ -7,6 +7,7 @@ use Vanguard\Mail\TabldaMail;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableEmailAddonHistory;
 use Vanguard\Models\Table\TableEmailAddonSetting;
+use Vanguard\Models\Table\TableEmailRight;
 use Vanguard\Services\Tablda\HelperService;
 
 class TableEmailAddonRepository
@@ -33,13 +34,23 @@ class TableEmailAddonRepository
     /**
      * @param Table $table
      */
-    public function loadForTable(Table $table)
+    public function loadForTable(Table $table, int $user_id = null)
     {
-        $table->load('_email_addon_settings');
-        if (!$table->_email_addon_settings) {
+        if (!$table->_email_addon_settings->count()) {
             $this->insertEmailSett(['table_id' => $table->id]);
-            $table->load('_email_addon_settings');
         }
+        $table->load([
+            '_email_addon_settings' => function ($s) use ($table, $user_id) {
+                $vPermisId = $this->service->viewPermissionId($table);
+                if ($table->user_id != $user_id && $vPermisId != -1) {
+                    //get only 'shared' tableCharts for regular User.
+                    $s->whereHas('_table_permissions', function ($tp) use ($vPermisId) {
+                        $tp->applyIsActiveForUserOrPermission($vPermisId);
+                    });
+                }
+                $s->with('_email_rights');
+            }
+        ]);
     }
 
     /**
@@ -129,14 +140,56 @@ class TableEmailAddonRepository
     /**
      * @param TableEmailAddonSetting $email
      * @param int|null $row_id
+     * @param int|null $history_id
      * @return mixed
      */
-    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null)
+    public function clearHistory(TableEmailAddonSetting $email, int $row_id = null, int $history_id = null)
     {
         if ($row_id) {
             return $email->_history_emails()->where('row_id', '=', $row_id)->delete();
+        } elseif ($history_id) {
+            return $email->_history_emails()->where('id', '=', $history_id)->delete();
         } else {
             return $email->_history_emails()->delete();
         }
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param int $table_permis_id
+     * @param $can_edit
+     * @return TableEmailRight
+     */
+    public function toggleEmailRight(TableEmailAddonSetting $email, int $table_permis_id, $can_edit)
+    {
+        $right = $email->_email_rights()
+            ->where('table_permission_id', $table_permis_id)
+            ->first();
+
+        if (!$right) {
+            $right = TableEmailRight::create([
+                'table_email_id' => $email->id,
+                'table_permission_id' => $table_permis_id,
+                'can_edit' => $can_edit,
+            ]);
+        } else {
+            $right->update([
+                'can_edit' => $can_edit
+            ]);
+        }
+
+        return $right;
+    }
+
+    /**
+     * @param TableEmailAddonSetting $email
+     * @param int $table_permis_id
+     * @return mixed
+     */
+    public function deleteEmailRight(TableEmailAddonSetting $email, int $table_permis_id)
+    {
+        return $email->_email_rights()
+            ->where('table_permission_id', $table_permis_id)
+            ->delete();
     }
 }

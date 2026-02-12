@@ -4,6 +4,7 @@ namespace Vanguard\Providers;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Pagination\Paginator;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Activity\ActivityRepository;
@@ -29,6 +30,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        Paginator::useBootstrap();
+        //Paginator::useBootstrapThree();
+
         Carbon::setLocale(config('app.locale'));
         \Illuminate\Database\Schema\Builder::defaultStringLength(191);
 

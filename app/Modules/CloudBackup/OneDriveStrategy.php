@@ -8,7 +8,15 @@ use Vanguard\Repositories\Tablda\UserCloudRepository;
 
 class OneDriveStrategy implements BackupStrategy
 {
+    /**
+     * @var string
+     */
     protected $access_token;
+
+    /**
+     * @var OneDriveApiModule
+     */
+    protected $api;
 
     /**
      * GoogleStrategy constructor.
@@ -17,7 +25,8 @@ class OneDriveStrategy implements BackupStrategy
      */
     public function __construct(UserCloud $cloud)
     {
-        $this->access_token = (new OneDriveApiModule())->accessToken($cloud->gettoken(), $cloud->id);
+        $this->api = new OneDriveApiModule($cloud->cloud);
+        $this->access_token = $this->api->accessToken($cloud->gettoken(), $cloud->id);
 
         if (!$this->access_token) {
             (new UserCloudRepository())->setInactiveCloud($cloud);
@@ -34,6 +43,6 @@ class OneDriveStrategy implements BackupStrategy
     {
         $source_file = preg_replace('#\/+#i','/', $source_filepath);
         $target_folder = preg_replace('#\/+#i','/', $target_filepath);
-        return (new OneDriveApiModule())->uploadFile($this->access_token, $target_folder, $source_file);
+        return $this->api->uploadFile($this->access_token, $target_folder, $source_file);
     }
 }

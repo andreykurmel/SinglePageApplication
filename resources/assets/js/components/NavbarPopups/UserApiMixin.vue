@@ -14,7 +14,7 @@
                 }).then(({ data }) => {
                     array_api_keys.push( data );
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -31,7 +31,7 @@
                         });
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -49,7 +49,7 @@
                         array_api_keys.splice(idx, 1);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -79,6 +79,18 @@
                 this._deleteApiRow(tableRow, this.$root.user._sendgrid_api_keys);
             },
 
+            addTwilioApiRow(tableRow) {
+                tableRow['type'] = 'twilio';
+                this._addApiRow(tableRow, this.$root.user._twilio_api_keys);
+            },
+            updateTwilioApiRow(tableRow) {
+                tableRow['type'] = 'twilio';
+                this._updateApiRow(tableRow, this.$root.user._twilio_api_keys);
+            },
+            deleteTwilioApiRow(tableRow) {
+                this._deleteApiRow(tableRow, this.$root.user._twilio_api_keys);
+            },
+
             addExtracttableApiRow(tableRow) {
                 tableRow['type'] = 'extracttable';
                 this._addApiRow(tableRow, this.$root.user._extracttable_api_keys);
@@ -89,6 +101,30 @@
             },
             deleteExtracttableApiRow(tableRow) {
                 this._deleteApiRow(tableRow, this.$root.user._extracttable_api_keys);
+            },
+
+            addAiApiRow(tableRow) {
+                tableRow['type'] = tableRow['type'] || 'openai';
+                this._addApiRow(tableRow, this.$root.user._ai_api_keys);
+            },
+            updateAiApiRow(tableRow) {
+                tableRow['type'] = tableRow['type'] || 'openai';
+                this._updateApiRow(tableRow, this.$root.user._ai_api_keys);
+            },
+            deleteAiApiRow(tableRow) {
+                this._deleteApiRow(tableRow, this.$root.user._ai_api_keys);
+            },
+
+            addJiraApiRow(tableRow) {
+                tableRow['type'] = 'jira';
+                this._addApiRow(tableRow, this.$root.user._jira_api_keys);
+            },
+            updateJiraApiRow(tableRow) {
+                tableRow['type'] = 'jira';
+                this._updateApiRow(tableRow, this.$root.user._jira_api_keys);
+            },
+            deleteJiraApiRow(tableRow) {
+                this._deleteApiRow(tableRow, this.$root.user._jira_api_keys);
             },
 
             addAirtableApiRow(tableRow) {

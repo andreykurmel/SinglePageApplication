@@ -7,7 +7,7 @@
                         <i v-if="allChecked" class="glyphicon glyphicon-ok group__icon"></i>
                     </span>
                 </span>
-                <span>Check/Uncheck All</span>
+                <span>All Columns</span>
             </label>
         </div>
         <div v-for="col in columns">

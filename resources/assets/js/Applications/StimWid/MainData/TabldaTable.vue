@@ -15,8 +15,11 @@
                     :max-cell-rows="$root.maxCellRows"
                     :behavior="is_showed ? 'list_view' : ''"
                     :is-add-row="!found_model._id"
-                    :available-columns="avail_columns_for_app"
-                    style="max-width: 800px"
+                    :available-columns="stim_link_params.avail_cols_for_app"
+                    :style="{
+                        maxWidth: '800px',
+                        paddingTop: ((metaTable.params.row_space_size/100 * $root.themeTextLineHeigh) || metaTable.params.vert_tb_rowspacing) + 'px',
+                    }"
                     @updated-cell="checkRowBknd"
                     @show-src-record="showSrcRecord"
                     @show-add-ddl-option="showAddDDLOption"
@@ -26,13 +29,11 @@
             <tab-bi-view
                     v-if="metaTable.is_loaded && allRows.is_loaded && is_showed && local_req_params.table_id"
                     :table_id="metaTable.table_id"
-                    :rows_count="allRows.rows_count"
-                    :row_state_hash="allRows.state_hash"
                     :table-meta="metaTable.params"
-                    :settings-meta="$root.settingsMeta"
+                    :rows_count="allRows.rows_count"
                     :request_params="local_req_params"
-                    :export_name="get_export_name"
-                    :user="$root.user"
+                    :ext-filters="allRows.filters"
+                    :export_prefix="get_export_prefix"
                     :is-visible="is_showed"
                     :is-transparent="true"
                     class="full-frame"
@@ -43,9 +44,6 @@
                     v-if="metaTable.is_loaded && allRows.is_loaded && is_showed && local_req_params.table_id"
                     :table_id="metaTable.table_id"
                     :table-meta="metaTable.params"
-                    :settings-meta="$root.settingsMeta"
-                    :user="$root.user"
-                    :cell-height="$root.cellHeight"
                     :can-edit="metaTable.can_edit"
                     :is-visible="is_showed"
                     :request_params="local_req_params"
@@ -66,13 +64,14 @@
                     ></span>
                 </div>
                 <div class="filters-wrapper--body" v-show="show_tb_filters">
-                    <filters-block
+                    <filters-block-with-combos
                             v-if="allRows.filters"
                             :table-meta="metaTable.params"
                             :input_filters="allRows.filters"
-                            :available-columns="avail_columns_for_app"
+                            :available-columns="stim_link_params.avail_cols_for_app"
                             @changed-filter="changedFilter"
-                    ></filters-block>
+                            @applied-saved-filter="applyCombo"
+                    ></filters-block-with-combos>
                 </div>
                 <header-resizer :table-header="filter_sizes" @resize-finished="saveFltrSiz"></header-resizer>
             </div>
@@ -95,7 +94,7 @@
                     :behavior="is_showed ? 'list_view' : ''"
                     :adding-row="adding_row"
                     :external-object-for-add="metaTable.empty_row"
-                    :available-columns="avail_columns_for_app"
+                    :available-columns="stim_link_params.avail_cols_for_app"
                     :forbidden-columns="forbidden_columns"
                     :style="{border: no_border ? 'none' : '1px solid #CCC'}"
                     @added-row="insertRow"
@@ -126,7 +125,7 @@
                     :user="$root.user"
                     :cell-height="$root.cellHeight"
                     :max-cell-rows="$root.maxCellRows"
-                    :available-columns="avail_columns_for_app"
+                    :available-columns="stim_link_params.avail_cols_for_app"
                     @popup-insert="insertRow"
                     @popup-update="updateRow"
                     @popup-copy="copyRow"
@@ -151,24 +150,38 @@
                 @popup-update="updateDisplayRow"
                 @popup-close="editDisplaySettingsRow = null"
                 @another-row="anotherSettingsRowPopup"
+                @direct-row="showHeaderSettings"
         ></for-settings-pop-up>
 
         <!-- Link Popups -->
         <template v-for="(linkObj, idx) in linkPopups">
+            <header-history-pop-up
+                v-if="linkObj.key === 'show' && linkObj.link.link_type === 'History'"
+                :idx="linkObj.index"
+                :table-meta="tableMeta"
+                :table-row="linkObj.row"
+                :history-header="linkObj.header"
+                :link="linkObj.link"
+                :popup-key="idx"
+                :is-visible="true"
+                @popup-close="closeLinkPopup"
+            ></header-history-pop-up>
             <link-pop-up
-                    v-if="linkObj.key === 'show'"
-                    :idx="linkObj.index"
-                    :settings-meta="$root.settingsMeta"
-                    :user="$root.user"
-                    :link="linkObj.link"
-                    :meta-header="linkObj.header"
-                    :meta-row="linkObj.row"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
-                    :popup-key="idx"
-                    :available-columns="linkObj.avail_columns"
-                    @show-src-record="showSrcRecord"
-                    @link-popup-close="closeLinkPopup"
+                v-else-if="linkObj.key === 'show'"
+                :source-meta="tableMeta"
+                :idx="linkObj.index"
+                :link="linkObj.link"
+                :meta-header="linkObj.header"
+                :meta-row="linkObj.row"
+                :popup-key="idx"
+                :available-columns="linkObj.avail_columns"
+                :view_authorizer="{
+                    mrv_marker: $root.is_mrv_page,
+                    srv_marker: $root.is_srv_page,
+                    dcr_marker: $root.is_dcr_page,
+                }"
+                @show-src-record="showSrcRecord"
+                @link-popup-close="closeLinkPopup"
             ></link-pop-up>
         </template>
 
@@ -178,7 +191,7 @@
                 :table-meta="metaTable.params"
                 :request_params="local_req_params"
                 :all-rows="allRows.all_rows"
-                :avail-fields="avail_columns_for_app"
+                :avail-fields="stim_link_params.avail_cols_for_app"
                 :force-columns="stim_link_params.linkMap()"
                 @popup-close="showCopyPopup = false"
                 @after-copy="afterCopied"
@@ -188,7 +201,7 @@
         <parse-and-paste-popup
                 v-if="showParsePopup"
                 :table-meta="metaTable.params"
-                :avail-fields="avail_columns_for_app"
+                :avail-fields="stim_link_params.avail_cols_for_app"
                 :replace-values="replaceInherits"
                 @popup-close="showParsePopup = false;"
                 @paste-completed="parseOrCopyCompleted"
@@ -209,8 +222,10 @@
                 :stim-link="master_stim_link"
                 :cur_stim_link="stim_link_params"
                 :found-model="found_model"
-                :sel_tab="sel_tab"
-                :sel_sub_tab="sel_sub_tab"
+                :sel_1_tab="sel_1_tab"
+                :sel_1_sub_tab="sel_1_sub_tab"
+                :sel_2_tab="sel_2_tab"
+                :sel_2_sub_tab="sel_2_sub_tab"
                 @popup-close="copyFromModelClosed()"
                 @copy-model-completed="copyFromModelFinished()"
         ></stim-copy-from-model-popup>
@@ -246,6 +261,11 @@
                 :max-cell-rows="$root.maxCellRows"
                 @popup-close="reshowComponent()"
         ></conditional-formatting-popup>
+
+        <overview-formats-popup
+            v-if="metaTable.params"
+            :table-meta="metaTable.params"
+        ></overview-formats-popup>
 
         <!--Popup for settings up Views for Table-->
         <table-views-popup
@@ -299,18 +319,15 @@
 
     import {eventBus} from "../../../app";
 
-    import {mapState} from 'vuex';
+    import {mapActions, mapMutations, mapState} from 'vuex';
 
     import CheckRowBackendMixin from './../../../components/_Mixins/CheckRowBackendMixin.vue';
     import TableCheckboxesMixin from './../../../components/_Mixins/TableCheckboxesMixin.vue';
     import TableSortMixin from './../../../components/_Mixins/TableSortMixin.vue';
     import VerticalRowMixin from './VerticalRowMixin.vue';
 
-    import VerticalTable from "../../../components/CustomTable/VerticalTable";
     import CustomTable from "../../../components/CustomTable/CustomTable";
     import CustomEditPopUp from "../../../components/CustomPopup/CustomEditPopUp";
-    import FiltersBlock from "../../../components/CommonBlocks/FiltersBlock";
-    import LinkPopUp from "../../../components/CustomPopup/LinkPopUp";
     import TabBiView from "../../../components/MainApp/Object/Table/TabBiView";
     import CopyAndReplacePopUp from "../../../components/CustomPopup/CopyAndReplacePopUp";
     import ParseAndPastePopup from "../../../components/CustomPopup/ParseAndPastePopup";
@@ -327,6 +344,9 @@
     import TabMapView from "../../../components/MainApp/Object/Table/TabMapView";
     import StimRelCalcsPopup from "./StimRelCalcsPopup";
     import HeaderResizer from "../../../components/CustomTable/Header/HeaderResizer";
+    import OverviewFormatsPopup from "../../../components/CustomPopup/OverviewFormatsPopup";
+    import HeaderHistoryPopUp from "../../../components/CustomPopup/HeaderHistoryPopUp";
+    import FiltersBlockWithCombos from "../../../components/CommonBlocks/FiltersBlockWithCombos";
 
     export default {
         name: 'TabldaTable',
@@ -337,7 +357,11 @@
             VerticalRowMixin,
         ],
         components: {
-            HeaderResizer, StimRelCalcsPopup,
+            FiltersBlockWithCombos,
+            HeaderHistoryPopUp,
+            OverviewFormatsPopup,
+            HeaderResizer,
+            StimRelCalcsPopup,
             TabMapView,
             RefConditionsPopup,
             GroupingSettingsPopup,
@@ -352,11 +376,8 @@
             ParseAndPastePopup,
             CopyAndReplacePopUp,
             TabBiView,
-            LinkPopUp,
-            FiltersBlock,
             CustomEditPopUp,
             CustomTable,
-            VerticalTable,
         },
         data() {
             return {
@@ -376,7 +397,6 @@
                 isPagination: true,
                 show_tb_filters: false,
                 can_first_set_model: false,
-                avail_columns_for_app: this.stim_link_params.avail_columns_for_app,
                 forbidden_columns: ['i_srv','i_favorite'],
 
                 localMetaTable: new MetaTabldaTable({
@@ -425,9 +445,9 @@
                 return this.found_model.meta && this.found_model.meta.is_loaded
                     && this.found_model.rows && this.found_model.rows.is_loaded;
             },
-            get_export_name() {
+            get_export_prefix() {
                 if (this.metaTable.is_loaded && this.found_model) {
-                    return this.found_model.selected_html + '_' + this.metaTable.params.name + '_';
+                    return this.found_model.selected_html;// + '_' + this.metaTable.params.name + '_';
                 } else {
                     return '';
                 }
@@ -440,8 +460,10 @@
         props: {
             tb_id: String,
             is_showed: Boolean,
-            sel_tab: String,
-            sel_sub_tab: String,
+            sel_1_tab: String,
+            sel_1_sub_tab: String,
+            sel_2_tab: String,
+            sel_2_sub_tab: String,
             show_type: String,
             adding_row: Object,
             stim_link_params: StimLinkParams,
@@ -479,7 +501,7 @@
                 if (_.find(this.allRows.all_rows, {_checked_row: true})) {
                     this.showCopyPopup = true;
                 } else {
-                    Swal('You should select some rows!');
+                    Swal('Info','You should select some rows!');
                 }
             },
             parse_paste_handler_click(val) {
@@ -498,7 +520,7 @@
                 if (_.find(this.allRows.all_rows, {_checked_row: true})) {
                     this.showRTSPopup = true;
                 } else {
-                    Swal('You should select some rows!');
+                    Swal('Info','You should select some rows!');
                 }
             },
             parse_sections_handler_click(val) {
@@ -510,7 +532,10 @@
                         this.$root.sm_msg_type = 2;
                         this.metaTable.loadHeaders().then(() => {
                             this.emitPermissions();
-                            this.filter_sizes.width = Number(this.metaTable.params._cur_settings.stim_filter_width)
+                            let stfiwi = this.metaTable && this.metaTable.params && this.metaTable.params._cur_settings
+                                ? this.metaTable.params._cur_settings.stim_filter_width
+                                : null;
+                            this.filter_sizes.width = Number(stfiwi)
                                 || Number(readLocalStorage('local_stim_filter_width'))
                                 || 220;
 
@@ -533,7 +558,8 @@
                     //for not master table only
                     if (!this.master_table) {
                         //updated FoundModel
-                        let old = this.old_found_model_row;
+                        //REPLACE CHILDREN INHERITED COLUMNS on MASTER UPDATE
+                        /*let old = this.old_found_model_row;
                         if (val && old && val.id == old.id) {
                             let fld, from, to;
                             _.each(this.stim_link_params.link_fields, (link) => {
@@ -555,7 +581,8 @@
                         else {
                             this.loadAllRows();
                         }
-                        this.old_found_model_row = _.cloneDeep(val);
+                        this.old_found_model_row = _.cloneDeep(val);*/
+                        this.loadAllRows();
                     }
                 },
                 deep: true,
@@ -570,6 +597,12 @@
             },
         },
         methods: {
+            ...mapActions([
+                'SET_SELECTED_MODEL_ROW'
+            ]),
+            ...mapMutations([
+                'REDRAW_3D',
+            ]),
             saveFltrSiz() {
                 this.$root.changeStimFilterWi(this.filter_sizes.width, this.metaTable.params);
             },
@@ -612,12 +645,12 @@
             },
 
             //ROWS
-            loadAllRows() {
+            loadAllRows(searchObj) {
                 if (this.is_showed) {
                     if (!this.master_table) {
                         this.allRows.setModelAndGroup(this.found_model_row, this.stim_link_params);
                     }
-                    this.allRowsLoadingProcess();
+                    this.allRowsLoadingProcess(searchObj);
                     if (!this.found_model._id) {
                         this.metaTable.empty_row = this.createEmptyRow();
                     }
@@ -625,9 +658,9 @@
                     this.allRows.is_loaded = false;
                 }
             },
-            allRowsLoadingProcess() {
+            allRowsLoadingProcess(searchObj) {
                 this.$root.sm_msg_type = 2;
-                this.allRows.loadRows().finally(() => {
+                this.allRows.loadRows(this.metaTable.params, searchObj).finally(() => {
                     this.emitPermissions();
                     this.local_req_params = this.allRows.rows_count ? this.allRows.rowsRequest(true) : {};
                     this.$root.sm_msg_type = 0;
@@ -651,9 +684,9 @@
             },
             //CHANGE ROWS//
             copyRow(tableRow) {
-                this.insertRow(tableRow);
+                this.insertRow(tableRow, true);
             },
-            insertRow(tableRow) {
+            insertRow(tableRow, copy) {
                 if (this.$root.setCheckRequired(this.metaTable.params, tableRow)) {
 
                     //save 3d settings when inserted new master record.
@@ -670,7 +703,8 @@
                     this.autoFillFromMasterTable(tableRow);
                     let row_3d = this.allRows.convertOne(tableRow);
                     this.$root.sm_msg_type = 1;
-                    this.allRows.insertRow(tableRow).then((data) => {
+                    this.allRows.insertRow(tableRow, undefined, copy).then((data) => {
+                        data.rows[0]._is_new = 1;
                         if (row_3d && data && data.rows) {
                             row_3d._id = data.rows[0].id;
                         }
@@ -681,7 +715,7 @@
                     });
                 }
             },
-            massUpdatedRows(massTableRows) {
+            massUpdatedRows(massTableRows, top_changed) {
                 let can = true;
                 _.each(massTableRows, (tableRow) => {
                     can = can && this.$root.setCheckRequired(this.metaTable.params, tableRow);
@@ -691,16 +725,28 @@
                 if (can) {
                     this.$root.sm_msg_type = 1;
                     this.$root.prevent_cell_edit = true;
-                    this.allRows.massUpdatedRows(this.metaTable.params, massTableRows).then((data) => {
-                        this.$emit('row-updated', data);
+                    this.allRows.massUpdatedRows(this.metaTable.params, massTableRows, top_changed, top_changed).then((data) => {
+                        if (!top_changed) {
+                            let is3dLC = ThreeHelper.watched3d_is_needed_action(this.stim_link_params.app_fields, massTableRows);
+                            if (is3dLC) {
+                                this.REDRAW_3D('soft');
+                            } else {
+                                this.$emit('row-updated', data);
+                            }
+                        }
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                         this.$root.prevent_cell_edit = false;
                     });
+
+                    if (top_changed) {
+                        this.found_model.setSelectedRow(null);
+                        this.SET_SELECTED_MODEL_ROW(null);
+                    }
                 }
             },
-            updateRow(tableRow) {
-                this.massUpdatedRows([tableRow]);
+            updateRow(tableRow, changefFld, top_changed) {
+                this.massUpdatedRows([tableRow], top_changed);
             },
             deleteRow(tableRow) {
                 this.$root.sm_msg_type = 1;
@@ -763,21 +809,26 @@
             },
             checkRowBknd() {
                 if (this.allRows.is_loaded) {
-                    if (this.verticalRow.id) {
+                    if (Number(this.verticalRow.id)) {
                         this.autoFillFromMasterTable(this.verticalRow);
                         if (this.metaTable.can_edit && this.allRows.master_row) {
-                            this.updateRow(this.allRows.master_row);
+                            let top_changed = _.find(this.stim_link_params.app_fields, (app) => {
+                                return app.options.match(/display_top:true/gi) && app.data_field === this.verticalRow._changed_field;
+                            });
+                            this.updateRow(this.allRows.master_row, null, top_changed);
                         }
                     } else {
                         let promise = this.checkRowOnBackend(this.metaTable.table_id, this.verticalRow);
                         if (promise) {
                             promise.then((data) => {
                                 this.autoFillFromMasterTable(this.verticalRow);
-                                if (this.metaTable.can_edit && this.allRows.master_row) {
+                                if (this.metaTable.can_edit && this.allRows.master_row) {//Update in master and usual tables
                                     this.updateRow(this.allRows.master_row);
                                 }
-                                //For model 3D drawing in new rows
-                                if (!this.allRows.master_row) {
+                                if (this.metaTable.can_edit && !this.allRows.master_row && !this.master_table && this.found_model_row) {//Auto save in usual table
+                                    this.insertRow(this.verticalRow);
+                                }
+                                if (!this.allRows.master_row && this.master_table) {//For model 3D drawing in new master row
                                     this.allRows.set3DTempRow(this.verticalRow);
                                     this.$emit('new-row-changed', this.verticalRow);
                                 }
@@ -830,6 +881,10 @@
                 this.allRowsLoadingProcess();
                 this.$emit('reload-3d', 'soft');
             },
+            applyCombo(combo) {
+                this.allRows.filters = combo;
+                this.changedFilter();
+            },
 
             //LINK POPUPS
             showSrcRecord(lnk, header, tableRow) {
@@ -845,7 +900,7 @@
                     header: header,
                     row: tableRow,
                     behavior: 'list_view',
-                    avail_columns: stim_link ? stim_link.avail_columns_for_app : undefined,
+                    avail_columns: stim_link ? stim_link.avail_cols_for_app : undefined,
                 });
             },
             closeLinkPopup(idx, should_update, table_id) {
@@ -858,12 +913,7 @@
 
             //COPY AND REPLACE POPUPS
             afterCopied(data, all_rows_checked) {
-                if (!all_rows_checked) {
-                    _.each(data.rows, (row) => {
-                        row._is_new = 1;
-                        this.allRows.all_rows.splice(0, 0, row);
-                    });
-                } else {
+                if (all_rows_checked) {
                     this.allRowsLoadingProcess();
                     this.showCopyPopup = false;
                 }
@@ -881,7 +931,7 @@
             },
             rtsCompleted() {
                 this.allRowsLoadingProcess();
-                this.$emit('reload-3d');
+                this.$emit('reload-3d', 'soft');
             },
 
             //RTS Popup AND RL Calcs Popup
@@ -893,7 +943,7 @@
                 this.showCopyFromModel = false;
                 this.showRLCalcPopup = false;
                 this.allRowsLoadingProcess();
-                this.$emit('reload-3d');
+                this.$emit('reload-3d', 'soft');
             },
 
             //SectionsParse
@@ -910,7 +960,7 @@
                     this.allRowsLoadingProcess();
                     this.$emit('reload-3d', 'soft');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -928,9 +978,9 @@
                     request_params: request_params,
                 }).then(({data}) => {
                     this.allRowsLoadingProcess();
-                    this.$emit('reload-3d');
+                    this.$emit('reload-3d', 'soft');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -939,7 +989,8 @@
             //keydowns
             globalKeyHandler(e) {
                 if (['INPUT', 'TEXTAREA'].indexOf(e.target.nodeName) === -1) {//target not in Input
-                    if (e.ctrlKey) {
+                    let cmdOrCtrl = e.metaKey || e.ctrlKey;
+                    if (cmdOrCtrl) {
                         if ([40,34].indexOf(e.keyCode) > -1) {//ctrl + down arrow or pgdn
                             this.isPagination = !this.isPagination;
                         }
@@ -951,16 +1002,16 @@
             appClosedReloadTabRows(table_id, app_name) {
                 if (this.stim_link_params.table_id === table_id) {
                     this.loadAllRows();
-                    this.$emit('reload-3d');
+                    this.$emit('reload-3d', 'soft');
                 } else {
                     this.allRows.is_loaded = false;
                 }
             },
 
             //search word changed -> reload all rows.
-            checkTableAndReloadRows(table_id) {
+            checkTableAndReloadRows(table_id, searchObj) {
                 if (this.stim_link_params.table_id === table_id) {
-                    this.loadAllRows();
+                    this.loadAllRows(searchObj);
                 }
             },
 
@@ -977,6 +1028,9 @@
                         if (changed) {
                             this.metaTable.params.version_hash = data.version_hash;
                             this.loadAllRows();
+                        }
+                        if (data.job_msg) {
+                            Swal('Info', data.job_msg);
                         }
                     });
                 }

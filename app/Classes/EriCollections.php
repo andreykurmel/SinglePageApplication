@@ -1,0 +1,183 @@
+<?php
+
+namespace Vanguard\Classes;
+
+
+class EriCollections
+{
+    /**
+     * @param $key
+     * @return array[]|string[]
+     */
+    public static function collectionIdentifiers($key): array
+    {
+
+        $total = [
+            'Feedlines' => [
+                'NumFeedLineRecs',
+                'FeedLineRec',
+            ],
+            'Dishes' => [
+                'NumDishRecs',
+                'DishRec',
+            ],
+            'User Forces' => [
+                'NumUserForceRecs',
+                'UserForceRec',
+            ],
+            'Discrete Loads' => [
+                'NumTowerLoadRecs',
+                'TowerLoadRec',
+            ],
+        ];
+
+        return $key
+            ? ($total[$key] ?? [])
+            : $total;
+    }
+
+    /**
+     * @param $key
+     * @return array[]|string[]
+     */
+    public static function allVariables($key): array
+    {
+
+        $total = [
+            'Feedlines' => [
+                'FeedLineEnabled',
+                'FeedLineDatabase',
+                'FeedLineDescription',
+                'FeedLineClassificationCategory',
+                'FeedLineNote',
+                'FeedLineNum',
+                'FeedLineUseShielding',
+                'ExcludeFeedLineFromTorque',
+                'FeedLineNumPerRow',
+                'FeedLineFace',
+                'FeedLineComponentType',
+                'FeedLineGroupTreatmentType',
+                'FeedLineRoundClusterDia',
+                'FeedLineWidth',
+                'FeedLinePerimeter',
+                'FlatAttachmentEffectiveWidthRatio',
+                'AutoCalcFlatAttachmentEffectiveWidthRatio',
+                'FeedLineShieldingFactorKaNoIce',
+                'FeedLineShieldingFactorKaIce',
+                'FeedLineAutoCalcKa',
+                'FeedLineCaAaNoIce',
+                'FeedLineCaAaIce',
+                'FeedLineCaAaIce_1',
+                'FeedLineCaAaIce_2',
+                'FeedLineCaAaIce_4',
+                'FeedLineWtNoIce',
+                'FeedLineWtIce',
+                'FeedLineWtIce_1',
+                'FeedLineWtIce_2',
+                'FeedLineWtIce_4',
+                'FeedLineFaceOffset',
+                'FeedLineOffsetFrac',
+                'FeedLinePerimeterOffsetStartFrac',
+                'FeedLinePerimeterOffsetEndFrac',
+                'FeedLineStartHt',
+                'FeedLineEndHt',
+                'FeedLineClearSpacing',
+                'FeedLineRowClearSpacing'
+            ],
+            'Dishes' => [
+                'DishEnabled',
+                'DishDatabase',
+                'DishDescription',
+                'DishClassificationCategory',
+                'DishNote',
+                'DishNum',
+                'DishFace',
+                'DishType',
+                'DishOffsetType',
+                'DishVertOffset',
+                'DishLateralOffset',
+                'DishOffsetDist',
+                'DishArea',
+                'DishAreaIce',
+                'DishAreaIce_1',
+                'DishAreaIce_2',
+                'DishAreaIce_4',
+                'DishDiameter',
+                'DishWtNoIce',
+                'DishWtIce',
+                'DishWtIce_1',
+                'DishWtIce_2',
+                'DishWtIce_4',
+                'DishStartHt',
+                'DishAzimuthAdjustment',
+                'DishBeamWidth'
+            ],
+            'User Forces' => [
+                'UserForceEnabled',
+                'UserForceDescription',
+                'UserForceStartHt',
+                'UserForceOffset',
+                'UserForceAzimuth',
+                'UserForceFxNoIce',
+                'UserForceFzNoIce',
+                'UserForceAxialNoIce',
+                'UserForceShearNoIce',
+                'UserForceCaAcNoIce',
+                'UserForceFxIce',
+                'UserForceFzIce',
+                'UserForceAxialIce',
+                'UserForceShearIce',
+                'UserForceCaAcIce',
+                'UserForceFxService',
+                'UserForceFzService',
+                'UserForceAxialService',
+                'UserForceShearService',
+                'UserForceCaAcService',
+                'UserForceEhx',
+                'UserForceEhz',
+                'UserForceEv',
+                'UserForceEh'
+            ],
+            'Discrete Loads' => [
+                'TowerLoadEnabled',
+                'TowerLoadDatabase',
+                'TowerLoadDescription',
+                'TowerLoadType',
+                'TowerLoadClassificationCategory',
+                'TowerLoadNote',
+                'TowerLoadNum',
+                'TowerLoadFace',
+                'TowerOffsetType',
+                'TowerOffsetDist',
+                'TowerVertOffset',
+                'TowerLateralOffset',
+                'TowerAzimuthAdjustment',
+                'TowerAppurtSymbol',
+                'TowerLoadShieldingFactorKaNoIce',
+                'TowerLoadShieldingFactorKaIce',
+                'TowerLoadAutoCalcKa',
+                'TowerLoadCaAaNoIce',
+                'TowerLoadCaAaIce',
+                'TowerLoadCaAaIce_1',
+                'TowerLoadCaAaIce_2',
+                'TowerLoadCaAaIce_4',
+                'TowerLoadCaAaNoIce_Side',
+                'TowerLoadCaAaIce_Side',
+                'TowerLoadCaAaIce_Side_1',
+                'TowerLoadCaAaIce_Side_2',
+                'TowerLoadCaAaIce_Side_4',
+                'TowerLoadWtNoIce',
+                'TowerLoadWtIce',
+                'TowerLoadWtIce_1',
+                'TowerLoadWtIce_2',
+                'TowerLoadWtIce_4',
+                'TowerLoadStartHt',
+                'TowerLoadEndHt'
+            ],
+        ];
+
+        return $key
+            ? ($total[$key] ?? [])
+            : $total;
+    }
+}

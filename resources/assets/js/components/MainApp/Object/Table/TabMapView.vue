@@ -1,148 +1,88 @@
 <template>
-    <div v-if="tableMeta && settingsMeta" class="tab-settings full-height">
+    <div v-if="tableMeta && $root.settingsMeta.is_loaded" class="tab-settings full-height">
         <div v-if="!$root.AddonAvailableToUser(tableMeta, 'map')" class="row full-frame flex flex--center">
             <label>Addon is unavailable!</label>
         </div>
         <div v-else="" class="full-height">
             <div class="menu-header" :style="textSysStyle">
-                <div class="left-elm">
+                <button class="btn btn-default btn-sm left-btn"
+                        :class="{active : acttab === 'settings'}"
+                        :style="textSysStyle"
+                        @click="changeTab('settings')"
+                >Settings</button>
+                <template v-for="map in tableMeta._map_addons" v-if="map.map_active">
                     <button class="btn btn-default btn-sm left-btn"
-                            :class="{active : mapsTab === 'maps'}"
+                            :class="{active : acttab === map.id}"
                             :style="textSysStyle"
-                            @click="mapsTab = 'maps';shouldRedrawMap();"
-                    >Map</button>
-                    <button v-if="canEdit"
-                            class="btn btn-default btn-sm left-btn"
-                            :class="{active : mapsTab === 'basics'}"
-                            :style="textSysStyle"
-                            @click="mapsTab = 'basics'"
-                    >Settings</button>
-                    <button v-if="canEdit"
-                            class="btn btn-default btn-sm left-btn"
-                            :class="{active : mapsTab === 'icons'}"
-                            :style="textSysStyle"
-                            @click="mapsTab = 'icons'"
-                    >Icons</button>
-                </div>
+                            style="margin-right: 3px;"
+                            @click="changeTab(map.id)"
+                    ><i class="fas fa-chart-bar"></i>&nbsp;{{ map.name }}</button>
+                </template>
 
-                <div v-if="mapsTab === 'basics'" class="left-elm flex flex--center-v" style="margin-left: 10px;">
-                    <label class="no-margin" style="white-space: nowrap;">Lat./Long. source:</label>
-                    <select class="form-control input-sm" v-model="tableMeta.map_position_refid" @change="updateTable('map_position_refid')">
-                        <option :value="null">This table</option>
-                        <option disabled>Tables ref'd by RCs:</option>
-                        <option v-for="rc in tableMeta._ref_conditions" :value="rc.id">{{ rc.name +": "+ (rc._ref_table ? rc._ref_table.name : '') }}</option>
-                    </select>
-                    <label class="no-margin" style="white-space: nowrap;">&nbsp;&nbsp;&nbsp;Info Panel Header:</label>
-                    <select class="form-control input-sm" v-model="tableMeta.map_popup_hdr_id" @change="updateTable()">
-                        <option :value="null">This table</option>
-                        <option disabled>Tables ref'd by RCs:</option>
-                        <option v-if="positionRef" :value="positionRef.id">{{ positionRef.name +": "+ (positionRef._ref_table ? positionRef._ref_table.name : '') }}</option>
-                    </select>
-                </div>
-
-                <div class="right-elm" v-if="firstVisible && mapsTab === 'maps'">
+                <div class="right-elm" v-if="firstVisible && acttab !== 'settings'">
                     <map-radius-button
-                            :table-meta="tableMeta"
-                            :radius-object="radiusObject"
-                            @clear-radius="newRadiusObject()"
+                        v-if="selectedMap && radiusObjects[acttab]"
+                        :table-meta="tableMeta"
+                        :selected-map="selectedMap"
+                        :radius-object="radiusObjects[acttab]"
+                        @clear-radius="newRadiusObject(acttab)"
                     ></map-radius-button>
                 </div>
-                <div class="right-elm flex flex--center" v-if="isVisible" v-show="mapsTab === 'maps'" style="height: 32px;">
+                <div class="right-elm flex flex--center" v-if="isVisible && selectedMap" v-show="acttab !== 'settings'" style="height: 32px;">
                     <label style="margin: 0">
                         <span class="indeterm_check__wrap pub-check">
-                            <span class="indeterm_check" @click="updateTable()" :style="$root.checkBoxStyle">
-                                <i v-if="tableMeta.map_multiinfo" class="glyphicon glyphicon-ok group__icon"></i>
+                            <span class="indeterm_check"
+                                  @click="() => { selectedMap.map_multiinfo = selectedMap.map_multiinfo ? 0 : 1; updateMap(selectedMap); }"
+                                  :style="$root.checkBoxStyle"
+                            >
+                                <i v-if="selectedMap.map_multiinfo" class="glyphicon glyphicon-ok group__icon"></i>
                             </span>
                         </span>
                         <span>Multiple info panels</span>
                     </label>
                 </div>
+                <div class="right-elm">
+                    <div v-show="acttab === 'settings'" class="pull-right" style="margin: 0 5px 0 15px">
+                        <info-sign-link v-show="activeSub === 'list'" :app_sett_key="'help_link_map_tab'" :txt="'for GSI/List'"></info-sign-link>
+                        <info-sign-link v-show="activeSub === 'basics'" :app_sett_key="'help_link_map_tab_basics'" :txt="'for GSI/General'"></info-sign-link>
+                        <info-sign-link v-show="activeSub === 'fields'" :app_sett_key="'help_link_map_tab_basics'" :txt="'for GSI/General'"></info-sign-link>
+                        <info-sign-link v-show="activeSub === 'icons'" :app_sett_key="'help_link_map_tab_icons'" :txt="'for GSI/Icons'"></info-sign-link>
+                    </div>
+                    <div v-show="acttab !== 'settings'" class="pull-right" style="margin: 0 5px 0 15px">
+                        <info-sign-link :app_sett_key="'help_link_map_tab_data'" :hgt="26" :txt="'for GSI/Data Tab'"></info-sign-link>
+                    </div>
+                </div>
             </div>
             <div class="menu-body">
 
-                <!--MAP TAB-->
+                <!--SETTINGS TAB-->
 
-                <div class="full-frame" v-show="mapsTab === 'maps'">
-                    <map-elem
-                            v-if="!full_map_rebuild"
-                            :table-meta="tableMeta"
-                            :radius-object="radiusObject"
-                            :column-values="columnValues[mapBasicTab]"
-                            :request_params="request_params"
-                            :user="user"
-                            @show-src-record="showSrcRecord"
-                    ></map-elem>
+                <div class="full-frame" v-show="acttab === 'settings'">
+                    <map-settings
+                        :table_id="tableMeta.id"
+                        :table-meta="tableMeta"
+                        :can-edit="canEdit"
+                        :column-values="columnValues"
+                        @set-sub-tab="(key) => { activeSub = key; }"
+                        @set-columns-values="setColValues"
+                        @should-redraw-map="shouldRedrawMap()"
+                    ></map-settings>
                 </div>
 
                 <!--BASICS TAB-->
 
-                <div class="full-frame" v-show="canEdit && mapsTab === 'basics'">
-                    <div class="menu-header vert-menu">
-                        <button class="btn btn-default btn-sm left-btn pull-right"
-                                :style="textSysStyle"
-                                :class="{active : mapBasicTab === 'current'}"
-                                @click="setmapBasicTab('current')"
-                        >This</button>
-                        <button class="btn btn-default btn-sm left-btn pull-right"
-                                v-if="positionRef"
-                                :class="{active : mapBasicTab === 'rc_'+positionRef.id}"
-                                :style="textSysStyle"
-                                @click="setmapBasicTab('rc_'+positionRef.id)"
-                        >
-                            <span>{{ positionRef.name }}</span>
-                            <span style="color: #F00; cursor: pointer;" @click.prevent.stop="removeRC()">&times;</span>
-                        </button>
-                    </div>
-
-                    <div class="menu-body vert-body" style="background: #FFF; height: 60%;">
-                        <map-basic-settings
-                                v-if="mapBasicTab && refMetaTables[mapBasicTab]"
-                                :table-meta="refMetaTables[mapBasicTab]"
-                                :limit-columns="availAll"
-                                @upd-settings-row="updateRow"
-                        ></map-basic-settings>
-                        <div v-else="" class="full-frame flex flex--center" style="background: #FFF;font-size: 2em;">Loading...</div>
-                    </div>
-                    <div class="menu-body vert-body" style="top: auto; height: calc(40% - 15px);">
-                        <div class="top-text top-text--height" :style="textSysStyle">Additional Settings</div>
-                        <additional-map-settings
-                            :table-meta="tableMeta"
-                            @upd-table="updateTable"
-                        ></additional-map-settings>
-                    </div>
+                <div class="full-frame flex flex--col" v-show="acttab !== 'settings'">
+                    <map-elem
+                        v-if="selectedMap"
+                        :table-meta="tableMeta"
+                        :selected-map="selectedMap"
+                        :radius-object="radiusObjects[acttab]"
+                        :column-values="columnValues[selectedMap.map_position_refid || 'current']"
+                        :request_params="request_params"
+                        @show-src-record="showSrcRecord"
+                    ></map-elem>
                 </div>
 
-                <!--ICONS TAB-->
-
-                <div class="full-frame" v-show="canEdit && mapsTab === 'icons'">
-                    <div class="menu-header vert-menu">
-                        <button class="btn btn-default btn-sm left-btn pull-right"
-                                :class="{active : mapBasicTab === 'current'}"
-                                :style="textSysStyle"
-                                @click="setmapBasicTab('current')"
-                        >This</button>
-                        <button class="btn btn-default btn-sm left-btn pull-right"
-                                v-if="positionRef"
-                                :class="{active : mapBasicTab === 'rc_'+positionRef.id}"
-                                :style="textSysStyle"
-                                @click="setmapBasicTab('rc_'+positionRef.id)"
-                        >
-                            <span>{{ positionRef.name }}</span>
-                            <span style="color: #F00; cursor: pointer;" @click.prevent.stop="removeRC()">&times;</span>
-                        </button>
-                    </div>
-
-                    <div class="menu-body vert-body" style="background: #FFF;">
-                        <map-icons
-                                v-if="mapBasicTab && refMetaTables[mapBasicTab]"
-                                :table-meta="refMetaTables[mapBasicTab]"
-                                :column-values="columnValues[mapBasicTab]"
-                                @icons-changed="iconsChanged"
-                        ></map-icons>
-                        <div v-else="" class="full-frame flex flex--center" style="background: #FFF;font-size: 2em;">Loading...</div>
-                    </div>
-
-                </div>
             </div>
         </div>
     </div>
@@ -153,45 +93,38 @@
 
     import {SpecialFuncs} from '../../../../classes/SpecialFuncs';
 
+    import InfoSignLink from "../../../CustomTable/Specials/InfoSignLink.vue";
+    import MapElem from "./MapAddon/MapElem.vue";
+    import MapSettings from "./MapAddon/MapSettings.vue";
     import MapRadiusButton from './../../../Buttons/MapRadiusButton';
-    import MapElem from './MapAddon/MapElem';
-    import MapIcons from './MapAddon/MapIcons';
-    import MapBasicSettings from "./MapAddon/MapBasicSettings";
-    import AdditionalMapSettings from "./MapAddon/AdditionalMapSettings";
 
     import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
     export default {
         name: "TabMapView",
         components: {
-            AdditionalMapSettings,
-            MapBasicSettings,
-            MapRadiusButton,
+            MapSettings,
             MapElem,
-            MapIcons,
+            InfoSignLink,
+            MapRadiusButton,
         },
         mixins: [
             CellStyleMixin,
         ],
         data: function () {
             return {
-                firstVisible: false,
-                full_map_rebuild: false,
-                should_map_redraw: false,
-                radiusObject: null,
-                mapsTab: 'maps',
+                activeSub: 'list',
+                acttab: 'settings',
 
-                mapBasicTab: '',
-                refMetaTables: { current: this.tableMeta },
+                firstVisible: false,
+                should_map_redraw: false,
+                radiusObjects: {},
                 columnValues: { current: [] },
             }
         },
         props:{
             table_id: Number,
             tableMeta: Object,
-            settingsMeta: Object,
-            user: Object,
-            cellHeight: Number,
             canEdit: Boolean,
             isVisible: Boolean,
             request_params: Object,
@@ -199,20 +132,15 @@
         computed: {
             //map module is visible AND map should be redrawn AND currently is visible
             shouldRedrawAndActive() {
-                return this.isVisible && this.should_map_redraw && this.mapsTab === 'maps';
+                return this.isVisible && this.should_map_redraw && this.acttab !== 'settings';
             },
-            positionRef() {
-                return _.find(this.tableMeta._ref_conditions, { id: Number(this.tableMeta.map_position_refid) });
-            },
-            availAll() {
-                let selmaptab = this.tableMeta.map_position_refid ? 'rc_'+this.tableMeta.map_position_refid : 'current';
-                return selmaptab !== this.mapBasicTab;
+            selectedMap() {
+                return _.find(this.tableMeta._map_addons, { id: Number(this.acttab) });
             },
         },
         watch: {
             table_id(val) {
-                this.newRadiusObject();
-                this.shouldRedrawMap();
+                this.changeTab('settings');
             },
             //should redraw Map
             shouldRedrawAndActive(val) {
@@ -229,33 +157,32 @@
             },
         },
         methods: {
-            setmapBasicTab(val) {
-                this.mapBasicTab = '';
+            setColValues(map, values) {
+                this.$set(this.columnValues, map.map_position_refid || 'current', values);
+                this.shouldRedrawMap();
+            },
+            changeTab(key) {
+                this.acttab = null;
                 this.$nextTick(() => {
-                    this.mapBasicTab = val;
-                    if (!this.refMetaTables[val]) {
-                        this.loadRefHeaders(val);
+                    this.acttab = key;
+                    if (key !== 'settings') {
+                        this.newRadiusObject();
+                        this.shouldRedrawMap();
                     }
                 });
             },
-            loadRefHeaders(str_ref_id) {
-                axios.post('/ajax/table-data/get-headers', {
-                    ref_cond_id: String(str_ref_id).replace(/[^\d]/gi,''),
-                    user_id: !this.$root.user.see_view ? this.$root.user.id : null,
-                }).then(({ data }) => {
-                    this.$set(this.refMetaTables, str_ref_id, data);
-                    this.$forceUpdate();
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                });
-            },
-            removeRC(del_idx) {
-                this.tableMeta.map_position_refid = null;
-                this.setmapBasicTab('current');
-                this.updateTable();
-            },
-            newRadiusObject() {
-                this.radiusObject = {
+            newRadiusObject(deleteKey) {
+                //clear radius object
+                if (deleteKey) {
+                    this.radiusObjects[deleteKey] = null;
+                }
+
+                //no creation if already present
+                if (this.radiusObjects[this.acttab]) {
+                    return;
+                }
+
+                let radius = {
                     entered_address: null,
                     distance: null,
                     type: '',
@@ -283,36 +210,7 @@
                         long: null,
                     }
                 };
-            },
-            updateTable(changed) {
-                if (changed === 'map_position_refid') {
-                    this.tableMeta.map_popup_hdr_id = this.tableMeta.map_position_refid;
-                }
-                this.tableMeta.map_multiinfo = !this.tableMeta.map_multiinfo;
-                this.$root.sm_msg_type = 1;
-
-                let data = {
-                    table_id: this.tableMeta.id,
-                };
-                Object.assign(data, this.tableMeta);
-                Object.assign(data, this.tableMeta._theme);
-                Object.assign(data, this.tableMeta._cur_settings);
-
-                axios.put('/ajax/table', data).then(({ data }) => {
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    this.$root.sm_msg_type = 0;
-                });
-            },
-            updateRow(tableMeta, tableRow) {
-                this.$root.updateSettingsColumn(tableMeta, tableRow).then(({ data }) => {
-                    this.shouldRedrawMap();
-                });
-            },
-            iconsChanged(data) {
-                this.$set(this.columnValues, this.mapBasicTab, data);
-                this.shouldRedrawMap();
+                this.$set(this.radiusObjects, this.acttab, radius);
             },
             shouldRedrawMap() {
                 this.should_map_redraw = true;
@@ -325,10 +223,24 @@
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow, 'map');
             },
+            updateMap(tableRow) {
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                $.LoadingOverlay('show');
+                axios.put('/ajax/map-addon', {
+                    model_id: tableRow.id,
+                    fields: fields
+                }).then(({ data }) => {
+                    this.tableMeta._map_addons = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
         },
         mounted() {
-            this.newRadiusObject();
-            this.setmapBasicTab(this.tableMeta.map_position_refid ? 'rc_'+this.tableMeta.map_position_refid : 'current');
             eventBus.$on('new-request-params', this.newRequestParamsHandler);
         },
         beforeDestroy() {
@@ -387,11 +299,11 @@
 
         .vert-menu {
             position: absolute;
-            top: -10px;
-            left: -220px;
-            width: 230px;
+            top: 505px;
+            left: -10px;
+            width: 500px;
             height: 20px;
-            transform-origin: bottom right;
+            transform-origin: top left;
             transform: rotate(-90deg);
 
             .left-btn {

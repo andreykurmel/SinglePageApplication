@@ -2,20 +2,32 @@
 
 namespace Vanguard\Repositories\Tablda\TableData;
 
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Ramsey\Uuid\Uuid;
 use Symfony\Component\ExpressionLanguage\ExpressionFunction;
 use Symfony\Component\ExpressionLanguage\ExpressionLanguage;
+use Vanguard\Classes\DropdownHelper;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableData;
+use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Services\Tablda\FormulaFuncService;
+use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Services\Tablda\TableDataService;
 
 class FormulaEvaluatorRepository
 {
+    protected $helper;
+    protected $rowRepo;
     protected $evaluator;
     protected $table;
+    protected $userId;
     protected $formula_fields = [];
     protected $field_name_links = [];
+    protected $changed_fields = [];
 
     protected $avail_functions = [
         //#app_avail_formulas
@@ -29,6 +41,8 @@ class FormulaEvaluatorRepository
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::sqlVariance' => 'var',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::sqlStd' => 'std',
 
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayCount' => 'acount',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayCountUnique' => 'acountunique',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arraySum' => 'asum',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayMin' => 'amin',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayMax' => 'amax',
@@ -37,34 +51,48 @@ class FormulaEvaluatorRepository
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayVariance' => 'avar',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::arrayStd' => 'astd',
 
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ddloption' => 'ddloption',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifAnd' => 'andx',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifOr' => 'orx',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::isEmpty' => 'isempty',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::ifCondition' => 'if',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::switchCondition' => 'switch',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::aiCreate' => 'ai_create',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::aiExtract' => 'ai_extract',
 
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::timeChange' => 'timechange',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDuration' => 'duration',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getToday' => 'today',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getTomorrow' => 'tomorrow',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getYesterday' => 'yesterday',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDateDay' => 'yrday',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDayMonth' => 'moday',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getWeekDay' => 'wkday',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDateWeek' => 'week',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDateMonth' => 'month',
         '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDateYear' => 'year',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getDate' => 'date',
+        '\\Vanguard\\Services\\Tablda\\FormulaFuncService::getTime' => 'time',
 
         'sqrt' => 'sqrt',
         'pow' => 'pow',
     ];
+    protected $changed = false;
 
     /**
      * FormulaEvaluatorRepository constructor.
-     * @param Table $table
+     * @param Table|null $table
      * @param int|null $user_id
      * @param bool $light
+     * @param array $changed_fields
      */
-    public function __construct(Table $table = null, int $user_id = null, bool $light = false)
+    public function __construct(Table $table = null, int $user_id = null, bool $light = false, array $changed_fields = [])
     {
+        $this->userId = $user_id;
+        $this->changed_fields = $changed_fields;
+
+        $this->helper = new HelperService();
+        $this->rowRepo = new TableDataRowsRepository();
         if ($table) {
             if (!$light) {
                 $table->loadMissing('_ref_conditions');
@@ -94,6 +122,8 @@ class FormulaEvaluatorRepository
                     $this->field_name_links[$this->tf_name($tf->formula_symbol)] = $tf;
                 }
             }
+            //virtual column 'static_hash' can be used in the formula
+            $this->field_name_links[$this->tf_name('static_hash')] = new TableField(['field' => 'static_hash', 'name' => 'static_hash']);
             //---
         }
 
@@ -105,16 +135,62 @@ class FormulaEvaluatorRepository
     }
 
     /**
+     * @param Collection $rows
+     * @return void
+     */
+    protected function needAttachRefs(Collection $rows)
+    {
+        $should = false;
+        foreach ($this->formula_fields as $frm) {
+            if ($should) {
+                continue;
+            }
+            if ($frm->is_uniform_formula) {
+                $should = !!$this->getActiveFields($frm->f_formula ?: '', true);
+            } else {
+                $should = !!$rows
+                    ->filter(function ($row) use ($frm) {
+                        $formula_str = $this->tf_name($row[$frm->field . '_formula'] ?? '', true);
+                        return !!$this->getActiveFields($formula_str, true);
+                    })
+                    ->count();
+            }
+        }
+
+        if ($should) {
+            $this->rowRepo->attachSpecialFields($rows, $this->table, null, ['refs']);
+        } else {
+            $rows->each(function ($row) {
+                $row['_rc_attached'] = true;
+            });
+        }
+    }
+
+    /**
+     * @param array $row
+     * @return array
+     */
+    protected function rowAsNeeded(array $row): array
+    {
+        if (empty($row['_rc_attached']) && !$this->table->is_system) {
+            $col = collect([ (new TableData($row)) ]);
+            $this->needAttachRefs($col);
+            $row = $col->first()->toArray();
+        }
+        return $row;
+    }
+
+    /**
      * @param $name
      * @param bool $allstring
      * @return mixed|string
      */
-    private function tf_name($name, $allstring = false)
+    protected function tf_name($name, $allstring = false)
     {
         if ($allstring) {
-            return preg_replace('/[\\\]/i', '', $name);//sanitize
+            return preg_replace('/[\\\]/ui', '', $name);//sanitize
         } else {
-            return strtolower(preg_replace('/[^\w\d]/i', '', $name));
+            return strtolower(preg_replace('/[^\p{L}\d]/ui', '', $name));
         }
     }
 
@@ -123,7 +199,7 @@ class FormulaEvaluatorRepository
      * @param $name
      * @return ExpressionFunction
      */
-    private function ExpressionFormula($phpFunctionName, $name)
+    protected function ExpressionFormula($phpFunctionName, $name)
     {
         $compiler = function () use ($phpFunctionName) {
             return sprintf('\%s(%s)', $phpFunctionName, implode(', ', \func_get_args()));
@@ -145,7 +221,7 @@ class FormulaEvaluatorRepository
     public function recalcTableFormulas(array $row_ids = [], int $job_id = 0)
     {
         if (!$this->formula_fields->count()) {
-            $this->setJobId($job_id, 'done');
+            $this->setJobId($job_id, ['status' => 'done']);
             return;
         }
 
@@ -155,32 +231,34 @@ class FormulaEvaluatorRepository
         }
         $rows_count = $rows->count();
 
+        $this->changed = false;
         for ($chunk = 0; ($chunk * 100) < $rows_count; $chunk++) {
-            $rows_pack = (clone $rows)->offset($chunk * 100)->limit(100)->get()->toArray();
+            $rows_pack = (clone $rows)->offset($chunk * 100)->limit(100)->get();
+            $this->needAttachRefs($rows_pack);
 
-            $this->setJobId($job_id, (int)((($chunk * 100) / $rows_count) * 100));
+            $this->setJobId($job_id, ['complete' => (int)((($chunk * 100) / $rows_count) * 100)]);
 
             foreach ($rows_pack as $row) {
-                $this->recalcRowFormulas($row);
+                $this->recalcRowFormulas($row->toArray());
             }
         }
 
-        $this->setJobId($job_id, 'done');
+        $this->setJobId($job_id, ['status' => 'done']);
 
         //update hashes
-        (new TableRepository())->onlyUpdateTable($this->table->id, [
-            'version_hash' => Uuid::uuid4()
-        ]);
+        if ($this->changed) {
+            (new TableDataService())->newTableVersion($this->table);
+        }
     }
 
     /**
      * @param int $job_id
-     * @param $val
+     * @param array $arr
+     * @return void
      */
-    private function setJobId(int $job_id = 0, $val)
+    protected function setJobId(int $job_id = 0, array $arr = [])
     {
         if ($job_id) {
-            $arr = $val == 'done' ? ['status' => 'done'] : ['complete' => $val];
             DB::connection('mysql')->table('imports')->where('id', '=', $job_id)->update($arr);
         }
     }
@@ -190,10 +268,15 @@ class FormulaEvaluatorRepository
      *
      * @param array $row
      * @param bool $save_in_db
+     * @param array $dcr_rows_linked
      * @return array
      */
-    public function recalcRowFormulas(array $row, $save_in_db = true)
+    public function recalcRowFormulas(array $row, bool $save_in_db = true, array $dcr_rows_linked = [])
     {
+        $row = $this->rowAsNeeded($row);
+
+        FormulaFuncService::$dcr_rows_linked = $dcr_rows_linked;
+        FormulaFuncService::$userId = $this->userId ?: auth()->id() ?: $this->table->user_id;
         FormulaFuncService::$currentRow = $row;
         FormulaFuncService::$metaTable = $this->table;
 
@@ -201,7 +284,7 @@ class FormulaEvaluatorRepository
         foreach ($this->formula_fields as $field) {
             FormulaFuncService::$currentField = $field->toArray();
             $formula_str = $this->tf_name($row[$field->field . '_formula'] ?? '', true);
-            if (!$formula_str) {
+            if (!$formula_str && $row[$field->field] != '') {
                 $row[$field->field] = '';
                 $row['row_hash'] = Uuid::uuid4();
                 $changed_row = true;
@@ -219,9 +302,13 @@ class FormulaEvaluatorRepository
 
         if ($save_in_db && $changed_row) {
             try {
-                (new TableDataQuery($this->table))->getQuery()
+                foreach (FormulaFuncService::$afterUpdates as $fld => $val) {
+                    $row[$fld] = $val;
+                }
+                TableDataQuery::getTableDataSql($this->table)
                     ->where('id', '=', $row['id'])
-                    ->update($row);
+                    ->update($this->helper->delSystemFields($row, true));
+                $this->changed = true;
             } catch (\Exception $e) {
             }
         }
@@ -239,29 +326,33 @@ class FormulaEvaluatorRepository
      */
     public function formulaReplaceVars(array $row, string $formula_str, bool $with_calc = false)
     {
+        $row = $this->rowAsNeeded($row);
+
         $formula_str = $this->removeNotPrintable($formula_str);
+        $formula_str = $this->preparserFormula($formula_str, $with_calc);
         $active_fields = $this->getActiveFields($formula_str);
-        foreach ($active_fields as $idx => $act_field) { // $act_field = '{FIELD_NAME}'
+        $active_ddl_shows = $this->getActiveFields($formula_str, true);
+        foreach ($active_fields as $act_field) { // $act_field = '{FIELD_NAME}'
             $tf_act_field = $this->tf_name($act_field);
             $fld = $this->field_name_links[$tf_act_field] ?? null;
             if ($fld) {
                 $row_val = $row[$fld->field] ?? '';
-                if(!empty($row['_rc_'.$fld->field]) && !empty($row['_rc_'.$fld->field][$row_val])) {
-                    $row_val = $row['_rc_'.$fld->field][$row_val]->show_val ?? $row_val;
+                if (in_array($act_field, $active_ddl_shows)) {
+                    $row_val = DropdownHelper::valOrShow($fld->field, $row);
                 }
                 //parser rules
                 $data = preg_replace('/["]/i', '', $row_val);//sanitize
                 $data = preg_replace('/(\d),(\d)/i', '$1$2', $data);//prepare for number calcs
                 if ($with_calc) {
                     $data = preg_match('/[^\d\.]/i', $data)
-                        ? '"' . ($data ?: '') . '"' //String if not only digits
+                        ? ($data ?: '') //String if not only digits
                         : ($data ?: 0); //Number if only digits
                 }
                 //---
 
                 //remove zero for concatenation
                 if (preg_match('/~/', $formula_str) && !$data) {
-                    $data = '""';
+                    $data = '"0"';
                 }
 
                 $formula_str = preg_replace($this->actToReplace($act_field), $data, $formula_str);
@@ -272,7 +363,7 @@ class FormulaEvaluatorRepository
 
         if ($with_calc) {
             //case insensetive functions
-            $formula_str = preg_replace_callback('/([\w]+\()/i', function ($word) {
+            $formula_str = preg_replace_callback('/([\p{L}]+\()/ui', function ($word) {
                 return strtolower($word[1]);
             }, $formula_str);
 
@@ -288,8 +379,9 @@ class FormulaEvaluatorRepository
      */
     public function asSqlString(string $formula_str)
     {
+        $formula_str = $this->preparserFormula($formula_str, true);
         $active_fields = $this->getActiveFields($formula_str);
-        foreach ($active_fields as $idx => $act_field) { // $act_field = '{FIELD_NAME}'
+        foreach ($active_fields as $act_field) { // $act_field = '{FIELD_NAME}'
             $act_field = $this->tf_name($act_field);
             $fld = $this->field_name_links[$act_field] ?? null;
             if ($fld) {
@@ -298,20 +390,50 @@ class FormulaEvaluatorRepository
                 $formula_str = '"Field ' . $act_field . ' not found"';
             }
         }
-        return preg_replace('/[^\w_\/\*-+`]/i', '', $formula_str);
+        return preg_replace('/[^\w_\/\*-+`,.]/i', '', $formula_str);
     }
 
     /**
      * @param string $formula_str
+     * @return string
+     */
+    protected function preparserFormula(string $formula_str, bool $with_calc = false): string
+    {
+        $formula_str = str_replace('`', '\'', $formula_str);
+        $formula_str = str_replace('&nbsp;', ' ', $formula_str);
+        $formula_str = str_replace('&', '~', $formula_str);
+        //wrap {fields} in Reference functions by `` (to prevent field replacing with value)
+        $references = ['count','countunique','sum','min','max','mean','avg','var','std'];
+        foreach ($references as $ref) {
+            $findings = ['^'.$ref.'\([^\)]+\)', '[^a]'.$ref.'\([^\)]+\)'];
+            $formula_str = preg_replace_callback('/'.join('|', $findings).'/i', function ($subformula) use ($ref) {
+                $frm_string = preg_replace('/\s/i', '', $subformula[0]);//remove spaces
+                $frm_string = preg_replace('/,(\{[^\}]*\})/i', ',`$1`', $frm_string); //wrap {fields}
+                return preg_replace('/\(([^"\'`]+),/i', '(`$1`,', $frm_string); // wrap RefCond name in `` if needed
+            }, $formula_str);
+        }
+        //wrap {fields} into "{fields}" if they are not in strings with quotes
+        if ($with_calc) {
+            $formula_str = preg_replace('/(\{[^\}]+\})(?=(?:[^\'"`]*[\'"`][^\'"`]*[\'"`])*[^\'"`]*$)/i', '"$1"', $formula_str);
+        }
+        return $formula_str;
+    }
+
+    /**
+     * @param string $formula_str
+     * @param bool $ddlid
      * @return array
      */
-    protected function getActiveFields(string $formula_str)
+    protected function getActiveFields(string $formula_str, bool $ddlid = false)
     {
         $active_fields = [];
         $formula_str = preg_replace('/(\{)/i', ' $1', $formula_str);//add spaces for correct $active_fields parsing
-        preg_match_all('/[^"](\{[^\}]*\})[^"]|^(\{[^\}]*\})|(\{[^\}]*\})$/i', $formula_str, $active_fields);
+        $parser = $ddlid
+            ? 'ddloption\(\s?(\{[^\}]*\})\s?,\s?"show"\s?\)|ddloption\(\s?(\{[^\}]*\})\s?,\s?"show"\s?,\s?"\d"\s?\)'
+            : '[^`](\{[^\}]*\})[^`]|^(\{[^\}]*\})|(\{[^\}]*\})$';
+        preg_match_all('/'.$parser.'/i', $formula_str, $active_fields);
         $active_fields[0] = [];
-        return array_filter(array_unique(array_flatten($active_fields)));
+        return array_filter(array_unique(Arr::flatten($active_fields)));
     }
 
     /**
@@ -321,8 +443,11 @@ class FormulaEvaluatorRepository
     public function justCalc(string $formula_str)
     {
         try {
-            $result = (string)$this->evaluator->evaluate( $this->removeNotPrintable($formula_str) );
-        } catch (\Exception $e) {
+            $formula_str = preg_replace('/`([^`]*)`/i', '\'$1\'', $formula_str);//`{variable}` => '{variable}' (remove system replace restrictors)
+            $formula_str = preg_replace('/[\'"]([\d.]+)[\'"]/i', '$1', $formula_str);//"5" => 5 (remove number quotes)
+            $formula_str = $this->removeNotPrintable($formula_str);
+            $result = $formula_str ? (string)$this->evaluator->evaluate($formula_str) : '';
+        } catch (\Throwable $e) {
             $result = $e->getMessage();
         }
         return $result;
@@ -334,7 +459,11 @@ class FormulaEvaluatorRepository
      */
     protected function removeNotPrintable(string $formula_str): string
     {
-        return preg_replace('/[^[:print:]]/i', '', $formula_str);
+        //Remove {non-printable} and {spaces} from the string (ignore strings in quotes: "some data {non-latin1}" + {non-latin2} ===>>> "some data {non-latin1}")
+        $formula_str = preg_replace('/[^[:print:]](?=(?:[^\'\"]*(?:\'|\")[^\'\"]*(?:\'|\"))*[^\'\"]*$)/ui', '', $formula_str);
+        $formula_str = preg_replace('/\s(?=(?:[^\'\"]*(?:\'|\")[^\'\"]*(?:\'|\"))*[^\'\"]*$)/i', ' ', $formula_str);
+        $formula_str = preg_replace('/\s/u', ' ', $formula_str);
+        return trim($formula_str);
     }
 
     /**

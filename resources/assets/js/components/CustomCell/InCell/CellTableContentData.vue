@@ -1,6 +1,6 @@
 <template>
     <span>
-        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'before')">
+        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'before') || canLink(lnk, 'front')">
             <link-object :table-meta="tableMeta"
                          :global-meta="globalMeta"
                          :table-header="tableHeader"
@@ -8,12 +8,14 @@
                          :cell-value="htmlConvValue"
                          :link="lnk"
                          :user="user"
+                         :class="[canLink(lnk, 'front') ? 'link-absolute link-left' : '']"
+                         :style="{left: linkAbsPos(lnk, 'front')}"
                          @show-src-record="showSrcRecord"
                          @open-app-as-popup="openAppAsPopup"
             ></link-object>
         </template>
 
-        <template v-if="isAvail && underlinedLink && showLink(underlinedLink, underlinedLink.link_type)">
+        <template v-if="isAvail && underlinedLink && htmlConvValue && showLink(underlinedLink, underlinedLink.link_type)">
             <link-object :table-meta="tableMeta"
                          :global-meta="globalMeta"
                          :table-header="tableHeader"
@@ -31,11 +33,11 @@
                 <a v-if="canShowUser()"
                    :target="user.is_admin ?  '_blank' : ''"
                    :href="user.is_admin ? userHref() : 'javascript:void(0)'"
-                   :class="{'is_select': is_select, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type)}"
+                   :class="{'is_select': is_select, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type), 'pr5': !can_edit}"
                    :style="{whiteSpace: 'nowrap'}"
                 >
                     <span v-html="htmlConvValue"></span>
-                    <span v-if="is_select && $root.isMSEL(tableHeader.input_type)"
+                    <span v-if="is_select && can_edit && $root.isMSEL(tableHeader.input_type)"
                           class="m_sel__remove"
                           @click.prevent.stop=""
                           @mousedown.prevent.stop="$emit('unselect-val')"
@@ -45,13 +47,13 @@
             </template>
             <template v-else-if="show_html()">
                 <img v-if="is_select && specObjImgs.length"
-                     :src="$root.fileUrl(specObjImgs[0])"
+                     :src="$root.fileUrl(specObjImgs[0], 'sm')"
                      class="item-image"
                      @click="fullSizeImg"
                      :height="lineHeight"/>
-                <span :class="{'is_select': is_select, 'm_sel__wrap': $root.isMSEL(tableHeader.input_type)}" :style="selectBG">
+                <span :class="{'is_select': is_select, 'm_sel__wrap': is_select, 'pr5': !can_edit}" :style="selectBG">
                     <span v-html="show_html()"></span>
-                    <span v-if="is_select && $root.isMSEL(tableHeader.input_type)"
+                    <span v-if="is_select && can_edit"
                           class="m_sel__remove"
                           @click.prevent.stop=""
                           @mousedown.prevent.stop="$emit('unselect-val')"
@@ -63,7 +65,7 @@
                   style="color: #CCC">{{ tableHeader.placeholder_content }}</span>
         </template>
 
-        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'after')">
+        <template v-for="lnk in tableHeader._links" v-if="canLink(lnk, 'after') || canLink(lnk, 'end')">
             <link-object :table-meta="tableMeta"
                          :global-meta="globalMeta"
                          :table-header="tableHeader"
@@ -71,6 +73,8 @@
                          :cell-value="htmlConvValue"
                          :link="lnk"
                          :user="user"
+                         :class="[canLink(lnk, 'end') ? 'link-absolute link-right' : '']"
+                         :style="{right: linkAbsPos(lnk, 'end')}"
                          @show-src-record="showSrcRecord"
                          @open-app-as-popup="openAppAsPopup"
             ></link-object>
@@ -97,7 +101,8 @@ export default {
         },
         data: function () {
             return {
-                avail_behave_links: ['list_view','favorite','link_popup','bi_module','map_view','single-record-view'],
+                avail_behave_links: ['list_view','favorite','link_popup','bi_module','map_view','single-record-view',
+                    'kanban_view','request_view','grouping_table'],
             }
         },
         props: {
@@ -112,8 +117,9 @@ export default {
             isVertTable: Boolean,
             behavior: String,
             is_def_fields: Boolean,
-            is_td_single: Boolean,
+            is_td_single: Object,
             no_height_limit: Boolean,
+            can_edit: Boolean|Number,
         },
         computed: {
             placeholderAvail() {
@@ -122,19 +128,18 @@ export default {
                     && (!this.tableRow.id || !this.tableHeader._links.length);//hide placeholder for saved record with links.
             },
             underlinedLink() {
-                return this.tableHeader.active_links
-                    ? _.find(this.tableHeader._links, {icon: 'Underlined'})
-                    : null;
+                return _.find(this.tableHeader._links, {icon: 'Underlined'});
             },
             isAvail() {
                 return $.inArray(this.behavior, this.avail_behave_links) > -1
-                    && this.tableRow.id
+                    && (this.tableRow.id || this.$root.is_dcr_page)
                     && !this.is_td_single;
             },
             specObjImgs() {
                 let imgs = [];
                 if (this.is_select) {
-                    imgs = SpecialFuncs.rcObj(this.tableRow, this.tableHeader.field, this.realValue).img_vals || [];
+                    let firstValuePart = this.realValue ? _.first(_.split(this.realValue, '<br>')) : '';
+                    imgs = SpecialFuncs.rcObj(this.tableRow, this.tableHeader.field, firstValuePart).img_vals || [];
                     if (!imgs.length) {
                         try {
                             //OLD (new 'sys' columns are not create
@@ -149,7 +154,7 @@ export default {
                 if (this.is_def_fields && !this.htmlValue && this.tableHeader.f_type === 'User') {
                     return '{$user}';
                 }
-                return this.htmlValue;
+                return String(this.htmlValue);
             },
             selectBG() {
                 let bg = this.is_select ? SpecialFuncs.rcObj(this.tableRow, this.tableHeader.field, this.realValue).ref_bg_color : '';
@@ -163,14 +168,39 @@ export default {
         },
         methods: {
             show_html() {
-                return SpecialFuncs.showhtml(this.tableHeader, this.tableRow, this.htmlConvValue, this.tableMeta.unit_conv_is_active);
+                if (this.is_td_single && this.is_td_single.draw_links) {//HeaderResizer::resizeToContent only
+                    return this.htmlConvValue
+                        + '<br>'
+                        + SpecialFuncs.showhtml(this.tableHeader, this.tableRow, this.htmlConvValue, this.tableMeta);
+                }
+                return SpecialFuncs.showhtml(this.tableHeader, this.tableRow, this.htmlConvValue, this.tableMeta);
             },
             //
+            linkAbsPos(lnk, pos) {
+                if (! this.canLink(lnk, pos)) {
+                    return null;
+                }
+
+                let offset = 0;
+                let idx = 0;
+                _.each(this.tableHeader._links, (ll, ii) => {
+                    if (ll.id == lnk.id || idx < ii) {
+                        idx = ii - 1;
+                        return;
+                    }
+                    if (this.canLink(ll, pos) && lnk.icon.length) {
+                        offset += Number(lnk.icon.length) * Number(this.$root.themeTextFontSize) * 0.5 + 6;
+                    }
+                });
+                if (offset) {
+                    offset += 4;
+                }
+                return offset + 'px';
+            },
             canLink(lnk, needed_pos) {
                 return this.isAvail
                     && lnk.icon !== 'Underlined'
-                    && lnk.link_pos === needed_pos
-                    && this.tableHeader.active_links;
+                    && lnk.link_pos === needed_pos;
             },
             canShowUser() {
                 return !this.$root.isMSEL(this.tableHeader.input_type) //no mselect
@@ -213,5 +243,17 @@ export default {
     }
     p, ul, ol, h1, h2, h3 {
         margin-bottom: 16px;
+    }
+    .link-absolute {
+        position: absolute;
+        //z-index: 10; - creates "web link popup overflow issue"
+        background: white;
+        top: 0;
+    }
+    .link-left {
+        left: 0;
+    }
+    .link-right {
+        right: 0;
     }
 </style>

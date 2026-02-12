@@ -16,22 +16,32 @@
                     <div class="flex__elem__inner popup-main">
 
                         <div class="flex flex--col">
-                            <div class="flex flex--center-v" style="margin-bottom: 5px;">
-                                <label class="checkbox-container" :style="{paddingLeft: leftPad+'px'}">
-                                    <span class="indeterm_check__wrap">
-                                        <span class="indeterm_check" @click="checkAll()">
-                                            <i v-if="allChecked == 2" class="glyphicon glyphicon-ok group__icon"></i>
-                                            <i v-if="allChecked == 1" class="glyphicon glyphicon-minus group__icon"></i>
+                            <div class="flex flex--center-v flex--space" style="margin-bottom: 5px;">
+                                <div class="flex flex--center-v">
+                                    <label class="checkbox-container" :style="{paddingLeft: leftPad+'px'}">
+                                        <span class="indeterm_check__wrap">
+                                            <span class="indeterm_check" @click="checkAll()">
+                                                <i v-if="allChecked == 2" class="glyphicon glyphicon-ok group__icon"></i>
+                                                <i v-if="allChecked == 1" class="glyphicon glyphicon-minus group__icon"></i>
+                                            </span>
                                         </span>
-                                    </span>
-                                    <span> Check/Uncheck All Columns</span>
-                                </label>
-                                <button class="btn btn-default btn-sm ml5"
-                                        style="font-size: 24px;line-height: 18px;"
-                                        @click="opened_tb = !opened_tb"
-                                >
-                                    <span>{{ opened_tb ? '-' : '+' }}</span>
-                                </button>
+                                        <span> Check/Uncheck All Columns</span>
+                                    </label>
+                                    <button class="btn btn-default btn-sm ml5"
+                                            style="font-size: 24px;line-height: 18px;"
+                                            @click="opened_tb = !opened_tb"
+                                    >
+                                        <span>{{ opened_tb ? '-' : '+' }}</span>
+                                    </button>
+                                </div>
+
+                                <div class="flex flex--center-v">
+                                    <label>Replacement:</label>
+                                    <label class="switch_t ml5">
+                                        <input type="checkbox" v-model="replacement">
+                                        <span class="toggler round"></span>
+                                    </label>
+                                </div>
                             </div>
                             <div class="full-frame tb_wrap" v-show="opened_tb">
                                 <table class="table">
@@ -89,15 +99,8 @@
                                     </tr>
                                 </table>
                             </div>
-                            <div class="popup-buttons flex flex--space">
-                                <div class="replace_buttons full-height flex flex--center-v">
-                                    <label :style="{paddingLeft: (leftPad+20)+'px'}">Replacement:</label>
-                                    <label class="switch_t ml5">
-                                        <input type="checkbox" v-model="replacement">
-                                        <span class="toggler round"></span>
-                                    </label>
-                                </div>
-                                <div class="action_buttons full-height flex flex--center-v">
+                            <div class="popup-buttons">
+                                <div class="pull-right full-height flex flex--center-v">
                                     <button class="btn btn-success btn-sm" @click="popupCopy()">To New Rows</button>
                                     <button class="btn btn-success btn-sm ml5" @click="copyToClipboard(true)">To Clipboard</button>
                                     <button class="btn btn-info btn-sm ml5" @click="$emit('popup-close')">Cancel</button>
@@ -143,7 +146,6 @@
 
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
-    import SingleTdField from "../CommonBlocks/SingleTdField";
     import HeaderResizer from "../CustomTable/Header/HeaderResizer";
 
     export default {
@@ -153,7 +155,6 @@
         ],
         components: {
             HeaderResizer,
-            SingleTdField,
         },
         data: function () {
             return {
@@ -243,14 +244,16 @@
                         (check_obj.all_checked ? request_params : null),
                         replaces,
                         only_cols
-                    );
+                    ).then((data) => {
+                        this.$emit('after-copied', data, check_obj.all_checked);
+                    });
                 } else {
-                    Swal('No record selected!');
+                    Swal('Info','No record selected!');
                 }
             },
             copyToClipboard(with_headers) {
                 this.$root.copyToClipboard(with_headers ? this.$refs.copy_table : this.$refs.copy_body);
-                Swal('Copied to Clipboard!');
+                Swal('Info','Copied to Clipboard!');
             },
         },
         mounted() {

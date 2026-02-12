@@ -1,6 +1,6 @@
 <template>
     <div class="notices">
-        You are currently paying with your PayPal account
+        You are paying with your PayPal account
         (but you can switch to using a credit card at any time).<br>
         Click the button to proceed: <div ref="paypal_button_card" class="paypal-button-card"></div>
 

@@ -85,4 +85,22 @@ class SrvController extends Controller
             'status' => $field && $row && $row[$field->field] == $request->pass,
         ];
     }
+
+    /**
+     * @param Request $request
+     * @return array
+     * @throws AuthorizationException
+     */
+    public function attachDetachFld(Request $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->authorize('isOwner', [TableData::class, $table]);
+        if ($request->field_id) {
+            $this->fieldRepository->srvAttachIfNeeded($request->table_id, $request->field_id);
+            $this->fieldRepository->srvChangePivotFld($request->table_id, $request->field_id, $request->setting, $request->val);
+            $table->load('_fields_pivot');
+            return $table->toArray();
+        }
+        return [];
+    }
 }

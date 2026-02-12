@@ -289,7 +289,7 @@
                         this.$root.user._selected_theme = theme;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -301,7 +301,7 @@
                 }).then(({ data }) => {
                     this.$root.user._selected_theme = theme;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

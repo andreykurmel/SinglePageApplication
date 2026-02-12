@@ -2,17 +2,24 @@
     <div class="select-wrapper border-radius--top"
          ref="select_wrapper"
          @click.stop=""
-         :style="{backgroundColor: is_disabled ? '#ddd' : ''}">
+         :style="{
+            backgroundColor: is_disabled ? '#ddd' : '',
+            height: multi_lines ? 'auto' : '36px',
+            minHeight: multi_lines ? '36px' : 'auto',
+        }">
 
         <!--For using in Forms-->
-        <input v-if="hidden_name" type="hidden" :name="hidden_name" :value="sel_value || ''"/>
+        <input v-if="hidden_name" type="hidden" :name="hidden_name" :value="String(sel_value) || ''"/>
 
         <!--Select-->
-        <div class="select-element" @click="openMenu()">
-            <div class="element-value">
+        <div class="select-element" @click="openMenu()" :style="{ minHeight: multi_lines ? '22px' : 'auto', }">
+            <div v-if="placeholder && !String(sel_value)" class="element-value" style="color: #aaa;">{{ placeholder }}</div>
+            <div v-else class="element-value">
                 <img v-if="sel_image && showPresent()" :src="sel_image" height="14">
-                <a v-if="with_links" @click.stop="$emit('link-click')">{{ showPresent() }}</a>
-                <span v-else="">{{ showPresent() }}</span>
+
+                <a v-if="with_links" @click.stop="$emit('link-click')" v-html="showPresent()"></a>
+                <a v-else-if="link_path" target="_blank" :href="link_path" @click.stop="" v-html="showPresent()"></a>
+                <span v-else="" v-html="showPresent()"></span>
             </div>
             <div class="element-triangle">
                 <b :class="[opened ? 'b-opened' : '']"></b>
@@ -25,7 +32,7 @@
                 <input class="form-control" v-model="search_text" @keyup="filterOptions" placeholder="Search"/>
             </div>
 
-            <div class="result-wrapper">
+            <div class="result-wrapper" :style="{maxHeight: this.$root.ddlHeight+'px'}">
                 <template v-for="opt in filtered_options">
 
                     <div v-if="opt.isButton" class="embed-wrapper">
@@ -73,16 +80,19 @@
         },
         props:{
             options: Array, // available: { val:'id', show:string, html:string, style:object, isTitle:bool, isButton:mixed, hasGroup:array, disabled:bool }
-            sel_value: String|Number,
+            sel_value: Array|String|Number,
             sel_image: String,
             can_search: Boolean,
             fixed_pos: Boolean,
             is_disabled: Boolean,
             is_multiselect: Boolean,
+            multi_lines: Boolean,
             button_txt: String,
             hidden_name: String,
             with_links: Boolean,
+            link_path: String,
             auto_open: Boolean,
+            placeholder: String,
         },
         methods: {
             openMenu() {
@@ -105,7 +115,7 @@
                 });
                 return arr.filter((el) => {
                     return from_group.indexOf(el) === -1;
-                }).join(', ');
+                }).join(this.multi_lines ? ',<br>' : ', ');
             },
             isSelected(option) {
                 if (option.isTitle || option.isButton) {
@@ -113,10 +123,11 @@
                 }
 
                 let result = true;
+                let field_val = typeof this.sel_value == 'object' ? JSON.stringify(this.sel_value) : this.sel_value;
                 _.each(option.hasGroup || [option.val], (optval) => {
                     let part = this.is_multiselect
-                        ? String(this.sel_value || '').indexOf(String(optval)) > -1
-                        : this.sel_value == optval;
+                        ? String(field_val || '').indexOf(isNaN(optval) ? '"'+String(optval)+'"' : Number(optval)) > -1
+                        : field_val == optval;
                     result = result && part;
                 });
                 return result;

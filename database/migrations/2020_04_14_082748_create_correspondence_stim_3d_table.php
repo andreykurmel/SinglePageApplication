@@ -23,14 +23,21 @@ class CreateCorrespondenceStim3dTable extends Migration
                 $table->string('top_tab', 32)->nullable();
                 $table->string('select', 32)->nullable();
                 $table->string('accordion', 32)->nullable();
-                $table->string('horizontal', 32)->nullable();
-                $table->string('vertical', 32)->nullable();
+                $table->string('horizontal_lvl1', 32)->nullable();
+                $table->string('vertical_lvl1', 32)->nullable();
+                $table->string('horizontal_lvl2', 32)->nullable();
+                $table->string('vertical_lvl2', 32)->nullable();
                 $table->string('table', 64);
                 $table->string('options', 255)->nullable();
                 $table->string('model_3d', 32)->nullable();
                 $table->string('inheritance_3d', 64)->nullable();
                 $table->string('inheritance_type', 255)->nullable();
                 $table->string('type_tablda', 32)->nullable();
+                $table->string('stimvis_status', 32)->nullable();
+                $table->unsignedInteger('stimvis_table_id')->nullable();
+                $table->unsignedInteger('stimvis_field_id')->nullable();
+                $table->string('stimvis_operator', 32)->nullable();
+                $table->string('stimvis_value', 128)->nullable();
             });
     }
 

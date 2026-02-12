@@ -88,7 +88,7 @@
             //SINGLE
             singleChanged(type) {
                 if (!this.import_action) {
-                    Swal('Please select an option.');
+                    Swal('Info','Please select an option.');
                     return;
                 }
                 this.clearDatas(type);
@@ -98,7 +98,7 @@
             //FOLDER
             loadFields() {
                 if (!this.import_action) {
-                    Swal('Please select an option.');
+                    Swal('Info','Please select an option.');
                     return;
                 }
                 this.master_table_fields = [];
@@ -112,7 +112,7 @@
                         this.master_table_fields = data.fields;
                         this.emitProps();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -122,7 +122,7 @@
             },
             loadColumnValues() {
                 if (!this.import_action) {
-                    Swal('Please select an option.');
+                    Swal('Info','Please select an option.');
                     return;
                 }
                 this.table_names_string = '';
@@ -140,12 +140,12 @@
                         });
                         this.emitNamesArray();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
                 } else {
-                    Swal('Base or Table name are empty!', '', 'info');
+                    Swal('Info', 'Base or Table name are empty!');
                 }
             },
             parseNames() {

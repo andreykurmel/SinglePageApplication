@@ -8,12 +8,20 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Ramsey\Uuid\Uuid;
+use Vanguard\Models\AppSetting;
 use Vanguard\Models\Dcr\DcrLinkedTable;
 use Vanguard\Models\Dcr\TableDataRequest;
+use Vanguard\Models\Dcr\TableDataRequest2Fields;
 use Vanguard\Models\Dcr\TableDataRequestColumn;
 use Vanguard\Models\Dcr\TableDataRequestDefaultField;
+use Vanguard\Models\Dcr\TableDataRequestRight;
+use Vanguard\Models\Dcr\DcrNotifLinkedTable;
+use Vanguard\Models\Table\Table;
 use Vanguard\Modules\QRGenerator;
 use Vanguard\Repositories\Tablda\FileRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Services\Tablda\HelperService;
 
@@ -39,6 +47,15 @@ class TableDataRequestRepository
     }
 
     /**
+     * @param $hash
+     * @return TableDataRequest
+     */
+    public function getByHash($hash)
+    {
+        return TableDataRequest::where('dcr_hash', '=', $hash)->first();
+    }
+
+    /**
      * @return Collection
      */
     public function getTemplates()
@@ -53,20 +70,14 @@ class TableDataRequestRepository
     }
 
     /**
-     * Check availability of request address.
-     *
-     * @param $table_name
      * @param $link
      * @param $id
-     * @return mixed
+     * @return int
      */
-    public function checkAddress($table_name, $link, $id = 0)
+    public function checkAddress($link, $id = 0)
     {
         return TableDataRequest::where('id', '!=', $id)
-            ->whereHas('_table', function ($t) use ($table_name) {
-                $t->where('name', $table_name);
-            })
-            ->where('user_link', '=', $link)
+            ->where('custom_url', '=', $link)
             ->count();
     }
 
@@ -85,9 +96,12 @@ class TableDataRequestRepository
         $data['active'] = 1;
         $data['dcr_hash'] = Uuid::uuid4();
         $data['link_hash'] = Uuid::uuid4();
+        $data['user_id'] = auth()->id();
+
+        $data['dcr_signature_txt'] = $data['dcr_save_signature_txt'] = $data['dcr_upd_signature_txt'] = "Best.\nTablDA Team.";
 
         foreach ($data as $key => $val) {
-            if (in_array($key, ['active', 'one_per_submission', 'dcr_form_shadow', 'dcr_form_transparency'])) {
+            if (in_array($key, ['active', 'one_per_submission', 'dcr_form_shadow', 'dcr_form_transparency', 'download_pdf', 'download_png'])) {
                 $data[$key] = 0;
             }
             if (in_array($key, ['dcr_title_line_top', 'dcr_title_line_bot', 'dcr_form_line_thick', 'dcr_sec_line_thick'])) {
@@ -95,6 +109,9 @@ class TableDataRequestRepository
             }
             if (in_array($key, ['dcr_form_line_radius'])) {
                 $data[$key] = 10;
+            }
+            if (in_array($key, ['dcr_many_rows_width'])) {
+                $data[$key] = 250;
             }
             if (in_array($key, ['dcr_email_format', 'dcr_save_email_format', 'dcr_upd_email_format'])) {
                 switch ($val) {
@@ -154,9 +171,30 @@ class TableDataRequestRepository
     }
 
     /**
+     * @param Table $table
+     */
+    public function loadForTable(Table $table, int $user_id = null)
+    {
+        $table->load([
+            '_table_requests' => function ($q) use ($table, $user_id) {
+                $vPermisId = $this->service->viewPermissionId($table);
+                if ($table->user_id != $user_id && $vPermisId != -1) {
+                    //get only 'shared' tableCharts for regular User.
+                    $q->whereHas('_table_permissions', function ($tp) use ($vPermisId) {
+                        $tp->applyIsActiveForUserOrPermission($vPermisId);
+                    });
+                }
+                $q->with('_dcr_linked_tables', '_data_request_columns', '_default_fields', '_fields_pivot', '_dcr_rights',
+                    '_dcr_linked_notifs', '_dcr_upd_linked_notifs', '_dcr_save_linked_notifs');
+            },
+        ]);
+        $this->attachCFtoDCRs($table->_table_requests);
+    }
+
+    /**
      * @param int $table_id
      * @param int|null $permis_id
-     * @return Builder
+     * @return Collection
      */
     public function loadWithRelations(int $table_id, int $permis_id = null)
     {
@@ -168,8 +206,23 @@ class TableDataRequestRepository
             '_dcr_linked_tables',
             '_data_request_columns',
             '_default_fields',
+            '_fields_pivot',
+            '_dcr_rights',
         ]);
-        return $sql;
+        $dcrs = $sql->get();
+
+        $this->attachCFtoDCRs($dcrs);
+
+        return $dcrs;
+    }
+
+    public function attachCFtoDCRs(Collection $dcrs): void
+    {
+        $linkTable = (new TableRepository())->getTableByDB('dcr_linked_tables');
+        $repo = new TableDataRowsRepository();
+        foreach ($dcrs as $dcr) {
+            $repo->attachSpecialFields($dcr->_dcr_linked_tables, $linkTable, auth()->id(), ['conds']);
+        }
     }
 
     /**
@@ -195,7 +248,7 @@ class TableDataRequestRepository
      *
      * @param int $table_data_requests_id
      * @param $data
-     * @return array
+     * @return TableDataRequest
      */
     public function updateDataRequest($table_data_requests_id, $data)
     {
@@ -214,8 +267,38 @@ class TableDataRequestRepository
                 }
             }
         }
-        return TableDataRequest::where('id', $table_data_requests_id)
-            ->update($this->service->delSystemFields($data));
+
+        $old = TableDataRequest::where('id', $table_data_requests_id)->first();
+
+        TableDataRequest::where('id', $table_data_requests_id)->update($this->service->delSystemFields($data));
+
+        $new = TableDataRequest::where('id', $table_data_requests_id)->first();
+
+        if ($old->name != $new->name || $old->dcr_qr_with_name != $new->dcr_qr_with_name) {
+            $label = $new->dcr_qr_with_name ? $new->name : '';
+            $new->update([
+                'qr_link' => (new QRGenerator())->forDCR($new->link_hash, $label)->asPNG()
+            ]);
+        }
+
+        if ($old->dcr_record_status_id != $new->dcr_record_status_id) {
+            $oldF = $new->_table->_fields()->where('id', $old->dcr_record_status_id)->first();
+            if ($oldF) {
+                $oldF->update([
+                    'input_type' => 'Input',
+                    'ddl_id' => null,
+                ]);
+            }
+            $newF = $new->_table->_fields()->where('id', $new->dcr_record_status_id)->first();
+            if ($newF) {
+                $newF->update([
+                    'input_type' => 'S-Select',
+                    'ddl_id' => AppSetting::where('key', 'dcr_status_sys_ddl_id')->first()->val,
+                ]);
+            }
+        }
+
+        return $new;
     }
 
     /**
@@ -356,6 +439,17 @@ class TableDataRequestRepository
         $fields['is_active'] = true;
         $fields['position'] = $fields['position'] ?? 'After';
         $fields['style'] = $fields['style'] ?? 'Default';
+        $fields['default_display'] = $fields['default_display'] ?? 'Table';
+        $fields['embd_table'] = 1;
+        $fields['embd_listing'] = 1;
+        $fields['embd_board'] = 1;
+        $fields['listing_rows_width'] = 250;
+        $fields['listing_rows_min_width'] = 70;
+        $fields['max_height_inline_embd'] = $fields['max_height_inline_embd'] ?? 0;
+        $fields['embd_table_align'] = $fields['embd_table_align'] ?? 'start';
+        $fields['ctlg_columns_number'] = $fields['ctlg_columns_number'] ?? 3;
+        $fields['ctlg_data_range'] = $fields['ctlg_data_range'] ?? '0';
+        $fields['ctlg_display_option'] = $fields['ctlg_display_option'] ?? 'inline';
         return DcrLinkedTable::create($fields);
     }
 
@@ -377,7 +471,13 @@ class TableDataRequestRepository
      */
     public function getLinkedTable(int $linked_id): DcrLinkedTable
     {
-        return DcrLinkedTable::where('id', '=', $linked_id)->first();
+        $dcr = DcrLinkedTable::where('id', '=', $linked_id)->first();
+
+        $collection = collect([$dcr]);
+        $linkTable = (new TableRepository())->getTableByDB('dcr_linked_tables');
+        (new TableDataRowsRepository())->attachSpecialFields($collection, $linkTable, auth()->id(), ['conds']);
+
+        return $collection->first();
     }
 
     /**
@@ -398,5 +498,143 @@ class TableDataRequestRepository
     public function deleteLinkedTable(int $linked_id): bool
     {
         return DcrLinkedTable::where('id', '=', $linked_id)->delete();
+    }
+
+    /**
+     * @param int $dcr_id
+     * @param int $field_id
+     * @return void
+     */
+    public function attachIfNeeded(int $dcr_id, int $field_id)
+    {
+        TableDataRequest2Fields::updateOrCreate([
+            'table_data_requests_id' => $dcr_id,
+            'table_field_id' => $field_id,
+        ], [
+            'table_data_requests_id' => $dcr_id,
+            'table_field_id' => $field_id,
+        ]);
+    }
+
+    /**
+     * @param int $dcr_id
+     * @param int $field_id
+     * @param string $setting
+     * @param $val
+     * @return void
+     */
+    public function changePivotFld(int $dcr_id, int $field_id, string $setting, $val)
+    {
+        TableDataRequest2Fields::where('table_data_requests_id', '=', $dcr_id)
+            ->where('table_field_id', '=', $field_id)
+            ->update([
+                $setting => $val
+            ]);
+    }
+
+    /**
+     * @param TableDataRequest $dcr
+     * @return void
+     * @throws \Exception
+     */
+    public function fillDcrUrl(TableDataRequest $dcr)
+    {
+        if ($dcr->_dcr_record_url_field) {
+            $repo = new TableDataRepository();
+            $tdq = new TableDataQuery($dcr->_table);
+            $tdq->getQuery()
+                ->whereNull($dcr->_dcr_record_url_field->field)
+                ->orWhere($dcr->_dcr_record_url_field->field, '=', '')
+                ->chunk(100, function ($rows) use ($dcr, $repo) {
+                    foreach ($rows as $row) {
+                        $upd = [
+                            $dcr->_dcr_record_url_field->field => Uuid::uuid4()
+                        ];
+                        $repo->quickUpdate($dcr->_table, $row->id, $upd, false);
+                    }
+                });
+        }
+    }
+
+    /**
+     * @param TableDataRequest $dcr
+     * @param int $table_permis_id
+     * @param $can_edit
+     * @return mixed
+     */
+    public function toggleDcrRight(TableDataRequest $dcr, int $table_permis_id, $can_edit)
+    {
+        $right = $dcr->_dcr_rights()
+            ->where('table_permission_id', $table_permis_id)
+            ->first();
+
+        if (!$right) {
+            $right = TableDataRequestRight::create([
+                'table_data_request_id' => $dcr->id,
+                'table_permission_id' => $table_permis_id,
+                'can_edit' => $can_edit,
+            ]);
+        } else {
+            $right->update([
+                'can_edit' => $can_edit
+            ]);
+        }
+
+        return $right;
+    }
+
+    /**
+     * @param TableDataRequest $dcr
+     * @param int $table_permis_id
+     * @return mixed
+     */
+    public function deleteDcrRight(TableDataRequest $dcr, int $table_permis_id)
+    {
+        return $dcr->_dcr_rights()
+            ->where('table_permission_id', $table_permis_id)
+            ->delete();
+    }
+
+    /**
+     * @param $id
+     * @return DcrNotifLinkedTable|null
+     */
+    public function getNotifLinkedTable($id)
+    {
+        return DcrNotifLinkedTable::where('id', $id)->first();
+    }
+
+    /**
+     * @param $alert_id
+     * @param array $data
+     * @return DcrNotifLinkedTable
+     */
+    public function insertNotifLinkedTable($alert_id, array $data)
+    {
+        $data['dcr_id'] = $alert_id;
+
+        return DcrNotifLinkedTable::create($this->service->delSystemFields($data));
+    }
+
+    /**
+     * @param $id
+     * @param array $data
+     * @return bool
+     */
+    public function updateNotifLinkedTable($id, array $data)
+    {
+        return DcrNotifLinkedTable::where('id', '=', $id)
+            ->update($this->service->delSystemFields($data));
+    }
+
+    /**
+     * @param $id
+     * @return bool|null
+     * @throws \Exception
+     */
+    public function deleteNotifLinkedTable($id)
+    {
+        return DcrNotifLinkedTable::where('id', '=', $id)
+            ->delete();
     }
 }

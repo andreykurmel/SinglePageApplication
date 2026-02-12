@@ -4,6 +4,7 @@ namespace Vanguard\Repositories\Tablda\Permissions;
 
 
 use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
+use Vanguard\Models\DataSetPermissions\TableRefCondition;
 use Vanguard\Models\DataSetPermissions\TableRowGroup;
 use Vanguard\Models\DataSetPermissions\TableRowGroupRegular;
 use Vanguard\Models\Table\Table;
@@ -93,6 +94,95 @@ class TableRowGroupRepository
     {
         $tb_row = TableRowGroupRegular::where('id', '=', $regular_id)->first();
         return TableRowGroup::where('id', '=', $tb_row->table_row_group_id)->first();
+    }
+
+    /**
+     * @param Table $table
+     * @param int $field_id
+     * @return void
+     */
+    public function checkAndMakeSysGroupsForUserField(Table $table, int $field_id): void
+    {
+        $repo = new TableRefConditionRepository();
+
+        $rcUser = $repo->getSysRefCond($table->id, 'User');
+        if ($rcUser) {
+            if ($rowGroup = $this->getSysRowGroup($table->id, 'User')) {
+                $this->updateRowGroup($rowGroup->id, [
+                    'row_ref_condition_id' => $rcUser->id,
+                    'table_id' => $table->id,
+                    'name' => 'User',
+                    'is_system' => 1,
+                ]);
+            } else {
+                $this->addRowGroup([
+                    'row_ref_condition_id' => $rcUser->id,
+                    'table_id' => $table->id,
+                    'name' => 'User',
+                    'is_system' => 1,
+                ]);
+            }
+        }
+
+        $rcGroup = $repo->getSysRefCond($table->id, 'UserGroup');
+        if ($rcGroup) {
+            if ($rowGroup = $this->getSysRowGroup($table->id, 'UserGroup')) {
+                $this->updateRowGroup($rowGroup->id, [
+                    'row_ref_condition_id' => $rcGroup->id,
+                    'table_id' => $table->id,
+                    'name' => 'UserGroup',
+                    'is_system' => 1,
+                ]);
+            } else {
+                $this->addRowGroup([
+                    'row_ref_condition_id' => $rcGroup->id,
+                    'table_id' => $table->id,
+                    'name' => 'UserGroup',
+                    'is_system' => 1,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @param int $table_id
+     * @param string $by
+     * @return \Illuminate\Database\Eloquent\Model|object|TableRowGroup|null
+     */
+    public function getSysRowGroup(int $table_id, string $by = 'User')
+    {
+        $sql = TableRowGroup::where('table_id', '=', $table_id)
+            ->where('is_system', '=', 1)
+            ->where('name', '=', $by)
+            ->orderBy('id');
+
+        $rg = (clone $sql)->first();
+
+        if ((clone $sql)->count() > 1) {
+            (clone $sql)->where('id', '!=', $rg->id)->delete();
+        }
+
+        return $rg;
+    }
+
+    /**
+     * @param int $table_id
+     * @return void
+     */
+    public function addSystems(int $table_id): void
+    {
+        if (
+            ! TableRowGroup::where('table_id', '=', $table_id)
+                ->where('is_system', '=', 1)
+                ->where('name', '=', 'ALL')
+                ->count()
+        ) {
+            $this->addRowGroup([
+                'table_id' => $table_id,
+                'is_system' => 1,
+                'name' => 'ALL',
+            ]);
+        }
     }
 
     /**

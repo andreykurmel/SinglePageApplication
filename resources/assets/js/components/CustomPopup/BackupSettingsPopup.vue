@@ -4,7 +4,7 @@
             <div class="flex flex--col">
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
-                    <span>Storage & Backups Notifications - Email</span>
+                    <span>Autobackup Notifications - Email</span>
                     <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
                 </div>
                 <div class="flex__elem-remain popup-content">
@@ -54,12 +54,12 @@
         methods: {
             hide() {
                 this.show_popup = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
             },
             showBackupSettings(row_id) {
                 this.tbBackup = _.find(this.tableMeta._backups, {id: Number(row_id)});
                 this.show_popup = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             },

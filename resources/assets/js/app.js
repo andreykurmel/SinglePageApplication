@@ -5,71 +5,77 @@
  * or customize the JavaScript scaffolding to fit your unique needs.
  */
 
-import Vue from 'vue';
-import Vuex from 'vuex';
+import { RecycleScroller } from 'vue-virtual-scroller';
+Vue.component('recycle-scroller', RecycleScroller);
 
-Vue.use(Vuex);
+Vue.component('user-plans', require('./components/NavbarPopups/UserPlans.vue').default);
+Vue.component('invite-module', require('./components/NavbarPopups/InviteModule.vue').default);
+Vue.component('resources-popup', require('./components/NavbarPopups/ResourcesPopup.vue').default);
+Vue.component('theme-button', require('./components/Buttons/ThemeButton.vue').default);
+Vue.component('folder-icons-path', require('./components/MainApp/Object/Folder/FolderIconsPath.vue').default);
+Vue.component('navbar-data', require('./components/NavbarData.vue').default);
+Vue.component('layout-data', require('./components/MainApp/LayoutData.vue').default);
+Vue.component('twilio-test-popup', require('./components/MainApp/Object/Table/Twilio/Popup/TwilioTestPopup.vue').default);
+Vue.component('link-preview-block', require('./components/CommonBlocks/LinkPreviewBlock.vue').default);
+Vue.component('hover-block', require('./components/CommonBlocks/HoverBlock.vue').default);
+Vue.component('view-pass-block', require('./components/CommonBlocks/ViewPassBlock.vue').default);
+Vue.component('main-app-wrapper', require('./components/MainAppWrapper.vue').default);
+Vue.component('saving-message', require('./components/CommonBlocks/SavingMessage.vue').default);
+Vue.component('auth-forms', require('./components/_AuthForms/AuthForms.vue').default);
+Vue.component('homepage', require('./components/Homepage.vue').default);
+Vue.component('static-pages', require('./components/Statics/StaticPages.vue').default);
+Vue.component('print-table', require('./components/CustomTable/PrintTable.vue').default);
+Vue.component('table-request-wrapper', require('./components/RequestDataWrapper.vue').default);
+Vue.component('single-record-wrapper', require('./components/SingleRecordWrapper.vue').default);
+Vue.component('single-td-field', require('./components/CommonBlocks/SingleTdField.vue').default);
+Vue.component('get-started', require('./components/Statics/GetStarted.vue').default);
+Vue.component('inline-linked-tabs', require('./components/CommonBlocks/Link/InlineLinkedTabs.vue').default);
+Vue.component('formula-helper', require('./components/CustomCell/InCell/FormulaHelper.vue').default);
+Vue.component('vertical-table', require('./components/CustomTable/VerticalTable.vue').default);
+Vue.component('link-pop-up', require('./components/CustomPopup/LinkPopUp.vue').default);
+Vue.component('slot-popup', require('./components/CustomPopup/SlotPopup.vue').default);
+Vue.component('left-menu-tree-accordion-item', require('./components/MainApp/LeftMenu/LeftMenuTreeAccordionItem.vue').default);
 
-Vue.component('link-preview-block', require('./components/CommonBlocks/LinkPreviewBlock.vue'));
-Vue.component('hover-block', require('./components/CommonBlocks/HoverBlock.vue'));
-Vue.component('view-pass-block', require('./components/CommonBlocks/ViewPassBlock.vue'));
-Vue.component('main-app-wrapper', require('./components/MainAppWrapper.vue'));
-Vue.component('saving-message', require('./components/CommonBlocks/SavingMessage.vue'));
-Vue.component('auth-forms', require('./components/_AuthForms/AuthForms.vue'));
-Vue.component('homepage', require('./components/Homepage.vue'));
-Vue.component('static-pages', require('./components/Statics/StaticPages.vue'));
-Vue.component('print-table', require('./components/CustomTable/PrintTable.vue'));
-Vue.component('table-request-wrapper', require('./components/RequestDataWrapper.vue'));
-Vue.component('single-record-wrapper', require('./components/SingleRecordWrapper.vue'));
-Vue.component('get-started', require('./components/Statics/GetStarted.vue'));
-
-Vue.component('my-apps-page', require('./Applications/MyAppsPage.vue'));
-Vue.component('list-tablda-apps', require('./Applications/ListTabldaApps.vue'));
-Vue.component('risa3d-form', require('./Applications/Risa3dForm.vue'));
-Vue.component('risa3d-remover-form', require('./Applications/Risa3dRemoverForm.vue'));
-Vue.component('stim-wid-form', require('./Applications/StimWid/StimWidForm.vue'));
-Vue.component('stim-ma-json', require('./Applications/StimMaJson/StimMaJson.vue'));
-Vue.component('stim-calculate-loads', require('./Applications/StimCalculateLoads/StimCalculateLoads.vue'));
-Vue.component('payment-processing-page', require('./Applications/PaymentProcessing/PaymentProcessingPage.vue'));
+Vue.component('my-apps-page', require('./Applications/MyAppsPage.vue').default);
+Vue.component('list-tablda-apps', require('./Applications/ListTabldaApps.vue').default);
+Vue.component('risa3d-form', require('./Applications/Risa3dForm.vue').default);
+Vue.component('risa3d-remover-form', require('./Applications/Risa3dRemoverForm.vue').default);
+Vue.component('stim-wid-form', require('./Applications/StimWid/StimWidForm.vue').default);
+Vue.component('simple-messager', require('./Applications/SimpleMessager.vue').default);
+Vue.component('stim-ma-json', require('./Applications/StimMaJson/StimMaJson.vue').default);
+Vue.component('stim-iframe-app', require('./Applications/StimIframeApp/StimIframeApp.vue').default);
+Vue.component('stim-calculate-loads', require('./Applications/StimCalculateLoads/StimCalculateLoads.vue').default);
+Vue.component('payment-processing-page', require('./Applications/PaymentProcessing/PaymentProcessingPage.vue').default);
+Vue.component('eri-parser-writer-settings', require('./Applications/EriParserWriter/EriParserWriterSettings.vue').default);
 
 import ThemeStyleMixin from './global_mixins/ThemeStyleMixin.vue';
 import AutologoutMixin from './global_mixins/AutologoutMixin.vue';
 
 import {SpecialFuncs} from './classes/SpecialFuncs';
 import {DataReverser} from './classes/DataReverser';
+import {RefCondHelper} from "./classes/helpers/RefCondHelper";
+import {Validator} from "./classes/Validator";
 
 export const eventBus = new Vue();
 
 export const columnSettRadioFields = [
-    'is_image_on_board',
     'is_lat_field',
     'is_long_field',
     'is_info_header_field',
+    'is_info_header_value',
     'map_find_street_field',
     'map_find_city_field',
     'map_find_state_field',
     'map_find_county_field',
     'map_find_zip_field',
-    'is_gantt_group',
-    'is_gantt_parent_group',
-    'is_gantt_main_group',
-    'is_gantt_name',
-    'is_gantt_parent',
-    'is_gantt_start',
-    'is_gantt_end',
-    'is_gantt_progress',
-    'is_gantt_color',
-    'is_gantt_label_symbol',
-    'is_gantt_milestone',
-    'is_calendar_start',
-    'is_calendar_end',
-    'is_calendar_title',
-    'is_calendar_cond_format',
 ];
 
 window.addEventListener("message", function(event) {
     if (event.data && event.data.event_name === 'close-application') {
         eventBus.$emit('global-close-application', event.data.app_code);
+    }
+    if (event.data && event.data.event_name === 'docs-path') {
+        eventBus.$emit('global-docs-path-updated', event.data.path);
     }
 });
 
@@ -83,6 +89,10 @@ window.addEventListener("load", function(event) {
         ],
         data: function () {
             return {
+                recaptcha_key: '',
+                overviewFormatWaiting: false,
+                ddlHeight: Math.max(window.innerHeight * 0.35, 150),
+                usedTrps: [],
                 ping_delay: 10000,
                 version_hash_delay: 3000,
 
@@ -92,7 +102,13 @@ window.addEventListener("load", function(event) {
                 e__used: false,
                 data_reverser: new DataReverser(),
                 debug: false,
-                is_dcr_page: false,
+                dcr_notification_shown: false,
+                is_dcr_page: null,//DCR id
+                is_srv_page: null,//SRV record id
+                is_mrv_page: null,//MRV record id
+                dcrPivotFields: [],
+                intlTelInput: null,
+                telCacher: {},
 
                 tablda_highlights: [], // arr of objects: {table_id: null, row_id: null}
 
@@ -101,47 +117,22 @@ window.addEventListener("load", function(event) {
                     clientY: null,
                 },
                 sm_msg_type: undefined,
-                prevent_cell_edit: false,
+                prevent_cell_edit: false, // user cannot edit cell during saving process
                 global_no_edit: false,
 
                 //#app_avail_formulas
                 availRowSumFormulas: ['count','countunique','sum','min','max','mean','avg','var','std'],
 
                 labels: {},
-                availableCalendarColumns: [
-                    'name',
-                    'is_calendar_start',
-                    'is_calendar_end',
-                    'is_calendar_title',
-                    'is_calendar_cond_format',
-                ],
-                availableGanttColumns: [
-                    'name',
-                    'is_gantt_group',
-                    'is_gantt_parent_group',
-                    'is_gantt_main_group',
-                    'is_gantt_name',
-                    'is_gantt_parent',
-                    'is_gantt_start',
-                    'is_gantt_end',
-                    'is_gantt_progress',
-                    'is_gantt_color',
-                    'is_gantt_tooltip',
-                    'is_gantt_left_header',
-                    'is_gantt_label_symbol',
-                    'is_gantt_milestone',
-                ],
+                guestListingFields: {},
+                //TABLE_FIELDS
                 availableMapColumns: [
                     'name',
-                    'is_lat_field',
-                    'is_long_field',
-                    /*'map_find_street_field',
+                    'map_find_street_field',
                     'map_find_city_field',
                     'map_find_state_field',
                     'map_find_county_field',
-                    'map_find_zip_field',*/
-                    'info_box',
-                    'is_info_header_field',
+                    'map_find_zip_field',
                 ],
                 availableInpsColumns: [
                     'name',
@@ -152,10 +143,23 @@ window.addEventListener("load", function(event) {
                     'ddl_add_option',
                     'ddl_auto_fill',
                     'ddl_style',
+                    'is_inherited_tree',
                     'mirror_rc_id',
                     'mirror_field_id',
                     'mirror_part',
+                    'mirror_one_value',
+                    'mirror_editable',
+                    'mirror_edit_component',
                     'fetch_source_id',
+                    'fetch_by_row_cloud_id',
+                    'fetch_one_cloud_id',
+                    'fetch_uploading',
+                    'has_copy_prefix',
+                    'copy_prefix_value',
+                    'has_copy_suffix',
+                    'copy_suffix_value',
+                    'has_datetime_suffix',
+                    'f_default',
                 ],
                 availableSettingsColumns: [
                     'name',
@@ -172,12 +176,16 @@ window.addEventListener("load", function(event) {
                     'default_stats',
                     'is_unique_collection',
                     'is_search_autocomplete_display',
+                    'header_triangle',
+                    'validation_rules',
                 ],
                 availableNotOwnerDisplayColumns: [
                     'name',
                     'filter',
                     'filter_type',
+                    'filter_search',
                     'popup_header',
+                    'popup_header_val',
                     'is_floating',
                     'unit_display',
                     'min_width',
@@ -186,24 +194,47 @@ window.addEventListener("load", function(event) {
                     'show_history',
                     'col_align',
                     'show_zeros',
+                    'image_fitting',
+                    'fill_by_asterisk',
                 ],
                 availablePopupDisplayColumns: [
                     'name',
+                    'fld_popup_shown',
                     'fld_display_name',
                     'fld_display_value',
                     'fld_display_border',
+                    'fld_display_header_type',
                     'is_topbot_in_popup',
                     'verttb_he_auto',
                     'verttb_cell_height',
                     'verttb_row_height',
                     'is_show_on_board',
-                    'is_image_on_board',
-                    'image_display_view',
-                    'image_display_fit',
                     'is_default_show_in_popup',
                     'is_table_field_in_popup',
+                    'is_hdr_lvl_one_row',
+                    'width_of_table_popup',
                     'is_start_table_popup',
-                    'is_dcr_section',
+                    'form_row_spacing',
+                    'pop_tab_name',
+                    'pop_tab_order',
+                    'section_header',
+                    'section_font',
+                    'section_size',
+                    'section_align_h',
+                    'section_align_v',
+                    'section_height',
+                ],
+                availableOthersColumns: [
+                    'name',
+                    'markerjs_annotations',
+                    'markerjs_cropro',
+                    'markerjs_savetype',
+                    'twilio_google_acc_id',
+                    'twilio_sendgrid_acc_id',
+                    'twilio_sms_acc_id',
+                    'twilio_voice_acc_id',
+                    'twilio_sender_name',
+                    'twilio_sender_email',
                 ],
                 systemFields: [
                     'id',
@@ -228,6 +259,7 @@ window.addEventListener("load", function(event) {
                     'modified_on',
                     'modified_by'
                 ],
+                reportTemplates: [],
                 columnSettRadioFields: columnSettRadioFields,
                 ddlInputTypes: ['S-Select','S-Search','S-SS','M-Select','M-Search','M-SS'],
                 isSafari: false,
@@ -251,15 +283,39 @@ window.addEventListener("load", function(event) {
                 settingsMeta: {},
                 metaDcrObject: {},
                 metaSrvObject: {},
+                otherTableMetas: {},
+                styleCaches: {},
 
+                selectedAddon: {
+                    code: '',
+                    name: '',
+                    sub_name: '',
+                    sub_id: '',
+                },
+                addonFilters: {
+                    'kanban': {},
+                    'gantt': {},
+                    'dcr': {},
+                    'map': {},
+                    'bi': {},
+                    'alert': {},
+                    'email': {},
+                    'calendar': {},
+                    'twilio': {},
+                    'tournament': {},
+                    'simplemap': {},
+                    'grouping': {},
+                    'report': {},
+                    'ai': {},
+                },
                 filters: [],
                 rowPerPage: 0,
+                oldTbName: '',
                 tableMeta: {},
                 listTableRows: [],
-                listTableRows_state: '',
                 favoriteTableRows: [],
-                data_is_editing: false,
                 prevent_cell_keyup: false,
+                reportBiSaverMetas: {},
 
                 request_view_filtering: null,
                 request_params: null,
@@ -282,6 +338,10 @@ window.addEventListener("load", function(event) {
                 sendgrid_help: 'To obtain a Sendgrid API Key, you need to register' +
                     '<br>an account at <a target="_blank" href="https://sendgrid.com/">sendgrid.com</a> ' +
                     'and create an <a target="_blank" href="https://sendgrid.com/docs/ui/account-and-settings/api-keys/#creating-an-api-key">API Key</a>.',
+                twilio_help: 'To obtain a Twilio SMS/Voice ' +
+                    '<a target="_blank" href="https://sendgrid.com/docs/ui/account-and-settings/api-keys/#creating-an-api-key">API Key</a>,' +
+                    '<br>you need to register an account at <a target="_blank" href="https://www.twilio.com/">twilio.com</a>' +
+                    '<br>and create one.',
 
                 tablesZidx: 1400,
 
@@ -310,10 +370,27 @@ window.addEventListener("load", function(event) {
             },
         },
         methods: {
+            safeName($name) {
+                $name = String($name).trim().replace(newRegexp('[\\s]+'), ' ');
+                return String($name).replace(newRegexp('[^\\p{L}\\d\\(\\)\\-\\.,_ ]'), '');
+            },
+            tablesZidxIncrease() {
+                if (this.tablesZidx < 1400) {
+                    this.tablesZidx = 1400;
+                }
+                this.tablesZidx += 10;
+            },
+            tablesZidxDecrease() {
+                this.tablesZidx -= 10;
+                if (this.tablesZidx < 1400) {
+                    this.tablesZidx = 1400;
+                }
+            },
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
             },
             inArraySys(item, array) {
+                array = array || [];
                 let concated = _.concat(this.systemFields, array);
                 return $.inArray(item, concated) > -1;
             },
@@ -332,13 +409,24 @@ window.addEventListener("load", function(event) {
                     all_checked: all_rows_checked,
                 };
             },
-            fileUrl(file_obj) {
-                let url = file_obj.filehash || file_obj.url;
-                return this.clear_url
+            fileOnServer(file_obj) {
+                return String(this.fileUrl(file_obj)).indexOf(location.origin) > -1;
+            },
+            fileUrl(file_obj, thumb_size) {
+                file_obj = file_obj || {};
+                if (file_obj.remote_link && !file_obj.local_thumb) {
+                    return file_obj.remote_link;
+                }
+                let url = file_obj.local_thumb || file_obj.filehash || file_obj.url;
+                if (String(url).startsWith('http')) {
+                    return url;
+                }
+                return location.origin
                     + '/file/'
                     + url
                     + '?s='
-                    + (this.user.view_hash || this.user._is_folder_view || this.user._dcr_hash || '');
+                    + (this.user.view_hash || this.user._is_folder_view || this.user._dcr_hash || this.user._srv_hash || '')
+                    + (thumb_size ? '&thumb='+thumb_size : '');
             },
             //select and m-select
             hasStype(input_type) {
@@ -397,6 +485,13 @@ window.addEventListener("load", function(event) {
                     tableMeta._cur_settings.left_menu_width = val;
                 }
                 this.updateTbUserSetts(tableMeta, 'local_left_menu_width', val);
+            },
+            changeRightMenuWi(val, tableMeta) {
+                this.chckMetaSetts(tableMeta);
+                if (tableMeta && tableMeta._cur_settings) {
+                    tableMeta._cur_settings.right_menu_width = val;
+                }
+                this.updateTbUserSetts(tableMeta, 'local_right_menu_width', val);
             },
             changeStimFilterWi(val, tableMeta) {
                 this.chckMetaSetts(tableMeta);
@@ -486,7 +581,7 @@ window.addEventListener("load", function(event) {
                 return SpecialFuncs.convertToUTC(date, timezone, f_type);
             },
             uniqName(name) {
-                return name ? _.uniq( name.split(',') ).join(' ') : '';
+                return name ? _.uniq( String(name).split(',') ).join(' ') : '';
             },
             strip_tags (input, allowed) {
                 return SpecialFuncs.strip_tags(input, allowed);
@@ -502,7 +597,7 @@ window.addEventListener("load", function(event) {
                 _.each(fields, (fld, key) => {
                     let idx = _.findIndex(tableMeta._fields, {field: key});
                     let header = idx > -1 ? tableMeta._fields[idx] : null;
-                    if (header && header.f_required && ['Radio'].indexOf(header.f_type) === -1 && !fld) {
+                    if (header && header.f_required && ['Radio'].indexOf(header.f_type) === -1 && !fld && fld !== 0) {
                         emptyFields.push(tableMeta._fields[idx].name);
                     }
                 });
@@ -513,10 +608,38 @@ window.addEventListener("load", function(event) {
                     _.each(emptyFields, (fld) => {
                         req_msg.push( 'Required "'+fld+'" is empty.' );
                     });
-                    Swal({ html: spec_message || req_msg.join('<br>') });
+                    Swal({ title: 'Info', html: spec_message || req_msg.join('<br>') });
                 }
 
-                return !emptyFields.length;
+                let validErr = this.checkAllValidations(tableMeta, fields);
+
+                return !emptyFields.length && !validErr;
+            },
+            checkAllValidations(tableMeta, tableRow) {
+                let msgs = [];
+                _.each(tableMeta._fields, (tableHeader) => {
+                    let err = Validator.check(tableHeader, tableRow[tableHeader.field]);
+                    if (err) {
+                        msgs.push(tableHeader.name + ': ' + err);
+                    }
+                });
+                if (msgs.length) {
+                    let string = '<b>The input does not meet following Validation(s):</b>';
+                    string += '<ul style="padding-inline-start: 55px; text-align: left;"><li>';
+                    string += msgs.join('</li><li>');
+                    string += '</li></ul>';
+                    Swal({ title: 'Info', html: string });
+                }
+                return !!msgs.length;
+            },
+            checkSingleValidation(tableHeader, tableRow) {
+                let err = Validator.check(tableHeader, tableRow[tableHeader.field]);
+                if (err) {
+                    let string = '<b>The input does not meet following Validation(s):</b>';
+                    string += '<ul style="padding-inline-start: 55px; text-align: left;"><li>'+tableHeader.name + ': ' + err+'</li></ul>';
+                    Swal({ title: 'Info', html: string });
+                }
+                return !!err;
             },
 
             //USER Fields
@@ -544,18 +667,29 @@ window.addEventListener("load", function(event) {
                 });
                 return res;
             },
+            getUserOneStr(value, row, header, usr_flds, prefix = 'user_fld') {
+                let usr = this.smallUserStr(row, header, value, true);
+                let res = this.getUserSimple(usr, usr_flds, prefix);
+                if (!res) {
+                    res = value && (!isNaN(value) || value[0] == '_')
+                        ? 'loading...'
+                        : value;
+                }
+                return res;
+            },
             getUserSimple(user, usr_flds, prefix = 'user_fld') {
                 if (!user) {
                     return '';
                 }
 
+                let unadeded = false;
                 let fsize = this.themeTextFontSize;
                 let res = this.getUsrAvatar(user) && (!usr_flds || usr_flds[prefix+'_show_image'])
                     ? '<img src="'+this.getUsrAvatar(user)+'" width="'+fsize+'" height="'+fsize+'">&nbsp;'
                     : '';
 
                 if (!usr_flds || usr_flds[prefix+'_show_first']) {
-                    res += user.first_name;
+                    res += user.first_name || '';
                 }
                 if (user.first_name && (!usr_flds || usr_flds[prefix+'_show_last'])) {
                     res += user.last_name ? ' '+user.last_name : '';
@@ -565,7 +699,7 @@ window.addEventListener("load", function(event) {
                     ? ' ('+user.email+')'
                     : '';
 
-                res += user.username && (!usr_flds || usr_flds[prefix+'_show_username'])
+                res += !unadeded && user.username && (!usr_flds || usr_flds[prefix+'_show_username'])
                     ? ' '+user.username
                     : '';
 
@@ -585,7 +719,7 @@ window.addEventListener("load", function(event) {
             copyToClipboard(el) {
                 if (el) {
                     SpecialFuncs.domToClipboard(el);
-                    Swal('Copied');
+                    Swal('Info','Copied');
                 }
             },
 
@@ -636,7 +770,7 @@ window.addEventListener("load", function(event) {
                     }).then(({data}) => {
                         tableMeta._cur_settings = data._cur_settings;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 } else {
                     setLocalStorage(key, val);
@@ -660,16 +794,6 @@ window.addEventListener("load", function(event) {
                 //save data and emit events
                 if (this.user && this.user.id && !this.user.see_view) {
 
-                    let noswal = tableRow[tableRow._changed_field]
-                        && $.inArray(tableRow._changed_field, ['is_gantt_main_group','is_gantt_parent_group']) > -1
-                        && _.find(tableMeta._fields, (hdr) => {
-                            return !!hdr.is_gantt_parent_group && hdr.id != tableRow.id;
-                        });
-
-                    let vis_rows = $.inArray(tableRow._changed_field, ['is_uniform_formula','f_formula']) > -1
-                        ? _.map(this.listTableRows, 'id')
-                        : [];
-
                     this.sm_msg_type = 1;
                     promise = new Promise((resolve) => {
 
@@ -677,13 +801,12 @@ window.addEventListener("load", function(event) {
                             table_field_id: tableRow.id,
                             field: tableRow._changed_field,
                             val: tableRow[tableRow._changed_field],
-                            visible_rows: vis_rows,
                         }).then(({ data }) => {
                             if ($.inArray(tableRow._changed_field, this.columnSettRadioFields) > -1)
                             {
                                 eventBus.$emit('reload-meta-tb__fields');
                             }
-                            if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type']) > -1)
+                            if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type','filter_search']) > -1)
                             {
                                 eventBus.$emit('reload-filters', tableMeta.id);
                             }
@@ -691,28 +814,19 @@ window.addEventListener("load", function(event) {
                             {
                                 eventBus.$emit('clear-header-height');
                             }
-                            //Gantt
-                            if ($.inArray(tableRow._changed_field, ['is_gantt_main_group','is_gantt_parent_group']) > -1 && tableRow[tableRow._changed_field] && !noswal)
-                            {
-                                Swal('No additional column allowed for levelled header.');
-                            }
                             let idx = _.findIndex(tableMeta._fields, {id: tableRow.id});
                             if (idx > -1 && data.fld) {
                                 this.$set(tableMeta._fields, idx, {...tableRow, ...data.fld});
                             }
+                            RefCondHelper.setMirrorsAndFormulas(tableMeta);
                             resolve(data);
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             this.sm_msg_type = 0;
                         });
 
                     });
-
-                    if (tableRow._changed_field === 'unit_ddl_id') {
-                        axios.put('/ajax/settings/data', {table_field_id: tableRow.id, field: 'unit', val: '',});
-                        axios.put('/ajax/settings/data', {table_field_id: tableRow.id, field: 'unit_display', val: '',});
-                    }
 
                 } else {
                     if ($.inArray(tableRow._changed_field, ['filter','input_type','filter_type']) > -1)
@@ -725,20 +839,55 @@ window.addEventListener("load", function(event) {
                     }
                 }
 
+                //front-end formula recalculation
+                if ($.inArray(tableRow._changed_field, ['is_uniform_formula','f_formula']) > -1) {
+                    eventBus.$emit('table-formulas-recalculate', tableMeta.id, tableRow.id, tableRow[tableRow._changed_field]);
+                }
+
                 return promise || new Promise((resolve) => { resolve(); });
+            },
+            updateTable(tableMeta, prop_name) {
+                if (this.user.see_view) {
+                    return;//Changes are temporal in MRV!
+                }
+                this.sm_msg_type = 1;
+
+                let data = {
+                    table_id: tableMeta.id,
+                    _theme: {},
+                    _cur_settings: {},
+                    _changed_prop_name: prop_name,
+                };
+                this.justObject(tableMeta, data);
+                this.justObject(tableMeta._theme, data._theme);
+                this.justObject(tableMeta._cur_settings, data._cur_settings);
+
+                return axios.put('/ajax/table', data).then(({ data }) => {
+                    if (in_array(prop_name, [
+                        'unit_conv_is_active','unit_conv_by_user','unit_conv_table_id','unit_conv_from_fld_id',
+                        'unit_conv_to_fld_id','unit_conv_operator_fld_id','unit_conv_factor_fld_id',
+                        'unit_conv_formula_fld_id','unit_conv_formula_reverse_fld_id',
+                    ])) {
+                        tableMeta.__unit_convers = data.__unit_convers || [];
+                    }
+                    if (prop_name === 'name') {
+                        this.$root.user.memutree_hash = null;//reload menutree in 10 sec (MainAppWrapper)
+
+                        $('head title').html(this.$root.app_name+': '+tableMeta.name);
+
+                        let path = window.location.href.replace(this.oldTbName, tableMeta.name);
+                        window.history.pushState(tableMeta.name, tableMeta.name, path);
+                        this.oldTbName = tableMeta.name;
+                    }
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    this.sm_msg_type = 0;
+                });
             },
             //create empty obj
             emptyObject() {
-                let obj = {};
-                for (let i in this.tableMeta._fields) {
-                    if (this.tableMeta._fields[i].f_type === 'Boolean') {
-                        obj[ this.tableMeta._fields[i].field ] = this.tableMeta._fields[i].f_default == '1';
-                    } else {
-                        obj[ this.tableMeta._fields[i].field ] = null;
-                    }
-                }
-                obj._temp_id = uuidv4();
-                return obj;
+                return SpecialFuncs.emptyRow(this.tableMeta);
             },
             assignObject(from, to) {
                 _.each(from, (val, key) => {
@@ -765,12 +914,14 @@ window.addEventListener("load", function(event) {
                 if (this.glob_hover) {
                     clearTimeout(this.glob_hover);
                 }
-                this.glob_hover = setTimeout(() => {
-                    this.hover_html = hdr.tooltip_show ? hdr.tooltip : '';
-                    this.hover_show = true;
-                    this.hover_left = e.clientX;
-                    this.hover_top = e.clientY;
-                }, this.hover_delay);
+                if (hdr.tooltip_show && hdr.tooltip) {
+                    this.glob_hover = setTimeout(() => {
+                        this.hover_html = hdr.tooltip;
+                        this.hover_show = true;
+                        this.hover_left = e.clientX;
+                        this.hover_top = e.clientY;
+                    }, this.hover_delay);
+                }
             },
             leaveHoverTooltip() {
                 if (this.glob_hover) {
@@ -798,9 +949,27 @@ window.addEventListener("load", function(event) {
                 }
             },
 
+            getPopUpHeader(tableMeta, tableRow) {
+                let headers = tableMeta._fields;
+                let res = [];
+                _.each(headers, (hdr) => {
+                    if (hdr.popup_header || hdr.popup_header_val) {
+                        let row_value = tableRow
+                            ? SpecialFuncs.showhtml(hdr, tableRow, tableRow[hdr.field], tableMeta)
+                            : '';
+                        let ar = hdr.popup_header ? [this.uniqName(hdr.name)] : [];
+                        if (hdr.popup_header_val) { ar.push(row_value) }
+                        res.push( ar.join(': ') );
+                    }
+                });
+                return res.length ? res.join(' | ') : '';
+            },
+
             //Availability of Addons.
             AddonAvailableToUser(tableMeta, code, value) {
-                return (this.userHasAddon(code) || this.user.see_view) // User has subscription OR he is viewing 'View'
+                let curDomain = window.location.host.split('.')[0];
+                let canSeeAdn = this.is_dcr_page || this.is_srv_page || this.is_mrv_page; // All addons are available for 'SRV/MRV/DCR' (without subscription)
+                return (this.userHasAddon(code) || canSeeAdn || curDomain === 'public') // User has subscription OR he is viewing 'SRV/MRV/DCR'
                     && (tableMeta._is_owner || this.findAddonRight(tableMeta, code, value)); // Owner OR has Permission rights
             },
             userHasAddon(code) {
@@ -814,12 +983,29 @@ window.addEventListener("load", function(event) {
                 field = field || 'type';
                 value = value || 'view';
                 let present = false;
-                _.each(tableMeta._current_right._addons, (element) => {
+                let addons = tableMeta && tableMeta._current_right ? tableMeta._current_right._addons : [];
+                _.each(addons || [], (element) => {
                     if (element.code === code && element._link['type'] == value) {
                         present = true;
                     }
                 });
                 return present;
+            },
+            anyAddon(tableMeta) {
+                return tableMeta.add_bi
+                    || tableMeta.add_map
+                    || tableMeta.add_request
+                    || tableMeta.add_alert
+                    || tableMeta.add_kanban
+                    || tableMeta.add_gantt
+                    || tableMeta.add_email
+                    || tableMeta.add_calendar
+                    || tableMeta.add_twilio
+                    || tableMeta.add_tournament
+                    || tableMeta.add_simplemap
+                    || tableMeta.add_grouping
+                    || tableMeta.add_ai
+                    || tableMeta.add_report;
             },
             saveDiscourse() {
                 try {
@@ -828,15 +1014,22 @@ window.addEventListener("load", function(event) {
                     console.log(e);
                 }
             },
-            attachFileToRow(tRow, tHeader, uFile) {
-                let row_images = tRow['_images_for_'+tHeader.field];
-                let row_files = tRow['_files_for_'+tHeader.field];
+            attachFileToRow(tRow, tHeader, uFile, replace_file_id) {
+                if (!tRow['_images_for_'+tHeader.field]) {
+                    this.$set(tRow, '_images_for_'+tHeader.field, []);
+                }
+                if (!tRow['_files_for_'+tHeader.field]) {
+                    this.$set(tRow, '_files_for_'+tHeader.field, []);
+                }
+
+                let files_array = uFile.is_img ? tRow['_images_for_'+tHeader.field] : tRow['_files_for_'+tHeader.field];
 
                 //add uploaded file to the row
-                if (uFile.is_img) {
-                    (row_images ? row_images.push(uFile) : this.$set(tRow, '_images_for_'+tHeader.field, [uFile]));
+                if (replace_file_id) {
+                    let idx = _.findIndex(files_array, {id: Number(replace_file_id)});
+                    files_array.splice(idx, 1, uFile);
                 } else {
-                    (row_files ? row_files.push(uFile) : this.$set(tRow, '_files_for_'+tHeader.field, [uFile]));
+                    files_array.push(uFile);
                 }
 
                 if (tHeader) {
@@ -844,13 +1037,19 @@ window.addEventListener("load", function(event) {
                 }
             },
             getImagesFromClipboard(e) {
-                let images = [];
+                return this.getFilesFromClipboard(e, ['image/bmp','image/gif','image/jpeg','image/png','image/svg+xml','image/tiff','image/webp']);
+            },
+            getDocxFromClipboard(e) {
+                return this.getFilesFromClipboard(e, ['text/plain', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']);
+            },
+            getFilesFromClipboard(e, mimes) {
+                let files = [];
                 _.each(e.clipboardData ? e.clipboardData.items : [], (item) => {
-                    if (item.type.indexOf('image') != -1) {
-                        images.push(item.getAsFile());
+                    if (mimes.indexOf(item.type) > -1) {
+                        files.push(item.getAsFile());
                     }
                 });
-                return images;
+                return files;
             },
             //COLORS
             loadColorPalette() {
@@ -872,6 +1071,186 @@ window.addEventListener("load", function(event) {
                     });
                 }
                 setLocalStorage('user_color_palette', JSON.stringify(this.color_palette));
+            },
+            //OTHERS
+            oneFilterSelected(ext_filters, need_show) {
+                let justOneValue = null;
+                _.each(_.sortBy(ext_filters || this.filters, 'applied_index'), (filter) => {
+                    if (filter.applied_index && filter.filter_type !== 'range') {
+                        let valu = '';
+                        let len = _.reduce(filter.values, (res, vl) => {
+                            if (vl.checked) {
+                                valu = need_show ? vl.show : vl.val;
+                                return res + 1;
+                            } else {
+                                return res;
+                            }
+                        }, 0);
+
+                        if (len == 1 && !justOneValue) {
+                            justOneValue = valu;
+                        }
+                    }
+                });
+                return justOneValue;
+            },
+            telFormat(v) {
+                if (!v || String(v).match(/[^+0-9;]/gi)) {
+                    return '';
+                }
+                if (String(v).charAt(0) !== '+') {
+                    v = '+' + v;
+                }
+
+                if (!this.telCacher[v] && this.intlTelInput) {
+                    this.intlTelInput.setNumber(v);
+                    let img = '';
+                    if (this.intlTelInput.selectedCountryData) {
+                        img = '<div class="d-inline-block iti__flag iti__'+this.intlTelInput.selectedCountryData.iso2+'"></div> ';
+                    }
+                    this.telCacher[v] = img + this.intlTelInput.getNumber(1);
+                }
+                return this.telCacher[v] || v;
+            },
+            jiraReloadProjects() {
+                this.$nextTick(() => {
+                    eventBus.$emit('jira-load-projects');
+                });
+            },
+            salesforceReloadObjects() {
+                this.$nextTick(() => {
+                    eventBus.$emit('salesforce-load-objects');
+                });
+            },
+            addonCanPermisEdit(tableMeta, addonMeta, rightsKey) {
+                if (tableMeta._is_owner) {
+                    return true;
+                }
+                return !!(
+                    tableMeta._current_right
+                    && tableMeta._current_right.permis_ids
+                    && addonMeta
+                    && addonMeta[rightsKey]
+                    && _.find(addonMeta[rightsKey], (r) => {
+                        return r.can_edit && this.inArray(r.table_permission_id, tableMeta._current_right.permis_ids);
+                    })
+                );
+            },
+            addonCanEditGeneral(tableMeta, code) {
+                if (tableMeta._is_owner) {
+                    return true;
+                }
+                return !!(
+                    tableMeta._current_right
+                    && tableMeta._current_right._addons
+                    && _.find(tableMeta._current_right._addons, (a) => {
+                        return a.code === code && a._link && a._link.type === 'edit';
+                    })
+                );
+            },
+            allIsAccordion(subTree) {
+                let all = true;
+                _.each(subTree, (folder) => {
+                    all = all && folder && folder['li_attr'] && folder['li_attr']['data-object'] && folder['li_attr']['data-object']['menutree_accordion_panel'];
+                });
+                return all && subTree.length;
+            },
+            //extras: {page:int, sort:array, hidden_columns:array, user_id:int, }
+            getTableViewData(tableMeta, extras) {
+                let order_columns = _.map(tableMeta._fields, (el,order) => {
+                    return {
+                        id: el.id,
+                        field: el.field,
+                        order: order,
+                        width: el.width,
+                    };
+                });
+
+                let panels_preset = {
+                    top: $('#main_navbar').is(':visible'),
+                    right: this.isRightMenu,
+                    left: this.isLeftMenu,
+                };
+
+                return JSON.stringify({
+                    user_id: extras.user_id,
+                    table_id: tableMeta.id,
+                    page: extras.page,
+                    rows_per_page: tableMeta.rows_per_page,
+                    sort: extras.sort,
+                    search_words: extras.search_keywords,
+                    search_columns: extras.search_columns,
+                    row_id: extras.search_direct_row_id,
+                    applied_filters: this.filters,
+                    hidden_columns: extras.hidden_columns,
+                    order_columns: order_columns,
+                    hidden_row_groups: tableMeta.__hidden_row_groups,
+                    panels_preset: panels_preset,
+                });
+            },
+            getViewPartOption(code) {
+                switch (code) {
+                    case 'tab-list-view': return {val: 'tab-list-view', show: 'Primary View'};
+                    case 'tab-favorite': return {val: 'tab-favorite', show: 'Favorite'};
+                    case 'tab-settings': return {val: 'tab-settings', show: 'Settings General'};
+                    case 'tab-settings-cust': return {val: 'tab-settings-cust', show: 'Settings Customizable'};
+                    case 'tab-map-add': return {val: 'tab-map-add', show: 'Addon GSI'};
+                    case 'tab-bi-add': return {val: 'tab-bi-add', show: 'Addon BI'};
+                    case 'tab-dcr-add': return {val: 'tab-dcr-add', show: 'Addon DCR'};
+                    case 'tab-alert-add': return {val: 'tab-alert-add', show: 'Addon ANA'};
+                    case 'tab-kanban-add': return {val: 'tab-kanban-add', show: 'Addon Kanban'};
+                    case 'tab-gantt-add': return {val: 'tab-gantt-add', show: 'Addon Gantt'};
+                    case 'tab-email-add': return {val: 'tab-email-add', show: 'Addon Email'};
+                    case 'tab-calendar-add': return {val: 'tab-calendar-add', show: 'Addon Calendar'};
+                    case 'tab-twilio-add': return {val: 'tab-twilio-add', show: 'Addon Twilio'};
+                    case 'tab-tournament-add': return {val: 'tab-tournament-add', show: 'Addon Brackets'};
+                    case 'tab-simplemap-add': return {val: 'tab-simplemap-add', show: 'Addon TMap'};
+                    case 'tab-grouping-add': return {val: 'tab-grouping-add', show: 'Addon Grouping'};
+                    case 'tab-report-add': return {val: 'tab-report-add', show: 'Addon Report'};
+                    case 'tab-ai-add': return {val: 'tab-ai-add', show: 'Addon AI'};
+                    default: return null;
+                }
+            },
+            actionForMassCheckRows(tableRow) {
+                this.all_checked_rows = false;
+                let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+                if (cmdOrCtrl && this.last_checked_id && tableRow._checked_row) {
+                    let between = false;
+                    _.each(this.allRows, (row) => {
+                        if ((this.last_checked_id == row.id) || (tableRow.id == row.id)) {
+                            between = !between;
+                        } else {
+                            if (between) {
+                                row._checked_row = true;
+                            }
+                        }
+                    });
+                } else {
+                    this.last_checked_id = tableRow._checked_row ? tableRow.id : null;
+                }
+            },
+            //reCAPTCHA
+            protectFormSubmitByCaptha(e, formId) {
+                if (! window.grecaptcha || ! this.recaptcha_key) {
+                    return;
+                }
+
+                e.preventDefault();
+                window.grecaptcha.ready(() => {
+                    window.grecaptcha.execute(this.recaptcha_key, {action: 'submit'}).then((token) => {
+                        document.getElementById(formId).submit();
+                    });
+                });
+            },
+            captchaSkipped() {
+                return ! window.grecaptcha
+                    || ! this.$root.recaptcha_key
+                    || this.user.id
+                    || this.user.captcha_checked;
+            },
+            ownerOf(tableMeta) {
+                let uid = this.user.id || this.user._pre_id;
+                return tableMeta._is_owner || tableMeta.user_id == uid;
             },
         },
         created() {
@@ -921,29 +1300,12 @@ window.addEventListener("load", function(event) {
             if (this.cellHeight > 5) {
                 this.changeCellHeight(1);
             }
-
-            //user state check
-            setInterval(() => {
-                if (!localStorage.getItem('no_ping') && !this.user.is_force_guested) {
-                    //check if user was logout from another terminal
-                    axios.post('/user_state', {
-                        app_user_id: this.user.id || 0,
-                    }).then(({ data }) => {
-                        if (data.changed) {
-                            this.debug = true;
-                            window.location.reload();
-                            // Swal('', 'User is changed').then(() => {
-                            //     window.location.reload();
-                            // });
-                        }
-                    });
-                }
-            }, this.ping_delay);
         },
         mounted() {
             //View is not active for Public or User.
             if (this.user.view_all && !this.user.view_all._for_user_or_active) {
                 Swal({
+                    title: 'Info',
                     text: 'The View you are trying to access is not available, either due to you are not given the permission or the view does not have Public Access turned ON.',
                     //timer: 10000
                 }).then(() => {
@@ -954,6 +1316,15 @@ window.addEventListener("load", function(event) {
             this.discourse_login_iframe = decodeURIComponent(Cookies.get('_discourse_login') || '');
             if (this.discourse_login_iframe) {
                 document.cookie = '_discourse_login=';
+            }
+
+            if (!localStorage.getItem('no_ping') && this.user.id) {
+                axios.post('/ping', {
+                    app_user: { id: this.user.id || 0 },
+                    pathname: window.location.pathname,
+                }).catch((err) => {
+                    window.location = '/logout';
+                });
             }
         }
     });

@@ -5,13 +5,14 @@ namespace Vanguard\Modules;
 use Exception;
 use Illuminate\Support\Collection;
 use Vanguard\Classes\DropdownHelper;
+use Vanguard\Models\AppSetting;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
-use Vanguard\Models\MirrorDatas;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Support\FrontNotificator;
 
 class MirrorModule
 {
@@ -26,12 +27,30 @@ class MirrorModule
     protected $rowRepo;
 
     /**
+     * @var int|mixed|string
+     */
+    protected $limitMirrors;
+
+    /**
+     * @var false
+     */
+    protected $limitReached;
+
+    /** @var array */
+    protected array $mirrorTheSame = [];
+
+    /**
      *
      */
     public function __construct()
     {
         $this->repo = new TableDataRepository();
         $this->rowRepo = new TableDataRowsRepository();
+
+        //set global limit
+        $limit = AppSetting::where('key', '=', 'app_max_mirror_records')->first();
+        $this->limitMirrors = $limit && $limit->val ? $limit->val : PHP_INT_MAX;
+        $this->limitReached = false;
     }
 
     /**
@@ -43,6 +62,21 @@ class MirrorModule
         if ($field && $field->_mirror_rc && $field->_mirror_field) {
             $sql = new TableDataQuery($field->_table);
             $this->chunkedFill($sql, $field);
+        }
+    }
+
+    /**
+     * @param TableField $field
+     * @throws Exception
+     */
+    public function clear(TableField $field)
+    {
+        if (!$field->_mirror_rc || !$field->_mirror_field) {
+            $sql = new TableDataQuery($field->_table);
+            $sql->getQuery()->update([
+                $field->field => null,
+            ]);
+            (new TableDataService())->newTableVersion($field->_table);
         }
     }
 
@@ -69,8 +103,9 @@ class MirrorModule
 
         for ($cur = 0; ($cur * $chunk) < $lines; $cur++) {
 
+            $offset = $cur * $chunk;
             $all_rows = $sql->getQuery()
-                ->offset($cur * $chunk)
+                ->offset($offset)
                 ->limit($chunk)
                 ->get()
                 ->toArray();
@@ -80,41 +115,61 @@ class MirrorModule
             }
         }
 
+        if ($this->limitReached) {
+            FrontNotificator::sendFromJob($field->table_id, 'The number of records meeting mirroring criteria exceeds the set mirroring limit: '.$this->limitMirrors.'. Only '.$this->limitMirrors.' records are mirrored.');
+        }
+
         (new TableDataService())->newTableVersion($field->_table);
     }
 
     /**
      * @param TableField $field
-     * @param $row
-     * @throws Exception
+     * @param array $row
+     * @return void
      */
-    protected function fillMirrorRow(TableField $field, $row)
+    protected function fillMirrorRow(TableField $field, array $row): void
     {
         if (!$field->_mirror_field || !$field->_mirror_rc) {
             return;
         }
 
+        //Get referenced rows for mirroring
         $referenced = $this->repo->getReferencedRows($field->_mirror_rc, $row, ['*'], 10);
         $refTb = $field->_mirror_rc->_ref_table;
         $this->rowRepo->attachSpecialFields($referenced, $refTb, $refTb->user_id, ['refs']);
 
-        //Save mirrored row ids
-        $referenced_ids = $referenced->pluck('id')->toArray();
-        $condition = [
-            'table_id' => $field->_table->id,
-            'table_field_id' => $field->id,
-            'row_id' => $row['id'],
-        ];
-        MirrorDatas::updateOrCreate(
-            $condition,
-            array_merge($condition, ['mirror_row_ids' => ($referenced_ids ? json_encode($referenced_ids) : null)])
-        );
+        //Get updated Mirrors
+        $fields = [];
+        if (! empty($this->mirrorTheSame[$field->id])) {
+            foreach ($this->mirrorTheSame[$field->id] as $mirrorField) {
+                $fields = $this->getMirroredValue($mirrorField, $row, $referenced, $fields);
+            }
+        } else {
+            $fields = $this->getMirroredValue($field, $row, $referenced, $fields);
+        }
 
-        //Mirror value save into row
-        $fields = $this->getUpdateArray($field, $referenced);
-        if (($row[$field->field] ?? '') != $fields[$field->field]) {
+        //Save mirrored values
+        if ($fields) {
             $this->repo->quickUpdate($field->_table, $row['id'], $fields, false);
         }
+    }
+
+    /**
+     * @param TableField $field
+     * @param array $row
+     * @param Collection $referenced
+     * @param array $results
+     * @return array
+     */
+    protected function getMirroredValue(TableField $field, array $row, Collection $referenced, array $results): array
+    {
+        $fields = $this->getUpdateArray($field, $referenced);
+        $presentVal = ($row[$field->field] ?? '');
+        $presentValChanged = $field->mirror_editable ? ($row[$field->field.'_mirror'] ?? '') : '';
+        if ($presentVal != $fields[$field->field] && !$presentValChanged) {
+            $results[$field->field] = $fields[$field->field];
+        }
+        return $results;
     }
 
     /**
@@ -124,19 +179,33 @@ class MirrorModule
      */
     protected function getUpdateArray(TableField $field, Collection $referenced): array
     {
+        //apply table limit
+        if ($field->_table && $field->_table->max_mirrors_in_one_row) {
+            $this->limitMirrors = $field->_table->max_mirrors_in_one_row;
+        }
+
         $fields = [];
         $fields[$field->field] = null;
-        if ($referenced->count() == 1) {
+        if ($referenced->count() == 1 || $field->mirror_one_value) {
             $ref_row = $referenced->first();
             $fields[$field->field] = $this->valOrddl($field, $ref_row);
         } else
         if ($referenced->count() > 1) {
             $ref_datas = [];
-            foreach ($referenced as $ref_row) {
+            foreach ($referenced as $idx => $ref_row) {
+                if ($idx >= $this->limitMirrors) {
+                    $this->limitReached = true;
+                    continue;
+                }
                 $ref_datas[] = $this->valOrddl($field, $ref_row);
             }
             $fields[$field->field] = json_encode($ref_datas);
         }
+
+        if (strlen($fields[$field->field]) > 64) {
+            $fields = $this->repo->setSpecialValues($field->_table, $fields);
+        }
+
         return $fields;
     }
 
@@ -166,17 +235,24 @@ class MirrorModule
      */
     public function watch(int $table_id, array $watchrow)
     {
+        $hash = $watchrow['row_hash'] ?? '';
         //the other tables
-        foreach ($this->mirrorFields($table_id) as $field) {
-            $this->affectedRows($field, $watchrow);
+        if ($hash != 'cf_temp') {
+            foreach ($this->mirrorFields($table_id) as $field) {
+                $this->affectedRows($field, $watchrow);
+            }
         }
 
         //self table
+        $updated = 0;
         foreach ($this->mirrorFields($table_id, 'self') as $field) {
-            if (!empty($watchrow['id'])) {
+            if (strlen($watchrow['id'] ?? '')) {
                 $this->fillMirrorRow($field, $watchrow);
-                (new TableDataService())->newTableVersion($field->_table);
+                $updated++;
             }
+        }
+        if ($updated && $hash != 'cf_temp') {
+            (new TableDataService())->newTableVersion($field->_table);
         }
     }
 
@@ -187,7 +263,7 @@ class MirrorModule
      */
     protected function mirrorFields(int $table_id, string $self = '')
     {
-        return TableField::whereNotNull('mirror_rc_id')
+        $collection = TableField::whereNotNull('mirror_rc_id')
             ->whereHas('_mirror_rc', function ($ref) use ($table_id, $self) {
                 if ($self) {
                     $ref->where('table_id', '=', $table_id);
@@ -197,6 +273,17 @@ class MirrorModule
             })
             ->with('_table', '_mirror_rc')
             ->get();
+
+        $same = $collection->first()?->mirror_rc_id;
+        foreach ($collection as $field) {
+            $same = $same == $field->mirror_rc_id ? $same : '';
+        }
+        if ($same) {
+            $this->mirrorTheSame[$collection->first()->id] = clone $collection;
+            $collection = $collection->slice(0, 1);
+        }
+
+        return $collection;
     }
 
     /**

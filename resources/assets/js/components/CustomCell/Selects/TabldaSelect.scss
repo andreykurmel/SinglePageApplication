@@ -8,6 +8,7 @@
     border: 1px solid #CCC !important;
     padding: 5px !important;
     background-color: white;
+    color: #555;
     border-radius: 5px !important;
     z-index: 1500;
     box-sizing: border-box;
@@ -74,14 +75,14 @@
         }
 
         .result-wrapper {
-            max-height: 120px;
+            max-height: 150px;
             overflow: auto;
 
             .group-opener {
                 padding: 2px 5px;
                 cursor: pointer;
                 display: inline-block;
-                width: 8%;
+                width: 24px;
                 text-align: center;
             }
 
@@ -141,6 +142,6 @@
 
 .panel-ddl {
     label, input[type="radio"], input[type="checkbox"] {
-        margin: 0;
+        margin: 0 0 5px 0;
     }
 }

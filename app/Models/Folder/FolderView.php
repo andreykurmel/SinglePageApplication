@@ -24,13 +24,13 @@ use Vanguard\User;
  * @property string $side_right
  * @property int|null $def_table_id
  * @property string $side_left_filter
- * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_checked_tables
- * @property-read int|null $_checked_tables_count
- * @property-read \Vanguard\Models\Folder\Folder $_folder
- * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderStructure[] $_folder_branch
- * @property-read int|null $_folder_branch_count
- * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderViewTable[] $_pivot_tables
- * @property-read int|null $_pivot_tables_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_checked_tables
+ * @property int|null $_checked_tables_count
+ * @property \Vanguard\Models\Folder\Folder $_folder
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderStructure[] $_folder_branch
+ * @property int|null $_folder_branch_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\FolderViewTable[] $_pivot_tables
+ * @property int|null $_pivot_tables_count
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\FolderView newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\FolderView newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\FolderView query()

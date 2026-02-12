@@ -132,7 +132,7 @@ export default {
             },
             showEdit() {
                 if (!this.tableHeader.unit) {
-                    Swal('Unit|Selection is not specified!');
+                    Swal('Info','Unit|Selection is not specified!');
                     return;
                 }
 
@@ -165,7 +165,7 @@ export default {
 
                     if (!this.$root.checkAvailable(this.$root.user, 'unit_conversions')) {
                         this.tableHeader.unit_display = this.oldValue;
-                        Swal('Unit Conversion doesn`t available to your subscription plan.');
+                        Swal('Info','Unit Conversion doesn`t available to your subscription plan.');
                         return;
                     }
 

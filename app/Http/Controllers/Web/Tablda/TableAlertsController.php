@@ -238,6 +238,39 @@ class TableAlertsController extends Controller
 
     /**
      * @param Request $request
+     * @return TableAlert
+     */
+    public function insertSnpFieldTable(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->insertSnpFieldTable($table_alert->table_id, $table_alert->id, $request->fields);
+    }
+
+    /**
+     * @param Request $request
+     * @return TableAlert
+     */
+    public function updateSnpFieldTable(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->updateSnpFieldTable($table_alert->id, $request->id, $request->fields);
+    }
+
+    /**
+     * @param Request $request
+     * @return TableAlert
+     */
+    public function deleteSnpFieldTable(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->deleteSnpFieldTable($table_alert->id, $request->id);
+    }
+
+    /**
+     * @param Request $request
      * @return \Vanguard\Models\Table\AlertUfvTable
      */
     public function copyUfvFields(Request $request)
@@ -278,6 +311,39 @@ class TableAlertsController extends Controller
         $ufv = $this->alertService->getUfvTable($request->ufv_table_id);
         $this->authAlert($ufv->_alert, 'edit');
         return $this->alertService->deleteUfvField($ufv->id, $request->id);
+    }
+
+    /**
+     * @param Request $request
+     * @return \Vanguard\Models\Table\AlertClickUpdate[]
+     */
+    public function insertClickUpdate(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->insertClickUpdate($table_alert->id, $request->fields);
+    }
+
+    /**
+     * @param Request $request
+     * @return \Vanguard\Models\Table\AlertClickUpdate[]
+     */
+    public function updateClickUpdate(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->updateClickUpdate($table_alert->id, $request->id, $request->fields);
+    }
+
+    /**
+     * @param Request $request
+     * @return \Vanguard\Models\Table\AlertClickUpdate[]
+     */
+    public function deleteClickUpdate(Request $request)
+    {
+        $table_alert = $this->alertService->getAlert($request->table_alert_id);
+        $this->authAlert($table_alert, 'edit');
+        return $this->alertService->deleteClickUpdate($table_alert->id, $request->id);
     }
 
     /**

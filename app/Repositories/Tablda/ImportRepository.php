@@ -8,21 +8,27 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableField;
+use Vanguard\Modules\ColumnAutoSizer;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Watchers\FieldRenameWatcher;
 use Vanguard\Watchers\RefCondTargetFieldWatcher;
 use Vanguard\Services\Tablda\HelperService;
 
 class ImportRepository
 {
+    protected $owner;
     protected $service;
 
     /**
      * ImportRepository constructor.
      */
-    public function __construct()
+    public function __construct(string $owner = '')
     {
+        $this->owner = $owner;
         $this->service = new HelperService();
     }
 
@@ -57,25 +63,34 @@ class ImportRepository
      * Change columns for user`s table in DataBase
      *
      * @param Table $table
-     * @param $data array $columns
+     * @param $data array
      * [
-     *  [
-     *      status: string,
+     *  'import_type' => string,
+     *  'columns' => [
+     *   [
+     *      status: [add/edit/del],
      *      field: string,
+     *      name: string,
      *      f_size: float,
      *      f_type: string,
-     *      f_default: string,
      *      f_required: int(0|1),
-     *  ],
-     *  ...
+     *   ],
+     *   ...
+     *  ]
      * ]
      * @return string - error message
      */
     public function modifyTableColumns(Table $table, array &$data)
     {
+        $repo = new TableFieldRepository();
+
         //remove if columns already deleted
         foreach ($data['columns'] as $idx => $col) {
             if ($col['status'] == 'del' && !Schema::connection('mysql_data')->hasColumn($table->db_name, $col['field'])) {
+                $db_field = $repo->getFieldBy($table->id, 'field', $col['field']);
+                if ($db_field) {
+                    $repo->removeFieldCorrectly($table, $db_field, $col);
+                }
                 unset($data['columns'][$idx]);
             }
         }
@@ -86,13 +101,16 @@ class ImportRepository
         try {
             Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($data) {
                 foreach ($data['columns'] as $col) {
-                    $col_size = $this->get_col_size($col['f_size']);
-
                     //for deleting columns
                     if ($col['status'] == 'del' && !in_array($col['field'], $this->service->system_fields)) {
                         //del column
                         $bp_table->dropColumn($col['field']);
                     }
+                }
+            });
+            Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($data) {
+                foreach ($data['columns'] as $col) {
+                    $col_size = ColumnAutoSizer::get_col_size($col['f_size']);
 
                     //for changing columns
                     if ($col['status'] == 'edit' && !in_array($col['field'], $this->service->system_fields)) {
@@ -100,7 +118,6 @@ class ImportRepository
                         $t = $this->defineColumnType($col, $bp_table, $col_size);
                         $t->change();
                     }
-
 
                     //for adding columns
                     if ($col['status'] == 'add' && !in_array($col['field'], $this->service->system_fields)) {
@@ -117,101 +134,6 @@ class ImportRepository
     }
 
     /**
-     * @param Table $table
-     * @param string $formula_fld
-     * @param int $size
-     */
-    public function IncFormulaSize(Table $table, string $formula_fld, int $size)
-    {
-        if (!$formula_fld || !$size) {
-            return;
-        }
-        Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($table, $formula_fld, $size) {
-            $cursize = DB::connection('mysql_data')->getDoctrineColumn($table->db_name, $formula_fld)->getLength();
-            if ($cursize < $size) {
-                $bp_table->string($formula_fld, $size)->change();
-            }
-        });
-    }
-
-    /**
-     * @param Table $table
-     * @param array $columns
-     */
-    public function IncreaseColSize(Table $table, array $columns)
-    {
-        if (!$columns) {
-            return;
-        }
-        Schema::connection('mysql_data')->table($table->db_name, function (Blueprint $bp_table) use ($columns) {
-            foreach ($columns as $col) {
-                $col_size = $this->get_col_size($col['f_size']);
-                $t = $this->defineColumnType($col, $bp_table, $col_size);
-                $t->change();
-            }
-        });
-    }
-
-    /**
-     * @param string $f_type
-     * @param string $f_size
-     * @param $val
-     * @return bool
-     */
-    public function notEnoughSize(string $f_type, string $f_size, $val)
-    {
-        if (in_array($f_type, ['Decimal','Currency','Percentage','Progress Bar'])) {
-            $sizes = $this->get_col_size($f_size, true);
-            $arrs = $this->get_col_size($val, true, true);
-            return $sizes[0] < $arrs[0] || $sizes[1] < $arrs[1];
-        } else {
-            return floatval($f_size) <= strlen($val);
-        }
-    }
-
-    /**
-     * @param string $f_type
-     * @param string $f_size
-     * @param $val
-     * @return float
-     */
-    public function increaseSize(string $f_type, string $f_size, $val)
-    {
-        if (in_array($f_type, ['Decimal','Currency','Percentage','Progress Bar'])) {
-            $sizes = $this->get_col_size($f_size, true);
-            $arrs = $this->get_col_size($val, true, true);
-            $sizes[0] = $sizes[0] < $arrs[0] ? $arrs[0] : $sizes[0];
-            $sizes[1] = $sizes[1] < $arrs[1] ? $arrs[1] : $sizes[1];
-            return floatval(implode('.', $sizes));
-        } else {
-            return floatval($f_size) * 2;
-        }
-    }
-
-    /**
-     * @param $f_size
-     * @param bool $nosum
-     * @param bool $len
-     * @return array
-     */
-    protected function get_col_size($f_size, bool $nosum = false, bool $len = false)
-    {
-        $col_size = $f_size > 0 ? explode('.', $f_size) : [];
-        if ($len) {
-            $col_size[0] = strlen($col_size[0] ?? '');
-            $col_size[1] = strlen($col_size[1] ?? '');
-        }
-
-        if (!isset($col_size[0])) $col_size[0] = 8;
-        if (!isset($col_size[1])) $col_size[1] = 2;
-
-        if (!$nosum) {
-            $col_size[0] += $col_size[1];
-        }
-        return $col_size;
-    }
-
-    /**
      * Prepare data for conversion if column type are changing to different type
      *
      * @param Table $table
@@ -223,6 +145,7 @@ class ImportRepository
 
         $table_fields = $table->_fields()->get();
         $db = $this->service->getConnectionForTable($table);
+        $dbcln = (clone $db)->table($table->db_name);
 
         foreach ($columns as $idx => $col) {
             $oldCol = $table_fields->where('field', $col['field'])->first();
@@ -233,29 +156,29 @@ class ImportRepository
 
                     //Column renamed
                     if ($oldCol && $oldCol->name != $col['name']) {
+                        (new FieldRenameWatcher())->watchRename($table, $oldCol->name, $col['name']);
                         (new RefCondTargetFieldWatcher())->watchRename($table->id, $oldCol->name, $col['name']);
                     }
 
-                    //delete commas ',' as thousand dividers
-                    if (in_array($col['f_type'], ['Integer','Decimal','Currency','Percentage'])) {
+                    //Changed String to Numeric
+                    $nums = ['Integer','Decimal','Currency','Percentage'];
+                    if ($oldCol && !in_array($oldCol->f_type, $nums) && in_array($col['f_type'], $nums)) {
                         try {
+                            //prepare numeric values and remove all symbols
                             $db->table($table->db_name)
-                                ->where($col['field'], 'like' ,'%,%')
-                                ->update([
-                                    $col['field'] => DB::raw('REPLACE('.$col['field'].', ",", "")')
-                                ]);
+                                ->whereNotNull($col['field'])
+                                ->select(['id', $col['field']])
+                                ->orderBy('id')
+                                ->chunk(100, function ($rows) use ($col, $dbcln) {
+                                    foreach ($rows as $row) {
+                                        $row = (array)$row;
+                                        (clone $dbcln)->where('id', $row['id'])->update([
+                                            $col['field'] => preg_replace('/[^\d-\.]/i', '', $row[$col['field']])
+                                        ]);
+                                    }
+                                });
                         } catch (\Exception $e) {}
                     }
-                }
-
-                //set default values for 'edit' columns
-                if (in_array($col['status'], ['edit']) && !empty($col['f_default'])) {
-                    $db->table($table->db_name)
-                        ->whereNull($col['field'])
-                        ->orWhere($col['field'], '')
-                        ->update([
-                            $col['field'] => $col['f_default']
-                        ]);
                 }
             }
 
@@ -284,6 +207,12 @@ class ImportRepository
                     $upd[$col['field']] = $this->service->oneAutoString($table, $col['field'], $col['f_format'] ?? '');
                     (clone $tbQuery)->where('id', '=', $row['id'])->update($upd);
                 }
+                if ($col['f_type'] == 'Auto Number' && empty($row[$col['field']])) {
+                    $upd = [];
+                    $fld = $table->_fields()->where('field', $col['field'])->first();
+                    $upd[$col['field']] = $this->service->oneAutoNumber($table, $fld, $upd);
+                    (clone $tbQuery)->where('id', '=', $row['id'])->update($upd);
+                }
             }
         }
     }
@@ -294,10 +223,10 @@ class ImportRepository
      * @param array $col_size
      * @return \Illuminate\Support\Fluent
      */
-    protected function defineColumnType(array $col, Blueprint $table, array $col_size)
+    public function defineColumnType(array $col, Blueprint $table, array $col_size)
     {
         //Strings
-        if (in_array($col['f_type'], ['Attachment','Auto String','Address','User'])) {
+        if (in_array($col['f_type'], ['Attachment','Auto String','Address','User','Email','Phone Number'])) {
             $t = $table->string($col['field'], 128);
         }
         elseif (in_array($col['f_type'], ['String','App'])) {
@@ -307,7 +236,7 @@ class ImportRepository
             $t = $table->string($col['field'], $col['f_size'] > 0 ? (int)$col['f_size'] : 32);
         }
         //Texts
-        elseif (in_array($col['f_type'], ['Text','Vote'])) {
+        elseif (in_array($col['f_type'], ['Text','Vote','HTML'])) {
             $t = $table->text($col['field']);
         }
         elseif (in_array($col['f_type'], ['Long Text'])) {
@@ -321,17 +250,23 @@ class ImportRepository
             $t = $table->dateTime($col['field']);
         }
         //Numbers
+        elseif (in_array($col['f_type'], ['Gradient Color'])) {
+            $t = $table->float($col['field']);
+        }
         elseif (in_array($col['f_type'], ['Decimal','Currency','Percentage','Progress Bar'])) {
             $t = $table->decimal($col['field'], $col_size[0], $col_size[1]);
         }
-        elseif (in_array($col['f_type'], ['Auto Number','Integer','Rating','Progress Bar','Boolean','Duration'])) {
+        elseif (in_array($col['f_type'], ['Auto Number','Integer','Rating','Progress Bar','Boolean','Duration','Connected Clouds'])) {
             $t = $table->integer($col['field']);
+        }
+        elseif (in_array($col['f_type'], ['Table','Table Field'])) {
+            $t = $table->unsignedInteger($col['field']);
         }
         else {
             $t = $table->string($col['field']);
         }
 
-        $t->default(null);
+        $t->default($this->service->isStringType($col['f_type']) ? "" : null);
         $t->nullable();
 
         return $t;
@@ -343,13 +278,51 @@ class ImportRepository
      * @param $db_name
      * @return string - error message
      */
-    public function deleteTable($db_name) {
+    public function deleteTableInDb($db_name) {
         //delete table
         try {
-            Schema::connection('mysql_data')->drop($db_name);
+            Schema::connection('mysql_data')->dropIfExists($db_name);
             return "";
         } catch (\Exception $e) {
             return "Seems that table with provided name already deleted!<br>".$e->getMessage();
+        }
+    }
+
+    /**
+     * @param Table $table
+     * @param array $copyAvails - 'columns': [field1, field2, ...]; 'rows': [12, 34, ...]
+     * @param string $db_name
+     * @param bool $with_data
+     */
+    public function copyTableInDB(Table $table, array $copyAvails, string $db_name, bool $with_data)
+    {
+        //config connection
+        $db = $this->service->getConnectionForTable($table);
+
+        $columns = $copyAvails
+            ? implode(',', $copyAvails['columns'])
+            : '*';
+        $arcolumns = $copyAvails ? ($copyAvails['columns'] ?: []) : [];
+
+        if ($with_data) {
+            $rows = $copyAvails
+                ? '`id` IN (' . implode(',', $copyAvails['rows']) . ')'
+                : 'true';
+        } else {
+            $rows = 'false';
+        }
+
+        //copy in DB_DATA
+        $db->select('CREATE TABLE `' . $db_name . '` SELECT ' . $columns . ' FROM `' . $table->db_name . '` WHERE ' . $rows);
+        //sync create/update columns
+        if (array_intersect(['created_on', 'modified_on'], $arcolumns)) {
+            $db->select('UPDATE `' . $db_name . '` SET `created_on` = now(), `modified_on` = now()');
+        }
+        //create 'id' as primary key
+        if (!$arcolumns || in_array('id', $arcolumns)) {
+            $db->select('ALTER TABLE `' . $db_name . '` CHANGE `id` `id` INT(10) AUTO_INCREMENT, add PRIMARY KEY (`id`)');
+        } else {
+            Log::alert($this->owner.' ImportRepository::copyTableInDB - No "ID"! ('.$db_name.')');
         }
     }
 }

@@ -120,7 +120,7 @@
                 axios.get('/ajax/user/invitation', {}).then(({data}) => {
                     this.$root.user._invitations = data
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             addInvitations() {
@@ -133,13 +133,13 @@
                             .split(' ')
                     }).then(({data}) => {
                         if (data.errors.length) {
-                            Swal('', data.errors.join('<br>'));
+                            Swal('Info', data.errors.join('<br>'));
                         }
                         this.$root.user._invitations = data.invits;
                         this.emails_string = '';
                         this.sendInvitations();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
@@ -154,7 +154,7 @@
                 }).then(({ data }) => {
                     this.$root.user._invitations = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -168,7 +168,7 @@
                         this.job_id = data.job_id;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             hideMenu(e) {
@@ -187,12 +187,12 @@
                     app_val: vv,
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
         },
         mounted() {
-            this.$root.tablesZidx += 10;
+            this.$root.tablesZidxIncrease();
             this.zIdx = this.$root.tablesZidx;
             this.runAnimation({anim_transform:'none'});
 

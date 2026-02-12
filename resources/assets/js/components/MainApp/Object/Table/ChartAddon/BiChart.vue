@@ -6,6 +6,7 @@
 
 <script>
     import {eventBus} from '../../../../../app';
+    import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
 
     export default {
         name: "BiChart",
@@ -26,7 +27,8 @@
             tableMeta: Object,
             all_settings: Object,
             chart_data: Array,
-            export_name: String,
+            export_prefix: String,
+            request_params: Object,
         },
         computed: {
         },
@@ -61,11 +63,24 @@
                 this.add_groups_l2 = [];
 
                 //X-AXIS PREPARING --->
-                this.x_datas = _.uniq( _.map(all_rows, 'x') );
+                let desc = x_axis.field && _.find(this.request_params.sort, {direction: 'desc', field: x_axis.field});
+
+                this.x_datas = _.uniq( _.map(all_rows, 'x') ).sort((a, b) => {
+                    if (!isNaN(a) && !isNaN(b)) {
+                        a = to_float(a);
+                        b = to_float(b);
+                    }
+                    return desc
+                        ? a > b ? -1 : a < b ? 1 : 0
+                        : a < b ? -1 : a > b ? 1 : 0;
+                });
                 //<--- X-AXIS PREPARING
 
                 //Y-AXIS PREPARING --->
-                if (!x_axis.l1_group_fld || x_axis.l1_group_fld === x_axis.field) {
+                let l1_group = x_axis.l1_group_fld
+                    || (String(y_axis.group_function).match(',') ? y_axis.group_function : '');
+
+                if (!l1_group || l1_group === x_axis.field) {
                     //group x-values with the same name
                     let idx = 0, y = [];
                     _.each(this.x_datas, (x) => {
@@ -274,6 +289,7 @@
                     }
                     //^^^^^^^
                     let dim_height = this.all_settings.dimensions.height || 450;
+                    let y_axis_col = _.find(this.tableMeta._fields, {field: chart_settings.y_axis.field});
 
                     this.highchart = Highcharts.chart(this.$refs.chart, {
 
@@ -340,7 +356,7 @@
                                 formatter: function() {
                                     return chart_settings.chart_sub_type === 'TSLH'
                                         ? Math.round(this.value)
-                                        : this.value;
+                                        : SpecialFuncs.formatWithSigns(y_axis_col, this.value, true);
                                 },
                             },
                             title: {
@@ -354,7 +370,7 @@
                         },
 
                         exporting: {
-                            filename: this.export_name+'chart'+' '+moment().format('YYYY-MM-DD HH_mm_ss')
+                            filename: _.filter([this.export_prefix,'chart',moment().format('MMDDYYYY_HHmmss')]).join('_')
                         },
 
                         series: chart_settings.chart_sub_type === 'TSLH' ? tslh_data : graph_data

@@ -26,6 +26,7 @@ class CopyFolderRequest extends FormRequest
         return [
             'folder_json' => 'required|array',
             'new_user_id' => 'required|integer|exists:users,id',
+            'direct_folder_id' => 'nullable|integer|exists:folders,id',
         ];
     }
 }

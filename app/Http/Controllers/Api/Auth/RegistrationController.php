@@ -55,7 +55,7 @@ class RegistrationController extends ApiController
             ['status' => $status, 'role_id' => $role->id, 'tos_accepted' => $tos]
         ));
 
-        event(new Registered($user));
+        event(new Registered($user, $request->promo_value));
 
         return $this->setStatusCode(201)
             ->respondWithArray([

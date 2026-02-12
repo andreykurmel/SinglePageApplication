@@ -6,7 +6,7 @@
                 <div class="popup-header">
                     <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
-                        <div class="flex__elem-remain">Paste To Import</div>
+                        <div class="flex__elem-remain">Paste to Import</div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close')"></span>
                         </div>
@@ -118,7 +118,7 @@
                         this.step2 = true;
                     });
                 } else {
-                    Swal('No pasted data', '', 'info');
+                    Swal('Info','No pasted data');
                 }
             },
             sendDirectImport() {
@@ -132,7 +132,7 @@
                 }).then(({ data }) => {
                     this.$emit('paste-completed');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });

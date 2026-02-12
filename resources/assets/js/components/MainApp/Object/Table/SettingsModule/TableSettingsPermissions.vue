@@ -3,7 +3,7 @@
         <div class="row full-height permissions-tab">
             <!--LEFT SIDE-->
             <div class="col-xs-6 full-height" style="padding-right: 0;">
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>List of Permissions. Click # to Load.</span>
                     <button class="btn btn-default btn-sm blue-gradient"
                             :style="$root.themeButtonStyle"
@@ -35,7 +35,7 @@
                     ></custom-table>
                 </div>
 
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>Assigning Permissions</span>
                 </div>
                 <div class="permissions-panel no-padding" style="height: calc(50% - 35px);">
@@ -62,13 +62,14 @@
             </div>
             <!--RIGHT-->
             <div class="col-xs-6 full-height" style="">
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>Details for Permission: <span>{{ (selectedGroup > -1 ? tableMeta._table_permissions[selectedGroup].name : '') }}</span></span>
 
                     <info-sign-link
                             class="right-elem"
                             :app_sett_key="'help_link_settings_permissions'"
-                            :hgt="26"
+                            :hgt="18"
+                            :txt="'for Settings/Permissions'"
                     ></info-sign-link>
                 </div>
                 <div class="permissions-panel">
@@ -98,7 +99,7 @@
                                 :forbidden-columns="$root.systemFields"
                                 :use_theme="true"
                                 :widths_div="2"
-                                :excluded_row_values="[{ field: 'view', excluded: [0] }]"
+                                :excluded_row_values="[{ field: 'view', excluded: [0] }, { field: 'edit', excluded: [0] }]"
                                 :style="{height: '50%'}"
                                 @added-row="addGroupColumnPermis"
                                 @updated-row="updateGroupColumnPermis"
@@ -121,7 +122,7 @@
                                 :forbidden-columns="$root.systemFields"
                                 :use_theme="true"
                                 :widths_div="2"
-                                :excluded_row_values="[{ field: 'view', excluded: [0] }]"
+                                :excluded_row_values="[{ field: 'view', excluded: [0] }, { field: 'edit', excluded: [0] }, { field: 'delete', excluded: [0] }]"
                                 :style="{height: '50%'}"
                                 @added-row="addGroupRowPermis"
                                 @updated-row="updateGroupRowPermis"
@@ -165,6 +166,12 @@
                 :table-meta="tableMeta"
                 @popup-close="closeCopyPermis"
         ></copy-permission-from-table-popup>
+
+        <grouping-settings-popup
+            v-if="tableMeta && tableMeta.id != $root.tableMeta.id"
+            :table-meta="tableMeta"
+            :user="$root.user"
+        ></grouping-settings-popup>
     </div>
 </template>
 
@@ -178,10 +185,12 @@
     import DefaultFieldsPopUp from '../../../../CustomPopup/DefaultFieldsPopUp';
     import InfoSignLink from "../../../../CustomTable/Specials/InfoSignLink";
     import CopyPermissionFromTablePopup from "../../../../CustomPopup/CopyPermissionFromTablePopup";
+    import GroupingSettingsPopup from "../../../../CustomPopup/GroupingSettingsPopup.vue";
 
     export default {
         name: "TableSettingsPermissions",
         components: {
+            GroupingSettingsPopup,
             CopyPermissionFromTablePopup,
             InfoSignLink,
             TabSettingsPermissionsBasics,
@@ -193,6 +202,7 @@
         ],
         data: function () {
             return {
+                show_colrow_groups: false,
                 show_copy_permis: false,
                 table_permis_id_def_fields: null,
                 user_group_id_def_fields: null,
@@ -256,7 +266,7 @@
                         this.selectedGroup = this.tableMeta._table_permissions.length-1;
                     });
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -273,7 +283,7 @@
                     fields: fields
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -294,7 +304,7 @@
                         return item.table_permission_id != Number(tableRow.id);
                     });
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -339,7 +349,7 @@
                         permis_columns.push( data );
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -387,7 +397,7 @@
                     }
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -403,7 +413,7 @@
                 }).then(({ data }) => {
                     this.tableMeta._user_groups_2_table_permissions.push( data );
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -416,7 +426,7 @@
                     is_active: tableRow.is_active ? 1 : 0,
                 }).then(({ data }) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -434,7 +444,7 @@
                         this.tableMeta._user_groups_2_table_permissions.splice(idx, 1);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -476,9 +486,4 @@
 
 <style lang="scss" scoped>
     @import "TabSettingsPermissions";
-    .permissions-menu-header {
-        .btn-sm {
-            height: 30px;
-        }
-    }
 </style>

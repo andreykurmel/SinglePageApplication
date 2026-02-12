@@ -7,22 +7,31 @@ use DateTimeZone;
 use Exception;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Log;
 use SplFileObject;
 use Vanguard\Classes\ExcelWrapper;
+use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableField;
 use Vanguard\Modules\Airtable\AirtableApi;
 use Vanguard\Modules\Airtable\AirtableImporter;
+use Vanguard\Modules\Jira\JiraApiModule;
+use Vanguard\Modules\Salesforce\SalesforceApiModule;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableReferRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\UserCloudRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
+use Vanguard\Services\Tablda\FileService;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\HtmlXmlService;
 use Vanguard\Services\Tablda\TableDataService;
@@ -42,6 +51,7 @@ class ImportTableData implements ShouldQueue
     protected $service;
 
     protected $pack_len = 100;
+    protected $storeAirtableRowsCount = 0;
 
     /**
      * ImportTableData constructor.
@@ -55,7 +65,7 @@ class ImportTableData implements ShouldQueue
     {
         $this->data = $data;
         $this->table = $table;
-        $this->tableDataService = new TableDataService();
+        $this->tableDataService = new TableDataService(false);
         $this->user = $user;
         $this->import_id = $import_id;
         $this->service = new HelperService();
@@ -72,7 +82,8 @@ class ImportTableData implements ShouldQueue
      */
     public function handle()
     {
-        ini_set('memory_limit', '256M');
+        ini_set('memory_limit', '512M');
+        ini_set('max_execution_time', '1200');
 
         $is_admin = $this->user ? $this->user->isAdmin() : false;
 
@@ -103,12 +114,25 @@ class ImportTableData implements ShouldQueue
         } //CHART EXPORT
         elseif ($this->data['import_type'] === 'chart_export' && !empty($this->data['chart_rows'])) {
             $this->chartExport();
+        } //TRANSPOSE IMPORT
+        elseif ($this->data['import_type'] === 'transpose_import' && !empty($this->data['transpose_item'])) {
+            $this->transposeImport();
+        } //JIRA IMPORT
+        elseif ($this->data['import_type'] === 'jira_import' && !empty($this->data['jira_item'])) {
+            $this->jiraImport();
+        } //SALESFORCE IMPORT
+        elseif ($this->data['import_type'] === 'salesforce_import' && !empty($this->data['salesforce_item'])) {
+            $this->salesforceImport();
         }
 
         //recalc all formulas if table has them
-        $this->tableDataService->recalcTableFormulas($this->table);
+        $this->tableDataService->newVersionWatcher = true;
+        $this->tableDataService->newTableVersion($this->table);
+        $this->tableDataService->recalcTableFormulas($this->table, $this->table->user_id);
+        dispatch(new WatchMirrorValues($this->table->id));
+        dispatch(new WatchRemoteFiles($this->table->id));
 
-        DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+        Import::where('id', '=', $this->import_id)->update([
             'status' => 'done'
         ]);
     }
@@ -118,28 +142,10 @@ class ImportTableData implements ShouldQueue
      */
     protected function CsvExcelImport()
     {
-        $start = $end = 0;
-        if (!empty($this->data['csv_settings']['firstHeader'])) {
-            $start = 1;
-        }
-        if (!empty($this->data['csv_settings']['secondType'])) {
-            $start = 2;
-        }
-        if (!empty($this->data['csv_settings']['thirdSize'])) {
-            $start = 3;
-        }
-        if (!empty($this->data['csv_settings']['fourthDefault'])) {
-            $start = 4;
-        }
-        if (!empty($this->data['csv_settings']['fifthRequired'])) {
-            $start = 5;
-        }
-        if (!empty($this->data['csv_settings']['startRow'])) {
-            $start = $this->data['csv_settings']['startRow'] > $start ? $this->data['csv_settings']['startRow'] : $start;
-        }
-        if (!empty($this->data['csv_settings']['endRow'])) {
-            $end = $this->data['csv_settings']['endRow'] - 1;
-        }
+        $hdrRowNum = floatval($this->data['csv_settings']['headerRowNum'] ?? 0);
+        $startRowNum = floatval($this->data['csv_settings']['startRow'] ?? 0);
+        $start = $startRowNum ?: $hdrRowNum;
+        $end = floatval($this->data['csv_settings']['endRow'] ?? 0);
 
         $ext = $this->data['csv_settings']['extension']
             ?? strtolower(pathinfo($this->data['csv_settings']['filename'], PATHINFO_EXTENSION));
@@ -148,7 +154,7 @@ class ImportTableData implements ShouldQueue
         } elseif ($ext == 'xls' || $ext == 'xlsx') {
             $this->excelImport($start, $end);
         } else {
-            Log::info('Csv/Excel Import - incorrect extension!');
+            Log::channel('jobs')->info('Csv/Excel Import - incorrect extension!');
             throw new Exception('Csv/Excel Import - incorrect extension!');
         }
     }
@@ -167,7 +173,7 @@ class ImportTableData implements ShouldQueue
         //CSV Import
         for ($cur = 0; ($cur * $this->pack_len) < $lines; $cur++) {
 
-            DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+            Import::where('id', '=', $this->import_id)->update([
                 'complete' => (int)((($cur * $this->pack_len) / $lines) * $this->pack_len)
             ]);
 
@@ -184,34 +190,10 @@ class ImportTableData implements ShouldQueue
                     continue;
                 }
 
-                $insert = $this->setDefaults($this->data['columns']);
-                //fill only those data columns which numbers are setted in 'table columns settings'
-                foreach ($this->data['columns'] as $col) {
-                    if (!in_array($col['field'], $this->service->system_fields)) {
-                        try {
-                            $present_val = trim($data[$col['col'] ?? null] ?? '');
-                            $insert[$col['field']] = $this->dataConverter($data, $col, $present_val);
-                        } catch (Exception $e) {
-                            Log::info('ImportTableData - CSV Saving Error');
-                            Log::info($e->getMessage());
-                        }
-                    }
-                }
-                $insert = $this->setCreatedAndModif($insert);
-
-                $pack[] = $insert;
+                $pack[] = $this->getImportFromDataCols($data, 'CSV');
             }
 
-            try {
-                $this->tableDataService->insertMass($this->table, $pack);
-
-                (new TableRepository())->onlyUpdateTable($this->table->id, [
-                    'num_rows' => $this->table->num_rows + count($pack)
-                ]);
-            } catch (Exception $e) {
-                Log::info('ImportTableData - CSV Import Error');
-                Log::info($e->getMessage());
-            }
+            $this->insertPack($pack, 'CSV');
         }
 
         unset($fp);
@@ -231,28 +213,22 @@ class ImportTableData implements ShouldQueue
     /**
      * Convert some datas to Special Formats.
      *
-     * @param array $data
      * @param array $col
      * @param $val
      * @return array|string|string[]|null
      */
-    protected function dataConverter(array $data, array $col, $val)
+    protected function dataConverter(array $col, $val)
     {
         if (in_array($col['f_type'], ['Date', 'Date Time'])) {
             //prevent 0000-00-00 on importing
-            if ($val === '') {
+            if (!$val) {
                 $res = null;
             } else {
                 $dtz = new DateTimeZone($this->user->timezone ?: 'UTC');
                 try {
                     $res = new DateTime($val, $dtz);
                 } catch (Exception $e) {
-                }
-                if (empty($res)) {
-                    $res = DateTime::createFromFormat('d/m/Y', $val, $dtz);
-                }
-                if (empty($res)) {
-                    $res = DateTime::createFromFormat('M j, Y', $val, $dtz);
+                    $res = null;
                 }
 
                 $res = !empty($res)
@@ -297,7 +273,7 @@ class ImportTableData implements ShouldQueue
         //Excel Import
         for ($cur = 0; ($cur * $this->pack_len) < $lines; $cur++) {
 
-            DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+            Import::where('id', '=', $this->import_id)->update([
                 'complete' => (int)((($cur * $this->pack_len) / $lines) * $this->pack_len)
             ]);
 
@@ -317,34 +293,10 @@ class ImportTableData implements ShouldQueue
                     continue;
                 }
 
-                $insert = $this->setDefaults($this->data['columns']);
-                //fill only those data columns which numbers are setted in 'table columns settings'
-                foreach ($this->data['columns'] as $col) {
-                    if (!in_array($col['field'], $this->service->system_fields)) {
-                        try {
-                            $present_val = trim($data[$col['col'] ?? null] ?? '');
-                            $insert[$col['field']] = $this->dataConverter($data, $col, $present_val);
-                        } catch (Exception $e) {
-                            Log::info('ImportTableData - Excel Saving Error');
-                            Log::info($e->getMessage());
-                        }
-                    }
-                }
-                $insert = $this->setCreatedAndModif($insert);
-
-                $pack[] = $insert;
+                $pack[] = $this->getImportFromDataCols($data, 'Excel');
             }
 
-            try {
-                $this->tableDataService->insertMass($this->table, $pack);
-
-                (new TableRepository())->onlyUpdateTable($this->table->id, [
-                    'num_rows' => $this->table->num_rows + count($pack)
-                ]);
-            } catch (Exception $e) {
-                Log::info('ImportTableData - Excel Import Error');
-                Log::info($e->getMessage());
-            }
+            $this->insertPack($pack, 'Excel');
         }
 
     }
@@ -367,48 +319,20 @@ class ImportTableData implements ShouldQueue
                     ->limit($this->pack_len)
                     ->get();
 
-                DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+                Import::where('id', '=', $this->import_id)->update([
                     'complete' => (int)((($cur * $this->pack_len) / $lines) * $this->pack_len)
                 ]);
 
                 $pack = [];
-
                 foreach ($all_rows as $row) {
-                    $row = (array)$row;
-                    $insert = $this->setDefaults($this->data['columns']);
-
-                    foreach ($this->data['columns'] as $col) {
-                        if (!in_array($col['field'], $this->service->system_fields)) {
-                            try {
-                                $present_val = trim($row[$col['col'] ?? null] ?? '');
-                                $insert[$col['field']] = $this->dataConverter($row, $col, $present_val);
-                            } catch (Exception $e) {
-                                Log::info('ImportTableData - MySQL Preparing Error');
-                                Log::info($e->getMessage());
-                            }
-                        }
-                    }
-
-                    $insert = $this->setCreatedAndModif($insert);
-
-                    $pack[] = $insert;
+                    $pack[] = $this->getImportFromDataCols((array)$row, 'MySQL');
                 }
-
-                try {
-                    $this->tableDataService->insertMass($this->table, $pack);
-
-                    (new TableRepository())->onlyUpdateTable($this->table->id, [
-                        'num_rows' => $this->table->num_rows + count($pack)
-                    ]);
-                } catch (Exception $e) {
-                    Log::info('ImportTableData - MySQL Saving Error');
-                    Log::info($e->getMessage());
-                }
+                $this->insertPack($pack, 'MySQL');
             }
 
         } catch (Exception $e) {
-            Log::info('ImportTableData - MySql Data Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - MySql General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -435,9 +359,19 @@ class ImportTableData implements ShouldQueue
         $ref_table = (new TableRepository())->getTable($reference->ref_table_id);
 
         try {
+            $info = ['added' => 0, 'updated' => 0, 'deleted' => 0];
             $db_name = $this->table->db_name;
 
+            //present Documents for copying
+            $documents = [];
+            foreach ($reference->_reference_corrs as $corrs) {
+                if ($corrs->_ref_field->f_type == 'Attachment' && $corrs->_field->f_type == 'Attachment') {
+                    $documents[$corrs->_ref_field->id] = $corrs->_field->id;
+                }
+            }
+
             //del old records
+            $info['deleted'] = DB::connection('mysql_data')->table($db_name)->where('refer_tb_id', '=', $ref_table->id)->count();
             DB::connection('mysql_data')->table($db_name)->where('refer_tb_id', '=', $ref_table->id)->delete();
 
             //get query
@@ -449,6 +383,7 @@ class ImportTableData implements ShouldQueue
 
             //import rows from referenced table
             $lines = $query->count();
+            $info['added'] = $lines;
             for ($cur = 0; ($cur * $this->pack_len) < $lines; $cur++) {
 
                 $all_rows = $query->offset($cur * $this->pack_len)
@@ -456,7 +391,7 @@ class ImportTableData implements ShouldQueue
                     ->get()
                     ->toArray();
 
-                DB::connection('mysql')->table('imports')->where('id', '=', $this->import_id)->update([
+                Import::where('id', '=', $this->import_id)->update([
                     'complete' => (int)((($cur * $this->pack_len) / $lines) * $this->pack_len)
                 ]);
 
@@ -467,12 +402,10 @@ class ImportTableData implements ShouldQueue
 
                     foreach ($reference->_reference_corrs as $corrs) {
                         try {
-                            if (!empty($row[$corrs->_ref_field->field])) {
-                                $insert[$corrs->_field->field] = $row[$corrs->_ref_field->field];
-                            }
+                            $insert[$corrs->_field->field] = $row[$corrs->_ref_field->field] ?? null;
                         } catch (Exception $e) {
-                            Log::info('ImportTableData - Reference Preparing Error');
-                            Log::info($e->getMessage());
+                            Log::channel('jobs')->info('ImportTableData - Reference Preparing Error');
+                            Log::channel('jobs')->info($e->getMessage());
                         }
                     }
 
@@ -483,19 +416,34 @@ class ImportTableData implements ShouldQueue
                 }
 
                 try {
-                    $this->tableDataService->insertMass($this->table, $pack);
+                    $old_ids = Arr::pluck($all_rows, 'id');
+                    $new_ids = $this->tableDataService->insertMass($this->table, $pack);
+
+                    if (count($old_ids) == count($new_ids) && $documents) {
+                        (new FileService())->copyAttachForRowsSpecial($ref_table, $this->table, array_combine($old_ids, $new_ids), $documents);
+                    }
 
                     (new TableRepository())->onlyUpdateTable($this->table->id, [
                         'num_rows' => $this->table->num_rows + count($pack)
                     ]);
                 } catch (Exception $e) {
-                    Log::info('ImportTableData - Reference Saving Error');
-                    Log::info($e->getMessage());
+                    Log::channel('jobs')->info('ImportTableData - Reference Saving Error');
+                    Log::channel('jobs')->info($e->getMessage());
                 }
             }
+
+            $info['updated'] = min($info['added'], $info['deleted']);
+            $info['added'] = min($info['added'] - $info['updated'], 0);
+            $info['deleted'] = min($info['deleted'] - $info['updated'], 0);
+
+            Import::where('id', '=', $this->import_id)->update([
+                'info' => $this->infoImportDataHtml($info),
+            ]);
+            sleep(3);
+
         } catch (Exception $e) {
-            Log::info('ImportTableData - Reference Data Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Reference General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -510,6 +458,10 @@ class ImportTableData implements ShouldQueue
         $pack = [];
         $strings = preg_split('/\r\n|\r|\n/', $pasted_data);
 
+        Import::where('id', '=', $this->import_id)->update([
+            'complete' => 10,
+        ]);
+
         foreach ($strings as $row_idx => $row) {
             //skip first row as Headers.
             if ($row_idx == 0 && $this->data['paste_settings']['f_header']) {
@@ -517,21 +469,7 @@ class ImportTableData implements ShouldQueue
             }
 
             $row_cells = $this->service->pastedDataParser($row);
-
-            $insert = $this->setDefaults($this->data['columns']);
-            //fill only those data columns which numbers are setted in 'table columns settings'
-            foreach ($this->data['columns'] as $col) {
-                if (!in_array($col['field'], $this->service->system_fields)) {
-                    try {
-                        $present_val = trim($row_cells[$col['col'] ?? null] ?? '');
-                        $insert[$col['field']] = $this->dataConverter($row_cells, $col, $present_val);
-                    } catch (Exception $e) {
-                        Log::info('ImportTableData - Paste Saving Error');
-                        Log::info($e->getMessage());
-                    }
-                }
-            }
-            $insert = $this->setCreatedAndModif($insert);
+            $insert = $this->getImportFromDataCols($row_cells, 'Paste Data');
 
             $repl_values = $this->data['paste_settings']['replace_values'];
             if (!empty($repl_values) && is_array($repl_values)) {
@@ -541,17 +479,500 @@ class ImportTableData implements ShouldQueue
             $pack[] = $insert;
         }
 
+        Import::where('id', '=', $this->import_id)->update([
+            'complete' => 50,
+        ]);
+
+        $this->insertPack($pack, 'Paste Data');
+    }
+
+    /**
+     * Transpose Import
+     *
+     * transpose_item: [
+     *      direction: 'direct'/'reverse',
+     *      skip_empty: bool,
+     *      source_tb_id: int,
+     *      row_group_id: int,
+     *      grouper_field_id: int,
+     *      reverse_val_field_id: int,
+     * ],
+     * (direct/reverse transpose) colums: [
+     *      trps_type: 'inheritance'/'field_name'/'field_values'/'reverse_group',
+     *      trps_value: int or string/null/array of int or string,
+     * ]
+     */
+    protected function transposeImport()
+    {
         try {
-            $this->tableDataService->insertMass($this->table, $pack);
+            $tItem = $this->data['transpose_item'];
+            $isDirect = $tItem['direction'] == 'direct';
+            $refTable = (new TableRepository())->getTable($tItem['source_tb_id']);
+
+            $query = (new TableDataQuery($refTable));
+            if (!empty($tItem['row_group_id'])) {
+                $query->applySelectedRowGroup($tItem['row_group_id']);
+            }
+            $query = $query->getQuery();
+
+            if ($isDirect) {
+                $this->transposeImportDirect($query, $refTable);
+            } else {
+                $this->transposeImportReverse($query, $refTable);
+            }
+
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - Transpose General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
+        }
+    }
+
+    /**
+     * @param Builder $query
+     * @param Table $refTable
+     * @return void
+     */
+    protected function transposeImportDirect(Builder $query, Table $refTable): void
+    {
+        try {
+            $tItem = $this->data['transpose_item'];
+
+            $columnCollection = collect($this->data['columns']);
+            $nameFld = $columnCollection->filter(function($col) {
+                return $col['trps_type'] == 'field_name';
+            })->first();
+            $valueFld = $columnCollection->filter(function($col) {
+                return $col['trps_type'] == 'field_values';
+            })->first();
+
+            if (! $nameFld || ! $valueFld) {
+                return;
+            }
+
+            //transpose rows from source table
+            $lines = $query->count();
+            for ($cur = 0; ($cur * $this->pack_len) < $lines; $cur++) {
+
+                $all_rows = $query->offset($cur * $this->pack_len)
+                    ->limit($this->pack_len)
+                    ->get()
+                    ->toArray();
+
+                Import::where('id', '=', $this->import_id)->update([
+                    'complete' => (int)((($cur * $this->pack_len) / $lines) * $this->pack_len)
+                ]);
+
+                $pack = [];
+                foreach ($all_rows as $row) {
+                    $insert = $this->setDefaults($this->data['columns']);
+                    $insert = $this->setCreatedAndModif($insert);
+
+                    //Inheritances
+                    foreach ($this->data['columns'] as $col) {
+                        if (($col['trps_type'] ?? '') == 'inheritance' && !empty($col['trps_value'])) {
+                            $refFld = $refTable->_fields
+                                ->filter(function ($f) use ($col) {
+                                    return $f->id == $col['trps_value'] || $f->name == $col['trps_value'];
+                                })
+                                ->first();
+                            $insert[$col['field']] = $row[$refFld->field] ?? null;
+                        }
+                    }
+
+                    //Transpose
+                    $trpsFields = $refTable->_fields
+                        ->filter(function ($f) use ($valueFld) {
+                            return in_array($f->id, $valueFld['trps_value'])
+                                || in_array($f->name, $valueFld['trps_value']);
+                        });
+                    foreach ($trpsFields as $refFld) {
+                        $insert[$nameFld['field']] = $refFld->name;
+                        $insert[$valueFld['field']] = $row[$refFld->field] ?? null;
+                        if (!$tItem['skip_empty'] || $insert[$valueFld['field']]) {
+                            $pack[] = $insert;
+                        }
+                    }
+                }
+
+                $this->insertPack($pack, 'Transpose');
+            }
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - Transpose DIRECT General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
+        }
+    }
+
+    /**
+     * @param Builder $query
+     * @param Table $refTable
+     * @return void
+     */
+    protected function transposeImportReverse(Builder $query, Table $refTable): void
+    {
+        try {
+            $tItem = $this->data['transpose_item'];
+
+            $grouperValues = collect($this->data['columns'])
+                ->filter(function($col) {
+                    return $col['trps_type'] == 'reverse_group';
+                });
+
+            $grouperFld = $refTable->_fields->where('id', $tItem['grouper_field_id'])->first();
+            $valueFld = $refTable->_fields->where('id', $tItem['reverse_val_field_id'])->first();
+
+            if (! $grouperValues->count() || ! $grouperFld || ! $valueFld) {
+                return;
+            }
+
+            $trpsValues = collect($this->data['columns'])
+                ->where('trps_type', 'inheritance')
+                ->pluck('trps_value')
+                ->toArray();
+            $inheritanceFields = $refTable->_fields
+                ->filter(function ($f) use ($trpsValues) {
+                    return in_array($f->id, $trpsValues)
+                        || in_array($f->name, $trpsValues);
+                })
+                ->pluck('field');
+
+            if ($inheritanceFields->count()) {
+                (clone $query)
+                    ->distinct()
+                    ->select($inheritanceFields)
+                    ->chunk(50, function ($distincts) use ($refTable, $inheritanceFields, $query, $grouperFld, $valueFld, $grouperValues) {
+                        foreach ($distincts as $distinctRow) {
+                            $groupQuery = clone $query;
+                            foreach ($inheritanceFields as $inheritanceField) {
+                                $groupQuery->where($inheritanceField, $distinctRow[$inheritanceField]);
+                            }
+                            $this->transposeImportReverseFillGroup($refTable, $groupQuery, $grouperFld, $valueFld, $grouperValues);
+                        }
+                    });
+            } else {
+                $this->transposeImportReverseFillGroup($refTable, $query, $grouperFld, $valueFld, $grouperValues);
+            }
+
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - Transpose REVERSE General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
+        }
+    }
+
+    /**
+     * @param Table $refTable
+     * @param Builder $query
+     * @param TableField $grouperFld
+     * @param TableField $valueFld
+     * @param $grouperValues
+     * @return void
+     */
+    protected function transposeImportReverseFillGroup(Table $refTable, Builder $query, TableField $grouperFld, TableField $valueFld, $grouperValues): void
+    {
+        try {
+            $rows = $query->get();
+            $firstRow = $rows->first();
+            $idx = 0;
+            $changes = true;
+
+            $pack = [];
+            while ($changes) {
+                $insert = $this->setDefaults($this->data['columns']);
+                $insert = $this->setCreatedAndModif($insert);
+
+                //Inheritances
+                foreach ($this->data['columns'] as $col) {
+                    if (($col['trps_type'] ?? '') == 'inheritance' && !empty($col['trps_value'])) {
+                        $refFld = $refTable->_fields
+                            ->filter(function ($f) use ($col) {
+                                return $f->id == $col['trps_value'] || $f->name == $col['trps_value'];
+                            })
+                            ->first();
+                        $insert[$col['field']] = $firstRow[$refFld->field] ?? null; //First row can be used as we have distinct chunks forInheritances
+                    }
+                }
+
+                //Transpose
+                $changes = false;
+                foreach ($grouperValues as $i => $col) {
+                    $found = $rows->where($grouperFld->field, $col['trps_value'])->values();
+                    $found = $found[$idx] ?? null;
+                    if ($found) {
+                        $changes = true;
+                        $insert[$col['field']] = $found[$valueFld->field] ?? null;
+                    }
+                }
+
+                if ($changes) {
+                    $pack[] = $insert;
+                    $idx++;
+                }
+            }
+
+            $this->insertPack($pack, 'Transpose');
+
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - Transpose REVERSE GROUP General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
+        }
+    }
+
+    // ^^^ Transpose ^^^
+
+    /**
+     * Jira Import
+     *
+     * jira_item: [
+     *      action: 'sync'/'import',
+     *      cloud_id: int,
+     *      project_names: array of strings,
+     *      jql_query: string, - used this or above attribute
+     *      remove_not_found: int,
+     *      add_new_records: int,
+     *      update_changed: int,
+     * ],
+     */
+    protected function jiraImport()
+    {
+        try {
+            $startTime = now();
+
+            $input = $this->data['jira_item'] ?? [];
+            $projects = $input['project_names'] ?? [];
+            $jql = $input['jql_query'] ?? '';
+            $curCount = 0;
+            $maxCounts = count($projects) + ($jql ? 1 : 0);
+            $info = ['added' => 0, 'updated' => 0, 'deleted' => 0];
+
+            foreach ($projects as $pName) {
+                $info = $this->jiraImportProject('project="'.$pName.'"', $curCount, $maxCounts, $info);
+                $curCount += 1;
+            }
+            if ($jql) {
+                $info = $this->jiraImportProject($jql, $curCount, $maxCounts, $info);
+                $curCount += 1;
+            }
+
+            if ($input['action'] == 'sync' && $input['remove_not_found']) {
+                $this->removeNotFoundSyncs($startTime, $info);
+            }
+
+            sleep(3);
 
             (new TableRepository())->onlyUpdateTable($this->table->id, [
-                'num_rows' => $this->table->num_rows + count($pack)
+                'import_last_jira_action' => now($this->user->timezone ?: 'UTC'),
             ]);
         } catch (Exception $e) {
-            Log::info('ImportTableData - Paste Data Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Jira General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
         }
+    }
 
+    /**
+     * @param string $jql
+     * @param int $curCount
+     * @param int $maxCounts
+     * @param array $info
+     * @return array
+     * @throws Exception
+     */
+    protected function jiraImportProject(string $jql, int $curCount, int $maxCounts, array $info): array
+    {
+        $input = $this->data['jira_item'];
+        $isSync = $input['action'] == 'sync';
+        $canAdd = !$isSync || $input['add_new_records'];
+        $canUpdate = !$isSync || $input['update_changed'];
+        $shouldDelete = $input['remove_not_found'] ?? false;
+
+        $api = new JiraApiModule();
+        $tdq = new TableDataQuery($this->table);
+        $rowRepo = new TableDataRepository();
+        $startAt = 0;
+        do {
+            $lastAction = $isSync && !$shouldDelete ? $this->table->import_last_jira_action : '';
+            $issues = $api->issues($input['cloud_id'], $jql, $startAt, $lastAction ?: '');
+
+            $total = $issues['total'];
+            $issues = $issues['issues'];
+
+            $pack = [];
+            foreach ($issues as $iss) {
+                $row = null;
+                if ($isSync) {
+                    $tdq->clearQuery();
+                    $row = $tdq->getQuery()->where('request_id', '=', $this->jiraIssKey($iss))->first();
+                }
+
+                if ( (!$row && !$canAdd) || ($row && !$canUpdate) ) {
+                    continue; //Skip if "add" or "update" is not available
+                }
+
+                if ($row) {
+                    $rowRepo->quickUpdate($this->table, $row['id'], $this->getImportFromDataCols($iss, 'Jira'));
+                    $info['updated'] += 1;
+                } else {
+                    $pack[] = array_merge(
+                        ['request_id' => $this->jiraIssKey($iss)],//For syncing ^
+                        $this->getImportFromDataCols($iss, 'Jira')
+                    );
+                    $info['added'] += 1;
+                }
+            }
+            if ($pack) {
+                $this->insertPack($pack, 'Jira');
+            }
+
+            $startAt += 100;
+            if ($startAt > $total) {
+                $startAt = $total;
+            }
+
+            $complete = (int)(($curCount / $maxCounts) * 100);
+            if ($total) {
+                $complete += (int)(($startAt / $total / $maxCounts) * 100);
+            }
+
+            Import::where('id', '=', $this->import_id)->update([
+                'complete' => $complete,
+                'info' => $this->infoImportDataHtml($info),
+            ]);
+            usleep(100 * 1000);//100ms
+
+        } while ($startAt < $total);
+
+        return $info;
+    }
+
+    /**
+     * @param array $iss
+     * @return string
+     */
+    protected function jiraIssKey(array $iss): string
+    {
+        return $iss['id'] . ':' . Str::limit($iss['key'], 10, '');
+    }
+
+    /**
+     * Salesforce Import
+     *
+     * salesforce_item: [
+     *      action: 'sync'/'import',
+     *      cloud_id: int,
+     *      object_name: string,
+     *      object_id: int,
+     *      remove_not_found: int,
+     *      add_new_records: int,
+     *      update_changed: int,
+     * ],
+     */
+    protected function salesforceImport()
+    {
+        try {
+            $startTime = now();
+
+            $input = $this->data['salesforce_item'] ?? [];
+            $info = ['added' => 0, 'updated' => 0, 'deleted' => 0];
+
+            if ($input['cloud_id'] && $input['object_id']) {
+                $info = $this->salesforceImportObject($input, $info);
+            }
+
+            if ($input['action'] == 'sync' && $input['remove_not_found']) {
+                $this->removeNotFoundSyncs($startTime, $info);
+            }
+
+            sleep(3);
+
+            (new TableRepository())->onlyUpdateTable($this->table->id, [
+                'import_last_salesforce_action' => now($this->user->timezone ?: 'UTC'),
+            ]);
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - Salesforce General Error');
+            Log::channel('jobs')->info($e->getMessage());
+            $this->failed();
+        }
+    }
+
+    /**
+     * @param string $jql
+     * @param int $curCount
+     * @param int $maxCounts
+     * @param array $info
+     * @return array
+     * @throws Exception
+     */
+    protected function salesforceImportObject(array $input, array $info): array
+    {
+        $isSync = $input['action'] == 'sync';
+        $canAdd = !$isSync || $input['add_new_records'];
+        $canUpdate = !$isSync || $input['update_changed'];
+        $shouldDelete = $input['remove_not_found'] ?? false;
+
+        $api = new SalesforceApiModule();
+        $tdq = new TableDataQuery($this->table);
+        $rowRepo = new TableDataRepository();
+        $startAt = 0;
+        do {
+            $lastAction = $isSync && !$shouldDelete ? $this->table->import_last_salesforce_action : '';
+            $response = $api->objectRows($input['cloud_id'], $input['object_id'], $startAt, $lastAction ?: '');
+
+            $total = $response['totalSize'] ?? 100;
+            $records = $response['records'] ?? [];
+
+            $pack = [];
+            foreach ($records as $record) {
+                $row = null;
+                if ($isSync) {
+                    $tdq->clearQuery();
+                    $row = $tdq->getQuery()->where('request_id', '=', $this->salesforceId($record))->first();
+                }
+
+                if ( (!$row && !$canAdd) || ($row && !$canUpdate) ) {
+                    continue; //Skip if "add" or "update" is not available
+                }
+
+                if ($row) {
+                    $rowRepo->quickUpdate($this->table, $row['id'], $this->getImportFromDataCols($record, 'Salesforce'));
+                    $info['updated'] += 1;
+                } else {
+                    $pack[] = array_merge(
+                        ['request_id' => $this->salesforceId($record)],//For syncing ^
+                        $this->getImportFromDataCols($record, 'Salesforce')
+                    );
+                    $info['added'] += 1;
+                }
+            }
+            if ($pack) {
+                $this->insertPack($pack, 'Salesforce');
+            }
+
+            $startAt += 100;
+            if ($startAt > $total) {
+                $startAt = $total;
+            }
+
+            Import::where('id', '=', $this->import_id)->update([
+                'complete' => (int)(($startAt / $total) * 100),
+                'info' => $this->infoImportDataHtml($info),
+            ]);
+            usleep(100 * 1000);//100ms
+
+        } while ($startAt < $total);
+
+        return $info;
+    }
+
+    /**
+     * @param array $row
+     * @return string
+     */
+    protected function salesforceId(array $row): string
+    {
+        return Str::limit($row['Id'], 32, '');
     }
 
     /**
@@ -572,42 +993,19 @@ class ImportTableData implements ShouldQueue
                     continue;
                 }
 
-                $insert = $this->setDefaults($this->data['columns']);
-                //fill only those data columns which numbers are setted in 'table columns settings'
-                foreach ($this->data['columns'] as $col) {
-                    if (!in_array($col['field'], $this->service->system_fields)) {
-                        try {
-                            $present_val = trim($row[$col['col'] ?? null] ?? '');
-                            $insert[$col['field']] = $this->dataConverter($row, $col, $present_val);
-                        } catch (Exception $e) {
-                            Log::info('ImportTableData - Google Sheets Preparing Error');
-                            Log::info($e->getMessage());
-                        }
-                    }
-                }
-                $insert = $this->setCreatedAndModif($insert);
-
-                $pack[] = $insert;
+                $pack[] = $this->getImportFromDataCols($row, 'Google Sheets');
 
                 if (count($pack) == $this->pack_len || $row_idx == ($lines - 1)) {
-                    try {
-                        $this->tableDataService->insertMass($this->table, $pack);
-
-                        (new TableRepository())->onlyUpdateTable($this->table->id, [
-                            'num_rows' => $this->table->num_rows + count($pack)
-                        ]);
-                    } catch (Exception $e) {
-                        Log::info('ImportTableData - Google Sheets Saving Error');
-                        Log::info($e->getMessage());
-                    }
+                    Import::where('id', '=', $this->import_id)->update([
+                        'complete' => (int)(($row_idx / $lines) * 100),
+                    ]);
+                    $this->insertPack($pack, 'Google Sheets');
                     $pack = [];
                 }
-
             }
-
         } catch (Exception $e) {
-            Log::info('ImportTableData - Google Sheets Data Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Google Sheets General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -639,42 +1037,21 @@ class ImportTableData implements ShouldQueue
                     continue;
                 }
 
-                $insert = $this->setDefaults($this->data['columns']);
-                //fill only those data columns which numbers are setted in 'table columns settings'
-                foreach ($this->data['columns'] as $col) {
-                    if (!in_array($col['field'], $this->service->system_fields)) {
-                        try {
-                            $present_val = trim($row[$col['col'] ?? null] ?? '');
-                            $insert[$col['field']] = $this->dataConverter($row, $col, $present_val);
-                        } catch (Exception $e) {
-                            Log::info('ImportTableData - Web Scraping Preparing Error');
-                            Log::info($e->getMessage());
-                        }
-                    }
-                }
-                $insert = $this->setCreatedAndModif($insert);
-
-                $pack[] = $insert;
+                $pack[] = $this->getImportFromDataCols($row, 'Web Scrap');
 
                 if (count($pack) == $this->pack_len || $row_idx == ($lines - 1)) {
-                    try {
-                        $this->tableDataService->insertMass($this->table, $pack);
-
-                        (new TableRepository())->onlyUpdateTable($this->table->id, [
-                            'num_rows' => $this->table->num_rows + count($pack)
-                        ]);
-                    } catch (Exception $e) {
-                        Log::info('ImportTableData - Web Scrap Saving Error');
-                        Log::info($e->getMessage());
-                    }
+                    Import::where('id', '=', $this->import_id)->update([
+                        'complete' => (int)(($row_idx / $lines) * 100),
+                    ]);
+                    $this->insertPack($pack, 'Web Scrap');
                     $pack = [];
                 }
 
             }
 
         } catch (Exception $e) {
-            Log::info('ImportTableData - Web Scrap Data Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Web Scrap General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -711,8 +1088,8 @@ class ImportTableData implements ShouldQueue
             }
             $importer->createDDLs($this->table);
         } catch (Exception $e) {
-            Log::info('ImportTableData - Airtable Import Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Airtable General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -743,14 +1120,14 @@ class ImportTableData implements ShouldQueue
                         $this->tableDataService->insertMass($this->table, $pack);
                         $pack = [];
                     } catch (Exception $e) {
-                        Log::info('ImportTableData - Chart Export Insert Error');
-                        Log::info($e->getMessage());
+                        Log::channel('jobs')->info('ImportTableData - Chart Export Insert Error');
+                        Log::channel('jobs')->info($e->getMessage());
                     }
                 }
             }
         } catch (Exception $e) {
-            Log::info('ImportTableData - Chart Export Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Chart General Error');
+            Log::channel('jobs')->info($e->getMessage());
             $this->failed();
         }
     }
@@ -774,8 +1151,8 @@ class ImportTableData implements ShouldQueue
                     try {
                         $insert[$col['field']] = trim($present_val);
                     } catch (Exception $e) {
-                        Log::info('ImportTableData - Airtable Preparing Error');
-                        Log::info($e->getMessage());
+                        Log::channel('jobs')->info('ImportTableData - Airtable Preparing Error');
+                        Log::channel('jobs')->info($e->getMessage());
                     }
                 }
             }
@@ -786,17 +1163,114 @@ class ImportTableData implements ShouldQueue
                 $importer->moveAttachRowToArray($new_id);
                 $pack++;
             } catch (Exception $e) {
-                Log::info('ImportTableData - Airtable Insert Error');
-                Log::info($e->getMessage());
+                Log::channel('jobs')->info('ImportTableData - Airtable Insert Error');
+                Log::channel('jobs')->info($e->getMessage());
             }
         }
+
+        $this->storeAirtableRowsCount += 5;
+        Import::where('id', '=', $this->import_id)->update([
+            'complete' => min(99, $this->storeAirtableRowsCount),
+        ]);
 
         //DOWNLOAD AND SAVE ATTACHMENTS
         try {
             $importer->saveAttachmentsFiles($this->table);
         } catch (Exception $e) {
-            Log::info('ImportTableData - Airtable File Parsing Error');
-            Log::info($e->getMessage());
+            Log::channel('jobs')->info('ImportTableData - Airtable General Error');
+            Log::channel('jobs')->info($e->getMessage());
         }
+    }
+
+    /**
+     * @param array $pack
+     * @param string $msg
+     * @return void
+     */
+    protected function insertPack(array $pack, string $msg)
+    {
+        try {
+            $this->tableDataService->insertMass($this->table, $pack);
+            (new TableRepository())->onlyUpdateTable($this->table->id, [
+                'num_rows' => $this->table->num_rows + count($pack)
+            ]);
+        } catch (Exception $e) {
+            Log::channel('jobs')->info('ImportTableData - '.$msg.' Saving Error');
+            Log::channel('jobs')->info($e->getMessage());
+        }
+    }
+
+    /**
+     * @param $sourceData
+     * @param string $msg
+     * @return array
+     */
+    protected function getImportFromDataCols($sourceData, string $msg): array
+    {
+        $insert = $this->setDefaults($this->data['columns']);
+        //fill only those data columns which numbers are setted in 'table columns settings'
+        foreach ($this->data['columns'] as $col) {
+            if (!in_array($col['field'], $this->service->system_fields)) {
+                try {
+                    switch ($this->data['import_type']) {
+                        case 'jira_import': $present_val = JiraApiModule::fromIssueReceive($sourceData, $col['last_col_corr'] ?? '');
+                            break;
+                        case 'salesforce_import': $present_val = trim($sourceData[$col['last_col_corr'] ?? ''] ?? '');
+                            break;
+                        default: $present_val = trim($sourceData[$col['col'] ?? null] ?? '');
+                            break;
+                    }
+
+                    $insert[$col['field']] = $this->dataConverter($col, $present_val);
+                } catch (Exception $e) {
+                    Log::channel('jobs')->info('ImportTableData - '.$msg.' Source Importing Error');
+                    Log::channel('jobs')->info($e->getMessage());
+                }
+            }
+        }
+        return $this->setCreatedAndModif($insert);
+    }
+
+    /**
+     * @param array $info
+     * @return string
+     */
+    protected function infoImportDataHtml(array $info): string
+    {
+        $str = '';
+        if ($info['updated'] > 0) {
+            $str .= '<div>'.$info['updated'].' records have been updated.</div>';
+        }
+        if ($info['added'] > 0) {
+            $str .= '<div>'.$info['added'].' new records have been imported.</div>';
+        }
+        if ($info['deleted'] > 0) {
+            $str .= '<div>'.$info['deleted'].' records(not found in source) have been removed.</div>';
+        }
+        return $str;
+    }
+
+    /**
+     * @param $time
+     * @param array $info
+     * @return array
+     */
+    protected function removeNotFoundSyncs($time, array $info): array
+    {
+        $repo = new TableDataRepository();
+
+        $info['deleted'] = $repo->getTDQ($this->table)
+            ->where('updated_at', '<', $time)
+            ->count();
+
+        $repo->getTDQ($this->table)
+            ->where('updated_at', '<', $time)
+            ->delete();
+
+        Import::where('id', '=', $this->import_id)->update([
+            'info' => $this->infoImportDataHtml($info),
+        ]);
+
+        return $info;
     }
 }

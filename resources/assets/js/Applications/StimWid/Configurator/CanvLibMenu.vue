@@ -147,6 +147,56 @@
         </div>
 
         <div v-show="!collapse"
+             v-if="elevs_list"
+             class="menu__elem"
+             :class="(opened_key === 'elev' ? 'flex__elem-remain flex flex--col' : '')"
+        >
+            <div class="elem__head">
+                <button class="btn btn-default blue-gradient"
+                        :style="$root.themeButtonStyle"
+                        @click="opened_key = (opened_key === 'elev' ? '' : 'elev')"
+                >Elevs LIB</button>
+            </div>
+            <div v-show="opened_key === 'elev'" class="elem__body flex flex--col">
+                <i class="fa fa-plus" @click="addPopupHandler('elev')"></i>
+                <div class="body__overflow flex flex--col flex--center-v" @click.self="cclear()">
+                    <div class="body__item" v-for="elev in elevs_list" v-if="echeck(elev)">
+                        <canv-group-elev
+                                :elev="elev"
+                                :settings="settings"
+                                @right-click="sett_object = elev; popupElem('elev');"
+                        ></canv-group-elev>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-show="!collapse"
+             v-if="azimuth_list"
+             class="menu__elem"
+             :class="(opened_key === 'azimuth' ? 'flex__elem-remain flex flex--col' : '')"
+        >
+            <div class="elem__head">
+                <button class="btn btn-default blue-gradient"
+                        :style="$root.themeButtonStyle"
+                        @click="opened_key = (opened_key === 'azimuth' ? '' : 'azimuth')"
+                >Azimuths</button>
+            </div>
+            <div v-show="opened_key === 'azimuth'" class="elem__body flex flex--col">
+                <i class="fa fa-plus" @click="addPopupHandler('azimuth')"></i>
+                <div class="body__overflow flex flex--col flex--center-v" @click.self="cclear()">
+                    <div class="body__item" v-for="az in azimuth_list">
+                        <canv-group-azimuth
+                                :azimuth="az"
+                                :settings="settings"
+                                @right-click="sett_object = az; popupElem('azimuth');"
+                        ></canv-group-azimuth>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-show="!collapse"
              v-if="secpos_list"
              class="menu__elem"
              :class="(opened_key === 'secpos' ? 'flex__elem-remain flex flex--col' : '')"
@@ -200,6 +250,7 @@
 </template>
 
 <script>
+    import {Elev} from './Elev';
     import {Eqpt} from './Eqpt';
     import {Settings} from './Settings';
 
@@ -208,13 +259,18 @@
     import CanvGroupTech from "./CanvGroupTech";
     import CanvGroupStatus from "./CanvGroupStatus";
     import CanvGroupSecpos from "./CanvGroupSecpos";
+    import CanvGroupElev from "./CanvGroupElev";
+    import CanvGroupAzimuth from "./CanvGroupAzimuth";
 
     export default {
         name: 'LibMenu',
         mixins: [
         ],
         components: {
-            CanvGroupSecpos, CanvGroupStatus,
+            CanvGroupAzimuth,
+            CanvGroupElev,
+            CanvGroupSecpos,
+            CanvGroupStatus,
             CanvGroupTech,
             CanvGroupLine,
             CanvGroupEqpt,
@@ -253,6 +309,8 @@
             tech_list: Array,
             status_list: Array,
             secpos_list: Array,
+            elevs_list: Array,
+            azimuth_list: Array,
             px_in_ft: Number,
             ex_height: String,
             def_collapse: Boolean,
@@ -284,7 +342,9 @@
                     case 'eqpt_lib': row_id = this.sett_object._eqptlib_id; break;
                     case 'feedline': row_id = this.sett_object._feedline_id; break;
                     case 'line_lib': row_id = this.sett_object._linelib_id; break;
+                    case 'azimuth':
                     case 'tech':
+                    case 'elev':
                     case 'status': row_id = this.sett_object._id; break;
                 }
                 this.$emit('popup-elem', category, row_id);
@@ -303,6 +363,9 @@
                 this.settings.clearSel();
                 this.sett_type = null;
                 this.sett_object = null;
+            },
+            echeck(elev) {
+                return Elev.availableType(this.settings, elev);
             },
         },
         mounted() {

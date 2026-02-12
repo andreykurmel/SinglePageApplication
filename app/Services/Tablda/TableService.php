@@ -3,23 +3,30 @@
 namespace Vanguard\Services\Tablda;
 
 
+use Exception;
+use Illuminate\Support\Collection;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Country;
+use Vanguard\Jobs\WatchMirrorValues;
 use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Correspondences\CorrespField;
+use Vanguard\Models\Correspondences\CorrespStim3D;
 use Vanguard\Models\CountryData;
 use Vanguard\Models\Dcr\TableDataRequest;
+use Vanguard\Models\FormulaHelper;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
 use Vanguard\Models\Table\TableFieldLink;
+use Vanguard\Models\Table\TableView;
 use Vanguard\Models\Table\UserHeaders;
 use Vanguard\Models\UnitConversion;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\Plan;
 use Vanguard\Models\User\UserCloud;
 use Vanguard\Modules\Permissions\PermissionObject;
+use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\ImportRepository;
@@ -28,17 +35,20 @@ use Vanguard\Repositories\Tablda\Permissions\TableDataRequestRepository;
 use Vanguard\Repositories\Tablda\Permissions\TablePermissionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
+use Vanguard\Repositories\Tablda\TableAlertsRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
+use Vanguard\Repositories\Tablda\TableGroupingRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\TableSimplemapRepository;
+use Vanguard\Repositories\Tablda\TableTournamentRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Repositories\Tablda\UploadingFileFormatsRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
 use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
 use Vanguard\Singletones\AuthUserSingleton;
-use Vanguard\Support\DirectDatabase;
 use Vanguard\User;
 
 class TableService
@@ -94,7 +104,7 @@ class TableService
      * @param $user_id
      * @return mixed
      */
-    public function updateTable($table_id, Array $data, $user_id)
+    public function updateTable($table_id, array $data, $user_id)
     {
         if (
             !empty($data['name'])
@@ -104,6 +114,19 @@ class TableService
             $this->tableRepository->testNameOnLvl($data['name'], $data['_folder_id'], $user_id)
         ) {
             return ['error' => true, 'msg' => 'Node Name Taken. Enter a Different Name.'];
+        }
+
+        $old_tb = $this->getTable($table_id);
+        if (!empty($data['max_mirrors_in_one_row']) && $data['max_mirrors_in_one_row'] != $old_tb->max_mirrors_in_one_row) {
+            dispatch(new WatchMirrorValues($old_tb->id));
+        }
+
+        if (!empty($data['name']) && $data['name'] != $old_tb->name) {
+            (new FolderService())->syncPrivateWithPublicShared();
+        }
+
+        if (!empty($data['rows_per_page']) && $data['rows_per_page'] != $old_tb->rows_per_page) {
+            $old_tb->activateVirtualScrollIfNeeded();
         }
 
         if ($data['_changed_prop_name'] ?? '') {
@@ -139,9 +162,9 @@ class TableService
         $auth = app(AuthUserSingleton::class);
         $folder_tree = $auth->getMenuTree();
 
-        $needed_type = preg_match('/\/$/i', $path) ? ['folder'] : ['table','link'];
-        $folders_arr = array_filter( explode('/', $path) );
-        $object_name = strtolower(array_pop($folders_arr));
+        $needed_type = preg_match('/\/$/i', $path) ? ['folder'] : ['table', 'link', 'page'];
+        $folders_arr = array_filter(explode('/', $path));
+        $object_name = $this->lowerData(array_pop($folders_arr));
 
         if ($this->service->cur_subdomain == $this->service->public_subdomain) {
             //get table or folder from 'public' tab
@@ -160,7 +183,20 @@ class TableService
                 ];
             }
         }
+
+        if ($object['type'] == 'link') {
+            $object['type'] = 'table';
+        }
         return $object;
+    }
+
+    /**
+     * @param string $input
+     * @return string
+     */
+    protected function lowerData(string $input): string
+    {
+        return urldecode(strtolower($input));
     }
 
     /**
@@ -181,17 +217,17 @@ class TableService
         if (!count($folders_arr)) {
             foreach ($sub_tree as $item) {
                 $accept_type = !$type || in_array($item['li_attr']['data-type'], $type);
-                if (strtolower($item['init_name']) == $object_name && $accept_type) {
+                if ($this->lowerData($item['init_name']) == $object_name && $accept_type) {
                     $object = [
-                        'type' => $item['li_attr']['data-type'] == 'folder' ? 'folder' : 'table',
-                        'id' => $item['li_attr']['data-object']['id']
+                        'type' => $item['li_attr']['data-type'],
+                        'id' => $item['li_attr']['data-id']
                     ];
                 }
             }
         } else {
-            $folder = strtolower(array_shift($folders_arr));
+            $folder = $this->lowerData(array_shift($folders_arr));
             foreach ($sub_tree as $item) {
-                if (strtolower($item['init_name']) == $folder && $item['li_attr']['data-type'] == 'folder') {
+                if ($this->lowerData($item['init_name']) == $folder && $item['li_attr']['data-type'] == 'folder') {
                     $object = $this->findInTree($object_name, $folders_arr, $item['children'], $type);
                 }
             }
@@ -221,47 +257,54 @@ class TableService
     /**
      * Test that exists table request.
      *
-     * @param $code (stings with 'hash' or 'table_id/.../user_link'
+     * @param $code (stings with 'hash' or 'table_id/.../user_link' or 'custom url'
      * @return TableDataRequest
      */
     public function tableRequest($code)
     {
-        //user_link disabled for DCR.
-        /*$path = explode('/', $code);
-        if (count($path) > 1) {
-            $tb_hash = array_first($path);
-            $user_link = array_last($path);
-            $sql = TableDataRequest::whereHas('_table', function ($q) use ($tb_hash) {
-                    $q->where('hash', $tb_hash);
-                })
-                ->where('user_link', $user_link);
-        } else {
-            $sql = TableDataRequest::where('link_hash', $code);
-        }*/
-        return (TableDataRequest::where('link_hash', $code))
+        $dcr = TableDataRequest::where('custom_url', '=', $code)
             ->where('active', 1)
-            ->with([ '_dcr_linked_tables' ])
+            ->whereHas('_user', function ($q) {
+                $q->where('subdomain', '=', $this->service->cur_subdomain);
+            })
             ->first();
+        if (!$dcr) {
+            $dcr = TableDataRequest::where('link_hash', '=', $code)
+                ->where('active', 1)
+                ->first();
+        }
+
+        if ($dcr) {
+            $dcr->load(['_dcr_linked_tables', '_fields_pivot', '_default_fields', '_dcr_rights', '_data_request_columns']);
+            return $dcr;
+        } else {
+            return null;
+        }
     }
 
     /**
      * Test that view exists.
      *
      * @param $hash
-     * @return \Vanguard\Models\Table\TableView
+     * @return TableView
      */
     public function viewExists($hash)
     {
-        $path = explode('/', $hash);
-        if (count($path) > 1) {
-            $view = $this->tableViewRepository->getByTbIdNameAndAddress($path);
-        } else {
-            $view = $this->tableViewRepository->getByHash($hash);
+        $view = $this->tableViewRepository->getByCustomUrl($hash);
+
+        if (!$view) {
+            $path = explode('/', $hash);
+            if (count($path) > 1) {
+                $view = $this->tableViewRepository->getByTbIdNameAndAddress($path);
+            } else {
+                $view = $this->tableViewRepository->getByHash($hash);
+            }
         }
+
         if ($view) {
             $view->_for_user_or_active = $view->is_active
                 || $view->user_id == auth()->id()
-                || $view->_table_permissions()->applyIsActiveForUserOrPermission( auth()->id() )->count();
+                || $view->_table_permissions()->applyIsActiveForUserOrPermission(auth()->id())->count();
         }
         return $view;
     }
@@ -299,13 +342,38 @@ class TableService
             if ($table->_owner_settings && $table->_owner_settings->initial_view_id > 0) {
                 $view_object = $table->_owner_settings->_initial_view()->first();
                 $data = $view_object->data ?? null;
-            } elseif ($table->_owner_settings && $table->_owner_settings->initial_view_id == 0) {
+            } elseif ($table->_owner_settings && $table->_owner_settings->initial_view_id == -1) {
                 $data = $table->_cur_statuse ? $table->_cur_statuse->status_data : null;
             } else {
                 $data = null;
             }
         }
         return $data ?: '{}';
+    }
+
+    /**
+     * @param string $view_hash
+     * @param Table|null $table
+     * @return array
+     */
+    public function findViewCols(string $view_hash, Table $table = null): array
+    {
+        $view_object = $this->tableViewRepository->getByHash($view_hash);
+        if ($table) {
+            $table->__data_permission_id = $view_object->access_permission_id ?? -1;//View Permission OR View without Permissions
+        }
+        $v_data = $view_object ? json_decode($view_object->data, 1) : [];
+        $view_cols['temp_hidden'] = $view_object && $view_object->can_hide ? ($v_data['hidden_columns'] ?? []) : [];//view temp hidden columns
+        $view_cols['orders'] = $view_object && $view_object->column_order ? ($v_data['order_columns'] ?? []) : [];//view order columns
+        $view_cols['visible'] = [];//view order columns // $v_data['visible'] ?? []
+        if ($view_object && $view_object->_col_group) {
+            $from_col = $view_object->_col_group->_fields()
+                ->select('field')
+                ->get()
+                ->pluck('field');
+            $view_cols['visible'] = array_merge($view_cols['visible'], $from_col->toArray());
+        }
+        return $view_cols;
     }
 
     /**
@@ -337,19 +405,7 @@ class TableService
         $table->__data_dcr_id = null;
 
         if ($view_hash) {
-            $view_object = $this->tableViewRepository->getByHash($view_hash);
-            $table->__data_permission_id = $view_object->access_permission_id ?? -1;//View Permission OR View without Permissions
-            $v_data = $view_object ? json_decode($view_object->data, 1) : [];
-            $view_cols['temp_hidden'] = $view_object && $view_object->can_hide ? ($v_data['hidden_columns'] ?? []) : [];//view temp hidden columns
-            $view_cols['orders'] = $view_object && $view_object->column_order ? ($v_data['order_columns'] ?? []) : [];//view order columns
-            $view_cols['visible'] = [];//view order columns // $v_data['visible'] ?? []
-            if ($view_object && $view_object->_col_group) {
-                $from_col = $view_object->_col_group->_fields()
-                    ->select('field')
-                    ->get()
-                    ->pluck('field');
-                $view_cols['visible'] = array_merge($view_cols['visible'], $from_col->toArray());
-            }
+            $view_cols = $this->findViewCols($view_hash, $table);
         } else {
             $table->__data_dcr_id = $special_params['table_dcr_id'] ?? null;//DCR right
         }
@@ -366,32 +422,28 @@ class TableService
             $this->tableRepository->loadCondFormats($table, $permis->is_owner);
             $this->tableRepository->loadOwnerSettings($table);
             $table->load([
+                '_fields_pivot', //SRV
+                '_saved_filters:id,table_id,user_id,name,related_colgroup_id',
                 '_user' => function ($q) {
                     $q->with('_subscription', '_available_features:id,q_tables,row_table');
-                    $q->select('id','email','username','plan_feature_id');
+                    $q->select('id', 'email', 'username', 'plan_feature_id');
                 },
                 '_theme',
                 '_cur_settings',
-                '_ddls' => function ($d) {
-                    $d->with([
-                        '_items',
-                        '_references' => function ($q) {
-                            $q->with('_reference_colors');
-                        },
-                    ]);
-                },
                 '_views' => function ($v) use ($table, $permis) {
                     $v->with('_view_rights', '_filtering');
                     $v->where('user_id', $permis->is_owner);
-                    if (!$permis->is_owner && $table->__data_permission_id != -1) {
+                    $vPermisId = $this->service->viewPermissionId($table);
+                    if (!$permis->is_owner && $vPermisId != -1) {
                         //get only 'shared' tableViews for regular User.
-                        $v->orWhereHas('_table_permissions', function ($tp) use ($table) {
-                            $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
+                        $v->orWhereHas('_table_permissions', function ($tp) use ($vPermisId) {
+                            $tp->applyIsActiveForUserOrPermission($vPermisId);
                         });
                     }
                 },
                 '_user_notes',
                 '_row_groups' => function ($q) use ($permis, $table) {
+                    $q->orderBy('is_system', 'desc');
                     $q->with('_regulars');
                     if (!$permis->is_owner) {
                         //get only 'shared' rowGroups for regular User.
@@ -399,32 +451,12 @@ class TableService
                     }
                 },
                 '_column_groups' => function ($q) use ($permis, $table) {
+                    $q->orderBy('is_system', 'desc');
                     $q->with('_fields');
                     if (!$permis->is_owner) {
                         //get only 'shared' columnGroups for regular User.
-                        $q->whereIn('id', $permis->shared_col_groups );
+                        $q->whereIn('id', $permis->shared_col_groups);
                     }
-                },
-                '_ref_conditions' => function ($q) {
-                    $q->with([
-                        '_ref_table' => function ($rt) { // optimise DB requests for getting '_src_table_link' below
-                            $rt->with([
-                                '_link_initial_folder' => function ($lif) {
-                                    $lif->with([
-                                        '_folder' => function ($f) {
-                                            $f->with('_root_folders');
-                                        }
-                                    ]);
-                                },
-                                '_fields' => function ($f) {
-                                    $f->joinOwnerHeader();
-                                },
-                            ]);
-                        },
-                        '_items' => function ($i) {
-                            $i->with('_field', '_compared_field');
-                        }
-                    ]);
                 },
                 '_attached_files',
                 '_link_initial_folder' => function ($lif) {
@@ -435,6 +467,13 @@ class TableService
                     ]);
                 }
             ]);
+            $table->_gen_row_groups = $table->_row_groups()->select('id', 'name')->get();
+            $table->_gen_col_groups = $table->_column_groups()
+                ->with('_fields:table_fields.id,table_fields.name,table_fields.field')
+                ->select('id', 'name')
+                ->get();
+            (new DDLRepository())->loadForTable($table);
+            (new TableRefConditionRepository())->loadForTable($table);
 
             //set Settings from Owner if they are not available
             if (!$table->_is_owner && $table->_current_right && !$table->_current_right->can_edit_tb) {
@@ -462,6 +501,12 @@ class TableService
                 $t_link = $this->getLinkSrc($table, $t_link);
             }
         }
+        //no '_permis_hidden'
+        if ($special_params['no_permission_hidden'] ?? []) {
+            foreach ($table_fields as $t_field) {
+                $t_field['_permis_hidden'] = ! in_array($t_field['id'], $special_params['no_permission_hidden']);
+            }
+        }
         $table->setRelation('_fields', $table_fields);
 
         $table->icons_array =
@@ -475,105 +520,119 @@ class TableService
         //get total rows count
         try {
             $table->_rows_count = (new TableDataQuery($table))->getQuery()->count();
-        } catch (\Exception $e) {}
+        } catch (Exception $e) {
+        }
 
         return $table;
     }
 
     /**
      * @param Table $table
+     * @param PermissionObject $permis
      * @param $user_id
-     * @param $user_owner_id
+     * @return void
+     * @throws Exception
      */
     private function loadMoreTableSettings(Table $table, PermissionObject $permis, $user_id)
     {
-        //Load Charts for Table
-        if ($table->add_bi) {
-            //saved Charts for BI
-            $table->_charts_saved = $table->_charts()
-                ->with([
-                    '_table_permissions' => function ($tp) use ($table) {
-                        $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
-                        $tp->with([
-                            '_addons' => function ($adn) { $adn->isBi(); }
-                        ]);
-                    }
-                ])
-                ->where(function ($v) use ($table, $user_id, $permis) {
+        $vPermisId = $this->service->viewPermissionId($table);
+        //Load Charts for Table 'add_bi'
+        (new ChartService())->emptyChartsToTab($table);
+        //saved Charts for BI
+        $table->load([
+            '_bi_charts' => function ($q) use ($table, $user_id, $permis, $vPermisId) {
+                $q->where(function ($v) use ($table, $user_id, $permis, $vPermisId) {
                     $v->where('user_id', '=', $permis->is_owner);
-                    if (!$permis->is_owner && $table->__data_permission_id != -1) {
+                    if (!$permis->is_owner && $vPermisId != -1) {
                         //get only 'shared' tableCharts for regular User.
-                        $v->orWhereHas('_table_permissions', function ($tp) use ($table) {
-                            $tp->applyIsActiveForUserOrPermission($table->__data_permission_id);
+                        $v->orWhereHas('_table_permissions', function ($tp) use ($table, $vPermisId) {
+                            $tp->applyIsActiveForUserOrPermission($vPermisId);
                         });
                     }
-                })
-                ->get();
-
-            //Global settings for BI
-            $adns = $table->_charts_saved->pluck('_table_permissions')
-                ->flatten()->pluck('_addons')
-                ->flatten()->pluck('_link');
-            $table->_collaborator_bi_settings = [
-                '_is_owner' => !!$permis->is_owner,
-                'avail_fix_layout' => $adns->where('lockout_layout', '=', 1)->count(),
-                'avail_can_add' => $adns->where('add_new', '=', 1)->count(),
-                'avail_hide_settings' => $adns->where('hide_settings', '=', 1)->count(),
-                'avail_cell_spacing' => $adns->where('block_spacing', '=', 1)->count(),
-                'avail_cell_height' => $adns->where('vert_grid_step', '=', 1)->count(),
-            ];
-
-            //decode jsons
-            foreach ($table->_charts_saved as $chart) {
-                $chart->active = true;
-                $chart->chart_settings = json_decode($chart->chart_settings);
-                $chart->cached_data = json_decode($chart->cached_data);
-                $chart->_can_edit = ($permis->is_owner) || ($chart->_table_permissions->where('_right.can_edit', '=', 1)->count());
-                $chart->__gs_hash = Uuid::uuid4();
-                unset($chart->_table_permissions);
-                unset($chart->_chart_right);
-            }
-        }
-        //^^^
-
-        //Load Alerts
-        if ($table->add_alert || $table->_is_owner) {
-            $table->load([
-                '_alerts' => function ($q) use ($table, $user_id) {
-
-                    if ($user_id != $table->user_id) {
-                        $q->isAvailForUser($user_id);
-
-                        //'can_edit' permission
-                        $q->with([
-                            '_table_permissions' => function ($tp) {
-                                $tp->isActiveForUserOrVisitor();
+                });
+                $q->with([
+                    '_table_permissions' => function ($tp) use ($table, $vPermisId) {
+                        $tp->applyIsActiveForUserOrPermission($vPermisId);
+                        $tp->with([
+                            '_addons' => function ($adn) {
+                                $adn->isBi();
                             }
                         ]);
-                    }
+                    },
+                    '_chart_rights',
+                ]);
+            },
+            '_chart_tabs',
+        ]);
 
-                    $q->with([
-                        '_alert_rights',
-                        '_conditions',
-                        '_ufv_tables' => function($q) {
-                            $q->with('_ufv_fields');
-                        },
-                        '_anr_tables' => function($q) {
-                            $q->with('_anr_fields');
-                        },
-                    ]);
-                },
-            ]);
-            foreach ($table->_alerts as $alert) {
-                $alert->_can_edit = ($user_id == $table->user_id && !$table->__data_permission_id)
-                    || ($alert->_table_permissions->where('_right.can_edit', '=', 1)->count());
-                unset($alert->_table_permissions);
+        //Global settings for BI
+        $adns = $table->_bi_charts->pluck('_table_permissions')
+            ->flatten()->pluck('_addons')
+            ->flatten()->pluck('_link');
+        $table->_collaborator_bi_settings = [
+            '_is_owner' => !!$permis->is_owner,
+            'avail_fix_layout' => $adns->where('lockout_layout', '=', 1)->count(),
+            'avail_can_add' => $adns->where('add_new', '=', 1)->count(),
+            'avail_hide_settings' => $adns->where('hide_settings', '=', 1)->count(),
+            'avail_cell_spacing' => $adns->where('block_spacing', '=', 1)->count(),
+            'avail_cell_height' => $adns->where('vert_grid_step', '=', 1)->count(),
+            'avail_corner_radius' => $adns->where('crnr_radius', '=', 1)->count(),
+        ];
+
+        //decode jsons
+        foreach ($table->_bi_charts as $i => $chart) {
+            $chart_ar = $chart->toArray();
+            unset($chart_ar['_table_permissions']);
+            if (!$table->_is_owner) {
+                unset($chart_ar['_chart_right']);
             }
+
+            $chart_ar['active'] = true;
+            $chart_ar['chart_settings'] = json_decode($chart->chart_settings);
+            $chart_ar['cached_data'] = json_decode($chart->cached_data);
+            $chart_ar['_can_edit'] = ($permis->is_owner) || ($chart->_table_permissions->where('_right.can_edit', '=', 1)->count());
+            $chart_ar['__gs_hash'] = Uuid::uuid4();
+            $table->_bi_charts[$i] = $chart_ar;
         }
         //^^^
 
-        $_tb_requests = (new TableDataRequestRepository())->loadWithRelations($table->id)->get();
-        $table->setRelation('_table_requests', $_tb_requests);
+        //Load Alerts 'add_alert'
+        $table->load([
+            '_alerts' => function ($q) use ($table, $user_id) {
+
+                if ($user_id != $table->user_id) {
+                    $q->isAvailForUser($user_id);
+
+                    //'can_edit' permission
+                    $q->with([
+                        '_table_permissions' => function ($tp) {
+                            $tp->isActiveForUserOrVisitor();
+                        }
+                    ]);
+                }
+
+                $q->with(TableAlertsRepository::relations());
+            },
+        ]);
+        foreach ($table->_alerts as $alert) {
+            $alert->_can_edit = ($user_id == $table->user_id && !$vPermisId)
+                || ($alert->_table_permissions->where('_right.can_edit', '=', 1)->count());
+            unset($alert->_table_permissions);
+        }
+        //^^^
+
+        //Load Kanban settings for table with relative Addon 'add_kanban'
+        $table->load([
+            '_kanban_settings' => function ($q) use ($table, $permis, $vPermisId) {
+                if (!$permis->is_owner && $vPermisId != -1) {
+                    //get only 'shared' tableCharts for regular User.
+                    $q->whereHas('_table_permissions', function ($tp) use ($table, $vPermisId) {
+                        $tp->applyIsActiveForUserOrPermission($vPermisId);
+                    });
+                }
+                $q->with('_fields_pivot', '_kanban_rights', '_group_params');
+            },
+        ]);
 
         $_table_permissions = $this->getTbPermissions($table);
         $table->setRelation('_table_permissions', $_table_permissions);
@@ -587,19 +646,12 @@ class TableService
 
         // GET ADDITIONAL TABLE SETTINGS FOR OWNER
         if ($table->_is_owner) {
-
-            $table->__incoming_links = DirectDatabase::loadIncomingLinks($table->id);
-
             $table->load([
                 '_table_references' => function ($q) {
                     $q->with(['_reference_corrs']);
                 },
                 '_communications' => function ($q) {
                     $q->with('_from_user', '_to_user', '_to_user_group');
-                },
-                '_charts' => function ($q) use ($user_id) {
-                    $q->where('user_id', '=', $user_id);
-                    $q->with('_chart_rights');
                 },
                 '_backups',
             ]);
@@ -620,20 +672,35 @@ class TableService
 
             //get owner theme
             $owner = User::where('id', $table->user_id)->first();
-            $table->_owner_theme = AppTheme::where('id', ($owner ? $owner->app_theme_id : null) )->first();
+            $table->_owner_theme = AppTheme::where('id', ($owner ? $owner->app_theme_id : null))->first();
 
         }
 
         $this->preloadUnitConvers($table);
 
-        (new TableEmailAddonService())->loadForTable($table);
+        (new TableSimplemapRepository())->loadForTable($table, $user_id);//Load relations for 'add_simplemap'
+        (new TableDataRequestRepository())->loadForTable($table, $user_id);//Load relations for 'add_request'
+        (new TableTournamentRepository())->loadForTable($table, $user_id);//Load relations for 'add_tournament'
+        (new TableGroupingRepository())->loadForTable($table, $user_id);//Load relations for 'add_grouping'
+        (new TableEmailAddonService())->loadForTable($table, $user_id);//Load relations for 'add_email'
+        (new TableTwilioAddonService())->loadForTable($table, $user_id);//Load relations for 'add_twilio'
+        (new TableGanttService())->loadForTable($table, $user_id);//Load relations for 'add_gantt'
+        (new TableMapService())->loadForTable($table, $user_id);//Load relations for 'add_map'
+        (new TableCalendarService())->loadForTable($table, $user_id);//Load relations for 'add_calendar'
+        (new TableReportService())->loadForTable($table, $user_id);//Load relations for 'add_report'
+        (new TableAiService())->loadForTable($table, $user_id);//Load relations for 'add_ai'
     }
 
     /**
-     * @param Table $table
+     * @param Table|null $table
+     * @return void
      */
-    protected function preloadUnitConvers(Table $table)
+    protected function preloadUnitConvers(Table $table = null)
     {
+        if (!$table) {
+            return;
+        }
+
         //UNIT CONVERSIONS
         $convers = [];
         if ($table->unit_conv_is_active
@@ -676,7 +743,7 @@ class TableService
     /**
      * @param Table $table
      * @param int|null $individual
-     * @return \Illuminate\Support\Collection
+     * @return Collection
      */
     public function getTbPermissions(Table $table, int $individual = null)
     {
@@ -688,8 +755,8 @@ class TableService
 
         if (!$table->_is_owner) {
             $_table_permissions = $_table_permissions->where(function ($q) {
-                    $q->isActiveForUserOrVisitor();
-                })
+                $q->isActiveForUserOrVisitor();
+            })
                 ->get();
             foreach ($_table_permissions as $idx => $permis) {
                 if (!$permis->is_system && !$permis->is_request) {
@@ -722,18 +789,22 @@ class TableService
                 $_src_conditions = [];
                 foreach ($ref_cond->_items as $idx => $cond) {
                     if ($cond->_compared_field && $cond->compared_operator == '=') {
-                        array_push($_src_conditions, [
+                        $_src_conditions[] = [
                             'field' => ($cond->item_type == 'P2S' && $cond->_field ? $cond->_field->field : null),
                             'compared' => $cond->_compared_field->field,
                             'value' => ($cond->item_type == 'P2S' ? null : $cond->compared_value),
-                        ]);
+                        ];
                     }
                 }
                 $t_link->_src_conditions = $_src_conditions;
             }
 
         }
-        return $t_link;
+
+        $linkTable = $this->tableRepository->getTableByDB('table_field_links');
+        $collection = collect([$t_link]);
+        $collection = (new TableDataRowsRepository())->attachSpecialFields($collection, $linkTable, auth()->id(), ['conds']);
+        return $collection->first();
     }
 
     /**
@@ -746,20 +817,7 @@ class TableService
     public function getTablePath(Table $table)
     {
         $auth = app()->make(AuthUserSingleton::class);
-        return $auth->getTableUrl($table->id, $table->name);
-
-        /*$path = $this->service->getUsersUrl(auth()->user()) . '/data/';
-        if ($table->_link_initial_folder && $table->_link_initial_folder->_folder && $table->_link_initial_folder->_folder->_root_folders) {
-            $roots = $table->_link_initial_folder->_folder->_root_folders;
-            foreach ($roots as $fld) {
-                if ($fld->parent_id == $fld->id) {
-                    $fld->parent_id = 0;
-                }
-            }
-            $path .= $this->folderRepository->buildPath($table->_link_initial_folder->_folder->_root_folders);
-        }
-        $path .= $table->name;
-        return $path;*/
+        return $auth->getTableUrl($table->id);
     }
 
     /**
@@ -831,72 +889,158 @@ class TableService
      *  ...
      * ]
      */
-    public function getSystemHeaders($user_id)
+    public function getSystemHeaders($user_id, array $only_part = [])
     {
-        $sys_tables = $this->tableRepository->getSystemTables();
-
-        if (!$user_id) {//standard settings if Guest
-            $this->tableFieldService->loadFieldsWithStandardSettings($sys_tables, $user_id, false);
-        }
-
         $arr = [];
-        foreach ($sys_tables as $tb) {
-            if ($user_id) {//unique settings if User/Admin
-                $tb->_fields = $this->tableFieldService->getWithSettings($tb, $user_id);
+
+        if (!$only_part || !empty($only_part['systables'])) {
+            $sys_tables = $this->tableRepository->getSystemTables();
+            $sys_tables->load([
+                '_cond_formats',
+                '_column_groups' => function ($q) {
+                    $q->with('_fields:table_fields.id,field');
+                }
+            ]);
+
+            if (!$user_id) {//standard settings if Guest
+                $this->tableFieldService->loadFieldsWithStandardSettings($sys_tables, $user_id, false);
             }
-            $tb->_is_owner = $tb->user_id === $user_id;
-            $arr[$tb->db_name] = $tb;
+
+            foreach ($sys_tables as $tb) {
+                if ($user_id) {//unique settings if User/Admin
+                    $tb->_fields = $this->tableFieldService->getWithSettings($tb, $user_id);
+                }
+                $tb->_is_owner = $tb->user_id === $user_id;
+                $arr[$tb->db_name] = $tb;
+            }
         }
 
-        $arr['user_connections_data'] = (new UserConnRepository())->loadUserConns($user_id);
-
-        $u_clouds = UserCloud::where('user_id', '=', $user_id)->get();
-        foreach ($u_clouds as $cloud) {
-            $cloud->__is_connected = !!$cloud->token_json;
+        if (!$only_part || !empty($only_part['systables'])) {
+            $arr['user_connections_data'] = (new UserConnRepository())->loadUserConns($user_id);
         }
-        $arr['user_clouds_data'] = $u_clouds;
 
-        $arr['available_tables'] = $this->getAvailableTables($user_id);
+        if (!$only_part || !empty($only_part['user_clouds_data'])) {
+            $u_clouds = UserCloud::where('user_id', '=', $user_id)->get();
+            foreach ($u_clouds as $cloud) {
+                $cloud->__is_connected = !!$cloud->token_json;
+            }
+            $arr['user_clouds_data'] = $u_clouds;
+        }
 
-        $arr['meta_app_settings'] = AppSetting::all()->keyBy('key');
+        if (!$only_part || !empty($only_part['available_tables'])) {
+            $arr['available_tables'] = $this->getAvailableTables($user_id);
+        }
 
-        $arr['unit_conversion'] = UnitConversion::all();
+        if (!$only_part || !empty($only_part['meta_app_settings'])) {
+            $arr['meta_app_settings'] = AppSetting::all()->keyBy('key');
+            $arr['formula_examples'] = FormulaHelper::all()->keyBy('formula');
+        }
 
-        $arr['all_plans'] = Plan::with('_available_features')->get();
+        if (!$only_part || !empty($only_part['unit_conversion'])) {
+            $arr['unit_conversion'] = UnitConversion::all();
+        }
 
-        $arr['all_addons'] = Addon::all();
+        if (!$only_part || !empty($only_part['all_plans'])) {
+            $arr['all_plans'] = Plan::with('_available_features')->get();
+        }
 
-        $arr['app_settings'] = AppSetting::all()->keyBy('key');
+        if (!$only_part || !empty($only_part['all_addons'])) {
+            $arr['all_addons'] = Addon::all();
+        }
 
-        $arr['country_data'] = CountryData::select(['id','currency_code','currency_symbol'])->get();
+        if (!$only_part || !empty($only_part['app_settings'])) {
+            $arr['app_settings'] = AppSetting::all()->keyBy('key');
+        }
 
-        $corr_apps = CorrespApp::onlyPublicActive()
-            ->with('_tables')
-            ->get();
-        $arr['table_public_apps_data'] = $corr_apps;
-        $corr_apps = CorrespApp::onlyActive()
-            ->with('_tables')
-            ->get();
-        $arr['table_apps_data'] = $corr_apps;
+        if (!$only_part || !empty($only_part['country_data'])) {
+            $arr['country_data'] = CountryData::select(['id', 'currency_code', 'currency_symbol'])->get();
+        }
 
-        $papp = CorrespApp::where('code', '=', 'payment_processing')->first();
-        $arr['payment_app_id'] = $papp ? $papp->id : null;
+        if (!$only_part || !empty($only_part['table_public_apps_data'])) {
+            $corr_apps = CorrespApp::onlyPublicActive()
+                ->with('_tables')
+                ->get();
+            $arr['table_public_apps_data'] = $corr_apps;
+            $corr_apps = CorrespApp::onlyActive()
+                ->with('_tables')
+                ->get();
+            $arr['table_apps_data'] = $corr_apps;
+            $arr['corr_uis'] = CorrespStim3D::get(['id','top_tab','select','db_table']);
+        }
 
-        $arr['system_tables_for_all'] = $this->service->system_tables_for_all;
-        $arr['system_support_tables'] = $this->service->support_tables;
+        if (!$only_part || !empty($only_part['payment_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'payment_processing')->first();
+            $arr['payment_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['json_import_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'general_json_import')->first();
+            $arr['json_import_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['json_export_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'general_json_export')->first();
+            $arr['json_export_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['eri_parser_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'eri_parser')->first();
+            $arr['eri_parser_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['eri_writer_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'eri_writer')->first();
+            $arr['eri_writer_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['da_loading_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'da_loading_ocr_parse')->first();
+            $arr['da_loading_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['mto_dal_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'mto_dal_pdf_parse')->first();
+            $arr['mto_dal_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['mto_geom_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'mto_geometry_pdf_parse')->first();
+            $arr['mto_geom_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['ai_extractm_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'ai_extractm')->first();
+            $arr['ai_extractm_app_id'] = $papp ? $papp->id : null;
+        }
+        if (!$only_part || !empty($only_part['smart_select_app_id'])) {
+            $papp = CorrespApp::where('code', '=', 'smart_autoselect')->first();
+            $arr['smart_select_app_id'] = $papp ? $papp->id : null;
+        }
 
-        $arr['user_headers_attributes'] = (new UserHeaders())->avail_override_fields;
+        if (!$only_part || !empty($only_part['system_tables_for_all'])) {
+            $arr['system_tables_for_all'] = $this->service->system_tables_for_all;
+            $arr['system_support_tables'] = $this->service->support_tables;
+        }
 
-        $arr['template_dcrs'] = (new TableDataRequestRepository())->getTemplates();
+        if (!$only_part || !empty($only_part['user_headers_attributes'])) {
+            $arr['user_headers_attributes'] = (new UserHeaders())->avail_override_fields;
+        }
 
-        $arr['upload_file_formats'] = (new UploadingFileFormatsRepository())->loadAttachmentsFormats();
+        if (!$only_part || !empty($only_part['template_dcrs'])) {
+            $arr['template_dcrs'] = (new TableDataRequestRepository())->getTemplates();
+        }
 
-        $arr['countries_all'] = Country::all();
+        if (!$only_part || !empty($only_part['upload_file_formats'])) {
+            $arr['upload_file_formats'] = (new UploadingFileFormatsRepository())->loadAttachmentsFormats();
+        }
 
-        $arr['backend_env'] = [
-            'from_address' => config('mail.from.address'),
-            'from_name' => config('mail.from.name'),
-        ];
+        if (!$only_part || !empty($only_part['countries_all'])) {
+            $arr['countries_all'] = Country::all();
+        }
+
+        if (!$only_part || !empty($only_part['backend_env'])) {
+            $arr['backend_env'] = [
+                'from_address' => config('mail.from.address'),
+                'from_name' => config('mail.from.name'),
+            ];
+        }
+
+        if (!$only_part || !empty($only_part['shared_ddls'])) {
+            $arr['shared_ddls'] = (new DDLRepository())->sharedDDLS();
+        }
+
 
         return $arr;
     }
@@ -923,13 +1067,13 @@ class TableService
                 $tp->isActiveForUserOrVisitor();
                 $tp->where('can_reference', 1);
             },
-            '_views' => function ($tp) {
-                $tp->where('is_system', 1);
-            },
+            '_views:id,table_id,user_id,name,is_active,hash,custom_path,is_system,parts_avail',
             '_ddls:id,table_id,name',
             '_ref_conditions:id,table_id,ref_table_id,name',
             '_row_groups:id,table_id,name',
             '_column_groups:id,table_id,name',
+            '_cond_formats:id,table_id,name',
+            '_saved_filters:id,table_id,user_id,name,related_colgroup_id',
         ]);
 
         foreach ($available_tables as &$tb) {
@@ -942,7 +1086,7 @@ class TableService
                 $tb->_referenced = '';
             }
             unset($tb->_table_permissions);
-            $tb->__url = $auth->getTableUrl($tb->id, $tb->name);
+            $tb->__url = $auth->getTableUrl($tb->id);
             $tb->__visiting_url = $virepo->getVisitingUrl($tb->id, $tb->_views->first());
         }
 
@@ -1049,6 +1193,7 @@ class TableService
 
         //new menutree user hash
         (new UserRepository())->newMenutreeHash($new_user_id);
+        (new FolderService())->syncPrivateWithPublicShared();
 
         return $this->tableRepository->transferTable($table, $new_user_id, $sys_folder->id);
     }
@@ -1063,7 +1208,7 @@ class TableService
      * @param String $message
      * @return mixed
      */
-    public function addMessage(Int $table_id, Int $from_user_id, Int $to_user_id, $to_user_group_id, String $message)
+    public function addMessage(int $table_id, int $from_user_id, int $to_user_id, $to_user_group_id, string $message)
     {
         $msg = $this->tableRepository->addMessage($table_id, $from_user_id, $to_user_id, $to_user_group_id, $message);
         $msg->load(['_from_user', '_to_user', '_to_user_group']);
@@ -1087,7 +1232,7 @@ class TableService
      * @param Int $message_id
      * @return mixed
      */
-    public function deleteMessage(Int $message_id)
+    public function deleteMessage(int $message_id)
     {
         return $this->tableRepository->deleteMessage($message_id);
     }
@@ -1113,6 +1258,7 @@ class TableService
 
         //menutree is changed
         (new UserRepository())->newMenutreeHash($user->id);
+        (new FolderService())->syncPrivateWithPublicShared();
 
         return $this->getTablePath($table);
     }
@@ -1136,11 +1282,12 @@ class TableService
      * @param int $table_id
      * @param int $user_id
      * @param bool $favorite
+     * @param int|null $parent_id
      * @return bool
      */
-    public function favoriteToggle($table_id, $user_id, $favorite)
+    public function favoriteToggle($table_id, $user_id, $favorite, $parent_id)
     {
-        return $this->tableRepository->favoriteToggle($table_id, $user_id, $favorite);
+        return $this->tableRepository->favoriteToggle($table_id, $user_id, $favorite, $parent_id);
     }
 
     /**
@@ -1163,7 +1310,7 @@ class TableService
      * @param Int $user_id
      * @return array
      */
-    public function getSumUsages(Array $data, $user_id)
+    public function getSumUsages(array $data, $user_id)
     {
         $sum_usages_table = $this->tableRepository->getTableByDB('sum_usages');
 
@@ -1228,7 +1375,7 @@ class TableService
      * @param Int $user_id
      * @return array
      */
-    public function getSubscriptions(Array $data, $user_id)
+    public function getSubscriptions(array $data, $user_id)
     {
         $subscription_table = $this->tableRepository->getTableByDB('user_subscriptions');
 
@@ -1242,7 +1389,7 @@ class TableService
         $all_rows = $subscription_data['rows'];
 
         foreach ($all_rows as &$row) {
-            $usr = collect($row['_u_user_id'] ?? [[]])->first();
+            $usr = $row['_user'];
             $key = $usr['renew'] == 'Yearly' ? 'per_year' : 'per_month';
             $add_bi = collect($row['_addons'])->where('code', '=', 'bi')->first();
             $add_map = collect($row['_addons'])->where('code', '=', 'map')->first();
@@ -1252,6 +1399,12 @@ class TableService
             $add_gantt = collect($row['_addons'])->where('code', '=', 'gantt')->first();
             $add_email = collect($row['_addons'])->where('code', '=', 'email')->first();
             $add_calendar = collect($row['_addons'])->where('code', '=', 'calendar')->first();
+            $add_twilio = collect($row['_addons'])->where('code', '=', 'twilio')->first();
+            $add_tournament = collect($row['_addons'])->where('code', '=', 'tournament')->first();
+            $add_simplemap = collect($row['_addons'])->where('code', '=', 'simplemap')->first();
+            $add_grouping = collect($row['_addons'])->where('code', '=', 'grouping')->first();
+            $add_report = collect($row['_addons'])->where('code', '=', 'report')->first();
+            $add_ai = collect($row['_addons'])->where('code', '=', 'ai')->first();
 
             $row['user_id'] = $usr['id'];
             $row['_user_id_id'] = $usr['first_name'] ? $usr['first_name'] . ' ' . $usr['last_name'] : $usr['username'];
@@ -1263,19 +1416,16 @@ class TableService
             $row['add_kanban'] = $add_kanban ? 1 : 0;
             $row['add_email'] = $add_email ? 1 : 0;
             $row['add_calendar'] = $add_calendar ? 1 : 0;
+            $row['add_twilio'] = $add_twilio ? 1 : 0;
+            $row['add_tournament'] = $add_tournament ? 1 : 0;
+            $row['add_simplemap'] = $add_simplemap ? 1 : 0;
+            $row['add_grouping'] = $add_grouping ? 1 : 0;
+            $row['add_ai'] = $add_ai ? 1 : 0;
+            $row['add_report'] = $add_report ? 1 : 0;
             $row['add_gantt'] = $add_gantt ? 1 : 0;
             $row['avail_credit'] = $usr['avail_credit'];
             $row['renew'] = $usr['renew'];
             $row['recurrent_pay'] = $usr['recurrent_pay'];
-            $row['cost'] = $row['_plan'][$key]
-                + ($add_map ? $add_map[$key] : 0)
-                + ($add_request ? $add_request[$key] : 0)
-                + ($add_bi ? $add_bi[$key] : 0)
-                + ($add_kanban ? $add_kanban[$key] : 0)
-                + ($add_gantt ? $add_gantt[$key] : 0)
-                + ($add_email ? $add_email[$key] : 0)
-                + ($add_calendar ? $add_calendar[$key] : 0)
-                + ($add_alert ? $add_alert[$key] : 0);
         }
 
         return [
@@ -1379,7 +1529,7 @@ class TableService
     /**
      * Enable filters for table if in request present some conditions for not enabled filters.
      *
-     * @param \Vanguard\Models\Table\Table $table
+     * @param Table $table
      * @param $fields
      * @param $user_id
      */
@@ -1396,8 +1546,7 @@ class TableService
                     ], [
                         'filter' => 1
                     ]);
-                }
-                else {
+                } else {
                     $tb_fld->update([
                         'filter' => 1
                     ]);
@@ -1470,7 +1619,7 @@ class TableService
     {
         $table = $this->tableRepository->getTable($table_id);
         $with_attachs = collect([(object)$row]);
-        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users','refs','groups']);
+        $with_attachs = (new TableDataRowsRepository())->attachSpecialFields($with_attachs, $table, null, ['users', 'refs', 'groups']);
         return $with_attachs->first();
     }
 }

@@ -1,5 +1,5 @@
 <template>
-    <select ref="select2" v-model="init_val">
+    <select ref="select2" v-model="init_val" :multiple="is_multiple">
         <option v-if="empty_val"></option>
         <option disabled class="folder-option">// PRIVATE</option>
         <template v-for="node in builded_tree">
@@ -48,6 +48,7 @@
                     minimumResultsForSearch: 0,
                     width: '100%',
                     dropdownAutoWidth: true,
+                    multiple: this.is_multiple,
                 },
                 init_val: this.cur_val,
                 builded_tree: [],
@@ -59,12 +60,29 @@
         props: {
             for_single_select: Boolean,
             empty_val: Boolean,
-            cur_val: String|Number,
+            cur_val: String|Number|Array,
             available_tables: Array,
             user: Object,
             is_obj_attr: String,
+            only_item: String,
+            is_multiple: Boolean,
         },
         methods: {
+            putAvailableTablesToPrivate() {
+                _.each(_.orderBy(this.available_tables, '__url'), (ava) => {
+                    if (! String(ava.__url).match('public.')) {
+                        let folder_path = String(ava.__url).replace(location.origin+'/data', '');
+                        let a_ref = (ava && ava._referenced ? '@' + ava._referenced : '');
+                        this.builded_tree.push({
+                            id: ava.id,
+                            lvl: 0,
+                            is_folder: false,
+                            name: a_ref + folder_path + ' / ' + ava.name,
+                            _referenced: ava ? ava._referenced : '',
+                        });
+                    }
+                });
+            },
             buildFoldersForTables(nodes, lvl, tree_name, folder_path) {
                 _.each(nodes, (elem) => {
                     if (elem.li_attr['data-type'] === 'folder') {
@@ -84,7 +102,7 @@
                     } else {
                         //add Table
                         let ref = _.find(this.available_tables, {id: Number(elem.li_attr['data-id'])});
-                        if (this.user.id === elem.li_attr['data-user_id'] || (ref && ref._referenced)) {
+                        if (this.user.id === elem.li_attr['data-user_id'] || (!this.only_item && ref && ref._referenced)) {
                             let id = (this.is_obj_attr
                                 ? elem.li_attr['data-object'][this.is_obj_attr]
                                 : elem.li_attr['data-id']);
@@ -103,9 +121,10 @@
                     }
                 });
             },
-            pushNotincludedToPublic(tree_name, folder_path) {
-                _.each(this.available_tables, (ava) => {
+            pushNotincludedToPublic(tree_name) {
+                _.each(_.orderBy(this.available_tables, '__url'), (ava) => {
                     if (!in_array(ava.id, this.already_included)) {
+                        let folder_path = String(ava.__url).replace(location.origin+'/data', '');
                         let a_ref = (ava && ava._referenced && String(folder_path).indexOf('@') === -1 ? '@'+ava._referenced : '');
                         tree_name.push({
                             id: ava.id,
@@ -120,24 +139,34 @@
         },
         mounted() {
             this.builded_tree = [];
-            this.buildFoldersForTables(this.$root.private_menu_tree, 0, this.builded_tree, '');
             this.builded_account = [];
-            this.buildFoldersForTables(this.$root.account_menu_tree, 0, this.builded_account, '');
-
             this.builded_public = [];
-            this.pushNotincludedToPublic(this.builded_public, '');
+            if (!this.only_item || this.only_item == 'user') {
+                if (this.$root.private_menu_tree) {
+                    this.buildFoldersForTables(this.$root.private_menu_tree, 0, this.builded_tree, '');
+                } else {
+                    this.putAvailableTablesToPrivate();
+                }
+            }
+            if (!this.only_item || this.only_item == 'account') {
+                this.buildFoldersForTables(this.$root.account_menu_tree, 0, this.builded_account, '');
+            }
+            if (!this.only_item || this.only_item == 'public') {
+                this.pushNotincludedToPublic(this.builded_public, '');
+            }
 
             this.$nextTick(function () {
                 $(this.$refs.select2).select2(this.selectParam)
                     .on('change', (e) => {
                         let val = (this.is_obj_attr ? $(this.$refs.select2).val() : Number($(this.$refs.select2).val()));
                         this.$emit( 'sel-changed', val );
-                    }).on('select2:close', (e) => {
-                    if (this.$refs.select2 && this.for_single_select) {
-                        $(this.$refs.select2).select2('destroy');
-                    }
-                    this.$emit('sel-closed');
-                });
+                    })
+                    .on('select2:close', (e) => {
+                        if (this.$refs.select2 && this.for_single_select) {
+                            $(this.$refs.select2).select2('destroy');
+                        }
+                        this.$emit('sel-closed');
+                    });
                 $(this.$refs.select2).next().css('height','30px');
 
                 if (this.for_single_select) {

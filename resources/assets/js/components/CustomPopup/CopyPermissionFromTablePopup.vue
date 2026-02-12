@@ -92,10 +92,10 @@
                     }).then(({data}) => {
                         this.closeP(data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => $.LoadingOverlay('hide'));
                 } else {
-                    Swal('No Permissions Selected!');
+                    Swal('Info','No Permissions Selected!');
                 }
             },
             closeP(permissions) {

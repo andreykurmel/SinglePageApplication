@@ -41,13 +41,48 @@ export class FileHelper {
         let fileext = file ? _.last(String(file.name).split('.')) : '';
         let filesize = file ? Number(file.size) : 0;
         if (fileext && this._acceptFormats(format).length && this._acceptFormats(format).indexOf(fileext) === -1) {
-            Swal('', 'The file format '+fileext+' is not allowed for uploading!', 'info');
+            Swal('Info', 'The file format '+fileext+' is not allowed for uploading!', 'info');
             return false;
         }
         if (filesize && this._acceptSize(format) && filesize > this._acceptSize(format)) {
-            Swal('', 'The size of the file exceeds the set limit '+this._acceptSizeMb(format)+'Mb!', 'info');
+            Swal('Info', 'The size of the file exceeds the set limit '+this._acceptSizeMb(format)+'Mb!', 'info');
             return false;
         }
         return true;
+    }
+
+    /**
+     *
+     * @param file
+     * @returns {string}
+     */
+    static fileUrl(file) {
+        if (file.is_remote) {
+            return '/ajax/remote-files';
+        } else {
+            return '/ajax/files';
+        }
+    }
+
+    /**
+     *
+     * @returns {string}
+     */
+    static moveCloudUrl() {
+        return '/ajax/files/move-to-cloud'
+    }
+
+    /**
+     *
+     * @param file
+     * @param tableHeader
+     * @returns {string}
+     */
+    static fileKey(file, tableHeader) {
+        if (file.is_img) {
+            return '_images_for_' + tableHeader.field;
+        } else {
+            return '_files_for_' + tableHeader.field;
+        }
     }
 }

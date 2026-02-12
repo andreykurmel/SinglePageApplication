@@ -18,7 +18,9 @@ class AddUniqueToTfAndSearchResultsLenToTables extends Migration
         });
 
         Schema::table('table_fields', function (Blueprint $table) {
+            $table->text('validation_rules')->nullable();
             $table->unsignedInteger('is_unique_collection')->default(0);
+            $table->tinyInteger('header_triangle')->default(1);
         });
     }
 
@@ -34,7 +36,9 @@ class AddUniqueToTfAndSearchResultsLenToTables extends Migration
         });
 
         Schema::table('table_fields', function (Blueprint $table) {
+            $table->dropColumn('validation_rules');
             $table->dropColumn('is_unique_collection');
+            $table->dropColumn('header_triangle');
         });
     }
 }

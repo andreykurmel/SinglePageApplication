@@ -7,33 +7,35 @@ namespace Vanguard\Services\Tablda;
 use Proengsoft\JsValidation\JsValidatorFactory;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Classes\TabldaEncrypter;
+use Vanguard\Classes\TabldaUser;
 use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableView;
+use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
+use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
+use Vanguard\Repositories\Tablda\TwilioHistoryRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
 use Vanguard\User;
 
 class BladeVariablesService
 {
-    private $tableService;
     private $userService;
     private $service;
 
     public $is_app_route = 0;
 
     protected $table;
-    protected $table_google_api = '';
-    protected $named_user = '';
+    protected $named_table = null;
+    protected $named_user = null;
 
     /**
      * BladeVariablesService constructor.
      */
     public function __construct()
     {
-        $this->tableService = new TableService();
         $this->userService = new UserService();
         $this->service = new HelperService();
     }
@@ -46,7 +48,7 @@ class BladeVariablesService
     public function setTableObj(Table $table, User $named_user = null)
     {
         //$this->table = $table;
-        $this->table_google_api = HelperService::getTableGoogleApi($table);
+        $this->named_table = $table;
         $this->named_user = $named_user;
         return $this;
     }
@@ -70,7 +72,7 @@ class BladeVariablesService
      */
     public function getVariables(TableView $view = null, int $force_guest = 0, int $lightweight = 0)
     {
-        $user = auth()->check() ? auth()->user() : new User();
+        $user = auth()->check() ? auth()->user() : TabldaUser::unlogged();
         $named_user = $this->named_user ?: $user;
 
         //Load all needed Relations
@@ -78,14 +80,19 @@ class BladeVariablesService
 
         //Set View parameters
         if ($view) {
-            $view->load('_filtering');
+            $view->load([
+                '_filtering' => function ($q) {
+                    $q->with('_field');
+                }
+            ]);
         }
         $user->see_view = !!$view;
         $user->view_hash = $view ? $view->hash : '';
         $user->view_all = $view;
+        $user->view_filtering_row = $view ? $view->view_filtering_row : '';
         $user->is_force_guested = $force_guest || !!$view;
 
-        $b_owner_or_collab =
+        /*$b_owner_or_collab =
             $view
             &&
             TableView::where('id', $view->id)
@@ -95,10 +102,11 @@ class BladeVariablesService
                         $tp->isActiveForUserOrVisitor();//or is collaborator
                     });
                 })
-                ->first();
+                ->first();*/
 
-        $user->view_locked = $view && $view->is_locked && !$b_owner_or_collab;
-        $user->tables_count = $user->id ? auth()->user()->_tables()->count() : 0;
+        $user->view_locked = $view && $view->is_locked;// && !$b_owner_or_collab;
+        $user->tables_owned_count = $user->id ? (new TableRepository())->ownedTables() : 0;
+        $user->folders_owned_count = $user->id ? (new FolderRepository())->ownedFolders($user->id) : 0;
 
         //for 'auto-reload page with new scripts' module
         $user->_vendor_script = mix('assets/js/tablda/vendor.js')->toHtml();
@@ -106,6 +114,7 @@ class BladeVariablesService
         $user->_random_hash = Uuid::uuid4();
         $user->_uc_sys_visiting_url = (new TableViewRepository())->getVisitingUrl(55);
         $user->_usr_email_domain = HelperService::usrEmailDomain();
+        $user->_twilio_test_history = (new TwilioHistoryRepository())->getForUser($user->id);
 
         $result_url = $this->service->getUsersUrl($user, $this->service->cur_subdomain);
 
@@ -113,18 +122,7 @@ class BladeVariablesService
         $this->decryptRelations($user);
 
         //Ignore DCR ($force_guest)
-        $usr_gmap = $named_user ? $named_user->_google_api_keys()->where('is_active','=',1)->first() : '';
-        $user->__active_gmap = $usr_gmap ? TabldaEncrypter::decrypt($usr_gmap->key ?? '') : '';
-
-        if ($user->__active_gmap) {
-            $gmap_api_key = $user->__active_gmap;
-        } else {
-            $admin = User::where('role_id', 1)->first();
-            $admin_gmap = $admin ? $admin->_google_api_keys->where('is_active','=',1)->first() : null;
-            $gmap_api_key = $admin_gmap ? $admin_gmap->key : '';//env('GOOGLE_API_KEY');
-        }
-
-        $user->__google_table_api = $this->table_google_api ?: $gmap_api_key;
+        $user->__google_table_api = HelperService::getUserGoogleApi($named_user, $this->named_table);
 
         return [
             'meta_app_settings' => AppSetting::all()->keyBy('key'),
@@ -138,12 +136,13 @@ class BladeVariablesService
             'paypal_client' => env('PAYPAL_CLIENT_ID'),
             'embed' => $force_guest,
             'tablePermission' => $view ? $view->hash : '',
-            'vueJsValidator' => new JsValidatorFactory(app(), ['view' => 'tablda.vue_js_validation.bootstrap']),
+            'vueJsValidator' => new JsValidatorFactory(app(), ['view' => 'tablda.vue_js_validation.bootstrap', 'ignore' => null]),
             'route_group' => null,
             'lightweight' => $lightweight,
             'is_app_route' => $this->is_app_route,
             'vue_labels' => __('vue'),
             'gmap_api_key' => $user->__google_table_api,
+            'request_vars' => [],
         ];
     }
 
@@ -178,19 +177,21 @@ class BladeVariablesService
                 '_subscribed_apps',
                 '_google_api_keys',
                 '_sendgrid_api_keys',
+                '_twilio_api_keys',
                 '_airtable_api_keys',
                 '_extracttable_api_keys',
+                '_ai_api_keys',
+                '_jira_api_keys',
                 '_stripe_payment_keys',
                 '_paypal_payment_keys',
                 '_google_email_accs',
+                '_menutree_recents',
             ]);
             (new UserGroupRepository())->loadUserGroups($user);
 
             $user->_ava_themes = AppTheme::where('obj_type', 'system')
                 ->get()
                 ->merge( $user->_themes()->get() );
-
-            $this->setUserTheme($user);
 
             //User's SubIcon is related to subdomain
             $user->sub_icon = $this->service->subiconOnSubDomain() ?: $user->sub_icon;
@@ -204,14 +205,23 @@ class BladeVariablesService
             $user->_subscribed_apps = [];
             $user->_google_api_keys = collect([]);
             $user->_sendgrid_api_keys = collect([]);
+            $user->_twilio_api_keys = collect([]);
             $user->_airtable_api_keys = collect([]);
             $user->_extracttable_api_keys = collect([]);
+            $user->_ai_api_keys = collect([]);
+            $user->_jira_api_keys = collect([]);
             $user->_stripe_payment_keys = collect([]);
             $user->_paypal_payment_keys = collect([]);
             $user->_google_email_accs = collect([]);
+            $user->_menutree_recents = collect([]);
             $user->_available_features = '{}';
             $user->sub_icon = $this->service->subiconOnSubDomain() ?: null;
         }
+
+        $this->setUserTheme($user);
+
+        $this->service->getRecentsForUser($user);
+
         return $user;
     }
 
@@ -226,7 +236,17 @@ class BladeVariablesService
         foreach ($user->_sendgrid_api_keys as $api) {
             $api->key = TabldaEncrypter::decrypt($api->key ?? '');
         }
+        foreach ($user->_twilio_api_keys as $api) {
+            $api->key = TabldaEncrypter::decrypt($api->key ?? '');
+            $api->auth_token = TabldaEncrypter::decrypt($api->auth_token ?? '');
+        }
         foreach ($user->_extracttable_api_keys as $api) {
+            $api->key = TabldaEncrypter::decrypt($api->key ?? '');
+        }
+        foreach ($user->_ai_api_keys as $api) {
+            $api->key = TabldaEncrypter::decrypt($api->key ?? '');
+        }
+        foreach ($user->_jira_api_keys as $api) {
             $api->key = TabldaEncrypter::decrypt($api->key ?? '');
         }
         foreach ($user->_airtable_api_keys as $api) {

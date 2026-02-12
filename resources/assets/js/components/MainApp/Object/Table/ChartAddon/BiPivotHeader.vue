@@ -1,7 +1,7 @@
 <template>
     <div v-if="tbHeader" :style="{width: vert_widths ? vert_widths.width+'px' : ''}">
         <template v-for="elem in editVals">
-            <template v-for="lnk in tbHeader._links" v-if="canLinks && tbHeader.active_links">
+            <template v-for="lnk in tbHeader._links" v-if="canLinks">
                 <link-object :table-meta="tableMeta"
                              :global-meta="tableMeta"
                              :table-header="tbHeader"

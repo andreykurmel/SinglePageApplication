@@ -44,9 +44,15 @@ class CallApiDesignController extends Controller implements AppControllerInterfa
      */
     public function get(Request $request, CorrespApp $correspApp)
     {
-        $serv = new HelperService();
-        $corrTB = $correspApp->_tables()->where('row_hash', '!=', $serv->sys_row_hash['cf_temp'])->first();
-        $corrFields = $corrTB->_fields()->where('row_hash', '!=', $serv->sys_row_hash['cf_temp'])->get();
+        $corrTB = $correspApp->_tables()->where(function ($inner) {
+            $inner->whereNotIn('row_hash', (new HelperService())->sys_row_hash);
+            $inner->orWhereNull('row_hash'); //Because only 'Where Not In' cannot get records with NULL
+        })->first();
+
+        $corrFields = $corrTB->_fields()->where(function ($inner) {
+            $inner->whereNotIn('row_hash', (new HelperService())->sys_row_hash);
+            $inner->orWhereNull('row_hash'); //Because only 'Where Not In' cannot get records with NULL
+        })->get();
 
         $meta_table = (new TableRepository())->getTableByDB($corrTB->data_table);
         $sql = (new UserPermisQuery($meta_table))->getQuery();

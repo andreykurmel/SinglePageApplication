@@ -12,7 +12,7 @@
                 rrm_avail_fields: [
                     'dcr_sec_line_top','dcr_sec_line_bot','dcr_sec_line_color','dcr_sec_line_thick','dcr_sec_bg_top',
                     'dcr_sec_bg_bot','dcr_sec_bg_img','dcr_sec_bg_img_fit','dcr_sec_scroll_style','dcr_sec_background_by',
-                    'dcr_form_line_height','dcr_form_font_size',
+                    'dcr_form_line_height','dcr_form_font_size', 'dcr_sec_slide_top_header', 'dcr_sec_slide_progresbar', 'dcr_flow_header_stick',
 
                     'dcr_title','dcr_title_width','dcr_title_height','dcr_title_bg_color','dcr_title_font_type',
                     'dcr_title_font_size','dcr_title_font_color','dcr_title_bg_img','dcr_title_bg_fit',
@@ -24,15 +24,18 @@
                     'dcr_form_line_type','dcr_form_shadow_dir','dcr_form_bg_color','dcr_form_transparency',
 
                     'dcr_confirm_msg','dcr_email_field_id','dcr_cc_email_field_id','dcr_bcc_email_field_id','dcr_email_subject','dcr_addressee_txt',
-                    'dcr_email_message','dcr_email_format','dcr_email_col_group_id','dcr_email_field_static','dcr_cc_email_field_static','dcr_bcc_email_field_static',
+                    'dcr_email_message','dcr_email_format','dcr_email_col_group_id','dcr_email_field_static',
+                    'dcr_cc_email_field_static','dcr_bcc_email_field_static','dcr_signature_txt','dcr_active_notif',
 
                     'dcr_save_confirm_msg','dcr_save_email_field_id','dcr_save_cc_email_field_id','dcr_save_bcc_email_field_id','dcr_save_email_subject','dcr_save_addressee_txt',
-                    'dcr_save_email_message','dcr_save_email_format','dcr_save_email_col_group_id','dcr_save_email_field_static','dcr_save_cc_email_field_static','dcr_save_bcc_email_field_static',
+                    'dcr_save_email_message','dcr_save_email_format','dcr_save_email_col_group_id','dcr_save_email_field_static',
+                    'dcr_save_cc_email_field_static','dcr_save_bcc_email_field_static','dcr_save_signature_txt','dcr_save_active_notif',
 
                     'dcr_upd_confirm_msg','dcr_upd_email_field_id','dcr_upd_cc_email_field_id','dcr_upd_bcc_email_field_id','dcr_upd_email_subject','dcr_upd_addressee_txt',
-                    'dcr_upd_email_message','dcr_upd_email_format','dcr_upd_email_col_group_id','dcr_upd_email_field_static','dcr_upd_cc_email_field_static','dcr_upd_bcc_email_field_static',
+                    'dcr_upd_email_message','dcr_upd_email_format','dcr_upd_email_col_group_id','dcr_upd_email_field_static',
+                    'dcr_upd_cc_email_field_static','dcr_upd_bcc_email_field_static','dcr_upd_signature_txt','dcr_upd_active_notif',
 
-                    'dcr_unique_msg','dcr_save_unique_msg','dcr_upd_unique_msg',
+                    'dcr_unique_msg','dcr_save_unique_msg','dcr_upd_unique_msg', 'download_pdf', 'download_png',
                     'one_per_submission','dcr_record_url_field_id','dcr_record_allow_unfinished',
                     'dcr_record_visibility_id','dcr_record_editability_id',
                     'dcr_record_status_id','dcr_record_visibility_def','dcr_record_editability_def',
@@ -71,10 +74,14 @@
             delSecFile() {
                 this.$emit('del-file', this.requestRow, 'dcr_sec_bg_img');
             },
-            updatedCell() {
-                this.requestRow['dcr_title'] = this.$root.strip_tags(this.requestRow['dcr_title']);
+            updatedCell(changedKey) {
+                this.requestRow['dcr_signature_txt'] = this.$root.strip_danger_tags(this.requestRow['dcr_signature_txt']);
+                this.requestRow['dcr_save_signature_txt'] = this.$root.strip_danger_tags(this.requestRow['dcr_save_signature_txt']);
+                this.requestRow['dcr_upd_signature_txt'] = this.$root.strip_danger_tags(this.requestRow['dcr_upd_signature_txt']);
+
+                this.requestRow['dcr_title'] = this.$root.strip_danger_tags(this.requestRow['dcr_title']);
                 this.requestRow['dcr_form_message'] = this.$root.strip_danger_tags(this.requestRow['dcr_form_message']);
-                this.$emit('updated-cell', this.requestRow);
+                this.$emit('updated-cell', this.requestRow, changedKey);
                 this.formula_dcr_unique_msg = false;
                 this.formula_dcr_confirm_msg = false;
                 this.formula_dcr_email_subject = false;
@@ -99,8 +106,14 @@
             updateColorFont(clr, save) {
                 this.updateColor('dcr_title_font_color', clr, save);
             },
+            updateColorTab(clr, save) {
+                this.updateColor('dcr_tab_font_color', clr, save);
+            },
             updateColorBg(clr, save) {
                 this.updateColor('dcr_title_bg_color', clr, save);
+            },
+            updateTabBgColor(clr, save) {
+                this.updateColor('dcr_tab_bg_color', clr, save);
             },
             updateColorFormBg(clr, save) {
                 this.updateColor('dcr_form_bg_color', clr, save);

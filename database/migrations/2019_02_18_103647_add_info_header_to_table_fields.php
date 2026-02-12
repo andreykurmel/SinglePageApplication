@@ -15,6 +15,7 @@ class AddInfoHeaderToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->tinyInteger('is_info_header_field')->nullable();
+            $table->tinyInteger('is_info_header_value')->nullable();
             $table->renameColumn('lat_field_id', 'is_lat_field')->change();
             $table->renameColumn('long_field_id', 'is_long_field')->change();
             $table->renameColumn('addr_field_id', 'is_addr_field')->change();
@@ -30,6 +31,7 @@ class AddInfoHeaderToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('is_info_header_field');
+            $table->dropColumn('is_info_header_value');
             $table->renameColumn('is_lat_field', 'lat_field_id')->change();
             $table->renameColumn('is_long_field', 'long_field_id')->change();
             $table->renameColumn('is_addr_field', 'addr_field_id')->change();

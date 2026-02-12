@@ -27,7 +27,12 @@
     background-color: #FFF;
 
     .permissions-menu-header {
+      display: flex;
+      margin: 0 -5px;
+
       button {
+        height: 30px;
+        margin-right: 5px;
         background-color: #CCC;
         outline: none;
         &.active {
@@ -56,7 +61,7 @@
       background-color: #FFF;
 
       div {
-        border: 1px solid #FFF;
+        //border: 1px solid #FFF;
       }
 
       .others-tab {
@@ -119,7 +124,7 @@
       .defaults-tab {
         border: 1px solid #CCC;
         overflow: auto;
-        padding: 10px;
+        padding: 5px;
         background-color: #fff;
         border-radius: 4px;
       }

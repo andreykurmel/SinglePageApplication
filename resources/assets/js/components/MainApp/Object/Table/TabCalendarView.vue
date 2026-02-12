@@ -1,282 +1,219 @@
 <template>
-    <div class="calendar-settings">
+    <div v-if="tableMeta && $root.settingsMeta" class="tab-settings full-height">
         <div v-if="!$root.AddonAvailableToUser(tableMeta, 'calendar')" class="row full-frame flex flex--center">
             <label>Addon is unavailable!</label>
         </div>
-        <template v-else="">
-            <div v-if="!startFld || !endFld || !titleFld" class="flex flex--center full-height" style="font-size: 2em;">Settings are empty!</div>
-            <full-calendar v-else-if="isVisible && can_calendar"
-                           ref="full_calendar"
-                           :options="calendarOptions"
-                           class="full-height"
-            ></full-calendar>
-
-            <!--Settings-->
-            <slot-popup v-if="tableMeta._is_owner && show_calendar_sett" :popup_width="700" @popup-close="redrCalend()">
-                <template v-slot:title>
-                    <span>Calendar Setup</span>
+        <div v-else class="full-height">
+            <div class="menu-header">
+                <button class="btn btn-default btn-sm left-btn"
+                        :class="{active : acttab === 'settings'}"
+                        :style="textSysStyle"
+                        @click="changeActab('settings')"
+                >Settings</button>
+                <template v-for="calend in tableMeta._calendar_addons" v-if="calend.calendar_active">
+                    <button class="btn btn-default btn-sm left-btn"
+                            :class="{active : acttab === calend.id}"
+                            :style="textSysStyle"
+                            style="margin-right: 3px;"
+                            @click="changeActab(calend.id)"
+                    ><i class="far fa-calendar"></i>&nbsp;{{ calend.name }}</button>
                 </template>
-                <template v-slot:body>
+
+                <div v-show="acttab === 'settings'" class="pull-right" style="margin: 0 5px 0 15px">
+                    <info-sign-link v-show="stTab === 'list'" :app_sett_key="'help_link_calendar_tab'" :hgt="26" :txt="'for Calendar/List'"></info-sign-link>
+                    <info-sign-link v-show="stTab === 'general'" :app_sett_key="'help_link_calendar_tab'" :hgt="26" :txt="'for Calendar/General'"></info-sign-link>
+                </div>
+                <div v-show="acttab !== 'settings'" class="pull-right" style="margin: 0 5px 0 15px">
+                    <info-sign-link :app_sett_key="'help_link_calendar_tab_data'" :hgt="26" :txt="'for Calendar/Data Tab'"></info-sign-link>
+                </div>
+                <button v-if="$root.AddonAvailableToUser(tableMeta, 'calendar', 'edit')"
+                        v-show="acttab !== 'settings'"
+                        class="btn btn-primary btn-sm blue-gradient pull-right"
+                        :disabled="!canAdd"
+                        :style="$root.themeButtonStyle"
+                        @click="add_click++"
+                >Add</button>
+            </div>
+            <div class="menu-body" :style="$root.themeMainBgStyle">
+
+                <!--SETTINGS TAB-->
+
+                <div class="full-frame" v-show="acttab === 'settings'">
                     <calendar-settings
-                            :table-meta="tableMeta"
-                            style="background-color: #005fa4;"
-                            @save-backend="saveTbOnBknd"
+                        :table_id="tableMeta.id"
+                        :table-meta="tableMeta"
+                        @set-sub-tab="(key) => { stTab = key; }"
                     ></calendar-settings>
-                </template>
-            </slot-popup>
+                </div>
 
-            <!--Edit Row-->
-            <custom-edit-pop-up
-                    v-if="tableMeta && editPopupRow"
-                    :global-meta="tableMeta"
-                    :table-meta="tableMeta"
-                    :table-row="editPopupRow"
-                    :settings-meta="$root.settingsMeta"
-                    :role="editPopupRole"
-                    :input_component_name="$root.tdCellComponent(tableMeta.is_system)"
-                    :behavior="'list_view'"
-                    :user="$root.user"
-                    :cell-height="1"
-                    :max-cell-rows="0"
-                    @popup-insert="insertRow"
-                    @popup-update="updateRow"
-                    @popup-copy="copyRow"
-                    @popup-delete="deleteRow"
-                    @show-src-record="showSrcRecord"
-                    @popup-close="closePopUp"
-            ></custom-edit-pop-up>
-        </template>
+                <!--BASICS TAB-->
+
+                <div class="full-frame flex flex--col" v-show="acttab !== 'settings'" v-if="canDraw">
+                    <div class="flex__elem-remain">
+                        <calendar-tab
+                            v-if="tableMeta && selectedCalendar"
+                            :table-meta="tableMeta"
+                            :request-params="request_params"
+                            :current-page-rows="currentPageRows"
+                            :selected-calendar="selectedCalendar"
+                            :selected-state="selectedState"
+                            :add_click="add_click"
+                            @show-src-record="showSrcRecord"
+                        ></calendar-tab>
+                    </div>
+                    <table-pagination
+                        v-if="canPaginate && request_params"
+                        :page="request_params.page"
+                        :table-meta="tableMeta"
+                        :rows-count="tableMeta._view_rows_count || 0"
+                        :style="{ position: 'relative', height: '32px' }"
+                        @change-page="changePg"
+                    ></table-pagination>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
 
 <script>
-    import {SpecialFuncs} from './../../../../classes/SpecialFuncs';
+import {eventBus} from "../../../../app";
 
-    import {eventBus} from './../../../../app';
+import {SpecialFuncs} from "../../../../classes/SpecialFuncs";
 
-    import FullCalendar from '@fullcalendar/vue';
-    import dayGridPlugin from '@fullcalendar/daygrid';
-    import interactionPlugin from '@fullcalendar/interaction';
-    import timeGridPlugin from '@fullcalendar/timegrid';
-    import listPlugin from '@fullcalendar/list';
-    import allLocales from '@fullcalendar/core/locales-all';
+import CalendarSettings from "./Calendar/CalendarSettings";
+import CalendarTab from "./Calendar/CalendarTab";
+import InfoSignLink from "../../../CustomTable/Specials/InfoSignLink";
+import TablePagination from "../../../CustomTable/Pagination/TablePagination";
 
-    import CellStyleMixin from "./../../../_Mixins/CellStyleMixin.vue";
+import CanEditMixin from "../../../_Mixins/CanViewEditMixin";
+import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
+import KanbanTab from "./Kanban/KanbanTab.vue";
 
-    import CalendarSettings from "./Calendar/CalendarSettings";
-    import SlotPopup from "../../../CustomPopup/SlotPopup";
-    import CustomEditPopUp from "../../../CustomPopup/CustomEditPopUp";
-
-    export default {
-        name: "TabCalendarView",
-        mixins: [
-            CellStyleMixin,
-        ],
-        components: {
-            CustomEditPopUp,
-            SlotPopup,
-            CalendarSettings,
-            FullCalendar,
-        },
-        data: function () {
-            return {
-                tZone: this.tableMeta.calendar_timezone || this.$root.user.timezone,
-                calendarOptions: {
-                    locales: allLocales,
-                    locale: this.tableMeta.calendar_locale || 'en',
-                    timeZone: this.tZone,
-                    plugins: [ dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin ],
-                    initialView: 'dayGridMonth',
-                    events: this.calendar_events,
-                    headerToolbar: {
-                        start: 'prev,next today',
-                        center: 'title',
-                        end: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
-                    },
-                    droppable: true,
-                    editable: true,
-
-                    eventClick: this.handleEventClick,
-                    eventDrop: this.handleDropClick,
-                    eventResize: this.handleDropClick,
-                },
-
-                calendar_events: [],
-                show_calendar_sett: false,
-                can_calendar: false,
-                editPopupRow: null,
-                editPopupRole: 'add',
-            }
-        },
-        props:{
-            tableMeta: Object,
-            tableRows: Array,
-            isVisible: Boolean,
-            add_click: Number,
-            settings_click: Number,
-        },
-        watch: {
-            isVisible(val) {
-                if (val) {
-                    this.redrCalend();
-                }
-            },
-            add_click(val) {
-                this.editPopupRow = this.$root.emptyObject(this.tableMeta);
-                this.editPopupRole = 'add';
-            },
-            settings_click(val) {
-                this.show_calendar_sett = true;
-            },
-        },
-        computed: {
-            startFld() {
-                return _.find(this.tableMeta._fields, (fld) => { return !!fld.is_calendar_start; });
-            },
-            endFld() {
-                return _.find(this.tableMeta._fields, (fld) => { return !!fld.is_calendar_end; })
-                    || _.find(this.tableMeta._fields, (fld) => { return !!fld.is_calendar_start; });
-            },
-            titleFld() {
-                return _.find(this.tableMeta._fields, (fld) => { return !!fld.is_calendar_title; });
-            },
-            condFormatFld() {
-                return _.find(this.tableMeta._fields, (fld) => { return !!fld.is_calendar_cond_format; });
-            },
-        },
-        methods: {
-            handleEventClick(data) {
-                this.editPopupRow = _.find(this.tableRows, {id: Number(data.event.id)});
-                this.editPopupRole = 'update';
-            },
-            handleDropClick(data) {
-                let row = _.find(this.tableRows, {id: Number(data.event.id)});
-                if (row) {
-                    let onlydate = moment(data.event.end).diff( moment(data.event.start), 'days' );
-                    if (onlydate) {
-                        row[this.startFld.field] = SpecialFuncs.convertToUTC( SpecialFuncs.dateTimeasDate(data.event.start, 0)+' 00:00:01', this.tZone);
-                        row[this.endFld.field] = SpecialFuncs.convertToUTC( SpecialFuncs.dateTimeasDate(data.event.end, -1)+' 23:59:59', this.tZone);
-                    } else {
-                        row[this.startFld.field] = SpecialFuncs.convertToUTC( data.event.start, this.tZone);
-                        row[this.endFld.field] = SpecialFuncs.convertToUTC( data.event.end, this.tZone);
-                        row[this.startFld.field] = SpecialFuncs.convertToUTC( row[this.startFld.field], this.tZone);
-                        row[this.endFld.field] = SpecialFuncs.convertToUTC( row[this.endFld.field], this.tZone);
-                    }
-                    this.updateRow(row);
-                }
-            },
-            buildEvents() {
-                this.tZone = this.tableMeta.calendar_timezone || this.$root.user.timezone;
-                this.calendar_events = [];
-                _.each(this.tableRows, (row) => {
-                    if (this.startFld && this.endFld && this.titleFld) {
-                        let onlydate = moment(row[this.endFld.field]).diff( moment(row[this.startFld.field]), 'days' );
-                        let start = onlydate ? row[this.startFld.field] : SpecialFuncs.convertToLocal(row[this.startFld.field], this.tZone);
-                        let end = onlydate ? row[this.endFld.field] : SpecialFuncs.convertToLocal(row[this.endFld.field], this.tZone);
-
-                        let condForm = this.condFormatFld ? this.getCellStyleMethod(row, this.condFormatFld) : null;
-                        let clsNms = [];
-                        if (condForm) {
-                            switch (condForm.textDecoration) {
-                                case 'line-through': clsNms.push('fc-date-strike'); break;
-                                case 'overline': clsNms.push('fc-date-overline'); break;
-                                case 'underline': clsNms.push('fc-date-underline'); break;
-                            }
-                            if (condForm.fontStyle) { clsNms.push('fc-date-italic'); }
-                            if (condForm.fontWeight) { clsNms.push('fc-date-bold'); }
-                        }
-
-                        this.calendar_events.push({
-                            id: row.id,
-                            start: onlydate ? SpecialFuncs.dateTimeasDate(start) : start,
-                            end: onlydate ? SpecialFuncs.dateTimeasDate(end) : end,
-                            title: row[this.titleFld.field],
-                            textColor: condForm && condForm.color ? condForm.color : '#222',
-                            borderColor: condForm ? condForm.backgroundColor : '',
-                            backgroundColor: condForm ? condForm.backgroundColor : '',
-                            classNames: clsNms,
-                        });
-                    }
-                });
-                this.calendarOptions.events = this.calendar_events;
-                this.calendarOptions.locale = this.tableMeta.calendar_locale || 'en';
-                this.calendarOptions.timeZone = this.tZone;//test
-            },
-            redrCalend(type) {
-                if (!this.isVisible) {
-                    return;
-                }
-                let tmpVi = this.$refs.full_calendar ? this.$refs.full_calendar.getApi().view.type : this.calendarOptions.initialView;
-                this.show_calendar_sett = false;
-                this.can_calendar = false;
-                this.$nextTick(() => {
-                    this.buildEvents();
-                    this.calendarOptions.initialView = tmpVi;
-                    this.can_calendar = true;
-                });
-            },
-            saveTbOnBknd(field, val) {
-                axios.put('/ajax/table', {
-                    table_id: this.tableMeta.id,
-                    calendar_locale: this.tableMeta.calendar_locale,
-                    calendar_timezone: this.tableMeta.calendar_timezone,
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                });
-            },
-
-            //Popup
-            insertRow(tableRow) {
-                eventBus.$emit('list-view-insert-row', tableRow);
-            },
-            copyRow(tableRow) {
-                eventBus.$emit('list-view-copy-row', tableRow);
-            },
-            updateRow(tableRow) {
-                eventBus.$emit('list-view-update-row', tableRow);
-            },
-            deleteRow(tableRow) {
-                eventBus.$emit('list-view-delete-row', tableRow);
-            },
-            showSrcRecord(lnk, header, tableRow) {
-                this.$emit('show-src-record', lnk, header, tableRow);
-            },
-            closePopUp() {
-                this.editPopupRow = null;
-            },
-        },
-        mounted() {
-            eventBus.$on('new-request-params', this.redrCalend);
-        },
-        beforeDestroy() {
-            eventBus.$off('new-request-params', this.redrCalend);
+export default {
+    name: "TabCalendarView",
+    mixins: [
+        CanEditMixin,
+        CellStyleMixin,
+    ],
+    components: {
+        KanbanTab,
+        TablePagination,
+        InfoSignLink,
+        CalendarTab,
+        CalendarSettings,
+    },
+    data: function () {
+        return {
+            stTab: 'list',
+            calendarStates: [],
+            acttab: 'settings',
+            add_click: 0,
         }
+    },
+    props:{
+        table_id: Number,
+        tableMeta: Object,
+        request_params: Object,
+        currentPageRows: Array,
+        isVisible: Boolean,
+    },
+    computed: {
+        selectedState() {
+            return _.find(this.calendarStates, {id: this.acttab});
+        },
+        selectedCalendar() {
+            return _.find(this.tableMeta._calendar_addons, {id: this.acttab});
+        },
+        canDraw() {
+            return this.isVisible && this.acttab;
+        },
+        canPaginate() {
+            return this.selectedCalendar && this.selectedCalendar.calendar_data_range == '0';
+        },
+    },
+    watch: {
+        table_id(val) {
+            this.changeActab('settings');
+        },
+    },
+    methods: {
+        changeActab(val) {
+            this.acttab = '';
+            this.$nextTick(() => {
+                this.acttab = val;
+            });
+        },
+        showSrcRecord(lnk, header, tableRow) {
+            this.$emit('show-src-record', lnk, header, tableRow);
+        },
+        changePg(page) {
+            eventBus.$emit('changed-page', page);
+        },
+        createStates() {
+            _.each(this.tableMeta._calendar_addons, (calend) => {
+                this.calendarStates.push({
+                    id: calend.id,
+                    type: '',
+                    start: '',
+                })
+            });
+        },
+    },
+    mounted() {
+    },
+    beforeDestroy() {
     }
+}
 </script>
 
 <style lang="scss" scoped>
-    .calendar-settings {
-        position: relative;
-        height: 100%;
-        background-color: #FFF;
-        padding: 10px;
-    }
-</style>
+.tab-settings {
+    position: relative;
+    height: 100%;
 
-<style lang="scss">
-    .fc-date-bold {
-        font-weight: bold;
+    .blue-gradient {
+        margin-right: 5px;
     }
-    .fc-date-italic {
-        font-style: italic;
+
+    .menu-header {
+        position: relative;
+        margin-left: 5px;
+        top: 3px;
+
+        .left-btn {
+            position: relative;
+            top: 5px;
+        }
+
+        button {
+            background-color: #CCC;
+            outline: none;
+            &.active {
+                background-color: #FFF;
+            }
+            &:not(.active):hover {
+                color: black;
+            }
+        }
+
+        .right-elm {
+            float: right;
+            margin-left: 10px;
+        }
     }
-    .fc-date-strike {
-        text-decoration: 'line-through';
+
+    .menu-body {
+        position: absolute;
+        top: 35px;
+        right: 5px;
+        left: 5px;
+        bottom: 5px;
+        border-radius: 5px;
+        border: 1px solid #CCC;
     }
-    .fc-date-overline {
-        text-decoration: 'overline';
+
+    .btn-default {
+        height: 30px;
     }
-    .fc-date-underline {
-        text-decoration: 'underline';
-    }
+}
 </style>

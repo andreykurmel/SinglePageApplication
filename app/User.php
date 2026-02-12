@@ -7,6 +7,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Notifications\Notifiable;
 use Tymon\JWTAuth\Contracts\JWTSubject;
 use Vanguard\Models\AppTheme;
+use Vanguard\Models\MenutreeRecent;
 use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\SubscribedApp;
 use Vanguard\Models\User\UserApiKey;
@@ -54,6 +55,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property int|null $two_factor_phone
  * @property string|null $two_factor_options
  * @property string $two_factor_type
+ * @property string|null $two_factor_etoken
  * @property string|null $remember_token
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
@@ -78,6 +80,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property int|null $selected_card
  * @property int|null $app_theme_id
  * @property string $memutree_hash
+ * @property int $sync_reloading
  * @property \Vanguard\Models\User\UserSubscription|null $_all_subs
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_api_keys
  * @property int|null $_api_keys_count
@@ -92,6 +95,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property int|null $_google_api_keys_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserEmailAccount[] $_google_email_accs
  * @property int|null $_google_email_accs_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\MenutreeRecent[] $_menutree_recents
+ * @property int|null $_menutree_recents_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserInvitation[] $_invitations
  * @property int|null $_invitations_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup[] $_member_of_groups
@@ -103,6 +108,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property int|null $_paypal_payment_keys_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_sendgrid_api_keys
  * @property int|null $_sendgrid_api_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_twilio_api_keys
+ * @property int|null $_twilio_api_keys_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserPaymentKey[] $_stripe_payment_keys
  * @property int|null $_stripe_payment_keys_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\SubscribedApp[] $_subscribed_apps
@@ -121,58 +128,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  * @property \Illuminate\Notifications\DatabaseNotificationCollection|\Illuminate\Notifications\DatabaseNotification[] $notifications
  * @property int|null $notifications_count
  * @property \Vanguard\Role $role
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User query()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAddress($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAppThemeId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAutoLogout($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAvailCredit($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereAvatar($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereBirthday($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCompany($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereConfirmationToken($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCountryId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereEmail($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereFirstName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereInvitationsReward($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereLastLogin($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereLastName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereMemutreeHash($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePassword($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePayMethod($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePaypalCardId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePaypalCardLast($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePersonalHash($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePhone($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User wherePlanFeatureId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRecurrentPay($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRememberToken($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRenew($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereRoleId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSelectedCard($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereStatus($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereStripeUserId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSubIcon($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereSubdomain($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTeam($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTimezone($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTosAccepted($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorCountryCode($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorOptions($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorPhone($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereTwoFactorType($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUpdatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUseCredit($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereUsername($value)
  * @mixin \Eloquent
  * @property int $extracttable_terms
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_airtable_api_keys
- * @property int|null $_airtable_api_keys_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_extracttable_api_keys
- * @property int|null $_extracttable_api_keys_count
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_ai_api_keys
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserApiKey[] $_jira_api_keys
  * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\User whereExtracttableTerms($value)
  */
 class User extends Authenticatable implements TwoFactorAuthenticatableContract, JWTSubject
@@ -206,7 +167,7 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
         'recurrent_pay', 'timezone', 'subdomain', 'sub_icon', 'auto_logout', 'renew',
         'personal_hash', 'invitations_reward', 'tos_accepted', 'app_theme_id',
         'stripe_user_id', 'paypal_card_id', 'paypal_card_last', 'pay_method', 'use_credit',
-        'memutree_hash', 'extracttable_terms',
+        'memutree_hash', 'extracttable_terms', 'sync_reloading',
     ];
 
     /**
@@ -221,7 +182,13 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
     }
 
     public function _user_groups() {
-        return $this->hasMany(UserGroup::class, 'user_id', 'id');
+        return $this->hasMany(UserGroup::class, 'user_id', 'id')
+            ->where('is_system', '=', 0);
+    }
+
+    public function _sys_user_groups() {
+        return $this->hasMany(UserGroup::class, 'user_id', 'id')
+            ->where('is_system', '=', 1);
     }
 
     public function _member_of_groups() {
@@ -237,6 +204,12 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
     public function _invitations() {
         return $this->hasMany(UserInvitation::class, 'user_id', 'id')
             ->orderBy('status');
+    }
+
+    public function _menutree_recents() {
+        return $this->hasMany(MenutreeRecent::class, 'user_id', 'id')
+            ->orderBy('last_access', 'desc')
+            ->limit(50);
     }
 
     public function _cards() {
@@ -285,16 +258,37 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
         return $this->hasMany(UserApiKey::class, 'user_id', 'id')
             ->where('type', '=', 'sendgrid');
     }
+    public function _twilio_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'twilio');
+    }
     public function _extracttable_api_keys() {
         return $this->hasMany(UserApiKey::class, 'user_id', 'id')
             ->where('type', '=', 'extracttable');
+    }
+    public function _ai_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->whereIn('type', ['openai', 'gemini']);
+    }
+    public function _openai_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'openai');
+    }
+    public function _gemini_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'gemini');
+    }
+    public function _jira_api_keys() {
+        return $this->hasMany(UserApiKey::class, 'user_id', 'id')
+            ->where('type', '=', 'jira');
     }
     public function _airtable_api_keys() {
         return $this->hasMany(UserApiKey::class, 'user_id', 'id')
             ->where('type', '=', 'airtable');
     }
     public function _google_email_accs() {
-        return $this->hasMany(UserEmailAccount::class, 'user_id', 'id');
+        return $this->hasMany(UserEmailAccount::class, 'user_id', 'id')
+            ->where('type', '=', 'google');
     }
 
     public function _payment_keys() {
@@ -422,13 +416,13 @@ class User extends Authenticatable implements TwoFactorAuthenticatableContract, 
     /**
      * @return string
      */
-    public function avatarLink() {
-        if (!$this->avatar) {
-            return '/assets/img/profile.png';
+    public function avatarLink()
+    {
+        if (preg_match('/^http/i', $this->avatar)) {
+            return $this->avatar;
         }
 
-        return preg_match('/^http/i', $this->avatar)
-            ? $this->avatar
-            : '/upload/users/' . $this->avatar;
+        $link = '/upload/users/' . $this->avatar;
+        return file_exists(public_path($link)) ? $link : '/assets/img/profile.png';
     }
 }

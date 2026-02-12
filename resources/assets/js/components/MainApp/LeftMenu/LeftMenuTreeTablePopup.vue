@@ -47,8 +47,7 @@
         },
         methods: {
             userHasAddon(code) {
-                let idx = _.findIndex(this.$root.user._subscription._addons, {code: code});
-                return this.$root.user._is_admin || idx > -1;
+                return _.findIndex(this.$root.user._subscription._addons, {code: code}) > -1;
             },
             getEmptyTableModal() {
                 return {
@@ -63,6 +62,13 @@
                         rows_per_page: 50,
                         enabled_activities: 0,
                         autoload_new_data: null,
+                        filters_on_top: null,
+                        filters_ontop_pos: 'start',
+                        primary_view: 'grid_view',
+                        primary_align: 'start',
+                        primary_width: 70,
+                        listing_fld_id: null,
+                        listing_rowswi: null,
                         pub_hidden: null,
                         is_public: null,
                         add_map: null,
@@ -73,9 +79,18 @@
                         add_email: null,
                         add_gantt: null,
                         add_calendar: null,
+                        add_twilio: null,
+                        add_tournament: null,
+                        add_simplemap: null,
+                        add_grouping: null,
+                        add_report: null,
+                        add_ai: null,
                         board_view_height: null,
+                        board_title_width: null,
                         board_image_width: null,
+                        board_image_height: null,
                         max_rows_in_link_popup: null,
+                        max_mirrors_in_one_row: null,
                         search_results_len: null,
                         max_filter_elements: null,
                         google_api_key: null,
@@ -156,7 +171,7 @@
                             this.tableModal.parent_id = parent_id;
                             this.tableModal.active = true;
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });
@@ -170,7 +185,7 @@
             addTable() {
                 if (this.tableModal.tb_meta.name) {
                     let $node = this.tableModal.$node;
-                    this.tableModal.tb_meta.name = this.tableModal.tb_meta.name.replace(/[^\w\d\.-_ ]/gi, '');
+                    this.tableModal.tb_meta.name = this.$root.safeName(this.tableModal.tb_meta.name);
                     this.tableModal.active = false;
                     $.LoadingOverlay('show');
                     
@@ -185,7 +200,7 @@
                     axios.post('/ajax/import/create-table', data).then(({data}) => {
                         this.$emit('add-table', $node, data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
@@ -196,7 +211,7 @@
                     let $node = this.tableModal.$node;
                     let object = $node.li_attr['data-object'];//can be instance 'Folder' or 'Table' !!!
                     let parent_id = $node.li_attr['data-parent_id'];//can be instance 'Folder' or 'Table' !!!
-                    this.tableModal.tb_meta.name = this.tableModal.tb_meta.name.replace(/[^\w\d\.-_ ]/gi, '');
+                    this.tableModal.tb_meta.name = this.$root.safeName(this.tableModal.tb_meta.name);
                     this.tableModal.active = false;
                     $.LoadingOverlay('show');
 
@@ -223,9 +238,9 @@
                         object.rows_per_page = this.tableModal.tb_meta.rows_per_page;
                         $node.li_attr['data-object'] = object;
 
-                        this.$emit('edit-table', $node, object, old_name, new_name);
+                        this.$emit('edit-table', $node, old_name, new_name);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });

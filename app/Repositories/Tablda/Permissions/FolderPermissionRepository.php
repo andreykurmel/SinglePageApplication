@@ -24,7 +24,7 @@ class FolderPermissionRepository
      * Get Permission.
      *
      * @param $user_group_id
-     * @return mixed
+     * @return UserGroup|null
      */
     public function getUserGroup($user_group_id)
     {
@@ -70,5 +70,44 @@ class FolderPermissionRepository
                 'is_app' => $is_app,
                 'is_active' => $is_active,
             ]);
+    }
+
+    /**
+     * @param UserGroup $user_group
+     * @param int $is_active
+     * @param int $is_app
+     * @param array $checked_tables
+     */
+    public function updateSystemPermissions(UserGroup $user_group, int $is_active, int $is_app, array $checked_tables)
+    {
+        //delete unchecked tables from UserGroup
+        $user_group->_tables_shared()->delete();
+
+        //add checked tables for UserGroup
+        $to_add = [];
+        foreach ($checked_tables as $new_tb) {
+            $to_add[] = [
+                'user_group_id' => $user_group->id,
+                'table_id' => $new_tb,
+                'is_app' => $is_app,
+                'is_active' => $is_active,
+            ];
+        }
+        if ($to_add) {
+            $user_group->_tables_shared()->insert($to_add);
+        }
+    }
+
+    /**
+     * @param UserGroup $user_group
+     * @param int $tb_shared_id
+     * @param int $permission_id
+     * @return void
+     */
+    public function assignPermission(UserGroup $user_group, int $tb_shared_id, int $permission_id)
+    {
+        $user_group->_tables_shared()
+            ->where('id', '=', $tb_shared_id)
+            ->update(['table_permission_id' => $permission_id]);
     }
 }

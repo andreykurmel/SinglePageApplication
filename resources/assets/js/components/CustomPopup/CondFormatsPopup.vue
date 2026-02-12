@@ -10,12 +10,24 @@
                         </div>
                         <div class="" style="position: relative">
                             <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
+                            <button class="btn btn-default btn-sm blue-gradient"
+                                    :style="$root.themeButtonStyle"
+                                    style="font-size: 14px !important; padding: 0 3px; position:absolute; right: 25px; z-index: 100;"
+                                    @click="showOverview"
+                            >Overview</button>
+                            <div style="position: absolute; right: 100px; z-index: 100;">
+                                <info-sign-link v-if="settingsMeta.is_loaded"
+                                                :app_sett_key="'help_link_cond_format_pop'"
+                                                :hgt="24"
+                                                :txt="'for Cond Formats'"
+                                ></info-sign-link>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="popup-content flex__elem-remain">
                     <div class="flex__elem__inner">
-                        <div class="flex full-height">
+                        <div class="flex flex--col full-height">
 
                             <div class="flex__elem-remain table-container">
                                 <custom-table
@@ -39,6 +51,9 @@
                                         @reorder-rows="rowsReordered"
                                 ></custom-table>
                             </div>
+                            <label class="red" style="padding-left: 5px;">
+                                Note: Conditional Formattings (CFs) with smaller ids (#), usually at higher positions on the list, are on top of CFs with greater ids (#), at lower positions.
+                            </label>
                             
                         </div>
                     </div>
@@ -54,10 +69,12 @@
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
     import CustomTable from '../CustomTable/CustomTable';
+    import InfoSignLink from "../CustomTable/Specials/InfoSignLink.vue";
 
     export default {
         name: "ConditionalFormattingPopup",
         components: {
+            InfoSignLink,
             CustomTable,
         },
         mixins: [
@@ -70,7 +87,7 @@
                 draw_table: true,
                 addingRow: {
                     active: this.tableMeta._is_owner || (this.tableMeta._current_right && this.tableMeta._current_right.can_create_condformat),
-                    position: 'bottom'
+                    position: 'body_top'
                 },
                 //PopupAnimationMixin
                 getPopupWidth: window.innerWidth*0.8,
@@ -109,11 +126,11 @@
                         table_id: this.tableMeta.id,
                         fields: fields
                     }).then(({ data }) => {
-                        this.tableMeta._cond_formats.push(data);
+                        this.tableMeta._cond_formats.unshift(data);
                         eventBus.$emit('reload-page');
                         this.redrawTb();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -136,7 +153,7 @@
                         eventBus.$emit('reload-page');
                         this.redrawTb();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -156,7 +173,7 @@
                         }
                         this.redrawTb();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -175,7 +192,7 @@
                     this.tableMeta._cond_formats = data;
                     this.redrawTb();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -187,16 +204,19 @@
             },
             hide() {
                 this.show_this = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
             showCondFormatsPopupHandler(db_table) {
                 if (!db_table || db_table === this.tableMeta.db_name) {
                     this.show_this = true;
-                    this.$root.tablesZidx += 10;
+                    this.$root.tablesZidxIncrease();
                     this.zIdx = this.$root.tablesZidx;
                     this.runAnimation();
                 }
+            },
+            showOverview() {
+                eventBus.$emit('show-overview-format-popup', this.tableMeta.db_name);
             },
         },
         created() {

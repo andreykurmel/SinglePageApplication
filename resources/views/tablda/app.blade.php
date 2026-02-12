@@ -45,15 +45,18 @@
                 '#remind-password-form__init_validation'
             ]"
             :no_settings="{{ !empty($no_settings) ? 1 : 0 }}"
+            :recaptcha_key="'{{ config('app.recaptcha_front_key') }}'"
             v-cloak=""
         >
-            <div v-if="$root.settingsMeta.is_loaded">
+            <div v-if="$root.user">
                 @if(!$embed)
                     @if(auth()->guest())
                     <auth-forms
+                        v-if="$root.settingsMeta.is_loaded"
                         v-bind:show_register="show_register"
                         v-bind:show_login="show_login"
                         v-bind:settings="{
+                            present_promo: {{ \Vanguard\Models\PromoCode::where('is_active', 1)->count() }},
                             root_url: '{{ config('app.url') }}',
                             app_name: '{{ config('app.name') }}',
                             errors: {{ json_encode($errors->all()) }},
@@ -63,6 +66,8 @@
                             csrf_token: '{{ csrf_token() }}',
                             register_old_email: '{{ old('email') }}',
                             register_old_username: '{{ old('username') }}',
+                            login_old_email: '{{ Session::get('last_login_name', '') }}',
+                            login_old_pass: '{{ Session::get('last_login_pass', '') }}',
                         }"
                     ></auth-forms>
                     @endif
@@ -107,6 +112,9 @@
             <input type="hidden" name="file_name" id="dwn_filename" value="">
         </form>
         <textarea id="for_paste_get" style="position: fixed;top:100%;"></textarea>
+        <div style="position:fixed; top: 100%;">
+            <input id="virtual_phone"/>
+        </div>
 
         @if(!config('app.debug'))
             @if(auth()->guest())
@@ -135,6 +143,9 @@
                     v-on:tooltip-blur="$root.linkprev_object = null"
                     v-on:another-click="$root.linkprev_object = null"
         ></link-preview-block>
+
+        <!--Twilio Test Call Popup-->
+        <twilio-test-popup></twilio-test-popup>
     </div>
 
     @if(!$lightweight)
@@ -142,6 +153,11 @@
         <script src="https://www.paypal.com/sdk/js?client-id={{ $paypal_client }}"></script>
         <script src="https://js.stripe.com/v3/"></script>
     @endif
+
+    <script async src="{{ url('assets/js/simplemap/usmapdata_full.js') }}"></script>
+    <script async src="{{ url('assets/js/simplemap/usmap_full.js') }}"></script>
+    <script async src="{{ url('assets/js/simplemap/countymapdata.js') }}"></script>
+    <script async src="{{ url('assets/js/simplemap/countymap.js') }}"></script>
 
     @if(isset($load_three_3d))
         <script src="{{ mix('assets/js/three-3d-lib.js') }}"></script>
@@ -160,6 +176,27 @@
         @include('tablda.each-file-scripts')
     @endif
 
+    <!-- Google reCAPTCHA -->
+    @if(config('app.env') == 'production' && config('app.recaptcha_front_key'))
+        <script src="https://www.google.com/recaptcha/api.js?render={{ config('app.recaptcha_front_key') }}"></script>
+        @if($request_vars['captcha_style'] ?? '' == 'hidden')
+            <style>
+                .grecaptcha-badge {
+                    z-index: -1 !important;
+                }
+            </style>
+        @endif
+        @if($request_vars['captcha_style'] ?? '' == 'onTop')
+            <style>
+                .grecaptcha-badge {
+                    z-index: 9999 !important;
+                }
+            </style>
+        @endif
+    @endif
+    <!-- End Google reCAPTCHA -->
+
+    <script src="{{ url('assets/js/gridstack-all.js') }}"></script>
     <script src="{{ url('assets/ckeditor/ckeditor.js') }}"></script>
 
     @stack('scripts')

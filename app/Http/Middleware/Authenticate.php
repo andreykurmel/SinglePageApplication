@@ -4,6 +4,7 @@ namespace Vanguard\Http\Middleware;
 
 use Closure;
 use Illuminate\Contracts\Auth\Guard;
+use Vanguard\Support\Enum\UserStatus;
 
 class Authenticate
 {
@@ -40,6 +41,9 @@ class Authenticate
             } else {
                 return redirect()->guest('/');
             }
+        }
+        if($this->auth->user()->status == UserStatus::UNCONFIRMED) {
+            return response('Please confirm your email!', 401);
         }
 
         return $next($request);

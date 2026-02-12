@@ -14,8 +14,8 @@
 
             <input class="form-control input-sm"
                    :placeholder="'Search'"
-                   @keyup="inputKey(searchObject.keyWords)"
-                   v-model="searchObject.keyWords"/>
+                   @keyup="inputKey(usedSearch.keyWords)"
+                   v-model="usedSearch.keyWords"/>
 
             <button v-show="hasSearch"
                     class="btn btn-sm btn-danger"
@@ -55,6 +55,7 @@
 
     import {eventBus} from './../../app';
 
+    import {RowDataHelper} from "../../classes/helpers/RowDataHelper";
     import {SpecialFuncs} from './../../classes/SpecialFuncs';
 
     import FieldsChecker from "../CommonBlocks/FieldsChecker";
@@ -74,6 +75,11 @@
                 timerout: null,
                 popup_rows: [],
                 total_found: 0,
+                localSearchObject: {
+                    keyWords: '',
+                    columns: [],
+                    direct_row_id: null,
+                },
             }
         },
         props:{
@@ -83,13 +89,19 @@
             limitColumns: Array,
         },
         computed: {
+            searchKey() {
+                return this.searchObject ? 'searchObject' : 'localSearchObject';
+            },
+            usedSearch() {
+                return this[this.searchKey];
+            },
             allChecked() {
-                return this.searchObject.columns.length === this.tableMeta._fields.length
+                return this.usedSearch.columns.length === this.tableMeta._fields.length
                     ? 2
-                    : this.searchObject.columns.length > 0 ? 1 : 0;
+                    : this.usedSearch.columns.length > 0 ? 1 : 0;
             },
             hasSearch() {
-                return !!this.searchObject.direct_row_id || this.searchObject.keyWords;
+                return !!this.usedSearch.direct_row_id || this.usedSearch.keyWords;
             }
         },
         methods: {
@@ -104,22 +116,22 @@
                 }
             },
             checkFunc(header) {
-                return $.inArray(header.field, this.searchObject.columns) > -1;
+                return $.inArray(header.field, this.usedSearch.columns) > -1;
             },
             toggleColumn(hdr) {
                 let field = hdr.field;
-                let idx = _.findIndex(this.searchObject.columns, function(el) { return el === field; });
+                let idx = _.findIndex(this.usedSearch.columns, function(el) { return el === field; });
                 if (idx > -1) {
-                    this.searchObject.columns.splice(idx, 1);
+                    this[this.searchKey].columns.splice(idx, 1);
                 } else {
-                    this.searchObject.columns.push(field);
+                    this[this.searchKey].columns.push(field);
                 }
             },
             toggleAll() {
                 if (this.allChecked) {
-                    this.searchObject.columns = [];
+                    this[this.searchKey].columns = [];
                 } else {
-                    this.searchObject.columns = _.map(this.tableMeta._fields, 'field');
+                    this[this.searchKey].columns = _.map(this.tableMeta._fields, 'field');
                 }
             },
             toggleSearch(val) {
@@ -127,17 +139,17 @@
                 this.col_menu_opened = false;
                 if (!this.menu_opened) {
                     this.popup_rows = _.filter(this.popup_rows, (row) => {
-                        return row.id === this.searchObject.direct_row_id;
+                        return row.id === this.usedSearch.direct_row_id;
                     });
                     this.total_found = this.popup_rows.length;
                 }
             },
             clearSearch() {
-                this.searchObject.direct_row_id = null;
-                this.searchObject.keyWords = '';
+                this[this.searchKey].direct_row_id = null;
+                this[this.searchKey].keyWords = '';
                 this.popup_rows = [];
                 this.total_found = 0;
-                this.$emit('search-word-changed');
+                this.$emit('search-word-changed', this.usedSearch);
             },
             shouldShow(tableHeader) {
                 return tableHeader.is_search_autocomplete_display == 1
@@ -149,15 +161,12 @@
                     //&& this.isShowField(tableHeader);
             },
             inputKey(word) {
-                if (window.event.keyCode == 13) {
-                    this.toggleSearch(false);
-                    this.$emit('search-word-changed');
-                }
-                else
-                if (word.length >= 3) {
-                    clearTimeout(this.timerout);
-                    this.timerout = setTimeout(this.sendAutoComplete, 500);
-                }
+                clearTimeout(this.timerout);
+                this.timerout = setTimeout(this.sendSearch, 500);
+            },
+            sendSearch() {
+                //this.toggleSearch(false);
+                this.$emit('search-word-changed', this.usedSearch);
             },
             sendAutoComplete() {
                 let obj = this.requestParams ? _.cloneDeep(this.requestParams) : {table_id: this.tableMeta.id, special_params: {}};
@@ -167,23 +176,24 @@
                 };
                 request.page = 1;
                 request.rows_per_page = this.tableMeta.search_results_len;
-                request.search_words = this.searchObject.keyWords;
-                request.search_columns = this.searchObject.columns;
+                request.search_words = this.usedSearch.keyWords;
+                request.search_columns = this.usedSearch.columns;
                 request.special_params.for_list_view = false;
 
                 axios.post('/ajax/table-data/get', request).then(({ data }) => {
+                    RowDataHelper.fillCanEdits(this.tableMeta, data.rows);
                     this.popup_rows = data.rows;
                     this.total_found = data.rows_count;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
             },
             AutoRowClicked(row) {
-                this.searchObject.direct_row_id = row.id;
+                this[this.searchKey].direct_row_id = row.id;
                 this.toggleSearch(false);
-                this.$emit('search-word-changed');
+                this.$emit('search-word-changed', this.usedSearch);
             },
             hideMenu(e) {
                 let container = $(this.$refs.search_button);

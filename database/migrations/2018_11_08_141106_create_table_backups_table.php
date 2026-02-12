@@ -17,6 +17,7 @@ class CreateTableBackupsTable extends Migration
             $table->increments('id');
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('user_cloud_id');
+            $table->unsignedInteger('table_view_id')->nullable();
             $table->tinyInteger('is_active')->nullable();
             $table->string('name');
             $table->string('day', 20)->nullable();
@@ -40,6 +41,11 @@ class CreateTableBackupsTable extends Migration
                 ->references('id')
                 ->on('user_clouds')
                 ->onDelete('cascade');
+
+            $table->foreign('table_view_id', 'table_backups_table_view_id')
+                ->references('id')
+                ->on('table_views')
+                ->onDelete('set null');
 
             $table->foreign('created_by')
                 ->references('id')

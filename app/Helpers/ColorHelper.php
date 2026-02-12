@@ -38,11 +38,22 @@ class ColorHelper
 
     /**
      * @param int $randomer
+     * @param int|null $key
      * @return string
      */
-    public static function autoHex(int $randomer = 0): string
+    public static function autoHex(int $randomer = 0, int $key = null): string
     {
-        $selected = (self::$kelly_colors_hex[ (self::$key++)%20 ] + $randomer) % 0xFFFFFF;
+        $arrKey = is_null($key) ? (self::$key++)%20 : $key%20;
+        $selected = (self::$kelly_colors_hex[$arrKey] + $randomer) % 0xFFFFFF;
         return str_pad( dechex($selected), 6, '0' );
+    }
+
+    /**
+     * @param int $randomer
+     * @return string
+     */
+    public static function randomHex(): string
+    {
+        return '#' . str_pad( dechex(rand(0, 0xffffff)), 6, '0' );
     }
 }

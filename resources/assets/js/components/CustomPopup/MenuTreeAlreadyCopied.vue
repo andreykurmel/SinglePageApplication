@@ -53,12 +53,9 @@
 <script>
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
-    import VerticalTable from "../CustomTable/VerticalTable";
-
     export default {
         name: "MenuTreeAlreadyCopied",
         components: {
-            VerticalTable
         },
         mixins: [
             PopupAnimationMixin,

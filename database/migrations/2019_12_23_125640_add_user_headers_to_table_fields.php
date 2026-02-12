@@ -16,7 +16,10 @@ class AddUserHeadersToTableFields extends Migration
         Schema::table('table_fields', function (Blueprint $table) {
             $table->string('unit_display', 50)->nullable();
             $table->string('filter_type', 16)->default('value');
+            $table->tinyInteger('filter_search')->default(0);
             $table->string('col_align', 32)->default('center');
+            $table->string('image_fitting', 16)->default('fill');
+            $table->tinyInteger('fill_by_asterisk')->default(0);
             $table->string('notes')->nullable();
             $table->unsignedInteger('width')->default(100);
             $table->unsignedInteger('min_width')->default(10);
@@ -26,6 +29,7 @@ class AddUserHeadersToTableFields extends Migration
             $table->unsignedInteger('web')->default(1);
             $table->unsignedInteger('filter')->default(0);
             $table->unsignedInteger('popup_header')->default(0);
+            $table->unsignedInteger('popup_header_val')->default(0);
             $table->unsignedInteger('is_floating')->default(0);
             $table->unsignedInteger('show_zeros')->default(1);
         });
@@ -41,6 +45,9 @@ class AddUserHeadersToTableFields extends Migration
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('unit_display');
             $table->dropColumn('filter_type');
+            $table->dropColumn('filter_search');
+            $table->dropColumn('image_fitting');
+            $table->dropColumn('fill_by_asterisk');
             $table->dropColumn('col_align');
             $table->dropColumn('notes');
             $table->dropColumn('width');
@@ -51,6 +58,7 @@ class AddUserHeadersToTableFields extends Migration
             $table->dropColumn('web');
             $table->dropColumn('filter');
             $table->dropColumn('popup_header');
+            $table->dropColumn('popup_header_val');
             $table->dropColumn('is_floating');
             $table->dropColumn('unit_display');
             $table->dropColumn('show_zeros');

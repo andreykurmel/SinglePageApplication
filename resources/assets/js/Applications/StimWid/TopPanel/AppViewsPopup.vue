@@ -110,7 +110,7 @@
                                             ></custom-table>
                                         </div>
                                         <div class="top-text">
-                                            <span>{{ selectedFeedback+1 }} - {{ (selected_feedback ? selected_feedback.purpose : '') }}</span>
+                                            <span>Request#{{ selectedFeedback+1 }} : {{ (selected_feedback ? selected_feedback.purpose : '') }}</span>
                                         </div>
                                         <div class="permissions-panel no-padding" style="height: calc(50% - 35px)">
                                             <custom-table
@@ -155,7 +155,6 @@
     import PopupAnimationMixin from './../../../components/_Mixins/PopupAnimationMixin';
 
     import CustomTable from "./../../../components/CustomTable/CustomTable";
-    import VerticalTable from "../../../components/CustomTable/VerticalTable";
     import ViewAvailTabs from "./ViewAvailTabs";
 
     export default {
@@ -165,7 +164,6 @@
         ],
         components: {
             ViewAvailTabs,
-            VerticalTable,
             CustomTable,
         },
         data: function () {
@@ -250,12 +248,12 @@
                 this.selectedFeedback = -1;
                 this.selectedView = -1;
                 this.show_this = false;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
             showAppViewsPopupHandler() {
                 this.show_this = true;
-                this.$root.tablesZidx += 10;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
             },
@@ -276,7 +274,7 @@
                 }).then(({ data }) => {
                     this.$root.user._app_users_views.push(data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                     this.viewRow = null;
@@ -291,7 +289,7 @@
                 }).then(({ data }) => {
                     //
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -306,7 +304,7 @@
                 }).then(({ data }) => {
                     this.$root.user._app_users_views.splice(idx, 1);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -322,7 +320,7 @@
                 }).then(({ data }) => {
                     this.selected_view._feedbacks = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                     this.viewRow = null;
@@ -342,14 +340,14 @@
                 }).then(({ data }) => {
                     this.selected_view._feedbacks = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
             },
             sendFeedbackEmail(feedback) {
                 if (!feedback.email_to) {
-                    Swal('Recipients are empty!', 'Fill them by clicking "EDIT".');
+                    Swal('Info','Recipients are empty! Fill them by clicking "EDIT".');
                     return;
                 }
 
@@ -359,7 +357,7 @@
                 }).then(({ data }) => {
                     this.selected_view._feedbacks = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -374,7 +372,7 @@
                 }).then(({ data }) => {
                     this.selected_view._feedbacks = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -390,7 +388,7 @@
                 }).then(({ data }) => {
                     this.selected_feedback._results = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -405,7 +403,7 @@
                 }).then(({ data }) => {
                     this.selected_feedback._results = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -422,7 +420,7 @@
                             this.selected_view._feedbacks = data.new_view._feedbacks;
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 }
             }, 5000);

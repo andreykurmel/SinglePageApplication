@@ -18,10 +18,12 @@ class CreateFilesTable extends Migration
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('table_field_id');
             $table->unsignedInteger('row_id');
-            $table->string('filepath');
-            $table->string('filename');
+            $table->string('filepath', 255);
+            $table->string('filename', 255);
             $table->unsignedInteger('filesize')->nullable();
             $table->tinyInteger('is_img')->default(0);
+            $table->tinyInteger('is_video')->default(0);
+            $table->tinyInteger('is_audio')->default(0);
             $table->string('notes')->nullable();
             $table->string('filehash', 64)->nullable();
 

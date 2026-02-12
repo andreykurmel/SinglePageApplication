@@ -3,5 +3,8 @@
 @section('page-title', 'Application')
 
 @section('content')
-    <iframe src="{{ $iframe_path }}" width="100%" height="100%"></iframe>
+    <stim-iframe-app
+            :iframe_path="'{{ $iframe_path }}'"
+            v-cloak=""
+    ></stim-iframe-app>
 @endsection

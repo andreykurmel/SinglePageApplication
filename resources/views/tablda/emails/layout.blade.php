@@ -64,9 +64,15 @@
                                         @endif
 
                                         <!-- Salutation -->
-                                        <p style="{{ $styles['paragraph'] }}">
-                                            Best,<br>{{ config('app.name') }} Team
-                                        </p>
+                                        @if (!empty($custom_salutation))
+                                            <p style="{{ $styles['paragraph'] }}">
+                                                {!! nl2br($custom_salutation) !!}
+                                            </p>
+                                        @else
+                                            <p style="{{ $styles['paragraph'] }}">
+                                                Best,<br>{{ config('app.name') }} Team
+                                            </p>
+                                        @endif
 
                                         <!-- Sub Copy -->
                                         @if (!empty($mail_action))

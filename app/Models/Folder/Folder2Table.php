@@ -26,21 +26,6 @@ use Vanguard\User;
  * @property-read \Vanguard\User|null $_modified_user
  * @property-read \Vanguard\Models\Table\Table $_table
  * @property-read \Vanguard\User $_user
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table query()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereCreatedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereCreatedName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereCreatedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereFolderId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereModifiedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereModifiedName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereModifiedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereStructure($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereTableId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereType($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\Folder\Folder2Table whereUserId($value)
  * @mixin \Eloquent
  */
 class Folder2Table extends Model
@@ -54,7 +39,7 @@ class Folder2Table extends Model
         'user_id',
         'folder_id',
         'type',
-        'structure',
+        'structure',//['public','private','favorite','account']
         'is_folder_link',
         'created_by',
         'created_on',

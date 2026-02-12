@@ -15,8 +15,9 @@ use Vanguard\User;
 class TableChartController extends Controller
 {
 
-    private $tableService;
-    private $chartService;
+    protected $tableService;
+    protected $chartService;
+    protected $notNeededData = ['dimensions','pivot.data_widths','pivot.vert_widths'];//optimization of settings which are not change dataset
 
     /**
      * TableDataController constructor.
@@ -49,6 +50,7 @@ class TableChartController extends Controller
 
         $data = [
             'id' => $request->id,
+            'table_chart_tab_id' => $request->table_chart_tab_id,
             'table_id' => $table->id,
             'user_id' => auth()->id(),
             'row_idx' => $request->row_idx,
@@ -64,20 +66,37 @@ class TableChartController extends Controller
         } else {
             $ch = $this->chartService->getChart($data);
 
-            [$chart_data, $table_data] = $this->chartService->getChartAndTableData($table, $all_settings, $request->request_params);
-            if ($all_settings && $all_settings['elem_type'] == 'pivot_table' && $all_settings['pivot_table']) {
-                $a_len = $all_settings['pivot_table']['len_about'] ?? 1;
-                if ($a_len > 1) {
-                    [$chart_data_2, $table_data_2] = $this->chartService->getChartAndTableData($table, $all_settings, $request->request_params, 2);
+            try {
+                if (!in_array($request->changed_param, $this->notNeededData)) {
+                    $chSettings = $this->chartService->prepareChartSettings($ch, $all_settings);
+                    [$chart_data, $table_data] = $this->chartService->getChartAndTableData($table, $chSettings, $request->request_params);
+                    if ($chSettings && $chSettings['elem_type'] == 'pivot_table' && $chSettings['pivot_table']) {
+                        $a_len = $chSettings['pivot_table']['len_about'] ?? 1;
+                        if ($a_len > 1) {
+                            [$chart_data_2, $table_data_2] = $this->chartService->getChartAndTableData($table, $chSettings, $request->request_params, 2);
+                        }
+                        if ($a_len > 2) {
+                            [$chart_data_3, $table_data_3] = $this->chartService->getChartAndTableData($table, $chSettings, $request->request_params, 3);
+                        }
+                        if ($a_len > 3) {
+                            [$chart_data_4, $table_data_4] = $this->chartService->getChartAndTableData($table, $chSettings, $request->request_params, 4);
+                        }
+                        if ($a_len > 4) {
+                            [$chart_data_5, $table_data_5] = $this->chartService->getChartAndTableData($table, $chSettings, $request->request_params, 5);
+                        }
+                    }
                 }
-                if ($a_len > 2) {
-                    [$chart_data_3, $table_data_3] = $this->chartService->getChartAndTableData($table, $all_settings, $request->request_params, 3);
-                }
+            } catch (\Exception $e) {
+                $data_receiving_error = 1;
             }
 
             $data['user_id'] = $ch->user_id;
             $ch = $this->chartService->saveChart($ch, $data, $request->changed_param);
             $ch->load('_chart_rights');
+
+            $chart_ar = $ch->toArray();
+            $chart_ar['chart_settings'] = json_decode($ch->chart_settings);
+            $chart_ar['cached_data'] = json_decode($ch->cached_data);
 
             return [
                 'id' => $ch->id,
@@ -85,7 +104,10 @@ class TableChartController extends Controller
                 'table_data' => $table_data ?? null,
                 'table_data_2' => $table_data_2 ?? null,
                 'table_data_3' => $table_data_3 ?? null,
-                'chart_obj' => $ch,
+                'table_data_4' => $table_data_4 ?? null,
+                'table_data_5' => $table_data_5 ?? null,
+                'chart_obj' => $chart_ar,
+                'data_receiving_error' => $data_receiving_error ?? 0,
             ];
         }
     }
@@ -116,7 +138,8 @@ class TableChartController extends Controller
         $chid = $request->chart_settings ? $request->chart_settings['id'] : '';
         $chart = $this->chartService->getChart(['id' => $chid]);
         if ($chart->user_id == auth()->id()) {
-            return $this->chartService->exportChart($chart->_table, $request->chart_settings, $target_table, $request->request_params ?? []);
+            $chSettings = $this->chartService->prepareChartSettings($chart, $request->chart_settings);
+            return $this->chartService->exportChart($chart->_table, $chSettings, $target_table, $request->request_params ?? []);
         } else {
             return response('Forbidden', 403);
         }
@@ -160,5 +183,49 @@ class TableChartController extends Controller
         } else {
             return response('Forbidden', 403);
         }
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function insertTab(Request $request)
+    {
+        $table = (new TableService())->getTable($request->table_id);
+        $user = auth()->check() ? auth()->user() : new User();
+        $this->authorizeForUser($user, 'isOwner', [TableData::class, $table]);
+        $this->chartService->insertTab(array_merge($request->fields, ['table_id' => $table->id]));
+        return $table->_chart_tabs;
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function updateTab(Request $request)
+    {
+        $chartTab = $this->chartService->getTab($request->model_id);
+        $user = auth()->check() ? auth()->user() : new User();
+        $table = $chartTab->_table;
+        $this->authorizeForUser($user, 'isOwner', [TableData::class, $table]);
+        $this->chartService->updateTab($request->model_id, array_merge($request->fields, ['table_id' => $table->id]));
+        return $table->_chart_tabs;
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function deleteTab(Request $request)
+    {
+        $chartTab = $this->chartService->getTab($request->model_id);
+        $user = auth()->check() ? auth()->user() : new User();
+        $table = $chartTab->_table;
+        $this->authorizeForUser($user, 'isOwner', [TableData::class, $table]);
+        $this->chartService->deleteTab($request->model_id);
+        return $table->_chart_tabs;
     }
 }

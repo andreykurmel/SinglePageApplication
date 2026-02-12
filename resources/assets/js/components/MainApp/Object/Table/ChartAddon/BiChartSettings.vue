@@ -4,25 +4,20 @@
         <div style="margin-top: 3px;">
             <template v-if="all_settings.elem_type !== 'text_data'">
                 <div class="inline-fld">
-                    <label>Data:</label>
+                    <label>Data Range:</label>
                     <select
-                            class="form-group form-control control-200"
-                            v-model="all_settings.dataset.type"
-                            @change="chSettingChanged('dataset.type')"
+                        class="form-group form-control control-200"
+                        v-model="all_settings.data_range"
+                        @change="chSettingChanged('data_range')"
                     >
-                        <option value="all_table">Dataset</option>
-                        <option value="list_view">Current Grid View</option>
-                    </select>
-                </div>
-                <div class="inline-fld">
-                    <label>Subset (Row Group):</label>
-                    <select
-                            class="form-group form-control control-200"
-                            v-model="all_settings.dataset.rowgr_id"
-                            @change="chSettingChanged('dataset.rowgr_id')"
-                    >
-                        <option value="0"></option>
-                        <option v-for="rg in tableMeta._row_groups" :style="{color: '#444'}" :value="rg.id">{{ rg.name }}</option>
+                        <option :value="null"></option>
+                        <option :value="'-2'">Table</option>
+                        <option :value="'-1'">GridView (All pages)</option>
+                        <option :value="'0'">Current Page</option>
+                        <option disabled>Row Group:</option>
+                        <option v-for="rg in tableMeta._row_groups" :value="'rg:'+rg.id">&nbsp;&nbsp;&nbsp;{{ rg.name }}</option>
+                        <option disabled>Filter Combo:</option>
+                        <option v-for="sf in tableMeta._saved_filters" :value="'sf:'+sf.id">&nbsp;&nbsp;&nbsp;{{ sf.name }}</option>
                     </select>
                 </div>
                 <div v-if="all_settings.elem_type === 'pivot_table'" class="inline-fld">
@@ -55,13 +50,13 @@
                         class="btn btn-default blue-gradient"
                         :disabled="!should_save"
                         style="position: relative;top: -3px;"
-                        @click="sendChangeSignal(canEdit ? 'dataset.rowgr_id' : '__update_cache')"
+                        @click="sendChangeSignal(canEdit ? 'data_range' : '__update_cache')"
                         :style="$root.themeButtonStyle"
                 >Save</button>
             </div>
         </div>
 
-        <div class="chart-body" ref="ch_body" :style="{backgroundColor: (all_settings.dimensions.back_color || '#FFF')}">
+        <div class="chart-bsett" ref="ch_body" :style="{backgroundColor: (all_settings.dimensions.back_color || '#FFF')}">
 
             <!-- START TEXT PART -->
             <div class="full-frame settings-tab" v-if="all_settings.elem_type === 'text_data'">
@@ -207,6 +202,17 @@
                                v-model="apt.labels.y_label"
                                @change="chSettingChanged('pivot_table.labels.y_label')"/>
                     </div>
+                    <div class="flex flex--center-v" style="float: right; margin-top: 7px;">
+                        <span class="indeterm_check__wrap">
+                            <span class="indeterm_check"
+                                  :class="{'disabled': !canEdit}"
+                                  @click="!canEdit ? null : chSettingChanged('pivot_table.activness_visible',apt,'activness_visible');"
+                            >
+                                <i v-if="apt.activness_visible" class="glyphicon glyphicon-ok group__icon"></i>
+                            </span>
+                        </span>
+                        <label class="no-margin">&nbsp;"Active"</label>
+                    </div>
                 </div>
                 <div class="form-group">
                     <table class="table_settings">
@@ -214,6 +220,7 @@
                             <col style="width: 75px;">
                             <col style="width: 60px;">
                             <col style="width: 35px;">
+                            <col style="width: 75px;">
                             <col style="width: 215px;">
                             <col v-if="apt_fld_meta.some_has_mselect" style="width: 75px;">
                             <col style="width: 50px;">
@@ -225,7 +232,7 @@
                         <thead>
                             <tr>
                                 <th rowspan="2"></th>
-                                <th colspan="2">Level</th>
+                                <th colspan="3">Level</th>
                                 <th rowspan="2">Fields/Columns</th>
                                 <th rowspan="2" v-if="apt_fld_meta.some_has_mselect">Split Multi Choices</th>
                                 <th colspan="2">Sub Total</th>
@@ -236,6 +243,7 @@
                             <tr>
                                 <th>Qty</th>
                                 <th>#</th>
+                                <th>Name</th>
                                 <th>Status</th>
                                 <th>Place</th>
                             </tr>
@@ -253,12 +261,25 @@
                                             :style="{color: apt.hor_l ? '' : '#AAA'}"
                                             @change="clearFields('horizontal');chSettingChanged('pivot_table.hor_l');"
                                     >
-                                        <option>1</option>
-                                        <option>2</option>
-                                        <option>3</option>
+                                        <option v-for="i in max_hor">{{ i }}</option>
                                     </select>
                                 </td>
-                                <td class="td--th">L{{ lvl }}</td>
+                                <td class="td--th"
+                                    :style="{border: horToLVL == lvl ? '2px dashed #000' : null}"
+                                    :draggable="canEdit"
+                                    @dragstart.stop="horFromLVL = lvl"
+                                    @dragover.stop=""
+                                    @dragenter.stop="horToLVL = lvl"
+                                    @dragend.stop="reorderLevels('horizontal')"
+                                    style="cursor: pointer"
+                                >{{ lvl }}</td>
+                                <td>
+                                    <input type="text"
+                                           v-model="apt.horizontal['l'+lvl+'_lvl_fname']"
+                                           :disabled="!canEdit"
+                                           @change="chSettingChanged('pivot_table.horizontal.l'+lvl+'_lvl_fname');"
+                                           class="form-control"/>
+                                </td>
                                 <td>
                                     <select-block
                                             v-if="apt.referenced_tables"
@@ -363,14 +384,25 @@
                                             :style="{color: apt.vert_l ? '' : '#AAA'}"
                                             @change="clearFields('vertical');chSettingChanged('pivot_table.vert_l');"
                                     >
-                                        <option>1</option>
-                                        <option>2</option>
-                                        <option>3</option>
-                                        <option>4</option>
-                                        <option>5</option>
+                                        <option v-for="i in max_vert">{{ i }}</option>
                                     </select>
                                 </td>
-                                <td class="td--th">L{{ lvl }}</td>
+                                <td class="td--th"
+                                    :style="{border: vertToLVL == lvl ? '2px dashed #000' : null}"
+                                    :draggable="canEdit"
+                                    @dragstart.stop="vertFromLVL = lvl"
+                                    @dragover.stop=""
+                                    @dragenter.stop="vertToLVL = lvl"
+                                    @dragend.stop="reorderLevels('vertical')"
+                                    style="cursor: pointer"
+                                >{{ lvl }}</td>
+                                <td>
+                                    <input type="text"
+                                           v-model="apt.vertical['l'+lvl+'_lvl_fname']"
+                                           :disabled="!canEdit"
+                                           @change="chSettingChanged('pivot_table.vertical.l'+lvl+'_lvl_fname');"
+                                           class="form-control"/>
+                                </td>
                                 <td>
                                     <select-block
                                             v-if="apt.referenced_tables"
@@ -462,8 +494,10 @@
                             <col style="width: 75px;">
                             <col style="width: 60px;">
                             <col style="width: 35px;">
+                            <col style="width: 75px;">
                             <col style="width: 90px;">
-                            <col style="width: 215px;">
+                            <col style="width: 140px;">
+                            <col style="width: 100px;">
                             <col style="width: 90px;">
                             <col style="width: 90px;">
                             <col style="width: 90px;">
@@ -471,9 +505,12 @@
                         <thead>
                         <tr>
                             <th rowspan="2"></th>
-                            <th colspan="3">Level</th>
+                            <th rowspan="2">Qty</th>
+                            <th rowspan="2">#</th>
+                            <th rowspan="2">Name</th>
+                            <th rowspan="2">Type</th>
                             <th rowspan="2">
-                                <span>Column</span>
+                                <span>Fields</span>
                                 <label v-if="apt.len_about > 1">
                                     <span class="indeterm_check__wrap">
                                         <span class="indeterm_check"
@@ -485,19 +522,17 @@
                                     <span>Stacked</span>
                                 </label>
                             </th>
-                            <th colspan="2">Stats</th>
+                            <th colspan="2">STATS</th>
+                            <th rowspan="2">Label</th>
                             <th rowspan="2">Show Zeros</th>
                         </tr>
                         <tr>
-                            <th>Qty</th>
-                            <th>#</th>
-                            <th>Type</th>
                             <th>Type</th>
                             <th>Func</th>
                         </tr>
                         </thead>
                         <tbody>
-                            <!--About 1,2,3-->
+                            <!--About 1,2,3,4,5-->
                             <tr v-for="lvl in Number(apt.len_about)">
                                 <td v-if="lvl === 1" class="td--th" :rowspan="apt.len_about">
                                     <span>About</span>
@@ -509,12 +544,25 @@
                                             :style="{color: apt.len_about ? '' : '#AAA'}"
                                             @change="chSettingChanged('pivot_table.len_about');"
                                     >
-                                        <option>1</option>
-                                        <option>2</option>
-                                        <option>3</option>
+                                        <option v-for="i in max_about">{{ i }}</option>
                                     </select>
                                 </td>
-                                <td class="td--th">{{ lvl }}</td>
+                                <td class="td--th"
+                                    :style="{border: aboutToLVL == lvl ? '2px dashed #000' : null}"
+                                    :draggable="canEdit"
+                                    @dragstart.stop="aboutFromLVL = lvl"
+                                    @dragover.stop=""
+                                    @dragenter.stop="aboutToLVL = lvl"
+                                    @dragend.stop="reorderLevels('about')"
+                                    style="cursor: pointer"
+                                >{{ lvl }}</td>
+                                <td>
+                                    <input type="text"
+                                           v-model="apt[abo(lvl)].lvl_fname"
+                                           :disabled="!canEdit"
+                                           @change="chSettingChanged('pivot_table.'+abo(lvl)+'.lvl_fname');"
+                                           class="form-control"/>
+                                </td>
                                 <td>
                                     <select
                                             class="form-control"
@@ -545,6 +593,7 @@
                                                 :no-function="true"
                                                 :no_prevent="true"
                                                 :pop_width="'100%'"
+                                                @close-formula="formhelper[lvl] = false"
                                                 @set-formula="formhelper[lvl] = false;chSettingChanged('pivot_table.'+abo(lvl)+'.formula_string');"
                                         ></formula-helper>
                                     </div>
@@ -554,7 +603,7 @@
                                             v-model="apt[abo(lvl)].field"
                                             :disabled="!canEdit"
                                             :style="{color: apt[abo(lvl)].field ? '' : '#AAA'}"
-                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.col')"
+                                            @change="chSettingChanged('pivot_table.'+abo(lvl)+'.field')"
                                     >
                                         <option :style="{color: '#AAA'}" disabled :value="null">Field</option>
                                         <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
@@ -562,6 +611,7 @@
                                         </option>
                                     </select>
                                 </td>
+
                                 <td>
                                     <select class="form-control"
                                             :disabled="!canEdit || !apt[abo(lvl)].field"
@@ -578,7 +628,21 @@
                                             v-model="apt[abo(lvl)].group_function"
                                             @change="chSettingChanged('pivot_table.'+abo(lvl)+'.group_function');"
                                     >
-                                        <option v-for="gr in group_functions" :value="gr.func">{{ gr.show }}</option>
+                                        <option v-for="gr in group_functions" :value="gr.val">{{ gr.show }}</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select
+                                        class="form-control"
+                                        v-model="apt[abo(lvl)].label_field"
+                                        :disabled="!canEdit"
+                                        :style="{color: apt[abo(lvl)].label_field ? '' : '#AAA'}"
+                                        @change="chSettingChanged('pivot_table.'+abo(lvl)+'.label_field')"
+                                    >
+                                        <option :style="{color: '#AAA'}" :value="null">Field</option>
+                                        <option v-for="fld in tableMeta._fields" :style="{color: '#444'}" :value="fld.field">
+                                            {{ $root.uniqName( fld.name ) }}
+                                        </option>
                                     </select>
                                 </td>
                                 <td>
@@ -701,8 +765,8 @@
                                 </option>
                             </select>
                         </div>
-                        <div class="inline-fld" v-if="abc.chart_type == 'grouped_stacked'">
-                            <label class="left-label">L2:</label>
+                        <div class="inline-fld" v-if="abc.chart_type == 'grouped_stacked' || abc.chart_sub_type == 'line'">
+                            <label class="left-label">{{ abc.chart_sub_type == 'line' ? 'M-Lines' : 'L2' }}:</label>
                             <select
                                     class="form-group form-control control-200"
                                     v-model="abc.x_axis.l1_group_fld"
@@ -758,13 +822,22 @@
                             </select>
                         </div>
                         <div class="inline-fld" v-show="abc.y_axis.calc_val == 1">
-                            <select class="form-group form-control control-100"
+                            <select v-if="abc.x_axis.l1_group_fld"
+                                    class="form-group form-control control-100"
                                     :disabled="!canEdit || !abc.y_axis.field"
                                     v-model="abc.y_axis.group_function"
                                     @change="chSettingChanged('bi_chart.y_axis.group_function')"
                             >
-                                <option v-for="gr in group_functions" :value="gr.func">{{ gr.show }}</option>
+                                <option v-for="gr in group_functions" :value="gr.val">{{ gr.show }}</option>
                             </select>
+                            <select-block v-else
+                                    class="form-group form-control control-200"
+                                    :options="group_functions"
+                                    :is_multiselect="true"
+                                    :is_disabled="!canEdit || !abc.y_axis.field"
+                                    :sel_value="y_axis_group_function"
+                                    @option-select="storeXaxisGroupFunction"
+                            ></select-block>
                         </div>
                     </div>
                 </div>
@@ -905,14 +978,13 @@
 </template>
 
 <script>
+    import {SpecialFuncs} from "../../../../../classes/SpecialFuncs";
     import {ChartFunctions} from './ChartFunctions';
 
     import SortFieldsForVerticalMixin from "./../../../../_Mixins/SortFieldsForVerticalMixin.vue";
-    import BiRequestMixin from "./BiRequestMixin.vue";
 
     import VueCkeditor from 'vue-ckeditor2';
     import BiChartSettingsVariable from "./BiChartSettingsVariable";
-    import FormulaHelper from "../../../../CustomCell/InCell/FormulaHelper";
     import SelectBlock from "../../../../CommonBlocks/SelectBlock";
     import SelectWithFolderStructure from "../../../../CustomCell/InCell/SelectWithFolderStructure";
     import InfoPopup from "../../../../CustomPopup/InfoPopup";
@@ -924,15 +996,20 @@
             SelectWithFolderStructure,
             BiChartSettingsVariable,
             SelectBlock,
-            FormulaHelper,
             VueCkeditor,
         },
         mixins: [
             SortFieldsForVerticalMixin,
-            BiRequestMixin,
         ],
         data: function () {
             return {
+                horToLVL: null,
+                horFromLVL: null,
+                vertToLVL: null,
+                vertFromLVL: null,
+                aboutToLVL: null,
+                aboutFromLVL: null,
+
                 //activeTab: 'table',
                 available_types: ['area', 'bar' ,'column', 'line', 'pie', 'TSLH'],
 
@@ -943,13 +1020,13 @@
                     {func: '-1', show: 'Countunique'},
                 ],
                 group_functions: [
-                    {func: 'sum', show: 'SUM'},
-                    {func: 'min', show: 'MIN'},
-                    {func: 'max', show: 'MAX'},
-                    {func: 'mean', show: 'MEAN'},
-                    {func: 'avg', show: 'AVG'},
-                    {func: 'var', show: 'VAR'},
-                    {func: 'std', show: 'STD'},
+                    {val: 'sum', show: 'SUM'},
+                    {val: 'min', show: 'MIN'},
+                    {val: 'max', show: 'MAX'},
+                    {val: 'mean', show: 'MEAN'},
+                    {val: 'avg', show: 'AVG'},
+                    {val: 'var', show: 'VAR'},
+                    {val: 'std', show: 'STD'},
                 ],
                 should_save: false,
 
@@ -1011,6 +1088,18 @@
             abc() {
                 return this.all_settings.bi_chart;
             },
+            max_hor() {
+                return ChartFunctions.maxHor();
+            },
+            max_vert() {
+                return ChartFunctions.maxVert();
+            },
+            max_about() {
+                return ChartFunctions.maxAbout();
+            },
+            y_axis_group_function() {
+                return _.filter(_.split(this.abc.y_axis.group_function, ','));
+            },
         },
         watch: {
             ckeditor_content(val) {
@@ -1019,6 +1108,36 @@
             },
         },
         methods: {
+            storeXaxisGroupFunction(opt) {
+                let arr = _.clone(this.y_axis_group_function);
+                if (arr.indexOf(opt.val) > -1) {
+                    arr.splice( arr.indexOf(opt.val), 1 );
+                } else {
+                    arr.push(opt.val);
+                }
+                this.abc.y_axis.group_function = _.join(arr, ',');
+                this.chSettingChanged('bi_chart.y_axis.group_function');
+            },
+            reorderLevels(type) {
+                if (type === 'about' && this.aboutFromLVL != this.aboutToLVL) {
+                    this.all_settings = ChartFunctions.reorderSettings(this.all_settings, type, this.aboutFromLVL, this.aboutToLVL);
+                    this.sendChangeSignal(this.canEdit ? 'about_reorder' : '__update_cache');
+                }
+                if (type === 'vertical' && this.vertFromLVL != this.vertToLVL) {
+                    this.all_settings = ChartFunctions.reorderSettings(this.all_settings, type, this.vertFromLVL, this.vertToLVL);
+                    this.sendChangeSignal(this.canEdit ? 'vertical_reorder' : '__update_cache');
+                }
+                if (type === 'horizontal' && this.horFromLVL != this.horToLVL) {
+                    this.all_settings = ChartFunctions.reorderSettings(this.all_settings, type, this.horFromLVL, this.horToLVL);
+                    this.sendChangeSignal(this.canEdit ? 'horizontal_reorder' : '__update_cache');
+                }
+                this.horFromLVL = null;
+                this.horToLVL = null;
+                this.vertFromLVL = null;
+                this.vertToLVL = null;
+                this.aboutFromLVL = null;
+                this.aboutToLVL = null;
+            },
             recreateForm(param) {
                 this.formhelper[param] = false;
                 this.$nextTick(() => {
@@ -1030,7 +1149,7 @@
             },
             //vars
             chobj(ch_id) {
-                return _.find(this.tableMeta._charts_saved, {id: Number(ch_id)});
+                return _.find(this.tableMeta._bi_charts, {id: Number(ch_id)});
             },
             cha_about(vt) {
                 let cho = this.chobj(vt.chart_id);
@@ -1065,13 +1184,13 @@
             },
             setTit(type) {
                 let find = (type === 'chart' ? this.var_chart : this.var_table);
-                let ch = _.find(this.tableMeta._charts_saved, {id: find.chart_id});
+                let ch = _.find(this.tableMeta._bi_charts, {id: find.chart_id});
                 find.title = ch ? ch.title : '';
             },
             get_vals(type, key) {
                 let find_id = Number(type === 'chart' ? this.var_chart.chart_id : this.var_table.chart_id);
                 let data = (type === 'chart' ? 'chart_data' : 'table_data');
-                let ch = _.find(this.tableMeta._charts_saved, {id: Number(find_id)});
+                let ch = _.find(this.tableMeta._bi_charts, {id: Number(find_id)});
                 return ch && ch.cached_data
                     ? _.groupBy(ch.cached_data[data], key)
                     : [];
@@ -1228,13 +1347,13 @@
                 axios.post('/ajax/table/chart/export', {
                     chart_settings: this.all_settings,
                     target_table_id: this.all_settings.table_to_export,
-                    request_params: this.getRequestParams(this.all_settings, this.tableMeta, this.request_params),
+                    request_params: SpecialFuncs.dataRangeRequestParams(this.all_settings.data_range, this.tableMeta.id, this.request_params),
                 }).then(({ data }) => {
-                    Swal('', 'Export is finished!');
+                    Swal('Info', 'Export is finished!');
                     this.all_settings.table_to_export = data.new_id;
-                    this.$emit('settings-changed', this.all_settings, false);
+                    this.sendChangeSignal('');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -1242,7 +1361,7 @@
             },
             tableToExpUpdate(val) {
                 this.all_settings.table_to_export = val;
-                this.$emit('settings-changed', this.all_settings, false);
+                this.sendChangeSignal('');
 
                 axios.put('/ajax/table/chart/settings', {
                     chart_id: this.all_settings.id,
@@ -1267,7 +1386,7 @@
 <style lang="scss" scoped>
     @import "BiModule";
 
-    .chart-body {
+    .chart-bsett {
         height: calc(100% - 50px);
         padding: 0 5px;
     }

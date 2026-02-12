@@ -6,11 +6,13 @@ namespace Vanguard\Services\Tablda;
 
 use Exception;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Session;
 use Ramsey\Uuid\Uuid;
 use Vanguard\AppsModules\StimWid\StimSettingsRepository;
+use Vanguard\Jobs\BatchAutoselectJob;
 use Vanguard\Jobs\BatchUploadingJob;
 use Vanguard\Jobs\FormulaWatcherJob;
 use Vanguard\Jobs\RecalcTableFormula;
@@ -24,23 +26,25 @@ use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableField;
+use Vanguard\Modules\ColumnAutoSizer;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
+use Vanguard\Repositories\Tablda\RemoteFilesRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
-use Vanguard\Support\FileHelper;
 use Vanguard\User;
 
 class TableDataService
 {
+    protected $autoSizer;
+    protected $remoteFileRepository;
     protected $fileRepository;
-    protected $tableDataRepository;
     protected $dataRowsRepository;
     protected $tableRepository;
     protected $fieldRepository;
@@ -50,13 +54,17 @@ class TableDataService
     protected $tableAlertService;
     protected $service;
 
+    public $tableDataRepository;
+    public $newVersionWatcher;
+
     /**
      * TableDataService constructor.
      */
-    public function __construct()
+    public function __construct(bool $newVersionWatcher = true)
     {
+        $this->autoSizer = new ColumnAutoSizer();
+        $this->remoteFileRepository = new RemoteFilesRepository();
         $this->fileRepository = new FileRepository();
-        $this->tableDataRepository = new TableDataRepository();
         $this->dataRowsRepository = new TableDataRowsRepository();
         $this->tableRepository = new TableRepository();
         $this->fieldRepository = new TableFieldRepository();
@@ -65,6 +73,9 @@ class TableDataService
         $this->DDLRepository = new DDLRepository();
         $this->tableAlertService = new TableAlertService();
         $this->service = new HelperService();
+
+        $this->tableDataRepository = new TableDataRepository();
+        $this->newVersionWatcher = $newVersionWatcher;
     }
 
     /**
@@ -99,8 +110,10 @@ class TableDataService
     public function uploadingJob(Table $table, int $url_field_id, int $attach_field_id, int $row_group_id = null): int
     {
         $job = Import::create([
+            'table_id' => $table->id,
             'file' => '',
-            'status' => 'initialized'
+            'status' => 'initialized',
+            'type' => 'BatchUploadingJob',
         ]);
 
         dispatch(new BatchUploadingJob($job->id, $table, $url_field_id, $attach_field_id, $row_group_id));
@@ -109,53 +122,43 @@ class TableDataService
     }
 
     /**
-     * @param int $job_id
      * @param Table $table
-     * @param int $url_field_id
-     * @param int $attach_field_id
+     * @param int $select_field_id
+     * @param string $auto_comparison
      * @param int|null $row_group_id
      * @return int
      */
-    public function batchUploading(int $job_id, Table $table, int $url_field_id, int $attach_field_id, int $row_group_id = null): int
+    public function fieldAutoselect(Table $table, int $select_field_id, string $auto_comparison, int $row_group_id = null): int
     {
-        $sql = new TableDataQuery($table);
-        if ($row_group_id) {
-            $sql->applySelectedRowGroup($row_group_id);
-        }
-        $sql = $sql->getQuery();
-
-        $url = $table->_fields->where('id', '=', $url_field_id)->first();
-        $filerepo = new FileRepository();
-
-        $page = 10;
-        $lines = $sql->count();
-        for ($cur = 0; ($cur * $page) < $lines; $cur++) {
-            DB::connection('mysql')->table('imports')->where('id', '=', $job_id)->update([
-                'complete' => (int)((($cur * $page) / $lines) * 100)
-            ]);
-
-            $rows = $sql->offset($cur * $page)
-                ->limit($page)
-                ->get();
-
-            foreach ($rows as $row) {
-                try {
-                    $filelink = $row[$url->field];
-                    $filename = FileHelper::name($filelink);
-                    $filecontent = file_get_contents($filelink);
-                    $filerepo->insertFileAlias($table->id, $attach_field_id, $row['id'], $filename, $filecontent);
-                } catch (\Exception $e) {
-                    Log::info('TableDataService - batchUploading Error');
-                    Log::info($e->getMessage());
-                }
-            }
-        }
-
-        DB::connection('mysql')->table('imports')->where('id', '=', $job_id)->update([
-            'status' => 'done'
+        $job = Import::create([
+            'table_id' => $table->id,
+            'file' => '',
+            'status' => 'initialized',
+            'type' => 'BatchAutoselectJob',
         ]);
 
-        return $lines;
+        (new BatchAutoselectJob($job->id, $table, $select_field_id, $auto_comparison, $row_group_id))->handle();
+
+        return $job->id;
+    }
+
+    /**
+     * @param TableField $field
+     * @return void
+     */
+    public function dataToValOrShowIfNeeded(TableField $field): void
+    {
+        $currentIsShowVal = !!$field->_table->_ddls()->where('id', '=', $field->ddl_id)->hasIdReferences()->count();
+        $prevIsShowVal = !!$field->_table->_ddls()->where('id', '=', $field->prev_ddl_id)->hasIdReferences()->count();
+        if ($prevIsShowVal && !$currentIsShowVal) {//example: DDL val/show to Input
+            $this->fieldAutoselect($field->_table, $field->id, 'prev_ddl:val_to_show');
+        }
+        if (!$prevIsShowVal && $currentIsShowVal) {//example: Input to DDL val/show
+            $this->fieldAutoselect($field->_table, $field->id, 'ddl:show_to_val');
+        }
+        if ($prevIsShowVal && $currentIsShowVal && $field->ddl_id != $field->prev_ddl_id) {//example: DDL! val/show to DDL2 val/show
+            $this->fieldAutoselect($field->_table, $field->id, 'ddl:show_to_val');
+        }
     }
 
     /**
@@ -205,21 +208,24 @@ class TableDataService
             'force_execute' => $force,
         ]);
 
-        $search_words = [];
-        foreach ($search_arr as $elem) {
-            if (trim($elem)) {
-                $search_words[] = [
-                    'word' => trim($elem),
-                    'type' => 'or'
-                ];
+        if ($search_arr) {
+            $search_words = [];
+            foreach ($search_arr as $elem) {
+                if (trim($elem)) {
+                    $search_words[] = [
+                        'word' => trim($elem),
+                        'type' => 'or'
+                    ];
+                }
             }
-        }
-        $replace_search = [
-            'search_words' => $search_words,
-            'search_columns' => $columns
-        ];
+            $replace_search = [
+                'search_words' => $search_words,
+                'search_columns' => $columns
+            ];
 
-        $sql->applySearch($replace_search, true);
+            $sql->applySearch($replace_search, true);
+        }
+
         return $sql;
     }
 
@@ -253,6 +259,29 @@ class TableDataService
     }
 
     /**
+     * Get provided params as applied filters for table.
+     *
+     * @param $table_id
+     * @param $fields
+     * @return array
+     */
+    public function getFiltersForFields($table_id, $fields, $presentFilters = [])
+    {
+        $applied_filters = $presentFilters;
+        if (! $presentFilters) {
+            foreach ($fields as $key => $val) {
+                $applied_filters[] = [
+                    'applied_index' => 0,
+                    'field' => $key,
+                    'values' => [],
+                ];
+            }
+        }
+
+        return ($applied_filters ? $this->tableDataRepository->getFilters($table_id, ['applied_filters' => $applied_filters]) : []);
+    }
+
+    /**
      * @param int $table_id
      * @param int $field_id
      * @return array
@@ -261,14 +290,7 @@ class TableDataService
     {
         $table = $this->tableRepository->getTable($table_id);
         $fld = $this->fieldRepository->getField($field_id);
-        $datas = [];
-        foreach ($this->distinctiveFieldValues($table, $fld) as $val => $show) {
-            $datas[] = [
-                'show' => $show,
-                'val' => $val,
-            ];
-        }
-        return array_values($datas);
+        return $this->tableDataRepository->distinctForFrontEnd($table, $fld);
     }
 
     /**
@@ -292,33 +314,70 @@ class TableDataService
      * @param array $table_row
      * @param int $page
      * @param int $spec_limit
-     * @param int|null $uid
+     * @param array $sqlData
+     * @param array $only
      * @return array
      */
-    public function getFieldRows(Table $table, array $link, array $table_row, int $page = 0, int $spec_limit = 0, int $uid = null)
+    public function getFieldRows(
+        Table $table,
+        array $link,
+        array $table_row,
+        int $page = 0,
+        int $spec_limit = 0,
+        array $sqlData = [],
+        array $only = []
+    )
     {
-        $table_row = $this->changeLinkRowForSysTable($table, $link, $table_row);
-
-        $ref_cond = $this->refConditionRepository->getRefCondWithRelations($link['table_ref_condition_id']);
-
-        $uid = $uid ?: auth()->id() ?: true;
-        $sql = new TableDataQuery($table);
-        $sql->applyRefConditionRow($ref_cond, $table_row, !$link['always_available'], $uid);
-
-        $row_count = $sql->getQuery()->count();
+        $sql = $this->fieldRowsSql($table, $link, $table_row, $sqlData);
+        $row_count = $sql->count();
 
         if ($page > 0) {
-            $max_limit = $spec_limit ?: $table->max_rows_in_link_popup ?: 200;
-            $rows = $sql->getQuery()
-                ->offset(($page - 1) * $max_limit)
+            $max_limit = $spec_limit ?: $table->max_rows_in_link_popup ?: 50;
+            $rows = $sql->offset(($page - 1) * $max_limit)
                 ->limit($max_limit)
                 ->get();
-            $this->dataRowsRepository->attachSpecialFields($rows, $table, auth()->id());
+            $this->dataRowsRepository->attachSpecialFields($rows, $table, auth()->id(), $only);
         } else {
             $rows = $sql->getQuery()->get();
         }
 
         return [$row_count, $rows->toArray()];
+    }
+
+    /**
+     * @param Table $refTable
+     * @param array $link
+     * @param array $table_row
+     * @param int|null $uid
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
+    public function fieldRowsSql(Table $refTable, array $link, array $table_row, array $sqlData = [])
+    {
+        $ref_cond = $this->refConditionRepository->getRefCondWithRelations($link['table_ref_condition_id'] ?? null);
+        $table = $ref_cond ? $ref_cond->_table : $refTable;
+
+        //reload from database to get correct values
+        $databaseRow = $this->getDirectRow($table, $table_row['id'] ?? 0);
+        $databaseRow = $databaseRow ? $databaseRow->toArray() : $table_row;
+
+        $databaseRow = $this->changeLinkRowForSysTable($refTable, $link, $databaseRow);
+
+        $uid = $sqlData['uid'] ?? null;
+        $uid = $uid ?: auth()->id() ?: true;
+        $sql = new TableDataQuery($refTable);
+        if ($ref_cond) {
+            $sql->applyRefConditionRow($ref_cond, $databaseRow, empty($link['always_available']), $uid);
+        }
+        if (! empty($sqlData['sort'])) {
+            $sql->applySorting($sqlData['sort']);
+        }
+
+        $sql = $sql->getQuery();
+        if (!empty($link['extra_ids'])) {
+            $sql->orWhereIn('id', $link['extra_ids']);
+        }
+
+        return $sql;
     }
 
     /**
@@ -415,11 +474,12 @@ class TableDataService
      * @param Table $table_info
      * @param array $fields
      * @param int|null $user_id
+     * @param int|null $is_copy
      * @return int
      */
-    public function insertRow(Table $table_info, array $fields, int $user_id = null)
+    public function insertRow(Table $table_info, array $fields, int $user_id = null, int $is_copy = null)
     {
-        $res = $this->tableDataRepository->insertRow($table_info, $fields, $user_id);
+        $res = $this->tableDataRepository->insertRow($table_info, $fields, $user_id, $is_copy);
 
         $row = $this->getDirectRow($table_info, $res);
         $row = $row ? $row->toArray() : [];
@@ -449,15 +509,29 @@ class TableDataService
     }
 
     /**
+     * @param Table $table
+     * @param string $row_hash
+     * @return \Illuminate\Database\Eloquent\Model|null
+     */
+    public function getRowBy(Table $table, string $field, string $row_hash)
+    {
+        return $this->tableDataRepository->getRowBy($table, $field, $row_hash);
+    }
+
+    /**
      * Table was changed -> set new TableVersion.
      * @param Table $table
      */
     public function newTableVersion(Table $table)
     {
-        $table->version_hash = Uuid::uuid4();
-        $this->tableRepository->onlyUpdateTable($table->id, $table->getAttributes());
+        if ($this->newVersionWatcher) {
+            $this->tableRepository->onlyUpdateTable($table->id, [
+                'modified_on' => now(),
+                'version_hash' => Uuid::uuid4(),
+            ]);
 
-        dispatch(new FormulaWatcherJob($table->id));
+            dispatch(new FormulaWatcherJob($table->id));
+        }
     }
 
     /**
@@ -469,11 +543,12 @@ class TableDataService
     {
         $res = $this->tableDataRepository->insertRow($table_info, $fields, $table_info->user_id);
         $row = $this->getDirectRow($table_info, $res);
-        if ($row) {
+        $this->recalcTableFormulas($table_info, $table_info->user_id, [$res]);
+        /*if ($row) {
             $row = $row ? $row->toArray() : [];
             $special = ['user_id' => $table_info->user_id, 'permission_id' => null];
             $this->tableAlertService->checkAndSendNotifArray($table_info, 'added', [$row], [], $special);
-        }
+        }*/
         $this->newTableVersion($table_info);
         return $res;
     }
@@ -490,19 +565,21 @@ class TableDataService
     }
 
     /**
-     * Insert Mass Rows into Table.
-     *
      * @param Table $table
      * @param array $rows
+     * @return array
+     * @throws Exception
      */
-    public function insertMass(Table $table, array $rows)
+    public function insertMass(Table $table, array $rows): array
     {
-        $this->tableDataRepository->insertMass($table, $rows);
+        $new_ids = $this->tableDataRepository->insertMass($table, $rows);
 
         $this->newTableVersion($table);
 
-        $special = ['user_id' => auth()->id()];
-        $this->tableAlertService->checkAndSendNotifArray($table, 'added', $rows, [], $special);
+        //$special = ['user_id' => auth()->id()];
+        //$this->tableAlertService->checkAndSendNotifArray($table, 'added', $rows, [], $special);
+
+        return $new_ids;
     }
 
     /**
@@ -515,20 +592,21 @@ class TableDataService
      *      table_field: value,
      *      ...
      *  ]
-     * @param int $user_id :
-     * @param array $extra :
+     * @param int $user_id
+     * @param array $extra
+     * @param int $lvl
      *
      * @return bool|null
      * @throws Exception
      */
-    public function updateRow(Table $table_info, $row_id, array $fields, $user_id, array $extra = [])
+    public function updateRow(Table $table_info, $row_id, array $fields, $user_id, array $extra = [], int $lvl = 1)
     {
         $old_row_arr = ($this->tableDataRepository->getDirectRow($table_info, $row_id));
         $old_row_arr = $old_row_arr ? $old_row_arr->toArray() : [];
         $fields_changed = $this->getChangedFields($old_row_arr, $fields);
         $updated_fields = array_merge($old_row_arr, $fields);
 
-        $res = $this->tableDataRepository->updateRow($table_info, $row_id, $updated_fields, $user_id, $extra);
+        $res = $this->tableDataRepository->updateRow($table_info, $row_id, $updated_fields, $user_id, $extra, $lvl);
 
         $updated_row = $this->getDirectRow($table_info, $row_id);
         if ($res && $updated_row) {
@@ -550,6 +628,9 @@ class TableDataService
             //Send 'updated' notifications if needed
             $special = ['user_id' => $user_id, 'permission_id' => null];
             $this->tableAlertService->checkAndSendNotifArray($table_info, 'updated', $updated_row_arr, $fields_changed, $special);
+
+            //Recalc row formulas
+            $this->recalcTableFormulas($table_info, $user_id, [$row_id], $fields_changed);
         }
 
         return $res;
@@ -562,7 +643,7 @@ class TableDataService
      * @param $old_row
      * @return array
      */
-    protected function getChangedFields($new_row, $old_row)
+    protected function getChangedFields($new_row, $old_row): array
     {
         $changed = [];
         foreach ($new_row as $key => $val) {
@@ -572,24 +653,6 @@ class TableDataService
         }
         return $changed;
     }
-
-    /**
-     * @param Table $table
-     * @param array $updated_row
-     */
-    /*protected function checkUniformFormula(Table $table, array $updated_row)
-    {
-        foreach ($table->_fields as $header) {
-            if ($header->input_type === 'Formula' && $header->is_uniform_formula) {
-                $row_formla = ($updated_row[$header->field . '_formula'] ?? '');
-                if ($header->f_formula && $row_formla && $header->f_formula != $row_formla) {
-                    $this->tableDataRepository->setDefFormulaToAll($table, $header->field, $row_formla);
-                    $header->f_formula = $row_formla;
-                    $header->save();
-                }
-            }
-        }
-    }*/
 
     /**
      * Load Table Field For Autocomplete.
@@ -726,10 +789,10 @@ class TableDataService
         $res = $this->tableDataRepository->updateRow($table_info, $row_id, $updated_fields, $table_info->user_id);
 
         $updated_row = $this->getDirectRow($table_info, $row_id);
-        if ($res && $updated_row) {
+        /*if ($res && $updated_row) {
             $special = ['user_id' => $table_info->user_id, 'permission_id' => null];
             $this->tableAlertService->checkAndSendNotifArray($table_info, 'updated', [$updated_row->toArray()], $fields_changed, $special);
-        }
+        }*/
 
         $this->newTableVersion($table_info);
         return $res;
@@ -758,9 +821,9 @@ class TableDataService
      * @param array $updated_row
      * @return array
      */
-    public function saveInDbNewRow(Table $table_info, array $updated_row)
+    public function saveInDbTempRow(Table $table_info, array $updated_row)
     {
-        return $this->tableDataRepository->saveInDbNewRow($table_info, $updated_row);
+        return $this->tableDataRepository->saveInDbTempRow($table_info, $updated_row);
     }
 
     /**
@@ -775,8 +838,8 @@ class TableDataService
     {
         $row = $this->getDirectRow($table_info, $row_id);
 
-        $can_del = !$row || $this->tableRepository->canDelRows($table_info, $row->_applied_row_groups ?? []);
-        if ($can_del !== true && !$can_del->count()) {
+        $can_del = !$row || $this->tableRepository->canDelRows($table_info, collect([$row]));
+        if (!$can_del) {
             return [
                 'error' => 'Row is not found or permission is not available!'
             ];
@@ -788,6 +851,7 @@ class TableDataService
 
         $res = $this->tableDataRepository->deleteRow($table_info, $row_id);
         $this->fileRepository->deleteFilesForRow($table_info, [$row_id]);
+        $this->remoteFileRepository->delete($table_info->id, null, $row_id);
 
         $this->newTableVersion($table_info);
 
@@ -800,12 +864,33 @@ class TableDataService
     /**
      * @param Table $table
      * @param DcrLinkedTable $dcrLinkedTable
-     * @param int $parent_row_id
+     * @param array $parent_row_dcr
      * @return Collection
      */
-    public function getDcrRows(Table $table, DcrLinkedTable $dcrLinkedTable, int $parent_row_id): Collection
+    public function getDcrRows(Table $table, DcrLinkedTable $dcrLinkedTable, array $parent_row_dcr): Collection
     {
-        return $this->dataRowsRepository->getDcrLinkedRows($table, $dcrLinkedTable, $parent_row_id);
+        return $this->dataRowsRepository->getDcrLinkedRows($table, $dcrLinkedTable, $parent_row_dcr);
+    }
+
+    /**
+     * @param Table $table
+     * @param DcrLinkedTable $dcrLinkedTable
+     * @param array $filters
+     * @return Collection
+     */
+    public function getDcrCatalog(Table $table, DcrLinkedTable $dcrLinkedTable, array $filters): Collection
+    {
+        return $this->dataRowsRepository->getDcrCatalog($table, $dcrLinkedTable, $filters);
+    }
+
+    /**
+     * @param Table $table
+     * @param string $eriKeyPart
+     * @return Collection
+     */
+    public function getEriRows(Table $table, string $eriKeyPart): Collection
+    {
+        return $this->dataRowsRepository->getEriRows($table, $eriKeyPart);
     }
 
     /**
@@ -834,18 +919,17 @@ class TableDataService
         $all_rows_sql = $this->tableDataRepository->getAllRowsSql($table_info, $data, $user_id);
 
         $lines = $all_rows_sql->count();
-        for ($cur = 0; ($cur * 5000) < $lines; $cur++) {
+        for ($cur = 0; ($cur * 100) < $lines; $cur++) {
             $all_rows = $all_rows_sql->offset($cur * 100)
                 ->limit(100)
                 ->get();
 
             $all_rows = $this->dataRowsRepository->attachSpecialFields($all_rows, $table_info, auth()->id(), ['groups']);
 
-            $avail_ids = $all_rows->pluck('_applied_row_groups')->flatten()->toArray() ?? [];
-            $can_del_ids = $this->tableRepository->canDelRows($table_info, $avail_ids);
+            $can_del_ids = $this->tableRepository->canDelRows($table_info, $all_rows, ['auth_id' => $user_id]);
             if ($can_del_ids !== true) {
                 $all_rows = $all_rows->filter(function ($r) use ($can_del_ids) {
-                    return $can_del_ids->intersect($r->_applied_row_groups ?? [])->count();
+                    return in_array($r['id'], $can_del_ids);
                 });
                 $data['row_id'] = $all_rows->pluck('id')->toArray();
             }
@@ -855,6 +939,7 @@ class TableDataService
 
             $all_ids = $this->tableDataRepository->deleteAllRows($table_info, $data, $user_id);
             $this->fileRepository->deleteFilesForRow($table_info, $all_ids);
+            $this->remoteFileRepository->delete($table_info->id);
         }
 
         if (!$ignore_hash) {
@@ -870,9 +955,11 @@ class TableDataService
      *
      * @param Table $table
      * @param array $rows_ids
+     * @param bool $force
+     * @param int $lvl
      * @return array
      */
-    public function deleteSelectedRows(Table $table, array $rows_ids, bool $force = false)
+    public function deleteSelectedRows(Table $table, array $rows_ids, bool $force = false, int $lvl = 1)
     {
         if (!$rows_ids) {
             return ['version_hash' => $table->version_hash];
@@ -881,11 +968,10 @@ class TableDataService
         $all_rows = $this->dataRowsRepository->attachSpecialFields($all_rows, $table, auth()->id(), ['groups']);
 
         if (!$force) {
-            $avail_ids = $all_rows->pluck('_applied_row_groups')->flatten()->toArray() ?? [];
-            $can_del_ids = $this->tableRepository->canDelRows($table, $avail_ids);
+            $can_del_ids = $this->tableRepository->canDelRows($table, $all_rows);
             if ($can_del_ids !== true) {
                 $all_rows = $all_rows->filter(function ($r) use ($can_del_ids) {
-                    return $can_del_ids->intersect($r->_applied_row_groups ?? [])->count();
+                    return in_array($r['id'], $can_del_ids);
                 });
                 $rows_ids = $all_rows->pluck('id')->toArray();
             }
@@ -893,8 +979,11 @@ class TableDataService
 
         $special = ['user_id' => auth()->id()];
         $this->tableAlertService->checkAndSendNotifArray($table, 'deleted', $all_rows->toArray(), [], $special);
-        $res = $this->tableDataRepository->deleteSelectedRows($table, $rows_ids);
+        $res = $this->tableDataRepository->deleteSelectedRows($table, $rows_ids, $lvl);
         $this->fileRepository->deleteFilesForRow($table, $rows_ids);
+        foreach ($rows_ids as $row_id) {
+            $this->remoteFileRepository->delete($table->id, null, $row_id);
+        }
 
         $sql = new TableDataQuery($table, true);
         $table->num_rows = $sql->getQuery()->count();
@@ -911,20 +1000,21 @@ class TableDataService
      * @param array $request_params
      * @param array $replaces
      * @param array $only_columns
+     * @param int $lvl
      * @return array
      */
-    public function massCopy(Table $table, array $rows_ids = [], array $request_params = [], array $replaces = [], array $only_columns = [])
+    public function massCopy(Table $table, array $rows_ids = [], array $request_params = [], array $replaces = [], array $only_columns = [], int $lvl = 1)
     {
         if (!count($rows_ids)) {
             $rows_ids = (new TableDataQuery($table))->getRowsIds($request_params, auth()->id());
         }
 
-        $rows_correspondence = $this->tableDataRepository->massCopy($table, $rows_ids, $only_columns);
+        $rows_correspondence = $this->tableDataRepository->massCopy($table, $rows_ids, $only_columns, $lvl);
         $new_rows_ids = array_values($rows_correspondence);
 
         //copy attachments
         if ($table->_fields_are_attachments()->count()) {
-            (new FileRepository())->copyAttachForRows($table->id, $rows_correspondence);
+            (new FileService())->copyAttachForRows($table, $rows_correspondence);
         }
 
         $table->num_rows += count($rows_ids);
@@ -941,6 +1031,7 @@ class TableDataService
         $rows = ($this->tableDataRepository->getDirectMassRows($table, $new_rows_ids))->toArray();
         $special = ['user_id' => auth()->id()];
         $this->tableAlertService->checkAndSendNotifArray($table, 'added', $rows, [], $special);
+        $this->recalcTableFormulas($table, auth()->id(), $new_rows_ids);
 
         return [$new_rows_ids, $rows_correspondence];
     }
@@ -969,21 +1060,41 @@ class TableDataService
                 $search_new = $sql->changeFindStrForUserColumns($fld, $replacer['old_val'] ?? '');
 
                 $header = $table->_fields->where('field', '=', $fld)->first();
+                $this->autoSizer->increaseIfNeeded($table, $header, $search_new);
 
-                if ($search_new && $header && $header->input_type == 'Input') {
-                    $updater = [$fld => DB::raw("REPLACE(LOWER(" . $fld . "), '" . strtolower($search_new) . "', '" . $replace_new . "')")];
+                if ($slen = strlen($search_new) && !preg_match('/[^\s]/', $search_new)) {
+
+                    $updater = (new TableDataQuery($table))->getQuery();
+                    $sql = $this->prepareReplaceSql($sql, [$search_new], [$fld], $request_params, true, $force);
+                    $sql->getQuery()->chunk(100, function ($rows) use ($fld, $updater, $slen, $replace_new) {
+                        foreach ($rows as $row) {
+                            if (preg_match('/[\s]{'.$slen.'}/m', $row[$fld] ?? '')) {
+                                (clone $updater)->where('id', '=', $row['id'])->update([
+                                    "$fld" => preg_replace('/[\s]{'.$slen.'}/m', $replace_new, $row[$fld]),
+                                ]);
+                            }
+                        }
+                    });
+
                 } else {
-                    $updater = [$fld => $replace_new];
-                }
 
-                if (!$norowhash) {
-                    $updater['row_hash'] = Uuid::uuid4();
-                }
+                    if ($search_new && $header && $header->input_type == 'Input') {
+                        $updater = [$fld => DB::raw("REPLACE(LOWER(" . $fld . "), '" . strtolower($search_new) . "', '" . $replace_new . "')")];
+                    } else {
+                        $updater = [$fld => $replace_new];
+                    }
 
-                $sql = $this->prepareReplaceSql($sql, [$search_new], [$fld], $request_params, true, $force);
-                $sql->getQuery()->update($updater);
+                    if (!$norowhash) {
+                        $updater['row_hash'] = Uuid::uuid4();
+                    }
+
+                    $sql = $this->prepareReplaceSql($sql, [$search_new], [$fld], $request_params, true, $force);
+                    $sql->getQuery()->update($updater);
+                }
             }
         }
+        $affected_rows_ids = $sql->getQuery()->pluck('id')->toArray();
+        $this->recalcTableFormulas($table, auth()->id(), $affected_rows_ids);
         $this->newTableVersion($table);
         return 1;
     }
@@ -1009,11 +1120,12 @@ class TableDataService
      * @param array $row
      * @param string $search
      * @param int $limit
+     * @param array $moreParams
      * @return array
      */
-    public function getDDLvalues(DDL $ddl, array $row = [], string $search = '', int $limit = 200)
+    public function getDDLvalues(DDL $ddl, array $row = [], string $search = '', int $limit = 200, array $moreParams = [])
     {
-        return $this->tableDataRepository->getDDLvalues($ddl, $row, $search, $limit);
+        return $this->tableDataRepository->getDDLvalues($ddl, $row, $search, $limit, $moreParams);
     }
 
     /**
@@ -1022,11 +1134,12 @@ class TableDataService
      * @param array $row
      * @param string $search
      * @param int $limit
+     * @param bool $no_individ
      * @return array
      */
-    public function getRowsFromDdlReference(DDL $ddl, DDLReference $ref, array $row, string $search = '', int $limit = 200): array
+    public function getRowsFromDdlReference(DDL $ddl, DDLReference $ref, array $row, string $search = '', int $limit = 200, bool $no_individ = false): array
     {
-        return $this->tableDataRepository->getRowsFromDdlReference($ddl, $ref, $row, $search, $limit);
+        return $this->tableDataRepository->getRowsFromDdlReference($ddl, $ref, $row, $search, $limit, $no_individ);
     }
 
     /**
@@ -1133,28 +1246,36 @@ class TableDataService
      * @param Table $table
      * @param string $fld
      * @param string $formula
-     * @param array $recalc_ids
      */
-    public function setDefFormulaToAll(Table $table, string $fld, string $formula, array $recalc_ids = [])
+    public function setDefFormulaToAll(Table $table, string $fld, string $formula)
     {
         $this->tableDataRepository->setDefFormulaToAll($table, $fld, $formula);
-        $this->recalcTableFormulas($table, $table->user_id, $recalc_ids);
+        $this->recalcTableFormulas($table, $table->user_id);
         $this->newTableVersion($table);
-        dispatch(new RecalcTableFormula($table, auth()->id(), 0));
     }
 
     /**
-     * Recalc formulas for One|All rows in TableData.
-     *
      * @param Table $table
-     * @param null $user_id
+     * @param $user_id
      * @param array $row_ids
-     * @param int $job_id
+     * @param array $changed_fields
+     * @return void
      */
-    public function recalcTableFormulas(Table $table, $user_id = null, array $row_ids = [], int $job_id = 0)
+    public function recalcTableFormulas(Table $table, $user_id = null, array $row_ids = [], array $changed_fields = [])
     {
-        $evaluator = new FormulaEvaluatorRepository($table, $user_id);
-        $evaluator->recalcTableFormulas($row_ids, $job_id);
+        $rowCount = count($row_ids) ?: $this->tableDataRepository->count($table);
+        if ($rowCount > 100) {
+            $recalc = Import::create([
+                'table_id' => $table->id,
+                'file' => '',
+                'status' => 'initialized',
+                'type' => 'RecalcTableFormula',
+            ]);
+            dispatch(new RecalcTableFormula($table, auth()->id(), $recalc->id));
+        } else {
+            $evaluator = new FormulaEvaluatorRepository($table, $user_id, 0, $changed_fields);
+            $evaluator->recalcTableFormulas($row_ids);
+        }
     }
 
     /**

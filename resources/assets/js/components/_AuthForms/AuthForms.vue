@@ -39,8 +39,8 @@
         },
         data: function () {
             return {
-                showLogin: (this.settings.errors && this.settings.errors.length) || !!this.settings.session_success,
-                showRegister: (this.settings.errors && this.settings.errors.length),
+                showLogin: !!this.settings.session_success,
+                showRegister: false,
                 showRemind: false,
             }
         },
@@ -51,15 +51,18 @@
                 type: Object,
                 default: function () {
                     return {
+                        present_promo: 0,
                         root_url: 'https://tablda.com',
                         app_name: 'TablDA',
                         errors: [],
                         session_success: false,
-                        year: 2019,
+                        year: 2023,
                         social_provider: false,
                         csrf_token: '',
                         register_old_email: '',
                         register_old_username: '',
+                        login_old_email: '',
+                        login_old_pass: '',
                     }
                 }
             },
@@ -86,6 +89,7 @@
             if (location.search.match(/^\?login/gi)) {
                 this.showLogin = true;
             }
+            console.log('settings', this.settings);
         }
     }
 </script>

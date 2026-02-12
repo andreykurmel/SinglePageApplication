@@ -3,6 +3,7 @@
 namespace Vanguard\AppsModules\StimWid;
 
 
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Vanguard\AppsModules\StimWid\CreateRls\RlConnCreator;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
@@ -18,6 +19,7 @@ use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\TableDataService;
 
@@ -25,6 +27,7 @@ class PostService
 {
     protected $already_copied_ids = [];
     protected $copied_row_corrs = [];
+    protected $carbon_date = '';
 
     protected $service;
 
@@ -138,21 +141,28 @@ class PostService
         $table_meta = DataReceiver::meta_table($request->main_table);
         $row_id = $request->id;
         $new_ids = [];
+        $from_uid = null;
         if ($row_id) {
             $this->already_copied_ids = [];
             $this->copied_row_corrs = [];
             $row_arr = (new TableDataRepository())->getDirectRow($table_meta, $row_id);
             if ($row_arr) {
                 $row_arr = $row_arr->toArray();
-                $replace_val = $this->replaceVal($request->main_table, $row_arr);
+                $model_name = $this->prefixReplacer($request->main_table, $row_arr);
+                $old_user = $this->usergroupVal($table_meta, $row_arr);
+                $new_user = $request->new_owner ?? auth()->id();
+
+                $from_uid = $this->fromUidForCopy($old_user, $new_user);
+                $replace_val = $this->copyModelReplacer($request->main_table, $model_name, $old_user, $new_user);
                 $new_ids = $this->cpAppTable($request->main_table, $replace_val, [], $row_id);
 
                 $additio_tbs = collect($request->additional_tables)->map(function ($el) {
                     return strtolower($el);
                 });
                 $additio_tbs = $additio_tbs->unique()->toArray();
-                foreach ($additio_tbs as $app_tb) {
+                foreach ($additio_tbs as $i => $app_tb) {
                     if ($app_tb) {
+                        $replace_val = $this->copyModelReplacer($app_tb, $model_name, $old_user, $new_user);
                         $this->cpAppTable($app_tb, $replace_val, $row_arr);
                     }
                 }
@@ -162,13 +172,62 @@ class PostService
             }
         }
         return [
-            'row' => count($new_ids) ? (new TableDataService())->getDirectRow($table_meta, $new_ids[0]) : null
+            'row' => count($new_ids) ? (new TableDataService())->getDirectRow($table_meta, $new_ids[0]) : null,
+            'suffix' => $this->copy_suffix($from_uid),
         ];
     }
 
     /**
+     * @param $old_user
+     * @param $new_user
+     * @return mixed|null
+     */
+    protected function fromUidForCopy($old_user, $new_user)
+    {
+        return $new_user && $new_user != $old_user && $new_user != auth()->id()
+            ? $old_user
+            : null;
+    }
+
+    /**
+     * @param string $app_table
+     * @param string $model_name
+     * @param $old_user
+     * @param $new_user
+     * @return array
+     */
+    protected function copyModelReplacer(string $app_table, string $model_name, $old_user, $new_user): array
+    {
+        $table = DataReceiver::meta_table($app_table);
+        $replaces = $this->makeReplaces($table, $new_user, $old_user);
+        //prefix fld
+        $prefix = $this->prefixField($app_table);
+        if ($prefix) {
+            $from_uid = $this->fromUidForCopy($old_user, $new_user);
+            $idx = 1;
+
+            if (!$from_uid) {
+                $qur = (new TableDataQuery($table))->getQuery();
+                $cnt = (clone $qur)->where($prefix->data_field, '=', $this->get_copy_name($model_name, $idx, $from_uid))->count();
+                while ($cnt) {
+                    $idx++;
+                    $cnt = (clone $qur)->where($prefix->data_field, '=', $this->get_copy_name($model_name, $idx, $from_uid))->count();
+                }
+            }
+
+            $replaces[] = [
+                'force' => true,
+                'field' => $prefix->data_field,
+                'old_val' => $model_name,
+                'new_val' => $this->get_copy_name($model_name, $idx, $from_uid),
+            ];
+        }
+        return $replaces;
+    }
+
+    /**
      * @param Request $request
-     * @return string
+     * @return array
      */
     public function copy_child(Request $request)
     {
@@ -176,15 +235,15 @@ class PostService
         $child_meta = DataReceiver::meta_table($request->child_table);
         $row_arr = (new TableDataRepository())->getDirectRow($table_meta, $request->master_id);
         $target_arr = (new TableDataRepository())->getDirectRow($table_meta, $request->target_id);
-        $new_ids=  [];
+        $new_ids = [];
         if ($target_arr && $row_arr && $table_meta && $child_meta) {
             $target_arr = $target_arr->toArray();
             $row_arr = $row_arr->toArray();
             $this->already_copied_ids = [];
 
             $model = [
-                'from' => $this->replaceVal($request->master_table, $row_arr),
-                'to' => $this->replaceVal($request->master_table, $target_arr),
+                'from' => $this->prefixReplacer($request->master_table, $row_arr),
+                'to' => $this->prefixReplacer($request->master_table, $target_arr),
             ];
             $usergroup = [
                 'from' => $this->usergroupVal($table_meta, $row_arr),
@@ -203,7 +262,7 @@ class PostService
      * @param array $master_row
      * @return string
      */
-    protected function replaceVal(string $app_table, array $master_row)
+    protected function prefixReplacer(string $app_table, array $master_row)
     {
         $prefix = $this->prefixField($app_table);
         if ($prefix) {
@@ -268,9 +327,7 @@ class PostService
                 $row_arr = $row_arr->toArray();
                 $this->delAppTable($request->main_table, [], $row_id);
                 foreach ($request->additional_tables as $app_tb) {
-                    if ($app_tb && !empty($app_tb['to_del'])) {
-                        $this->delAppTable($app_tb['table'], $row_arr);
-                    }
+                    $this->delAppTable($app_tb, $row_arr);
                 }
             }
         }
@@ -279,12 +336,12 @@ class PostService
 
     /**
      * @param string $app_table
-     * @param string|array $replace_val
+     * @param array $replace_val
      * @param array $master_row
      * @param int $direct_id
      * @return array
      */
-    protected function cpAppTable(string $app_table, $replace_val, array $master_row, int $direct_id = 0)
+    protected function cpAppTable(string $app_table, array $replace_val, array $master_row, int $direct_id = 0)
     {
         $table = DataReceiver::meta_table($app_table);
 
@@ -300,21 +357,17 @@ class PostService
             'force_execute' => true,
         ];
 
-        $replaces = is_array($replace_val)
-            ? $replace_val
-            : $this->copyReplaces($table, $app_table, $replace_val);
-
         $new_ids = [];
         if ($direct_id) {
             $request_params['row_id'] = $direct_id;
-            [$new_ids, $corr_rows] = (new TableDataService())->massCopy($table, [], $request_params, $replaces);
+            [$new_ids, $corr_rows] = (new TableDataService())->massCopy($table, [], $request_params, $replace_val);
             $this->copied_row_corrs[$table->id] = $corr_rows;
         } else {
             [$search, $columns] = DataReceiver::build_search_array($app_table, $master_row);
             if ($search && $columns) {
                 $request_params['search_words'] = $search;
                 $request_params['search_columns'] = $columns;
-                [$arr, $sub_corr_rows] = (new TableDataService())->massCopy($table, [], $request_params, $replaces);
+                [$arr, $sub_corr_rows] = (new TableDataService())->massCopy($table, [], $request_params, $replace_val);
                 $this->copied_row_corrs[$table->id] = $sub_corr_rows;
             }
         }
@@ -389,37 +442,6 @@ class PostService
 
     /**
      * @param Table $app
-     * @param string $app_table
-     * @param string $val
-     * @return array
-     */
-    protected function copyReplaces(Table $app, string $app_table, string $val)
-    {
-        $replaces = $this->makeReplaces($app);
-        //prefix fld
-        $prefix = $this->prefixField($app_table);
-        if ($prefix) {
-
-            $idx = 1;
-            $qur = (new TableDataQuery($app))->getQuery();
-            $cnt = (clone $qur)->where($prefix->data_field, '=', $this->get_copy_name($val, $idx))->count();
-            while ($cnt) {
-                $idx++;
-                $cnt = (clone $qur)->where($prefix->data_field, '=', $this->get_copy_name($val, $idx))->count();
-            }
-
-            $replaces[] = [
-                'force' => true,
-                'field' => $prefix->data_field,
-                'old_val' => $val,
-                'new_val' => $this->get_copy_name($val, $idx),
-            ];
-        }
-        return $replaces;
-    }
-
-    /**
-     * @param Table $app
      * @param string|null $master_usergroup
      * @param null $old_val
      * @return array
@@ -441,13 +463,34 @@ class PostService
     }
 
     /**
-     * @param $val
-     * @param $idx
+     * @param $from_uid
      * @return string
      */
-    protected function get_copy_name($val, $idx)
+    protected function copy_suffix($from_uid): string
     {
-        return 'copy'.($idx > 1 ? $idx : '').'_'.$val;
+        $user = (new UserRepository())->getById($from_uid);
+        $uemail = $user ? $user->email.'_' : '';
+        if (!$this->carbon_date) {
+            $this->carbon_date = Carbon::now()->format('Ymd_His');
+        }
+        return $from_uid
+            ? '_CoFr_' . $uemail . $this->carbon_date
+            : 'copy_';
+    }
+
+    /**
+     * @param $val
+     * @param $idx
+     * @param $from_uid
+     * @return string
+     */
+    protected function get_copy_name($val, $idx, $from_uid = null): string
+    {
+        if ($from_uid) {
+            return $val . $this->copy_suffix($from_uid);
+        } else {
+            return 'copy' . ($idx > 1 ? $idx : '') . '_' . $val;
+        }
     }
 
     /**

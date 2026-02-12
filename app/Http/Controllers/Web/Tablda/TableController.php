@@ -4,6 +4,7 @@ namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\AddMessageTableRequest;
 use Vanguard\Http\Requests\Tablda\DeleteMessageTableRequest;
@@ -12,17 +13,23 @@ use Vanguard\Http\Requests\Tablda\GetTableRequest;
 use Vanguard\Http\Requests\Tablda\MoveNodeRequest;
 use Vanguard\Http\Requests\Tablda\PostLinkRequest;
 use Vanguard\Http\Requests\Tablda\Table\FavoriteToggleRequest;
+use Vanguard\Http\Requests\Tablda\Table\FillMrvUrlRequest;
 use Vanguard\Http\Requests\Tablda\Table\GetFilterUrlRequest;
 use Vanguard\Http\Requests\Tablda\Table\RenameSharedRequest;
 use Vanguard\Http\Requests\Tablda\Table\UpdateUserNoteRequest;
 use Vanguard\Http\Requests\Tablda\TransferTableRequest;
+use Vanguard\Models\Import;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\TableAlertsRepository;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
+use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Services\Tablda\FolderService;
 use Vanguard\Services\Tablda\ImportService;
+use Vanguard\Services\Tablda\TableFieldService;
 use Vanguard\Services\Tablda\TableService;
+use Vanguard\Support\FrontNotificator;
 
 class TableController extends Controller
 {
@@ -86,9 +93,9 @@ class TableController extends Controller
      * @return mixed
      * @throws \Illuminate\Auth\Access\AuthorizationException
      */
-    public function settingsMeta()
+    public function settingsMeta(Request $request)
     {
-        return $this->tables->getSystemHeaders(auth()->id());
+        return $this->tables->getSystemHeaders(auth()->id(), $request->only_part ?: []);
     }
 
     /**
@@ -179,7 +186,7 @@ class TableController extends Controller
 
         $res = [];
         $users_ids = $this->getUids($request->new_user_or_group);
-        $last = array_last($users_ids);
+        $last = Arr::last($users_ids);
         foreach ($users_ids as $uid) {
             if ($last == $uid) {
                 $res = $this->tables->transferTable($table, $uid);
@@ -204,13 +211,18 @@ class TableController extends Controller
             $this->authorize('isOwner', [TableData::class, $table]);
         }
 
-        if ($request->new_name) {
-            $table->name = $request->new_name;
-        }
+        $table->name = $request->new_name ?: $table->name;
 
         $res = [];
         foreach ($this->getUids($request->new_user_or_group) as $uid) {
-            $res = $this->importService->saveCopyTable($table, $uid, $request->table_with ?: null, !!$request->overwrite, !!$request->visitor);
+            $res = $this->importService->saveCopyTable(
+                $table,
+                $uid,
+                $request->table_with ?: null,
+                !!$request->overwrite,
+                !!$request->visitor,
+                $request->direct_folder_id ?: null
+            );
         }
         return $res;
     }
@@ -263,8 +275,12 @@ class TableController extends Controller
             $name = $arr['folder']->name ?? '';
         } else {
             $table = $this->tables->getTableByViewHash($hash);
-            $res = $this->importService->saveCopyTable($table, $new_user_id);
-            $name = $res['new_table']->name ?? '';
+            if ($table) {
+                $res = $this->importService->saveCopyTable($table, $new_user_id);
+                $name = $res['new_table']->name ?? '';
+            } else {
+                $res = ['error' => 'Table not found!'];
+            }
         }
 
         if (!empty($res['error'])) {
@@ -332,7 +348,7 @@ class TableController extends Controller
 
         $this->authorize('get', [TableData::class, $table]);
 
-        return $this->tables->favoriteToggle($request->table_id, auth()->id(), (boolean)$request->favorite);
+        return $this->tables->favoriteToggle($request->table_id, auth()->id(), (boolean)$request->favorite, $request->parent_id ?: null);
     }
 
     /**
@@ -365,6 +381,22 @@ class TableController extends Controller
         $table_field = $this->fieldRepository->getField($request->field_id);
 
         return $this->tables->getTablePath($table) . '?' . $table_field->field . '=' . $request->value;
+    }
+
+    /**
+     * @param FillMrvUrlRequest $request
+     * @return \Vanguard\Models\Table\TableFieldLink
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function fillMrvUrl(FillMrvUrlRequest $request)
+    {
+        $view = (new TableViewRepository())->getView($request->mrv_id);
+        $webLink = (new TableFieldLinkRepository())->getLink($request->web_link_id);
+        $link = (new TableFieldLinkRepository())->getLink($request->link_id);
+
+        $this->authorize('isOwner', [TableData::class, $view->_table]);
+
+        return (new TableFieldService())->fillMrvUrl($link, $webLink, $view, $request->target_field_id);
     }
 
     /**
@@ -403,11 +435,18 @@ class TableController extends Controller
             if ($table->add_alert && $request->automations_check) {
                 $wait_automations = (new TableAlertsRepository())->getOnce_WaitForApproveAnrTables($table->id);
             }
+            $import = Import::where('table_id', '=', $request->table_id)
+                ->whereIn('type', ['RecalcTableFormula', 'SmartAutoselect'])
+                ->where('status', '!=', 'done')
+                ->first();
 
             return [
+                'job_msg' => FrontNotificator::checkJob($table->id),
                 'wait_automations' => $wait_automations,
                 'version_hash' => $table->version_hash,
                 'num_rows' => $table->num_rows,
+                'recalc_id' => $import?->id,
+                'recalc_type' => $import?->type,
                 /*'list_hashes' => $list_hashes,
                 'fav_hashes' => $fav_hashes,*/
             ];

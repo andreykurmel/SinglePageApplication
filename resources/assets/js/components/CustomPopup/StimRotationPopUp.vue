@@ -105,7 +105,6 @@
 
     import PopupAnimationMixin from './../_Mixins/PopupAnimationMixin';
 
-    import SingleTdField from "../CommonBlocks/SingleTdField";
     import HeaderResizer from "../CustomTable/Header/HeaderResizer";
 
     export default {
@@ -115,7 +114,6 @@
         ],
         components: {
             HeaderResizer,
-            SingleTdField,
         },
         data: function () {
             return {
@@ -168,9 +166,9 @@
                         rts_params: this.p_settings[this.rts_type],
                         request_params: request_params,
                     }).then(({data}) => {
-                        (data.error ? Swal('', data.error) : this.$emit('rts-completed'));
+                        (data.error ? Swal('Info', data.error) : this.$emit('rts-completed'));
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.is_process = false;
                         $.LoadingOverlay('hide');

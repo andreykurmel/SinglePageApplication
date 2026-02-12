@@ -27,7 +27,6 @@ class UpdateSettingsRowRequest extends FormRequest
             'table_field_id' => 'required|integer|exists:table_fields,id',
             'field' => 'required|string',
             'val' => 'nullable',
-            'recalc_ids' => 'nullable|array',
         ];
     }
 }

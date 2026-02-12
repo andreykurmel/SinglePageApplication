@@ -41,6 +41,7 @@
                                     :table_id="tableMeta.id"
                                     :field_id="tbHeader.id"
                                     :row_id="insert_object._tmp_id"
+                                    :default_method="tbHeader.f_default"
                                     @uploaded-file="insAttach"
                                 ></file-uploader-block>
                             </div>
@@ -49,7 +50,9 @@
                                 <label style="min-width: 80px">
                                     <span>Signature<span class="required-wildcart">*</span>:&nbsp;</span>
                                 </label>
-                                <input class="form-control" v-model="insert_object.user_signature"/>
+                                <input class="form-control" 
+                                placeholder="/Your Name/"
+                                v-model="insert_object.user_signature"/>
                             </div>
 
                             <div class="popup-buttons" style="text-align: right">
@@ -88,12 +91,11 @@
             return {
                 styles: {
                     images: {
-                        height: '60px',
+                        height: '60px !important',
                         position: 'relative',
                         overflow: 'auto',
                         border: '1px solid #ccc',
                         borderRadius: '5px',
-                        padding: '3px',
                     },
                     files: {
                         maxHeight: '75px',
@@ -145,14 +147,14 @@
         methods: {
             //additionals
             hide() {
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
                 this.$emit('popup-close');
             },
 
             //work with Feedbacks
             insertFeedbackResult() {
                 if (!this.insert_object.notes || !this.insert_object.user_signature) {
-                    Swal('Required fields are empty!');
+                    Swal('Info','Required fields are empty!');
                     return;
                 }
 
@@ -163,7 +165,7 @@
                 }).then(({ data }) => {
                     this.$emit('result-submitted', data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -183,7 +185,7 @@
         mounted() {
             this.tableRow.id = this.insert_object._tmp_id;
 
-            this.$root.tablesZidx += 10;
+            this.$root.tablesZidxIncrease();
             this.zIdx = this.$root.tablesZidx;
             this.runAnimation();
         },

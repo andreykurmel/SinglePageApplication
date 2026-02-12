@@ -6,42 +6,60 @@
                 <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Header color:&nbsp;</label>
                 <div class="color_wrap w-sm">
                     <tablda-colopicker
-                        :init_color="tableMeta.map_popup_header_color"
+                        :init_color="selectedMap.map_popup_header_color"
                         :avail_null="true"
-                        @set-color="(clr) => {tableMeta.map_popup_header_color = clr; updateRow('map_popup_header_color')}"
+                        :can_edit="canEdit"
+                        @set-color="(clr) => {selectedMap.map_popup_header_color = clr; updateRow('map_popup_header_color')}"
                     ></tablda-colopicker>
                 </div>
             </div>
 
             <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Width:&nbsp;</label>
-            <input class="form-control w-sm" v-model="tableMeta.map_popup_width" @change="updateRow('map_popup_width')"/>
+            <input class="form-control w-sm" v-model="selectedMap.map_popup_width" :disabled="!canEdit" @change="updateRow('map_popup_width')"/>
             <label>px</label>
             <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Height:&nbsp;</label>
-            <input class="form-control w-sm" v-model="tableMeta.map_popup_height" @change="updateRow('map_popup_height')"/>
+            <input class="form-control w-sm" v-model="selectedMap.map_popup_height" :disabled="!canEdit" @change="updateRow('map_popup_height')"/>
             <label>px</label>
         </div>
 
         <div class="form-group flex flex--center-v no-wrap">
-            <label>Image display style:&nbsp;</label>
-            <select class="form-control w-md" v-model="tableMeta.map_picture_style" @change="updateRow('map_picture_style')">
-                <option value="scroll">Scroll</option>
-                <option value="slide">Slide</option>
-            </select>
-
-            <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Image on Right:&nbsp;</label>
-            <select class="form-control w-md" v-model="tableMeta.map_picture_field" @change="updateRow('map_picture_field')">
+            <label>Images:&nbsp;</label>
+            <select class="form-control w-md" v-model="selectedMap.map_picture_field" :disabled="!canEdit" @change="updateRow('map_picture_field')">
                 <option></option>
                 <option
-                    v-for="header in tableMeta._fields"
+                    v-for="header in selectedMap._fields"
                     v-if="header.f_type === 'Attachment'"
                     :value="header.id"
                 >{{ header.name }}</option>
             </select>
 
-            <template v-if="tableMeta.map_picture_width">
-                <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Image width:&nbsp;</label>
-                <input class="form-control w-sm" v-model="tableMeta.map_picture_width" @change="updateRow('map_picture_width')"/>
-                <label>%</label>
+            <template v-if="selectedMap.map_picture_field">
+                <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Position:&nbsp;</label>
+                <select class="form-control w-md" v-model="selectedMap.map_picture_position" :disabled="!canEdit" @change="updateRow('map_picture_position')">
+                    <option value="top">Top</option>
+                    <option value="bottom">Bottom</option>
+                    <option value="left">Left</option>
+                    <option value="right">Right</option>
+                </select>
+            </template>
+
+            <template v-if="selectedMap.map_picture_field">
+                <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Display style:&nbsp;</label>
+                <select class="form-control w-md" v-model="selectedMap.map_picture_style" :disabled="!canEdit" @change="updateRow('map_picture_style')">
+                    <option value="scroll">Scroll</option>
+                    <option value="slide">Slide</option>
+                </select>
+            </template>
+
+            <template v-if="selectedMap.map_picture_field">
+                <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{{ $root.inArray(selectedMap.map_picture_position, ['left', 'right']) ? 'Width' : 'Height' }}:&nbsp;</label>
+                <input class="form-control w-sm" v-model="selectedMap.map_picture_width" :disabled="!canEdit" @change="updateRow('map_picture_width')"/>
+            </template>
+
+            <template v-if="selectedMap.map_picture_field">
+                <label>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Minimum:&nbsp;</label>
+                <input class="form-control w-sm" v-model="selectedMap.map_picture_min_width" :disabled="!canEdit" @change="updateRow('map_picture_min_width')"/>
+                <label>px</label>
             </template>
         </div>
     </div>
@@ -67,11 +85,24 @@
         computed: {
         },
         props:{
-            tableMeta: Object,
+            selectedMap: Object,
+            canEdit: Boolean,
         },
         methods: {
             updateRow(changed) {
-                this.$emit('upd-table', changed);
+                if (!this.canEdit) {
+                    return;
+                }
+                if (this.$root.inArray(changed, ['map_picture_width', 'map_picture_min_width'])) {
+                    if (this.selectedMap[changed] <= 1) {
+                        this.selectedMap[changed] = Math.max(this.selectedMap[changed], 0);
+                        this.selectedMap[changed] = Math.min(this.selectedMap[changed], 1);
+                    } else {
+                        this.selectedMap[changed] = Math.max(this.selectedMap[changed], 10);
+                        this.selectedMap[changed] = Math.min(this.selectedMap[changed], 1000);
+                    }
+                }
+                this.$emit('upd-map', this.selectedMap, changed);
             },
         },
         mounted() {
@@ -85,7 +116,7 @@
     .map_additionals {
         padding: 15px;
         background: white;
-        height: calc(100% - 30px);
+        height: 100%;
 
         label {
             margin: 0;
@@ -101,7 +132,7 @@
             width: 60px;
         }
         .w-md {
-            width: 90px;
+            width: 100px;
         }
     }
 </style>

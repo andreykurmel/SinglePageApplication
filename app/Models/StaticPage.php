@@ -47,7 +47,7 @@ class StaticPage extends Model
     public $timestamps = false;
 
     protected $fillable = [
-        'type', // ['introduction','tutorials','templates','applications']
+        'type',
         'parent_id',
         'is_folder',
         'url',

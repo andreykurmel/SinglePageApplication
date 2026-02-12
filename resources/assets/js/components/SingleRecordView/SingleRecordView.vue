@@ -1,5 +1,5 @@
 <template>
-    <div v-if="srvRecord" id="tables" class="full-frame" :style="{backgroundColor: fullBgColor}">
+    <div v-if="srvRecord" id="tables" class="full-frame flex" :style="globalStyle()">
         <img v-if="fullBgImage"
              class="srv__image"
              :src="$root.fileUrl({url:fullBgImage})"
@@ -11,7 +11,7 @@
              }"
         />
         
-        <template v-if="initObject.single_view_password_id && !pass">
+        <div v-if="initObject.single_view_password_id && !pass">
 
             <single-rec-pass-block
                 :table_id="initObject.id"
@@ -20,70 +20,115 @@
                 @cancel-pass="goHomepage"
             ></single-rec-pass-block>
 
-        </template>
-        <template v-else-if="isAvail">
+        </div>
+        <div v-else-if="isAvail()">
 
-            <div :style="srvHeaderStyle">
-                [{{ tableMeta.name }}] <span v-html="getPopUpHeader()"></span>
+            <div :style="srvHeaderStyle()" class="flex">
+                <div v-if="tableMeta.single_view_header">
+                    {{ getFrmHeader() }}
+                </div>
+                <div v-else>
+                    {{ tableMeta.name }} <span v-html="getPopUpHeader()"></span>
+                </div>
             </div>
-            <vertical-table
-                :td="$root.tdCellComponent(tableMeta.is_system)"
-                :global-meta="tableMeta"
-                :table-meta="tableMeta"
-                :settings-meta="$root.settingsMeta"
-                :table-row="srvRecord"
-                :cell-height="$root.cellHeight"
-                :max-cell-rows="$root.maxCellRows"
-                :user="$root.user"
-                :behavior="'single-record-view'"
-                :style="vertTbStyle"
-                @updated-cell="updateRow"
-                @show-src-record="showSrcRecord"
-            ></vertical-table>
+            <div v-for="(availGr, idx) in srvGroups" class="srv-section">
+                <div v-if="Object.keys(availGr.fieldTabs).length > 1" class="popup-menu">
+                    <button
+                        v-for="(tab, key) in availGr.fieldTabs"
+                        class="btn btn-default mr5"
+                        :class="{active: availGr.activetab === key}"
+                        @click="availGr.activetab = key"
+                    >
+                        {{ key }}
+                    </button>
+                </div>
+                <div :class="{'popup-tab': Object.keys(availGr.fieldTabs).length > 1}"
+                     v-for="(tab, key) in availGr.fieldTabs"
+                     v-show="availGr.activetab === key"
+                >
+                    <vertical-table
+                        :td="$root.tdCellComponent(tableMeta.is_system)"
+                        :global-meta="tableMeta"
+                        :table-meta="tableMeta"
+                        :settings-meta="$root.settingsMeta"
+                        :table-row="srvRecord"
+                        :cell-height="$root.cellHeight"
+                        :max-cell-rows="$root.maxCellRows"
+                        :user="$root.user"
+                        :with_edit="canEdit()"
+                        :behavior="'single-record-view'"
+                        :extra-pivot-fields="tableMeta._fields_pivot"
+                        :style="vertTbStyle(Object.keys(availGr.fieldTabs).length > 1)"
+                        :available-columns="tab.fields"
+                        @updated-cell="updateRow"
+                        @show-src-record="showSrcRecord"
+                    ></vertical-table>
+                </div>
+            </div>
 
             <!--Link Popups from ListView and MapView.-->
             <template v-for="(linkObj, idx) in linkPopups">
-                <link-pop-up
-                    v-if="linkObj.key === 'show'"
+                <header-history-pop-up
+                    v-if="linkObj.key === 'show' && linkObj.link.link_type === 'History'"
                     :idx="linkObj.index"
-                    :settings-meta="$root.settingsMeta"
-                    :user="$root.user"
+                    :table-meta="tableMeta"
+                    :table-row="linkObj.row"
+                    :history-header="linkObj.header"
+                    :link="linkObj.link"
+                    :popup-key="idx"
+                    :is-visible="true"
+                    @popup-close="closeLinkPopup"
+                ></header-history-pop-up>
+                <link-pop-up
+                    v-else-if="linkObj.key === 'show'"
+                    :source-meta="tableMeta"
+                    :idx="linkObj.index"
                     :link="linkObj.link"
                     :meta-header="linkObj.header"
                     :meta-row="linkObj.row"
-                    :cell-height="$root.cellHeight"
-                    :max-cell-rows="$root.maxCellRows"
                     :popup-key="idx"
+                    :view_authorizer="{
+                        mrv_marker: $root.is_mrv_page,
+                        srv_marker: $root.is_srv_page,
+                        dcr_marker: $root.is_dcr_page,
+                        srv_hash: srvRecord.static_hash
+                    }"
                     @show-src-record="showSrcRecord"
                     @link-popup-close="closeLinkPopup"
                 ></link-pop-up>
             </template>
 
-        </template>
+            <!--Edit Popup for 'Email','Phone Number'-->
+            <cell-email-phone-popup :table-meta="tableMeta"></cell-email-phone-popup>
+
+        </div>
     </div>
 </template>
 
 <script>
     import {eventBus} from "../../app";
 
+    import {JsFomulaParser} from "../../classes/JsFomulaParser";
     import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
     import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
-    import VerticalTable from "../CustomTable/VerticalTable";
-    import SingleRecPassBlock from "../CommonBlocks/SingleRecPassBlock";
-
     import CellStyleMixin from "../_Mixins/CellStyleMixin";
-    import LinkPopUp from "../CustomPopup/LinkPopUp";
+    import SortFieldsForVerticalMixin from "../_Mixins/SortFieldsForVerticalMixin";
+
+    import SingleRecPassBlock from "../CommonBlocks/SingleRecPassBlock";
+    import HeaderHistoryPopUp from "../CustomPopup/HeaderHistoryPopUp";
+    import CellEmailPhonePopup from "../CustomPopup/CellEmailPhonePopup.vue";
 
     export default {
         name: "SingleRecordView",
         mixins: [
             CellStyleMixin,
+            SortFieldsForVerticalMixin,
         ],
         components: {
-            LinkPopUp,
+            CellEmailPhonePopup,
+            HeaderHistoryPopUp,
             SingleRecPassBlock,
-            VerticalTable,
         },
         data: function () {
             return {
@@ -91,6 +136,7 @@
                 tableMeta: {},
                 pass: false,
                 linkPopups: [],
+                srvGroups: [],
             }
         },
         props: {
@@ -98,22 +144,29 @@
             settingsMeta: Object,
         },
         computed: {
-            isAvail() {
-                return this.tableMeta && this.tableMeta.single_view_active && this.tableMeta.single_view_permission_id;
-            },
             fullBgColor() {
                 return this.tableMeta.single_view_background_by === 'color' ? this.tableMeta.single_view_bg_color : null;
             },
             fullBgImage() {
                 return this.tableMeta.single_view_background_by === 'image' ? this.tableMeta.single_view_bg_img : null;
             },
-            vertTbStyle() {
+        },
+        methods: {
+            vertTbStyle(withTabs) {
+                let maxWidth = Number(this.tableMeta.single_view_form_width || '800');
+                if (withTabs) {
+                    maxWidth -= 12;
+                }
+
                 let styles = {
                     margin: 'auto',
-                    paddingLeft: '15px'
+                    paddingLeft: '10px',
+                    paddingRight: '10px',
+                    paddingTop: '5px',
                 };
-                styles.width = this.tableMeta.single_view_form_width ? this.tableMeta.single_view_form_width+'px' : '800px';
-                styles.backgroundColor = this.tableMeta.single_view_form_color;
+                styles.width = '100%';
+                styles.maxWidth = maxWidth+'px';
+                styles.backgroundColor = this.tableMeta.single_view_form_background;
 
                 if (styles.backgroundColor) {
                     let transp = to_float(this.tableMeta.single_view_form_transparency || 0) / 100 * 255;
@@ -125,19 +178,79 @@
                 return styles;
             },
             srvHeaderStyle() {
-                return {
+                let bg = this.tableMeta.single_view_header_background || '#444444';
+                let stl = {
                     margin: 'auto',
                     padding: '10px',
-                    background: '#444',
-                    color: '#FFF',
-                    width: this.tableMeta.single_view_form_width ? this.tableMeta.single_view_form_width+'px' : '800px',
+                    background: bg,
+                    width: '100%',
+                    maxWidth: this.tableMeta.single_view_form_width ? this.tableMeta.single_view_form_width+'px' : '800px',
                     position: 'relative',
                     fontWeight: 'bold',
+                    fontSize: (Number(this.tableMeta.single_view_header_font_size) || Number(this.themeTextFontSize+2)) + 'px',
+                    color: this.tableMeta.single_view_header_color || SpecialFuncs.smartTextColorOnBg(bg),
+                    justifyContent: this.tableMeta.single_view_header_align_h === 'Right'
+                        ? 'right'
+                        : (this.tableMeta.single_view_header_align_h === 'Center' ? 'center' : 'left'),
+                    alignItems: this.tableMeta.single_view_header_align_v === 'Top'
+                        ? 'start'
+                        : (this.tableMeta.single_view_header_align_v === 'Bottom' ? 'end' : 'center'),
+                    height: Number(this.tableMeta.single_view_header_height || 100)+'px',
+                    fontStyle: null,
+                    textDecoration: null,
+                };
+
+                let fonts = SpecialFuncs.parseMsel(this.tableMeta.single_view_header_font);
+                _.each(fonts, (f) => {
+                    (f === 'Italic' ? stl.fontStyle = 'italic' : stl.fontStyle = stl.fontStyle || null);
+                    (f === 'Bold' ? stl.fontWeight = 'bold' : stl.fontWeight = stl.fontWeight || null);
+                    (f === 'Strikethrough' ? stl.textDecoration = 'line-through' : stl.textDecoration = stl.textDecoration || null);
+                    (f === 'Overline' ? stl.textDecoration = 'overline' : stl.textDecoration = stl.textDecoration || null);
+                    (f === 'Underline' ? stl.textDecoration = 'underline' : stl.textDecoration = stl.textDecoration || null);
+                });
+
+                return {
                     ...this.textStyle,
+                    ...stl,
                 };
             },
-        },
-        methods: {
+            globalStyle() {
+                return {
+                    backgroundColor: this.fullBgColor,
+                    justifyContent: this.tableMeta.single_view_form_align_h === 'Right'
+                        ? 'right'
+                        : (this.tableMeta.single_view_form_align_h === 'Center' ? 'center' : 'left'),
+                    alignItems: this.tableMeta.single_view_form_align_v === 'Top'
+                        ? 'start'
+                        : (this.tableMeta.single_view_form_align_v === 'Bottom' ? 'end' : 'center'),
+                };
+            },
+            getFrmHeader() {
+                if (this.tableMeta && this.srvRecord) {
+                    let parser = new JsFomulaParser(this.tableMeta);
+                    return parser.formulaEval(this.srvRecord, this.tableMeta.single_view_header, this.tableMeta);
+                }
+                return '';
+            },
+            isAvail() {
+                let availStatus = false;
+                if (this.tableMeta && this.srvRecord) {
+                    let statusFld = _.find(this.tableMeta._fields, {id: Number(this.tableMeta.single_view_status_id)});
+                    availStatus = !statusFld || this.srvRecord[statusFld.field];
+                }
+                return availStatus
+                    && this.tableMeta
+                    && this.tableMeta.single_view_active
+                    && this.tableMeta.single_view_permission_id;
+            },
+            canEdit() {
+                let canEdit = false;
+                if (this.tableMeta && this.srvRecord) {
+                    let statusFld = _.find(this.tableMeta._fields, {id: Number(this.tableMeta.single_view_edit_id)}) || {};
+                    canEdit = ! this.tableMeta.single_view_edit_id || !! this.srvRecord[statusFld.field];
+                }
+                return canEdit;
+            },
             updateRow(tableRow) {
                 let row_id = tableRow.id;
                 let fields = _.cloneDeep(tableRow);//copy object
@@ -165,7 +278,7 @@
                         SpecialFuncs.assignProps(tableRow, data.rows[0]);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                     this.$root.prevent_cell_edit = false;
@@ -179,14 +292,19 @@
                 let row = this.srvRecord;
                 let res = [];
                 _.each(headers, (hdr) => {
-                    if (hdr.popup_header) {
-                        res.push('{' + this.$root.uniqName(hdr.name) + '}: ' + (row ? row[hdr.field] : '') );
+                    if (hdr.popup_header || hdr.popup_header_val) {
+                        let row_value = row
+                            ? SpecialFuncs.showhtml(hdr, row, row[hdr.field], this.tableMeta)
+                            : '';
+                        let ar = hdr.popup_header ? [this.$root.uniqName(hdr.name)] : [];
+                        if (hdr.popup_header_val) { ar.push(row_value) }
+                        res.push( ar.join(': ') );
                     }
                 });
-                return res.length ? ' - '+res.join('<br>') : '';
+                return res.length ? ' | '+res.join(' | ') : '';
             },
             //LOADING
-            loadSrv() {
+            loadSrv(withMeta) {
                 axios.get('/ajax/srv/row', {
                     params: {
                         table_id: this.initObject.id,
@@ -194,9 +312,14 @@
                     },
                 }).then(({ data }) => {
                     this.srvRecord = data.srv;
-                    this.loadMeta();
+                    this.$root.user._srv_hash = this.srvRecord.static_hash;
+                    this.$root.is_srv_page = this.srvRecord.id;
+                    if (withMeta) {
+                        this.loadMeta();
+                        console.log('srvRecord', this.srvRecord, 'size about: ', JSON.stringify(this.srvRecord).length);
+                    }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             loadMeta() {
@@ -209,17 +332,20 @@
                     this.$root.metaSrvObject = data;
                     this.$root.tableMeta = data;
                     this.tableMeta = data;
+                    console.log('srvTableMeta', this.tableMeta, 'size about: ', JSON.stringify(this.tableMeta).length);
 
-                    if (!this.isAvail) {
+                    if (!this.isAvail()) {
                         Swal({
-                            title: 'Single-Record View not Available!',
+                            title: 'Info',
+                            text: 'The requested Single-Record View(SRV) is not available!',
                             animation: 'slide-from-top'
                         }).then(() => {
                             this.goHomepage();
                         });
                     }
+                    this.srvGroups = this.getSectionGroups(this.tableMeta, this.srvRecord, this.tableMeta._fields_pivot, [], true, 'srv');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             //Link PopUps
@@ -244,10 +370,28 @@
                     }
                 }
             },
+            intervalTickHandler(e) {
+                if (this.srvRecord && this.$root.tableMeta && !this.$root.sm_msg_type) {
+                    axios.post('/ajax/table/version_hash', {
+                        table_id: this.$root.tableMeta.id,
+                        row_list_ids: [],
+                        row_fav_ids: [],
+                        automations_check: !document.hidden,
+                    }).then(({ data }) => {
+                        this.loadSrv();
+                    });
+                }
+            },
         },
         mounted() {
-            console.log('srvRecord', this.srvRecord, 'size about: ', JSON.stringify(this.srvRecord).length);
-            this.loadSrv();
+            this.loadSrv(true);
+
+            //sync datas with collaborators
+            setInterval(() => {
+                if (!localStorage.getItem('no_ping')) {
+                    this.intervalTickHandler();
+                }
+            }, this.$root.version_hash_delay);
         },
         beforeDestroy() {
         }
@@ -255,14 +399,16 @@
 </script>
 
 <style lang="scss" scoped>
-    #tables {
-        overflow: hidden;
-    }
+    @import "../CustomPopup/CustomEditPopUp";
+
     .srv__image {
         max-width: 100%;
         position: absolute;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+    }
+    .srv-section {
+        margin-bottom: 5px;
     }
 </style>

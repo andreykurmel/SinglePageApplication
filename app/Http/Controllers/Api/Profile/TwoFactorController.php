@@ -3,6 +3,7 @@
 namespace Vanguard\Http\Controllers\Api\Profile;
 
 use Authy;
+use Illuminate\Support\Facades\Log;
 use Vanguard\Events\User\TwoFactorDisabled;
 use Vanguard\Events\User\TwoFactorEnabled;
 use Vanguard\Http\Controllers\Api\ApiController;
@@ -40,7 +41,9 @@ class TwoFactorController extends ApiController
             $request->two_factor_type
         );
 
-        Authy::register($user);
+        if ($user->two_factor_type != 'email') {
+            Authy::register($user);
+        }
 
         $user->save();
 
@@ -57,12 +60,15 @@ class TwoFactorController extends ApiController
     {
         $user = auth()->user();
 
-        if (! Authy::isEnabled($user)) {
-            return $this->setStatusCode(422)
-                ->respondWithError("2FA is not enabled for this user.");
-        }
+        $user->two_factor_options = null;
+        $user->save();
 
-        Authy::delete($user);
+        try {
+            Authy::delete($user);
+        } catch (\Exception $e) {
+            Log::info('Authy Error');
+            Log::info($e->getMessage());
+        }
 
         $user->save();
 

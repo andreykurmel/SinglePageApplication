@@ -7,12 +7,12 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Vanguard\Models\Table\Table;
-use Vanguard\Models\Table\TableAlert;
-use Vanguard\Repositories\Tablda\TableAlertsRepository;
-use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
-use Vanguard\Services\Tablda\AlertFunctionsService;
-use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Repositories\Tablda\FileRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
+use Vanguard\Support\FileHelper;
 
 class BatchUploadingJob implements ShouldQueue
 {
@@ -47,7 +47,38 @@ class BatchUploadingJob implements ShouldQueue
      */
     public function handle()
     {
-        (new TableDataService())->batchUploading($this->job_id, $this->table, $this->url_field_id, $this->attach_field_id, $this->row_group_id);
+        $sql = (new TableDataRowsRepository())->dataQuerySql($this->table, $this->row_group_id);
+
+        $url = $this->table->_fields->where('id', '=', $this->url_field_id)->first();
+        $filerepo = new FileRepository();
+
+        $page = 10;
+        $lines = $sql->count();
+        for ($cur = 0; ($cur * $page) < $lines; $cur++) {
+            DB::connection('mysql')->table('imports')->where('id', '=', $this->job_id)->update([
+                'complete' => (int)((($cur * $page) / $lines) * 100)
+            ]);
+
+            $rows = $sql->offset($cur * $page)
+                ->limit($page)
+                ->get();
+
+            foreach ($rows as $row) {
+                try {
+                    $filelink = $row[$url->field];
+                    $filename = FileHelper::name($filelink);
+                    $filecontent = file_get_contents($filelink);
+                    $filerepo->insertFileAlias($this->table->id, $this->attach_field_id, $row['id'], $filename, $filecontent);
+                } catch (\Exception $e) {
+                    Log::info('TableDataRowsRepository - batchUploading Error');
+                    Log::info($e->getMessage());
+                }
+            }
+        }
+
+        DB::connection('mysql')->table('imports')->where('id', '=', $this->job_id)->update([
+            'status' => 'done'
+        ]);
     }
 
     /**

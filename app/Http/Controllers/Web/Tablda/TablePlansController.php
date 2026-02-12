@@ -3,26 +3,21 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
-use Illuminate\Support\Facades\Request;
+use Illuminate\Http\Request;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Repositories\Tablda\PlanRepository;
 use Vanguard\Services\Tablda\TableService;
 
 class TablePlansController extends Controller
 {
-    private $tableService;
-    private $PlanRepository;
+    private $planRepository;
 
     /**
      * TablePlansController constructor.
-     * 
-     * @param TableService $tableService
-     * @param PlanRepository $PlanRepository
      */
-    public function __construct(TableService $tableService, PlanRepository $PlanRepository)
+    public function __construct()
     {
-        $this->tableService = $tableService;
-        $this->PlanRepository = $PlanRepository;
+        $this->planRepository = new PlanRepository();
     }
 
     /**
@@ -33,7 +28,7 @@ class TablePlansController extends Controller
      */
     public function addPlan(Request $request){
         if (auth()->user() && auth()->user()->isAdmin()) {
-            return $this->PlanRepository->addPlan($request->fields);
+            return $this->planRepository->addPlan($request->fields);
         } else {
             abort(403);
         }
@@ -47,7 +42,7 @@ class TablePlansController extends Controller
      */
     public function updatePlan(Request $request){
         if (auth()->user() && auth()->user()->isAdmin()) {
-            return $this->PlanRepository->updatePlan($request->id, $request->fields);
+            return $this->planRepository->updatePlan($request->id, $request->fields);
         } else {
             abort(403);
         }
@@ -61,7 +56,7 @@ class TablePlansController extends Controller
      */
     public function addAddon(Request $request){
         if (auth()->user() && auth()->user()->isAdmin()) {
-            return $this->PlanRepository->addAddon($request->fields);
+            return $this->planRepository->addAddon($request->fields);
         } else {
             abort(403);
         }
@@ -75,7 +70,21 @@ class TablePlansController extends Controller
      */
     public function updateAddon(Request $request){
         if (auth()->user() && auth()->user()->isAdmin()) {
-            return $this->PlanRepository->updateAddon($request->id, $request->fields);
+            return $this->planRepository->updateAddon($request->id, $request->fields);
+        } else {
+            abort(403);
+        }
+    }
+
+    /**
+     * Update Addon
+     *
+     * @param Request $request
+     * @return array
+     */
+    public function renameAddon(Request $request){
+        if (auth()->user() && (auth()->user()->isAdmin() || auth()->user()->role_id == 3)) {
+            return [ 'ok' => $this->planRepository->renameAddon($request->id, $request->name, $request->description ?: '') ];
         } else {
             abort(403);
         }

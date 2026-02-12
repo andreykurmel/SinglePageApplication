@@ -6,14 +6,16 @@ namespace Vanguard\Services\Tablda;
 
 use Exception;
 use Illuminate\Support\Collection;
+use Vanguard\Classes\DropdownHelper;
 use Vanguard\Models\DDL;
 use Vanguard\Models\DDLReference;
 use Vanguard\Models\DDLReferenceColor;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
-use Vanguard\Models\Table\TableField;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableData\TableDataRowsRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\User;
 
@@ -206,7 +208,7 @@ class DDLService
     protected function returnDDLref(DDL $ddl)
     {
         return $ddl->_references()
-            ->with('_reference_colors')
+            ->with('_reference_clr_img')
             ->get();
     }
 
@@ -287,7 +289,9 @@ class DDLService
                 },
                 '_target_field',
                 '_image_field',
+                '_color_field',
                 '_show_field',
+                '_max_selections_field',
             ])
             ->first();
         $table = $ddl_reference->_ref_condition->_ref_table ?? new Table();
@@ -328,20 +332,22 @@ class DDLService
     /**
      * @param int $ddl_ref_id
      * @param array $data
+     * @param int $page
      * @return Collection
      */
-    public function addDDLReferenceColor(int $ddl_ref_id, array $data): Collection
+    public function addDDLReferenceColor(int $ddl_ref_id, array $data, int $page): Collection
     {
         $this->DDLRepository->addDDLReferenceColor($ddl_ref_id, $data);
-        return $this->DDLRepository->allRefColors($ddl_ref_id);
+        return $this->DDLRepository->allRefColors($ddl_ref_id, $page);
     }
 
     /**
      * @param int $ref_color_id
      * @param array $data
+     * @param int $page
      * @return DDLReferenceColor
      */
-    public function updateDDLReferenceColor(int $ref_color_id, array $data): DDLReferenceColor
+    public function updateDDLReferenceColor(int $ref_color_id, array $data, int $page): DDLReferenceColor
     {
         return $this->DDLRepository->updateDDLReferenceColor($ref_color_id, $data);
     }
@@ -349,48 +355,92 @@ class DDLService
     /**
      * @param int $ddl_ref_id
      * @param int $ref_color_id
+     * @param int $page
      * @return Collection
      * @throws Exception
      */
-    public function deleteDDLReferenceColor(int $ddl_ref_id, int $ref_color_id): Collection
+    public function deleteDDLReferenceColor(int $ddl_ref_id, int $ref_color_id, int $page): Collection
     {
         $this->DDLRepository->deleteDDLReferenceColor($ref_color_id);
-        return $this->DDLRepository->allRefColors($ddl_ref_id);
+        return $this->DDLRepository->allRefColors($ddl_ref_id, $page);
     }
 
     /**
      * @param DDL $ddl
      * @param DDLReference $reference
      * @param string $behavior
+     * @param int $page
      * @return Collection
      * @throws Exception
      */
-    public function createAndLoadRefColors(DDL $ddl, DDLReference $reference, string $behavior = 'create'): Collection
+    public function createAndLoadRefColors(DDL $ddl, DDLReference $reference, string $behavior = 'first_create', int $page = 1): Collection
     {
-        if ($behavior != 'create') {
+        $colors = $this->DDLRepository->allRefColors($reference->id, $page);
+        if (!$colors->count() || $behavior == 'changed_field') {//$behavior == 'first_create'
             $this->DDLRepository->removeAllRefColors($reference);
-            $colors = collect([]);
-        } else {
-            $colors = $this->DDLRepository->allRefColors($reference->id);
-        }
-
-        if (!$colors->count()) {
-            $fill = $behavior == 'fill' ? 'auto' : '';
-            $this->createRefColors($ddl, $reference, $fill);
-            $colors = $this->DDLRepository->allRefColors($reference->id);
+            $values = $this->tableDataService->getRowsFromDdlReference($ddl, $reference, [], '', 100, true);
+            $colors = $this->DDLRepository->massInsertRefColors($reference, $values, $page);
+        } elseif ($behavior == 'auto_color') {
+            $colors = $this->DDLRepository->massUpdateRefColors($reference, 'auto', $page);
+        } elseif ($behavior == 'clear_color') {
+            $colors = $this->DDLRepository->massUpdateRefColors($reference, 'clear', $page);
         }
         return $colors;
     }
 
     /**
      * @param DDL $ddl
-     * @param DDLReference $reference
-     * @param string $color
+     * @param string $behavior
+     * @return Collection
      */
-    protected function createRefColors(DDL $ddl, DDLReference $reference, string $color = ''): void
+    public function fillDDLItemColors(DDL $ddl, string $behavior = 'auto_color'): Collection
     {
-        $values = $this->tableDataService->getRowsFromDdlReference($ddl, $reference, [], '', 100);
-        $values = array_pluck($values, 'show');
-        $this->DDLRepository->massInsertRefColors($reference, $values, $color);
+        if ($behavior == 'auto_color') {
+            $colors = $this->DDLRepository->massUpdateItemColors($ddl, 'auto');
+        } elseif ($behavior == 'clear_color') {
+            $colors = $this->DDLRepository->massUpdateItemColors($ddl, 'clear');
+        }
+        return $colors;
+    }
+
+    /**
+     * @param Table $table
+     * @param array $requestSettings
+     * @param int $user_id
+     * @return void
+     * @throws Exception
+     */
+    public function autoDdlCreation(Table $table, array $requestSettings, int $user_id): void
+    {
+        $rowRepo = new TableDataRowsRepository();
+        $namesFld = $table->_fields->where('id', '=', $requestSettings['names_fld_id'])->first();
+        $optionsFld = $table->_fields->where('id', '=', $requestSettings['options_fld_id'])->first();
+        if (!$namesFld || !$optionsFld) {
+            throw new Exception('Names or Options field not found!', 1);
+        }
+
+        $reqParams = $requestSettings['request_params'] ?? [];
+        $sql = new TableDataQuery($table, true, $user_id);
+        $sql->testViewAndApplyWhereClauses($reqParams, $user_id);
+        $query = $sql->getQuery();
+        if (!empty($reqParams['rows_per_page'])) {
+            $page = (($reqParams['page'] ?? 1) - 1) * $reqParams['rows_per_page'];
+            $query->offset($page)->limit($reqParams['rows_per_page']);
+        }
+
+        $names = (clone $query)->select([$namesFld->field])->pluck($namesFld->field)->unique();
+        foreach ($names as $name) {
+            $rows = (clone $query)->where($namesFld->field, '=', $name)->limit(200)->get();
+            $rowRepo->attachSpecialFields($rows, $table, $user_id);
+
+            $realName = DropdownHelper::valOrShow($namesFld->field, $rows->first());
+            $options = $rows->mapWithKeys(function ($row) use ($optionsFld) {
+                $key = $row[$optionsFld->field] ?? '';
+                return [$key => DropdownHelper::valOrShow($optionsFld->field, $row)];
+            })->toArray();
+            if ($realName && $options) {
+                $this->DDLRepository->autoDdlCreation($table, $realName, $options, $requestSettings['is_ignored']);
+            }
+        }
     }
 }

@@ -17,17 +17,18 @@
 }
 
 .m_l {
-    margin-left: 30px;
+    margin-left: 20px;
 }
 
 .l-inl-control {
     display: inline-block;
     margin-left: 5px;
     height: auto;
+    padding: 6px;
 }
 .l-inl-control--min {
     max-width: 100px;
 }
 .l-inl-control--nano {
-    max-width: 60px;
+    max-width: 70px;
 }

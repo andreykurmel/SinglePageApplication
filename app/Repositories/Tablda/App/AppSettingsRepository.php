@@ -4,6 +4,7 @@ namespace Vanguard\Repositories\Tablda\App;
 
 
 use Vanguard\Models\AppSetting;
+use Vanguard\Models\FormulaHelper;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
 
@@ -68,5 +69,18 @@ class AppSettingsRepository
     public function deleteAppSetting($app_sett_id)
     {
         return AppSetting::where('id', $app_sett_id)->delete();
+    }
+
+    /**
+     * Update FormulaHelper
+     *
+     * @param $app_key
+     * @param $app_val
+     * @return mixed
+     */
+    public function updateFormulaHelper($app_key, $app_val)
+    {
+        return FormulaHelper::where('formula', $app_key)
+            ->update( ['notes' => $app_val] );
     }
 }

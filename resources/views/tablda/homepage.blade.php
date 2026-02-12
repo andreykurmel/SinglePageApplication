@@ -3,7 +3,11 @@
 @section('page-title',  settings('app_name'))
 
 @section('content')
-    <homepage inline-template :init_link="'{{route('data')}}'">
+    <homepage
+        inline-template
+        :init_link="'{{route('data')}}'"
+        :home_message_flash="'{{ Session::get('home_message_flash') }}'"
+    >
         <div id="homepage" v-cloak>
             <div class="buttons">
                 {{--<a id="about_btn" target="_blank" href="https://www.youtube.com/watch?v=q22_cJ42iaw&list=PLqBhmUFy6vXqfztgefVHFHWitXslyiG1S">--}}
@@ -16,7 +20,7 @@
                 <div class="mob top-warning">TablDA mobile access and App are under development. Please visit TablDA through desktop browser.</div>
                 <div class="full-height flex flex--center">
                     <a :href="data_link" class="d-block over-hidden">
-                        <img src="/assets/img/TabDA Full HD.gif" class="vs--img">
+                        <img src="/assets/img/TabDA-2023-Full-HD2.gif" class="vs--img">
                     </a>
                 </div>
             </div>
@@ -28,7 +32,7 @@
                                 <span class="txt--white">More&nbsp;Than</span>&nbsp;Excel
                             </h1>
                             <h3>
-                                <i>Powerful functions for organizing, searching, filtering, updating, viewing, collecting and sharing tabulated data.</i>
+                                <i>Powerful functions for organizing, searching, filtering, updating, viewing, collecting and sharing structured data.</i>
                             </h3>
                         </div>
                         <div class="home-cell home--lg">

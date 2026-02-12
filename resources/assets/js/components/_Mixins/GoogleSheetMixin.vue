@@ -1,6 +1,7 @@
 <script>
     /* this.$root.tableMeta: Object - should be present */
     import {ImportHelper} from "../../classes/helpers/ImportHelper";
+    import {Endpoints} from "../../classes/Endpoints";
 
     export default {
         data: function () {
@@ -10,6 +11,7 @@
                 },
                 g_sheets_account: '',
                 g_sheets_file: '',
+                g_sheets_url: '',
                 g_sheets_element: '',
                 foundImportFiles: [],
                 fileSheets: [],
@@ -19,19 +21,15 @@
             preloadGoogleTables(mime) {
                 this.g_sheets_file = '';
                 this.g_sheets_element = '';
-                this.listCloudFiles('/ajax/import/google-drive/all-files',{
+                this.fillCloudFiles('google',{
                     cloud_id: this.g_sheets_account,
                     mime: 'application/vnd.google-apps.spreadsheet',
                 });
             },
-            listCloudFiles(url, body) {
-                axios.post(url, body).then(({data}) => {
-                    this.foundImportFiles = [];
-                    this.$nextTick(() => {
-                        this.foundImportFiles = data; // [ {id:string, name:string}, ... ]
-                    });
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
+            fillCloudFiles(type, body) {
+                this.foundImportFiles = [];
+                Endpoints.listCloudFiles(type, body).then((data) => {
+                    this.foundImportFiles = data; // [ {id:string, name:string}, ... ]
                 });
             },
             loadTableSheets(account, sheet) {
@@ -51,7 +49,7 @@
                             });
                         });
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     });
                 }
             },
@@ -66,7 +64,7 @@
                         });
                     });
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             fileAsSheet(file, show) {
@@ -100,7 +98,7 @@
             downloadCloudFile(url, body) {
                 return axios.post(url, body).then(({data}) => {
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
         }

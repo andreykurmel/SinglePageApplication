@@ -1,6 +1,6 @@
 <template>
-    <table class="spaced-table">
-        <tbody v-if="requestFields">
+    <table class="spaced-table" :style="bgColor">
+        <tbody v-if="requestFields" :style="textColor">
 
             <tr>
                 <td :style="getTdStyle">
@@ -25,6 +25,7 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
+                                        @close-formula="formula_dcr_confirm_msg = false"
                                         @set-formula="updatedCell"
                                 ></formula-helper>
                             </div>
@@ -56,6 +57,7 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
+                                        @close-formula="formula_dcr_unique_msg = false"
                                         @set-formula="updatedCell"
                                 ></formula-helper>
                             </div>
@@ -74,11 +76,11 @@
                 <td :style="getTdStyle">
                     <div class="td td--100 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'email_field_id'].name) }}:&nbsp;</label>
+                            <label style="min-width: 65px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'email_field_id'].name) }}:&nbsp;</label>
                             <select v-model="requestRow[prefix_fld+'email_field_id']" :disabled="!with_edit" @change="updatedCell" class="form-control" :style="textSysStyle">
                                 <option :value="null" style="color: #bbb;"></option>
                                 <option v-for="field in $root.tableMeta._fields"
-                                        v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                        v-if="inArray(field.f_type, ['Email'])"
                                         :value="field.id" style="color: #444;"
                                 >{{ $root.uniqName(field.name) }}</option>
                             </select>
@@ -93,11 +95,11 @@
                 <td :style="getTdStyle">
                     <div class="td td--100 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'cc_email_field_id'].name) }}:&nbsp;</label>
+                            <label style="min-width: 65px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'cc_email_field_id'].name) }}:&nbsp;</label>
                             <select v-model="requestRow[prefix_fld+'cc_email_field_id']" :disabled="!with_edit" @change="updatedCell" class="form-control" :style="textSysStyle">
                                 <option :value="null" style="color: #bbb;"></option>
                                 <option v-for="field in $root.tableMeta._fields"
-                                        v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                        v-if="inArray(field.f_type, ['Email'])"
                                         :value="field.id" style="color: #444;"
                                 >{{ $root.uniqName(field.name) }}</option>
                             </select>
@@ -112,11 +114,11 @@
                 <td :style="getTdStyle">
                     <div class="td td--100 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label style="min-width: 45px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'bcc_email_field_id'].name) }}:&nbsp;</label>
+                            <label style="min-width: 65px">&nbsp;&nbsp;&nbsp;{{ $root.uniqName(requestFields[prefix_fld+'bcc_email_field_id'].name) }}:&nbsp;</label>
                             <select v-model="requestRow[prefix_fld+'bcc_email_field_id']" :disabled="!with_edit" @change="updatedCell" class="form-control" :style="textSysStyle">
                                 <option :value="null" style="color: #bbb;"></option>
                                 <option v-for="field in $root.tableMeta._fields"
-                                        v-if="inArray(field.f_type, ['String','Text','Long Text'])"
+                                        v-if="inArray(field.f_type, ['Email'])"
                                         :value="field.id" style="color: #444;"
                                 >{{ $root.uniqName(field.name) }}</option>
                             </select>
@@ -150,6 +152,7 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
+                                        @close-formula="formula_dcr_email_subject = false"
                                         @set-formula="updatedCell"
                                 ></formula-helper>
                             </div>
@@ -181,6 +184,7 @@
                                         :no-function="true"
                                         :no_prevent="true"
                                         :pop_width="'100%'"
+                                        @close-formula="formula_dcr_addressee_txt = false"
                                         @set-formula="updatedCell"
                                 ></formula-helper>
                             </div>
@@ -211,6 +215,7 @@
                                     :no-function="true"
                                     :no_prevent="true"
                                     :pop_width="'100%'"
+                                    @close-formula="formula_dcr_email_message = false"
                                     @set-formula="updatedCell"
                             ></formula-helper>
                         </div>
@@ -252,6 +257,58 @@
                 </td>
             </tr>
 
+            <tr>
+                <td :style="getTdStyle">
+                    <div class="td td--100 h-32" style="height: 55px;">
+                        <div class="flex">
+                            <label>{{ $root.uniqName(requestFields[prefix_fld+'signature_txt'].name) }}:&nbsp;</label>
+                            <textarea
+                                style="height: auto;"
+                                class="form-control"
+                                rows="3"
+                                v-model="requestRow[prefix_fld+'signature_txt']"
+                                :disabled="!with_edit"
+                                :style="textSysStyle"
+                                @change="updatedCell"
+                            ></textarea>
+                        </div>
+                    </div>
+                </td>
+            </tr>
+
+            <tr>
+                <td :style="getTdStyle">
+                    <div class="td td--100" style="font-weight: bold; border-top: 1px solid; padding-top: 5px;">
+                        Select and add link(s) for the records that are to be included in the email:
+                    </div>
+                </td>
+            </tr>
+            <tr>
+                <td :style="getTdStyle">
+                    <div class="td td--100 h-32" style="height: auto; width: 100%; position: relative; padding-left: 30px;">
+                        <custom-table
+                            v-if="requestRow['_'+prefix_fld+'linked_notifs']"
+                            :cell_component_name="'custom-cell-settings-dcr'"
+                            :global-meta="tableMeta"
+                            :table-meta="$root.settingsMeta['dcr_notif_linked_tables']"
+                            :all-rows="requestRow['_'+prefix_fld+'linked_notifs']"
+                            :rows-count="requestRow['_'+prefix_fld+'linked_notifs'].length"
+                            :cell-height="1"
+                            :max-cell-rows="0"
+                            :is-full-width="true"
+                            :with_edit="with_edit"
+                            :behavior="'table_permission_group'"
+                            :user="$root.user"
+                            :adding-row="{ active: true, position: 'bottom'}"
+                            @added-row="addDcrLink"
+                            @updated-row="updateDcrLink"
+                            @delete-row="deleteDcrLink"
+                            @show-add-ddl-option="showRelColGroup"
+                        ></custom-table>
+                    </div>
+                </td>
+            </tr>
+
         </tbody>
     </table>
 </template>
@@ -259,19 +316,19 @@
 <script>
     import {eventBus} from "../../../../../app";
 
-    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin.vue";
+    import StyleMixinWithBg from "../../../../_Mixins/StyleMixinWithBg.vue";
     import ReqRowMixin from "./ReqRowMixin.vue";
 
-    import FormulaHelper from "../../../../CustomCell/InCell/FormulaHelper";
     import SelectBlock from "../../../../CommonBlocks/SelectBlock";
+    import CustomTable from "../../../../CustomTable/CustomTable.vue";
 
     export default {
         components: {
+            CustomTable,
             SelectBlock,
-            FormulaHelper,
         },
         mixins: [
-            CellStyleMixin,
+            StyleMixinWithBg,
             ReqRowMixin,
         ],
         name: "TabSettingsNotificationRow",
@@ -288,6 +345,7 @@
             requestRow: Object,
             with_edit: Boolean,
             prefix_fld: String,
+            bg_color: String,
         },
         computed: {
             getTdStyle() {
@@ -318,6 +376,66 @@
             },
             showGroupSetPop() {
                 eventBus.$emit('show-grouping-settings-popup', this.tableMeta.db_name, 'row', this.requestRow[this.prefix_fld+'email_col_group_id']);
+            },
+            //Linked tables endpoints
+            addDcrLink(tableRow) {
+                $.LoadingOverlay('show');
+                axios.post('/ajax/table-data-request/notif-linked', {
+                    type: '_'+this.prefix_fld+'linked_notifs',
+                    dcr_id: this.requestRow.id,
+                    fields: this.dcrLinkFields(tableRow),
+                }).then(({ data }) => {
+                    this.requestRow['_'+this.prefix_fld+'linked_notifs'] = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            updateDcrLink(tableRow) {
+                $.LoadingOverlay('show');
+                axios.put('/ajax/table-data-request/notif-linked', {
+                    type: '_'+this.prefix_fld+'linked_notifs',
+                    id: tableRow.id,
+                    fields: this.dcrLinkFields(tableRow),
+                }).then(({ data }) => {
+                    this.requestRow['_'+this.prefix_fld+'linked_notifs'] = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            deleteDcrLink(tableRow) {
+                $.LoadingOverlay('show');
+                axios.delete('/ajax/table-data-request/notif-linked', {
+                    params: {
+                        type: '_'+this.prefix_fld+'linked_notifs',
+                        id: tableRow.id
+                    }
+                }).then(({ data }) => {
+                    this.requestRow['_'+this.prefix_fld+'linked_notifs'] = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            dcrLinkFields(tableRow) {
+                let fields = _.cloneDeep(tableRow);//copy object
+                this.$root.deleteSystemFields(fields);
+
+                switch (this.prefix_fld) {
+                    case 'dcr_save_': fields.type = 'save'; break;
+                    case 'dcr_upd_': fields.type = 'update'; break;
+                    case 'dcr_':
+                    default: fields.type = 'submit'; break;
+                }
+
+                return fields;
+            },
+            showRelColGroup(tableId, colGroupId) {
+                this.$emit('show-add-ddl-option', tableId, colGroupId);
             },
         },
         mounted() {

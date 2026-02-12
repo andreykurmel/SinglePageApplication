@@ -4,13 +4,13 @@
 
             <!--LEFT SIDE-->
             <div class="col-xs-6 full-height" style="padding-right: 0;">
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>List</span>
                 </div>
                 <div class="full-frame bkp_top" style="height: calc(40% - 30px)">
                     <custom-table
                             :cell_component_name="'custom-cell-connection'"
-                            :global-meta="settingsMeta.table_backups"
+                            :global-meta="tableMeta"
                             :table-meta="settingsMeta.table_backups"
                             :settings-meta="settingsMeta"
                             :all-rows="tableMeta._backups"
@@ -32,7 +32,7 @@
                     ></custom-table>
                 </div>
 
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>Notifications - Email</span>
                 </div>
                 <div class="bkp_bot" style="height: calc(60% - 35px)">
@@ -41,20 +41,21 @@
                             :table-meta="tableMeta"
                             :tb-backup="tbBackup"
                             :style="textSysStyle"
+                            @updated-row="updateStorageRow"
                     ></backup-add-settings>
                 </div>
             </div>
 
             <!--RIGHT SIDE-->
             <div class="col-xs-6 full-height">
-                <div class="top-text" :style="textSysStyle">
+                <div class="top-text" :style="textSysStyleSmart">
                     <span>Settings {{ tbBackup ? ' - '+tbBackup.name : '' }}</span>
                 </div>
                 <div class="permissions-panel" style="height: calc(100% - 35px); overflow: auto;">
                     <vertical-table
                             v-if="tbBackup"
                             :td="'custom-cell-connection'"
-                            :global-meta="settingsMeta.table_backups"
+                            :global-meta="tableMeta"
                             :table-meta="settingsMeta.table_backups"
                             :settings-meta="settingsMeta"
                             :table-row="tbBackup"
@@ -63,7 +64,7 @@
                             :user="user"
                             :behavior="'user_conn'"
                             :disabled_sel="true"
-                            :tooltip_pos="'right'"
+                            :tooltip_pos="'bottom'"
                             :available-columns="ava_vert_bkp_cols"
                             :forbidden-columns="$root.systemFields"
                             @updated-cell="updateStorageRow"
@@ -79,7 +80,6 @@
     import CustomTable from './../../../CustomTable/CustomTable';
     import BackupAddSettings from "./BackupAddSettings";
     import NoteBlock from "../../../CommonBlocks/NoteBlock";
-    import VerticalTable from "../../../CustomTable/VerticalTable";
 
     import CellStyleMixin from "../../../_Mixins/CellStyleMixin";
 
@@ -89,7 +89,6 @@
             CellStyleMixin,
         ],
         components: {
-            VerticalTable,
             NoteBlock,
             BackupAddSettings,
             CustomTable,
@@ -103,7 +102,7 @@
                     position: 'bottom'
                 },
                 ava_table_bkp_cols: ['name','user_cloud_id','is_active'],
-                ava_vert_bkp_cols: ['root_folder','overwrite','day','timezone','time','mysql','csv','attach','ddl_attach','notes'],
+                ava_vert_bkp_cols: ['table_view_id','root_folder','overwrite','day','timezone','time','mysql','csv','attach','ddl_attach','notes'],
             }
         },
         props:{
@@ -131,11 +130,12 @@
 
                 axios.post('/ajax/table/backup', {
                     table_id: this.tableMeta.id,
-                    fields: fields
+                    fields: fields,
+                    table_url: location.href,
                 }).then(({ data }) => {
                     this.tableMeta._backups.push( data );
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -149,11 +149,13 @@
 
                 axios.put('/ajax/table/backup', {
                     table_backup_id: row_id,
-                    fields: fields
+                    fields: fields,
+                    table_url: location.href,
                 }).then(({ data }) => {
+                    this.$root.assignObject(data, tableRow);
                     this.$forceUpdate();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -171,7 +173,7 @@
                         this.tableMeta._backups.splice(idx, 1);
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });

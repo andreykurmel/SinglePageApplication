@@ -2,11 +2,14 @@
     <table class="tablda-like">
         <tr v-for="curHeaderRow in maxRowsInHeader">
             <th v-for="(tableHeader, index) in vertTableFieldObject.group"
-                v-if="getMultiColspan(index, curHeaderRow, vertTableFieldObject.group)
-                    && getMultiRowspan(tableHeader, curHeaderRow)"
-                :rowspan="getMultiRowspan(tableHeader, curHeaderRow)"
-                :colspan="getMultiColspan(index, curHeaderRow, vertTableFieldObject.group)"
-                :style="{backgroundColor: tableHeader.header_background}"
+                v-if="getMultiColspan(index, curHeaderRow)
+                    && getMultiRowspan(index, curHeaderRow)"
+                :rowspan="getMultiRowspan(index, curHeaderRow)"
+                :colspan="getMultiColspan(index, curHeaderRow)"
+                :style="{
+                    backgroundColor: tableHeader.header_background,
+                    width: colWiPercent(tableHeader),
+                }"
                 @mouseenter="(e) => { $root.showHoverTooltip(e, tableHeader) }"
                 @mouseleave="$root.leaveHoverTooltip"
             >
@@ -16,6 +19,14 @@
                     <template v-if="tableHeader.f_required && lastRow(tableHeader, curHeaderRow)">
                         <span class="required-wildcart">*</span>
                     </template>
+
+                    <span v-if="hasInlineLink(tableHeader)"
+                          class="pointer ml5"
+                          @click.prevent.stop="$emit('active-group-inlined-link', vertTableFieldObject, tableHeader)"
+                    >
+                        <span v-if="!tableHeader.__inlined_link" class="fa fa-plus blue"></span>
+                        <span v-else class="fa fa-minus blue"></span>
+                    </span>
                 </div>
 
                 <header-resizer :table-header="tableHeader"
@@ -53,7 +64,7 @@
                 :cell-height="cellHeight"
                 :max-cell-rows="maxCellRows"
                 :selected-cell="selectedCell"
-                :is-selected="selectedCell.is_selected(tableMeta, tableHeader)"
+                :is-selected-ext="selectedCell.is_selected(tableMeta, tableHeader)"
                 :row-index="-1"
                 :table_id="tableMeta.id"
                 :behavior="behavior"
@@ -62,6 +73,8 @@
                 :is-vert-table="true"
                 :with_edit="with_edit"
                 :is-add-row="isAddRow"
+                :extra-pivot-fields="extraPivotFields"
+                :is-link="isLink"
                 :class="tableHeader.f_type !== 'Boolean' ? 'edit-cell' : ''"
                 @show-add-ref-cond="showAddRefCond"
                 @show-src-record="showSrcRecord"
@@ -100,12 +113,16 @@ import CustomCellDisplayLinks from '../CustomCell/CustomCellDisplayLinks.vue';
 import CustomCellSettingsDdl from '../CustomCell/CustomCellSettingsDdl.vue';
 import CustomCellSettingsPermission from '../CustomCell/CustomCellSettingsPermission.vue';
 import CustomCellSettingsDcr from '../CustomCell/CustomCellSettingsDcr.vue';
+import CustomCellPivotField from '../CustomCell/CustomCellPivotField.vue';
 import CustomCellColRowGroup from '../CustomCell/CustomCellColRowGroup.vue';
 import CustomCellKanbanSett from '../CustomCell/CustomCellKanbanSett.vue';
+import CustomCellSimplemapSett from '../CustomCell/CustomCellSimplemapSett.vue';
 import CustomCellRefConds from '../CustomCell/CustomCellRefConds.vue';
 import CustomCellCondFormat from '../CustomCell/CustomCellCondFormat.vue';
 import CustomCellPlans from '../CustomCell/CustomCellPlans.vue';
+import CustomCellTwilio from '../CustomCell/CustomCellTwilio.vue';
 import CustomCellConnection from '../CustomCell/CustomCellConnection.vue';
+import CustomCellPages from '../CustomCell/CustomCellPages.vue';
 import CustomCellUserGroups from '../CustomCell/CustomCellUserGroups.vue';
 import CustomCellInvitations from '../CustomCell/CustomCellInvitations.vue';
 import CustomCellTableView from '../CustomCell/CustomCellTableView.vue';
@@ -134,12 +151,16 @@ export default {
             CustomCellSettingsDdl,
             CustomCellSettingsPermission,
             CustomCellSettingsDcr,
+            CustomCellPivotField,
             CustomCellColRowGroup,
             CustomCellKanbanSett,
+            CustomCellSimplemapSett,
             CustomCellRefConds,
             CustomCellCondFormat,
             CustomCellPlans,
+            CustomCellTwilio,
             CustomCellConnection,
+            CustomCellPages,
             CustomCellUserGroups,
             CustomCellInvitations,
             CustomCellTableView,
@@ -179,19 +200,20 @@ export default {
                 default: true
             },
             hideNames: Array,
+            extraPivotFields: Array,
+            isLink: Object,
+            is_def_fields: Boolean,
         },
         computed: {
             sub_remover() {
                 return this.vertTableFieldObject.sub_header_name ? this.vertTableFieldObject.sub_header_name+',' : '';
             },
-            maxRowsInHeader() {
-                let max = 0;
-                _.each(this.vertTableFieldObject.group, (el) => {
-                    if (el.name) {
-                        max = Math.max(max, this.splitName(el.name).length);
-                    }
+            totWidth() {
+                let total = 0;
+                _.each(this.vertTableFieldObject.group, (fld) => {
+                    total += this.$root.getFloat(fld.width);
                 });
-                return max;
+                return total;
             },
         },
         watch: {
@@ -203,13 +225,22 @@ export default {
             }
         },
         methods: {
+            hasInlineLink(tableHeader) {
+                return tableHeader
+                    && _.find(tableHeader._links, {inline_in_vert_table: 1})
+                    && ! this.is_def_fields;
+            },
+            colWiPercent(header) {
+                let wi = (this.$root.getFloat(header.width) / this.totWidth);
+                return (wi * 100) + '%';
+            },
             nameNotHidden(tableHeader) {
-                return tableHeader.fld_display_name
+                return VerticalTableFldObject.fieldSetting('fld_display_name', tableHeader, null, this.behavior)
                     &&
                     (!this.hideNames || this.hideNames.indexOf(tableHeader.field) > -1);
             },
             valueNotHidden(tableHeader) {
-                return !!tableHeader.fld_display_value;
+                return !! VerticalTableFldObject.fieldSetting('fld_display_value', tableHeader, null, this.behavior);
             },
             //proxies
             showSrcRecord(lnk, header, tableRow) {
@@ -221,8 +252,8 @@ export default {
             updatedCell(tableRow, hdr) {
                 this.$emit('updated-cell', tableRow, hdr);
             },
-            showDefValPopup(tableRow) {
-                this.$emit('show-def-val-popup', tableRow);
+            showDefValPopup(tableRow, moreParam) {
+                this.$emit('show-def-val-popup', tableRow, moreParam);
             },
             showAddDDLOption(tableHeader, tableRow) {
                 this.$emit('show-add-ddl-option', tableHeader, tableRow);
@@ -231,6 +262,9 @@ export default {
             isShowFieldElem(header) {
                 return true;//all are already filtered
             },
+        },
+        created() {
+            this.fillHeaderRowColSpanCache(this.vertTableFieldObject.group);
         },
         mounted() {
             eventBus.$on('global-click', this.clickHandler);
@@ -245,6 +279,7 @@ export default {
     @import './../CommonBlocks/TabldaLike';
     .tablda-like {
         width: 100%;
+        table-layout: fixed;
     }
 
     .float-rom-menu {

@@ -21,12 +21,29 @@
     SSLCertificateKeyFile "/var/www/tablda.com.key"
     SSLCertificateChainFile "/var/www/tablda.com.bundle.crt"
     SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+    ErrorLog /var/www/apache.error.log
 
     ServerName e3c.tablda.com
 
     DocumentRoot /var/www/e3c/public
 
     Alias /_tablda_apps /var/www/e3c/public
+</VirtualHost>
+
+
+<VirtualHost *:443>
+    SSLEngine on
+    SSLCertificateFile "/var/www/tablda.com.crt"
+    SSLCertificateKeyFile "/var/www/tablda.com.key"
+    SSLCertificateChainFile "/var/www/tablda.com.bundle.crt"
+    SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+    ErrorLog /var/www/apache.error.log
+
+    ServerName docs-content.tablda.com
+
+    DocumentRoot /var/www/docs/tablda/site
+
+    Alias /_tablda_apps /var/www/docs/tablda/site
 </VirtualHost>
 
 

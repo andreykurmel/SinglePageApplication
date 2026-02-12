@@ -18,7 +18,7 @@ class CreateTableRowGroupsTable extends Migration
             $table->unsignedInteger('table_id');
             $table->unsignedInteger('is_system')->default(0);
             $table->string('name', 50);
-            $table->string('notes')->nullable();
+            $table->string('description')->nullable();
 
             $table->unsignedInteger('created_by')->nullable();
             $table->string('created_name')->nullable();

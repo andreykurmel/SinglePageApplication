@@ -14,7 +14,7 @@ class AddDefaultStatsToTableFields extends Migration
     public function up()
     {
         Schema::table('table_fields', function (Blueprint $table) {
-            $table->string('default_stats', 24)->nullable();
+            $table->string('default_stats', 255)->nullable();
         });
     }
 

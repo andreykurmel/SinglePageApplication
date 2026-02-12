@@ -15,7 +15,7 @@ class DropBoxStrategy implements BackupStrategy
      */
     public function __construct(UserCloud $cloud)
     {
-        $access_token = (new DropBoxApiModule())->accessToken($cloud->gettoken(), $cloud->id);
+        $access_token = (new DropBoxApiModule($cloud->cloud))->accessToken($cloud->gettoken(), $cloud->id);
 
         if (!$access_token) {
             (new UserCloudRepository())->setInactiveCloud($cloud);

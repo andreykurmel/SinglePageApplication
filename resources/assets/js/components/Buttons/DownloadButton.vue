@@ -72,7 +72,7 @@
             tableMeta: Object,
             searchObject: Object,
             allRows: MetaTabldaRows,
-            listRows: Array,
+            listRows: Array|Object,
         },
         methods: {
             download(key, method) {
@@ -92,7 +92,7 @@
                 }
 
                 if (this.tableMeta._view_rows_count > 10000 && (method === 'PDF' || method === 'XLSX')) {
-                    Swal('', 'Data has more than 10k rows. Only up to 10k rows of data can be exported at a time.')
+                    Swal('Info', 'Data has more than 10k rows. Only up to 10k rows of data can be exported at a time.')
                 }
 
                 $('#downloader_data').val( this.getRequestData() );

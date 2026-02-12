@@ -5,11 +5,15 @@ namespace Vanguard\Services\Tablda;
 
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Ramsey\Uuid\Uuid;
 use Vanguard\Classes\TabldaEncrypter;
 use Vanguard\Models\AppSetting;
@@ -17,15 +21,21 @@ use Vanguard\Models\DataSetPermissions\TableColumnGroup;
 use Vanguard\Models\DataSetPermissions\TablePermission;
 use Vanguard\Models\Dcr\TableDataRequest;
 use Vanguard\Models\Folder\Folder;
+use Vanguard\Models\Pages\Pages;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableField;
+use Vanguard\Models\Table\TableFieldLink;
 use Vanguard\Models\User\UserConnection;
 use Vanguard\Modules\CloudBackup\GoogleApiModule;
 use Vanguard\Repositories\Tablda\Permissions\UserGroupRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
 use Vanguard\Repositories\Tablda\TableFieldRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Repositories\Tablda\UserConnRepository;
+use Vanguard\Singletones\AuthUserSingleton;
+use Vanguard\Support\DirectDatabase;
 use Vanguard\User;
 
 class HelperService
@@ -47,11 +57,21 @@ class HelperService
         'modified_on',
         'modified_by'
     ];
+    public $system_fields_noid = [
+        'row_hash',
+        'static_hash',
+        'row_order',
+        'refer_tb_id',
+        'request_id',
+        'created_on',
+        'created_by',
+        'modified_on',
+        'modified_by'
+    ];
     public $cannot_fill_fields = [
         'id',
         'row_hash',
         'static_hash',
-        'row_order',
         'created_on',
         'created_by',
         'modified_on',
@@ -65,6 +85,7 @@ class HelperService
     ];
 
     public $system_tables_for_all = [
+        'automation_histories',
         'user_activity',
         'user_subscriptions',
         'sum_usages',
@@ -80,21 +101,25 @@ class HelperService
         'correspondence_tables',
         'correspondence_fields',
         'correspondence_stim_3d',
+        'formula_helpers',
     ];
     public $myaccount_tables = [
         'user_activity',
         'user_subscriptions',
         'sum_usages',
         'payments',
-        'plan_features'
+        'plan_features',
+        'automation_histories',
     ];
     public $info_tables = [
         'fees',
-        'plans_view'
+        'plans_view',
+        'formula_helpers',
     ];
     public $admin_support = [ //'Support' tables just for Admin
         'email_settings',
         'uploading_file_formats',
+        'promo_codes',
     ];
     public $support_tables = [ //system tables which user can edit
         'unit_conversion',
@@ -120,7 +145,6 @@ class HelperService
 
     public $hidden_tablda_app = '/_tablda_apps/';
     public $def_col_width = 100;
-    public $recalc_table_formulas_job = 5000;
     public $no_redirect_subdomains = ['public','blog'];
     public $public_subdomain = 'public';
     public $cur_subdomain = '';
@@ -178,6 +202,15 @@ class HelperService
     public static function isMSEL($input_type)
     {
         return in_array($input_type, ['M-Select','M-Search','M-SS']);
+    }
+
+    /**
+     * @param $input_type
+     * @return bool
+     */
+    public static function isSingleSEL($input_type)
+    {
+        return in_array($input_type, ['S-Select', 'S-Search', 'S-SS']);
     }
 
     /**
@@ -244,7 +277,31 @@ class HelperService
     }
 
     /**
-     * Create object from table which is used in 'jstree'.
+     * @param string $type
+     * @param int $id
+     * @return string
+     */
+    public function objectUrl(string $type, int $id): string
+    {
+        $auth = app()->make(AuthUserSingleton::class);
+        return $auth->getObjectUrl($type, $id);
+    }
+
+    /**
+     * @param string $path
+     * @return array
+     */
+    protected function urlAndHref(string $path): array
+    {
+        $URL = URL::getRequest()->ajax() ? URL::previous() : URL::current();
+        return [
+            urldecode($URL),
+            urldecode($path)
+        ];
+    }
+
+    /**
+     * Create object from Table which is used in 'jstree'.
      *
      * @param Table $table
      * @param $link_type
@@ -253,7 +310,12 @@ class HelperService
      * @param string $link_class
      * @return array
      */
-    public function getTableObjectForMenuTree(Table $table, $link_type, $folder_path = '', $parent_folder_id = 0, $link_class = '') {
+    public function getTableObjectForMenuTree(Table $table, $link_type, $folder_path = '', $parent_folder_id = 0, $link_class = '')
+    {
+        [$url, $href] = $this->urlAndHref($folder_path.$table->name);
+        if ($url == $href || \request('table_id') == $table->id) {
+            $link_class .= ' currently-selected-obj';
+        }
         return [
             'init_name' => $table->name,
             'text' => $table->name,
@@ -265,14 +327,51 @@ class HelperService
             'li_attr' => [
                 'data-id' => $table->id,
                 'data-type' => $link_type == 'table' ? 'table' : 'link',
-                'data-object' => $table->toArray(),
+                'data-object' => $this->toDataObject($table),
                 'data-user_id' => $table->user_id,
                 'data-parent_id' => $parent_folder_id,
                 'data-in_shared' => (int)$table->_in_shared,
                 'data-copy-settings' => (object)[],
             ],
             'a_attr' => [
-                'href' => $folder_path.$table->name,
+                'href' => $href,
+                'class' => $link_class
+            ]
+        ];
+    }
+
+    /**
+     * Create object from Page which is used in 'jstree'.
+     *
+     * @param Pages $page
+     * @param string $folder_path
+     * @param int $parent_folder_id
+     * @param string $link_class
+     * @return array
+     */
+    public function getPageObjectForMenuTree(Pages $page, $folder_path = '', $parent_folder_id = 0, $link_class = '')
+    {
+        [$url, $href] = $this->urlAndHref($folder_path.$page->name);
+        if ($url == $href) {
+            $link_class .= ' currently-selected-obj';
+        }
+        return [
+            'init_name' => $page->name,
+            'text' => $page->name,
+            'icon' => 'fa fa-file-alt',
+            'state' => [
+                'selected' => false,
+            ],
+            'children' => [],
+            'li_attr' => [
+                'data-id' => $page->id,
+                'data-type' => 'page',
+                'data-object' => $this->toDataObject($page),
+                'data-user_id' => $page->user_id,
+                'data-parent_id' => $parent_folder_id,
+            ],
+            'a_attr' => [
+                'href' => $href,
                 'class' => $link_class
             ]
         ];
@@ -288,7 +387,12 @@ class HelperService
      * @param string $folder_class
      * @return array
      */
-    public function getFolderObjectForMenuTree(Folder $folder, $children = [], $path = '', $only_name = false, $folder_class = '') {
+    public function getFolderObjectForMenuTree(Folder $folder, $children = [], $path = '', $only_name = false, $folder_class = '')
+    {
+        [$url, $href] = $this->urlAndHref($path ?: '');
+        if ($url == $href) {
+            $folder_class .= ' currently-selected-obj';
+        }
         if (empty($children)) {
             $children = [
                 'sub_tables' => [],
@@ -297,8 +401,7 @@ class HelperService
                 'tables' => 0
             ];
         }
-        $URL = URL::getRequest()->ajax() ? URL::previous() : URL::current();
-        $is_opened = preg_match('#'.$path.'#i', $URL) ?: !!$folder->is_opened;
+        $is_opened = preg_match('#'.$href.'#i', $url) ?: !!$folder->is_opened;
         
         $obj = [
             'init_name' => $folder->name,
@@ -312,14 +415,14 @@ class HelperService
             'li_attr' => [
                 'data-id' => $folder->id,
                 'data-type' => 'folder',
-                'data-object' => $folder->toArray(),
+                'data-object' => $this->toDataObject($folder),
                 'data-user_id' => $folder->user_id,
                 'data-parent_id' => $folder->parent_id,
                 'data-for_shared_user_id' => $folder->for_shared_user_id,
                 'data-in_shared' => (int)$folder->in_shared,
             ],
             'a_attr' => [
-                'href' => $path,
+                'href' => $href,
                 'class' => $folder_class
             ]
         ];
@@ -329,6 +432,33 @@ class HelperService
         }
 
         return $obj;
+    }
+
+    /**
+     * Note: available menu-tree attributes
+     * @param Model $model
+     * @return array
+     */
+    protected function toDataObject(Model $model): array
+    {
+        $res = $model->only([
+            'id','name','rows_per_page','db_name','user_id','created_by',
+            'in_shared','icon_path','menutree_accordion_panel','structure',
+            'link','is_folder_link','inside_folder_link',
+            '_permis_can_public_copy','_in_shared','_in_app'
+        ]);
+
+        if ($model instanceof Folder && $model->relationLoaded('_tables')) {
+            $res['_tables'] = $model->_tables
+                ->map(function (Table $table) {
+                    return $table->only(['id', 'name']);
+                })
+                ->toArray();
+        }
+
+        $res['tree_type'] = $model instanceof Table ? 'table' : ($model instanceof Folder ? 'folder' : 'pages');
+
+        return $res;
     }
 
     /**
@@ -349,7 +479,7 @@ class HelperService
                 default: $link = $folder->is_opened ? 'fa fa-folder-open' : 'fa fa-folder';
             }
         } elseif ($folder->is_folder_link) {
-            $link = $folder->is_opened ? 'fas fa-folder-minus' : 'fas fa-folder-plus';
+            $link = $folder->is_opened ? 'fa fa-cubes' : 'fa fa-cube';
         }
         else {
             $link = $folder->is_opened ? 'fa fa-folder-open' : 'fa fa-folder';
@@ -401,7 +531,13 @@ class HelperService
      */
     public function delSystemFields(Array $data, bool $low = false) {
         foreach ($data as $key => $val) {
+            if ($key == 'id') {
+                unset($data[$key]);
+            }
             if (preg_match('/[_]/i', $key[0])) {
+                unset($data[$key]);
+            }
+            if (preg_match('/_ddlshow$/i', $key)) {
                 unset($data[$key]);
             }
             elseif (!$low && in_array($key, $this->cannot_fill_fields)) {
@@ -549,7 +685,7 @@ class HelperService
      */
     public function mergeByteStrings(String $str, String $add) {
         for ($i = 0; $i < strlen($str); $i++) {
-            $str[$i] = (int)($str[$i] || $add[$i]);
+            $str[$i] = (int)($str[$i] || ($add[$i] ?? 0));
         }
         return $str;
     }
@@ -570,6 +706,14 @@ class HelperService
      */
     public function getTableViewSysName() {
         return 'Visiting';
+    }
+
+    /**
+     * @return string
+     */
+    public static function getFolderShareSysName()
+    {
+        return 'Visitors';
     }
 
     /**
@@ -696,6 +840,7 @@ class HelperService
                 case 'add_gantt':
                 case 'add_email':
                 case 'add_calendar':
+                case 'add_twilio':
                 case 'add_request': $field = 'plan_code';
                     break;
                 case 'avail_credit': $field = 'avail_credit';
@@ -722,6 +867,15 @@ class HelperService
                     break;
             }
         }
+
+        //Backward compatability
+        if ($field && $field[0] == 'f') {
+            $header = $table->_fields->filter(function ($hdr) use ($field) {
+                return substr($hdr->field, 1) == substr($field, 1);
+            })->first();
+            $field = $header ? $header->field : $field;
+        }
+
         return $field;
     }
 
@@ -770,7 +924,16 @@ class HelperService
             ->whereNotIn('f_type', ['Attachment'])
             ->orderBy($fldtb.'.order')
             ->orderBy($fldtb.'.id')
-            ->select([$fldtb.'.id', $fldtb.'.name', $fldtb.'.field', $fldtb.'.unit_display', $fldtb.'.unit'])
+            ->select([
+                $fldtb.'.id',
+                $fldtb.'.name',
+                $fldtb.'.field',
+                $fldtb.'.unit_display',
+                $fldtb.'.unit',
+                $fldtb.'.f_type',
+                $fldtb.'.col_align',
+                $fldtb.'.input_type'
+            ])
             ->get()
             ->toArray();
     }
@@ -813,6 +976,16 @@ class HelperService
      * @param string $type
      * @return bool
      */
+    public function isStringType(string $type) : bool
+    {
+        return in_array($type, ['User', 'String', 'Text', 'Long Text', 'Time', 'Auto String', 'Document',
+            'Address', 'Color', 'Vote', 'Email', 'HTML', 'Phone Number']);
+    }
+
+    /**
+     * @param string $type
+     * @return bool
+     */
     public function zeroIsNull(string $type) : bool
     {
         return in_array($type, ['Boolean','Date','Date Time','User']);
@@ -838,6 +1011,9 @@ class HelperService
             case 'User':
             case 'RefTable':
             case 'RefField':
+            case 'Email':
+            case 'Phone Number':
+            case 'HTML':
                 return '';
 
             //Dates
@@ -853,6 +1029,9 @@ class HelperService
             case 'Percentage':
             case 'Duration':
             case 'Integer':
+            case 'Connected Clouds':
+            case 'Table':
+            case 'Table Field':
                 return null;
 
             //Specials
@@ -936,6 +1115,38 @@ class HelperService
     }
 
     /**
+     * @param array $present
+     * @param $additional
+     * @return array
+     */
+    public function addRecipientsPhones(array $present, $additional): array
+    {
+        return array_unique( array_merge(
+            $present,
+            $this->parsePhones($additional)
+        ) );
+    }
+
+    /**
+     * @param string $recipients
+     * @return array
+     */
+    public function parsePhones(string $recipients): array
+    {
+        $recipients = preg_replace('/[\s,]+/i', ';', $recipients);
+        $recipients = preg_replace('/;+/i', ';', $recipients);
+        $recipients = explode(';', $recipients);
+        $phones = [];
+        foreach ($recipients as $elem) {
+            $phone = preg_replace('/[^+0-9]/i', '', $elem);
+            if ($phone && preg_match('/\+[0-9]{8,12}/i', $phone)) {
+                $phones[] = $elem;
+            }
+        }
+        return $phones;
+    }
+
+    /**
      * @param Table $table
      * @param array $row
      * @return array
@@ -957,13 +1168,23 @@ class HelperService
      * @param array $datas
      * @return array
      */
-    public function setAutoStringArray(Table $table, array $datas)
+    public function setDefaultAutoValues(Table $table, array $datas, int $is_copy = null)
     {
+        $dcrUrlFieldIds = $table->_table_requests->pluck('dcr_record_url_field_id')->toArray();
+
         foreach ($table->_fields as $fld) {
-            if ($fld->f_type == 'Auto String' && empty($datas[$fld->field])) {
+            $emptyOrRefill = empty($datas[$fld->field]) || ($is_copy && $table->refill_auto_oncopy);
+            if ($fld->f_type == 'Auto String' && $emptyOrRefill) {
                 $datas[$fld->field] = $this->oneAutoString($table, $fld->field, $fld->f_format ?: '');
             }
+            if ($fld->f_type == 'Auto Number' && $emptyOrRefill) {
+                $datas[$fld->field] = $this->oneAutoNumber($table, $fld, $datas);
+            }
+            if (in_array($fld->id, $dcrUrlFieldIds) && $emptyOrRefill && ! $table->__data_dcr_id) {//Is not submitted from DCR page.
+                $datas[$fld->field] = Uuid::uuid4();
+            }
         }
+
         return $datas;
     }
 
@@ -1000,6 +1221,74 @@ class HelperService
             }
         }
         return $random;
+    }
+
+    /**
+     * @param Table $table
+     * @param array $datas
+     * @return array
+     */
+    public function clearAllAutoNumbers(Table $table, array $datas): array
+    {
+        foreach ($table->_fields as $hdr) {
+            if ($hdr->field != 'id' && $hdr->f_type == 'Auto Number') {
+                $datas[$hdr->field] = null;
+            }
+        }
+        return $datas;
+    }
+
+    /**
+     * @param Table $table
+     * @param TableField $hdr
+     * @param array $row
+     * @return int
+     */
+    public function oneAutoNumber(Table $table, TableField $hdr, array $row = []): int
+    {
+        $sql = (new TableDataQuery($table, true))->getQuery();
+        $fromTable = $table->db_name;
+
+        $uniqFields = $row && $hdr->is_unique_collection
+            ? $table->_fields()->where('is_unique_collection', 1)->get()
+            : collect();
+        if ($uniqFields->count() > 1) {
+            foreach ($uniqFields as $uniqField) {
+                if ($uniqField->id != $hdr->id) {
+                    $sql->where($uniqField->field, $row[$uniqField->field] ?? null);
+                }
+            }
+            $fromTable = $this->sqlAsFromString($sql);
+        }
+
+        $format_offset = intval($hdr->f_format) ?: 0;
+
+        if (preg_match('/cont/i', $hdr->f_format)) {
+            if (!(clone $sql)->where($hdr->field, '=', $format_offset)->count()) {
+                $anumber = $format_offset;
+            } else {
+                $anumber = DirectDatabase::removedIds($fromTable, $hdr->field, $format_offset)
+                    ?: ($sql->count() + $format_offset - 1);
+            }
+        } else {
+            $anumber = $sql->max($hdr->field) + 1;
+            if ($anumber < $format_offset) {
+                $anumber = $format_offset;
+            }
+        }
+
+        return $anumber;
+    }
+
+    /**
+     * @param Builder $sql
+     * @return string
+     */
+    protected function sqlAsFromString(Builder $sql): string
+    {
+        $sqlStr = str_replace('?', '"?"', $sql->toSql());
+        $sqlStr = Str::replaceArray('?', $sql->getBindings(), $sqlStr);
+        return "($sqlStr)";
     }
 
     /**
@@ -1108,7 +1397,7 @@ class HelperService
 
     /**
      * @param $val
-     * @return null
+     * @return mixed
      */
     public static function sanitizeNull($val)
     {
@@ -1121,9 +1410,9 @@ class HelperService
 
     /**
      * @param Table $table
-     * @return mixed|string
+     * @return string
      */
-    public static function getTableGoogleApi(Table $table)
+    public static function getTableGoogleApi(Table $table): string
     {
         $table_google_api = '';
         if ($table->api_key_mode == 'table') {
@@ -1133,7 +1422,27 @@ class HelperService
             $userapi = (new UserConnRepository())->getUserApi($table->account_api_key_id, true);
             $table_google_api = $userapi ? TabldaEncrypter::decrypt($userapi->key) : '';
         }
-        return $table_google_api;
+        return $table_google_api ?: '';
+    }
+
+    /**
+     * @param User $user
+     * @param Table|null $table
+     * @return string
+     */
+    public static function getUserGoogleApi(User $user, Table $table = null): string
+    {
+        $usr_gmap = $user ? $user->_google_api_keys()->where('is_active','=',1)->first() : '';
+        $user_active_gmap = $usr_gmap ? TabldaEncrypter::decrypt($usr_gmap->key ?? '') : '';
+
+        if (!$user_active_gmap) {
+            $admin = User::where('role_id', 1)->first();
+            $admin_gmap = $admin ? $admin->_google_api_keys->where('is_active','=',1)->first() : null;
+            $user_active_gmap = $admin_gmap ? $admin_gmap->key : '';//env('GOOGLE_API_KEY');
+        }
+
+        $table_active_gmap = $table ? self::getTableGoogleApi($table) : '';
+        return $table_active_gmap ?: $user_active_gmap ?: '';
     }
 
     /**
@@ -1181,7 +1490,7 @@ class HelperService
         $excld = preg_split('/,|;|\s|\r\n|\r|\n/', $excld ? $excld->val : '');
 
         $email_domain = auth()->user() ? auth()->user()->email : '';
-        $email_domain = array_last( explode('@', $email_domain) );
+        $email_domain = Arr::last( explode('@', $email_domain) );
         return in_array($email_domain, $excld) ? '' : $email_domain;
     }
 
@@ -1193,5 +1502,98 @@ class HelperService
     public static function dcr_id_linked_row(int $dcr_id, int $row_id = null): string
     {
         return $dcr_id . '_' . $row_id;
+    }
+
+    /**
+     * @return int
+     */
+    public function viewPermissionId(Table $table = null): int
+    {
+        if ($table->__data_permission_id) {
+            return $table->__data_permission_id;
+        }
+
+        $sp = \request('special_params') ?: [];
+        $vh = $sp['view_hash'] ?? '';
+
+        if ($vh) {
+            $view = (new TableViewRepository())->getByHash($vh);
+            return $view->access_permission_id ?? -1;
+        }
+
+        if ($sp['srv_hash'] ?? '') {
+            return $table->single_view_permission_id ?: -1;
+        }
+
+        return 0;
+    }
+
+    /**
+     * @param array $row
+     * @param $field
+     * @return mixed|string
+     */
+    public static function cellForEmail(array $row, $field)
+    {
+        $value = $row[$field['field']] ?? '';
+        if ($field['f_type'] == 'Boolean') {
+            $value = $value ? 'Yes' : 'No';
+        }
+        if (self::isMSEL($field['input_type'])) {
+            $value = join(', ', json_decode($value, true) ?: []);
+        }
+        return $value;
+    }
+
+    public static function hasWebLinkUrl(array $row, $field): string
+    {
+        $res = '';
+        if ($link = (new TableFieldLinkRepository())->getWebForField($field['id'])) {
+            if ($link->_address_field) {
+                $res .= $row[$link->_address_field->field] ?? '';
+            }
+            //shared link to /links/{mrv hash}/{row hash}
+            if ($link->share_record_link_id && ! $link->address_field_id) {
+                $res .= $row['static_hash'];
+            }
+            //add "URL Prefix" if no "http(s)" or "www" in the beginning
+            if ($link->web_prefix && !Str::startsWith(strtolower($res), 'http') && !Str::startsWith(strtolower($res), 'www')) {
+                $res = $link->web_prefix . $res;
+            }
+            //auto add "http://" if needed
+            if ($res && !Str::startsWith(strtolower($res), 'http') && !Str::startsWith($res,'/')) {
+                $res = 'http://' . $res;
+            }
+        }
+        return $res;
+    }
+
+    /**
+     * @param int $tableId
+     * @return void
+     */
+    public function tableModified(int $tableId)
+    {
+        Table::where('id', $tableId)->update(['modified_on' => now()]);
+    }
+
+    /**
+     * @param User $user
+     * @return Collection
+     * @throws \Exception
+     */
+    public function getRecentsForUser(User $user): Collection
+    {
+        foreach ($user->_menutree_recents as $recent) {
+            $recent->url = $this->objectUrl($recent->object_type, $recent->object_id);
+            $recent->name = urldecode(Arr::last(explode('/', $recent->url)));
+            if (!$recent->url || !$recent->name) {
+                $recent->delete();
+            }
+        }
+        $user->_menutree_recents = $user->_menutree_recents->filter(function ($recent) {
+            return $recent->url || $recent->name;
+        });
+        return $user->_menutree_recents;
     }
 }

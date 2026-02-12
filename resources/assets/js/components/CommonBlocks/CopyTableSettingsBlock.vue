@@ -96,6 +96,146 @@
                 <span>Conditional Formattings (CFs)</span>
             </label>
         </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'bi') && $root.tableMeta.add_bi">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_bi')">
+                        <i v-if="settings.addon_bi" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: BI</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'map') && $root.tableMeta.add_map">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_map')">
+                        <i v-if="settings.addon_map" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: GSI</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'request') && $root.tableMeta.add_request">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_request')">
+                        <i v-if="settings.addon_request" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: DCR</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'alert') && $root.tableMeta.add_alert">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_alert')">
+                        <i v-if="settings.addon_alert" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: ANA</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'kanban') && $root.tableMeta.add_kanban">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_kanban')">
+                        <i v-if="settings.addon_kanban" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Kanban</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'gantt') && $root.tableMeta.add_gantt">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_gantt')">
+                        <i v-if="settings.addon_gantt" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Gantt</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'email') && $root.tableMeta.add_email">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_email')">
+                        <i v-if="settings.addon_email" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Email</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'calendar') && $root.tableMeta.add_calendar">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_calendar')">
+                        <i v-if="settings.addon_calendar" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Calendar</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'twilio') && $root.tableMeta.add_twilio">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_twilio')">
+                        <i v-if="settings.addon_twilio" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: SMS</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'tournament') && $root.tableMeta.add_tournament">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_tournament')">
+                        <i v-if="settings.addon_tournament" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Brackets</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'grouping') && $root.tableMeta.add_grouping">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_grouping')">
+                        <i v-if="settings.addon_grouping" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Grouping</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'report') && $root.tableMeta.add_report">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_report')">
+                        <i v-if="settings.addon_report" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Report</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'ai') && $root.tableMeta.add_ai">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_ai')">
+                        <i v-if="settings.addon_ai" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: AI</span>
+            </label>
+        </div>
+        <div v-if="$root.tableMeta && $root.AddonAvailableToUser($root.tableMeta, 'simplemap') && $root.tableMeta.add_simplemap">
+            <label>
+                <span class="indeterm_check__wrap">
+                    <span class="indeterm_check" @click="sendSettings('addon_simplemap')">
+                        <i v-if="settings.addon_simplemap" class="glyphicon glyphicon-ok group__icon"></i>
+                    </span>
+                </span>
+                <span>Addon: Map</span>
+            </label>
+        </div>
     </div>
 </template>
 
@@ -107,7 +247,7 @@
                 settings: {},
             };
         },
-        props:{
+        props: {
             selectedSettings: Object,
         },
         computed: {
@@ -129,6 +269,20 @@
                     links: true,
                     ddls: true,
                     cond_formats: true,
+                    addon_bi: true,
+                    addon_map: true,
+                    addon_request: true,
+                    addon_alert: true,
+                    addon_kanban: true,
+                    addon_gantt: true,
+                    addon_email: true,
+                    addon_calendar: true,
+                    addon_twilio: true,
+                    addon_tournament: true,
+                    addon_simplemap: true,
+                    addon_grouping: true,
+                    addon_report: true,
+                    addon_ai: true,
                 }
             },
             toOthersSetGroups() {

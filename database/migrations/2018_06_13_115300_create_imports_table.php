@@ -15,19 +15,13 @@ class CreateImportsTable extends Migration
     {
         Schema::create('imports', function (Blueprint $table) {
             $table->increments('id');
+            $table->unsignedInteger('table_id')->default(0);
             $table->string('file');
             $table->unsignedInteger('complete')->default(0);
             $table->string('status', 20);
-
-            $table->unsignedInteger('created_by')->nullable();
-            $table->string('created_name')->nullable();
-            $table->dateTime('created_on');
-            $table->unsignedInteger('modified_by')->nullable();
-            $table->string('modified_name')->nullable();
-            $table->dateTime('modified_on');
-
-            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
-            $table->foreign('modified_by')->references('id')->on('users')->onDelete('set null');
+            $table->string('type', 32)->default('');
+            $table->timestamp('date');
+            $table->text('info')->nullable();
         });
     }
 

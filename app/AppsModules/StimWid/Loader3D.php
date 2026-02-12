@@ -4,6 +4,7 @@ namespace Vanguard\AppsModules\StimWid;
 
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Vanguard\AppsModules\StimWid\CreateRls\RlConnCreator;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
@@ -36,6 +37,7 @@ class Loader3D
     protected $usergroup;
     protected $model;
     protected $curtab;
+    protected $ma_libs;
 
     /**
      * Loader3D constructor.
@@ -143,12 +145,14 @@ class Loader3D
      */
     public function MA()
     {
+        $ma_libs = $this->findMaLibs($this->app_table, $this->master_model);
+        $ma_eqs = $this->findMaEquipments($this->app_table, $this->master_model, $this->excluded_colors);
         return [
             'params' => $this->findMaStructure($this->app_table, $this->master_model),
-            'eqs' => $this->findMaEquipments($this->app_table, $this->master_model, $this->excluded_colors),
+            'eqs' => $ma_eqs,
             'colors' => $this->findMaColors($this->app_table, $this->master_model),
-            'libs' => $this->findMaLibs($this->app_table, $this->master_model),
-            'rls' => $this->findMaRLs($this->app_table, $this->master_model),
+            'libs' => $ma_libs,
+            'rls' => $this->findMaRLs($this->app_table, $this->master_model, $ma_libs, $ma_eqs),
         ];
     }
 
@@ -168,22 +172,31 @@ class Loader3D
         $lcs_rece = (new Model3dService($lcs_tb))->queryFindModel($ma_tablda, $this->front_filters);
         $lcs = $lcs_rece->get();
 
-        $equps = array_unique( array_pluck($lcs, 'equipment') );
+        $equps = array_unique( Arr::pluck($lcs, 'equipment') );
         $eqs_rece = (new Model3dService($eqs_tb))->queryReceiver();
         $found_eq = $eqs_rece->whereIn('model', $equps)->get();
         $found_eq = collect($found_eq);
 
         //Exclude some LCs
         $results = [];
+        $all_lcs = [];
         foreach ($lcs as $lc) {
-            if (!in_array($lc['status'], $excluded_colors)) {
+            $all_lcs[] = [
+                'equipment' => $lc['equipment'] ?? null,
+                'mbr_id' => $lc['mbr_id'] ?? null,
+                'status' => $lc['status'] ?? null,
+            ];
+
+            $status = !$lc['status'] ? 'null' : $lc['status'];
+            if (!in_array($status, $excluded_colors)) {
                 $arr = [
                     'lc' => $lc,
                     'eq' => $found_eq->where('model', $lc['equipment'])->first(),
                 ];
+                $arr['lc']['status'] = $arr['lc']['status'] ?? null;
                 //origin elev
                 $origin = floatval($ma_model['origin_elev'] ?? 0);
-                $gctr = floatval($arr['lc']['elev_gctr'] ?? 0);
+                $gctr = floatval($arr['lc']['elev_g'] ?? 0);
                 //reverse offsets
                 $arr['lc']['elev_offset'] = $origin && $gctr ? $gctr-$origin : ($origin ? -1 : 0);
                 $arr['lc']['_app_tb'] = $lcs_tb;
@@ -198,8 +211,9 @@ class Loader3D
         $tablda_eq = $this->tbRepo->getTableByDB($eqs_rece->getModelTable());
 
         return [
+            'all_lcs' => $all_lcs,
             'collection' => $results,
-            'all_statuses' => array_pluck($lcs, 'status'),
+            'all_statuses' => Arr::pluck($lcs, 'status'),
             '_lcs_tb' => $tablda_lc,
             '_eqs_tb' => $tablda_eq,
         ];
@@ -208,10 +222,15 @@ class Loader3D
     /**
      * @param string $ma_table
      * @param array $ma_model
+     * @param $ma_libs
+     * @param $ma_eqs
      * @return array
      */
-    protected function findMaRLs(string $ma_table, array $ma_model)
+    protected function findMaRLs(string $ma_table, array $ma_model, $ma_libs, $ma_eqs)
     {
+        $p2mrecords = $ma_libs && $ma_libs['pos_to_mbrs'] ? collect($ma_libs['pos_to_mbrs']) : collect();
+        $all_lcs = $ma_eqs && $ma_eqs['all_lcs'] ? collect($ma_eqs['all_lcs']) : null;
+
         $RL = new RlConnCreator();
         $rl_master = RlConnCreator::rl_master($ma_model);
 
@@ -229,6 +248,16 @@ class Loader3D
         foreach ($rl_elems as &$rl_elem) {
             $rl_elem['mbr_node'] = $rl_nodes->where('name', '=', $rl_elem['mbr_node'])->first();
             $rl_elem['eqpt_node'] = $rl_nodes->where('name', '=', $rl_elem['eqpt_node'])->first();
+            //Pos2Mbr record id
+            $lcrecord = $p2mrecords->where('member', '=', $rl_elem['member'])->first();
+            $rl_elem['lc_rec_id'] = $lcrecord ? $lcrecord['_id'] : null;
+            //LC status
+            if ($all_lcs) {
+                $lcrecord = $all_lcs->where('equipment', '=', $rl_elem['equipment'])
+                    ->where('mbr_id', '=', $rl_elem['lc_rec_id'] ?? null)
+                    ->first();
+                $rl_elem['lc_status'] = $lcrecord ? $lcrecord['status'] : null;
+            }
         }
 
         $tablda_rls = $this->tbRepo->getTableByDB($receiver->getModelTable());
@@ -247,8 +276,6 @@ class Loader3D
     protected function findMaLibs(string $ma_table, array $ma_model)
     {
         $loading_tb = $this->stimRepo->findMasterTb('3d:loading');
-        $tech_tb = $this->stimRepo->findInheritTb($loading_tb, 'tech_list', '2d');
-        $status_tb = $this->stimRepo->findInheritTb($loading_tb, 'eqpt_colors', '2d');
         $pos_to_mbr_tb = $this->stimRepo->findInheritTb($loading_tb, 'pos_to_mbr', '3d', true);
 
         $ma_maps = (DataReceiver::app_table_and_fields($ma_table))['_app_maps'];
@@ -274,6 +301,8 @@ class Loader3D
             'eqpt_lib' => $data2d->equipmentsFind($loading_tb, $loa_tablda, 'eqpt_lib'),
             'tech_lib' => $data2d->findData($loading_tb, $loa_tablda, 'tech_list', ['technology']),
             'status_lib' => $data2d->findEqptColors($loading_tb, $loa_tablda),
+            'elevs_lib' => $data2d->findElevLib($loading_tb, $loa_tablda),
+            'azimuth_lib' => $data2d->findAzimutbLib($loading_tb, $loa_tablda),
             'secpos_lib' => $this->findSecPoss($loading_tb, $loa_tablda),
             'popup_tables' => $data2d->getArrayOfInherits(),
             'loa_tablda' => $loa_tablda,
@@ -348,7 +377,8 @@ class Loader3D
             //Exclude some Materials and Members
             $exclude_materials = [];
             foreach ($materials as $mat) {
-                if (in_array($mat['color_gr']??'', $excluded_colors)) {
+                $mat['color_gr'] = $mat['color_gr'] ?? null;
+                if (in_array($mat['color_gr'], $excluded_colors)) {
                     $exclude_materials[] = $mat['name'];
                 }
             }

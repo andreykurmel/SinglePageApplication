@@ -6,47 +6,51 @@
 
         <template v-for="(marker_row,idx) in marker_rows_all">
             <div :ref="'marker_info_'+marker_row._row_id" class="iw-wrapper flex flex--col">
-                <h4 v-if="marker_hdr_tb && marker_header && marker_row"
+                <h4 v-if="marker_hdr_tb && marker_row"
                     class="iw-header flex flex--center-v"
                     :style="hdrBgClr"
                 >
-                    <div style="max-width: 35%">{{ $root.uniqName(marker_header.name) }}:&nbsp;</div>
-                    <single-td-field
-                            :table-meta="marker_hdr_tb"
-                            :table-header="marker_header"
-                            :td-value="marker_row[marker_header.field]"
-                            :ext-row="marker_row"
-                            :no_width="true"
-                            :with_edit="false"
-                            style="display: inline-block;background-color: transparent;"
-                            @show-src-record="showSrcRecord"
-                    ></single-td-field>
+                    <span v-html="mapHeaders(marker_row)"></span>
                 </h4>
 
-                <div v-if="marker_fields_meta && marker_row"
+                <div v-if="marker_fields_tb && marker_row"
                      class="iw-body flex flex--elem_remain"
-                     :style="{ height: tableMeta.map_popup_height+'px', width: tableMeta.map_popup_width+'px' }"
+                     :class="{'flex--col': imgHeader && vertAttach}"
+                     :style="{ height: selectedMap.map_popup_height+'px', width: selectedMap.map_popup_width+'px' }"
                 >
-                    <div class="table_part" :style="tablePartStyle">
+                    <div v-if="imgHeader && firstAttach" class="attach_part" :style="attachSize()">
+                        <show-attachments-block
+                            :show-type="selectedMap.map_picture_style"
+                            :table-header="imgHeader"
+                            :table-meta="tableMeta"
+                            :table-row="marker_row"
+                            :just-first="true"
+                        ></show-attachments-block>
+                    </div>
+
+                    <div class="table_part pt5 pr10"
+                         :class="{'pl10': imgHeader && selectedMap.map_picture_position === 'left'}"
+                         :style="tablePartStyle()"
+                    >
                         <vertical-table
-                            :td="$root.tdCellComponent(marker_fields_meta.is_system)"
-                            :table-meta="marker_fields_meta"
+                            :td="$root.tdCellComponent()"
+                            :table-meta="marker_fields_tb"
                             :settings-meta="$root.settingsMeta"
                             :table-row="marker_row"
-                            :user="user"
+                            :user="$root.user"
                             :cell-height="$root.cellHeight"
                             :max-cell-rows="$root.maxCellRows"
                             :behavior="'map_view'"
-                            :is_small_spacing="'yes'"
+                            :is_def_fields="true"
                             :with_edit="false"
                             style="background-color: transparent; table-layout: fixed;"
                             @show-src-record="showSrcRecord"
                         ></vertical-table>
                     </div>
 
-                    <div v-if="imgHeader" class="attach_part" :style="{width: (tableMeta.map_picture_width)+'%'}">
+                    <div v-if="imgHeader && !firstAttach" class="attach_part" :style="attachSize()">
                         <show-attachments-block
-                            :show-type="tableMeta.map_picture_style"
+                            :show-type="selectedMap.map_picture_style"
                             :table-header="imgHeader"
                             :table-meta="tableMeta"
                             :table-row="marker_row"
@@ -69,16 +73,12 @@ import {eventBus} from '../../../../../app';
 import CellStyleMixin from '../../../../_Mixins/CellStyleMixin.vue';
 import TableLinkMixin from '../../../../_Mixins/TableLinkMixin.vue';
 
-import VerticalTable from "../../../../CustomTable/VerticalTable";
-import SingleTdField from "../../../../CommonBlocks/SingleTdField";
 import ShowAttachmentsBlock from "../../../../CommonBlocks/ShowAttachmentsBlock";
 
 export default {
         name: "MapElem",
         components: {
             ShowAttachmentsBlock,
-            SingleTdField,
-            VerticalTable,
         },
         mixins: [
             CellStyleMixin,
@@ -108,54 +108,70 @@ export default {
         },
         computed: {
             widths_name() {
-                return this.tableMeta.vert_tb_hdrwidth ? this.tableMeta.vert_tb_hdrwidth+'%' : this.widths.name;
+                return this.selectedMap.vert_tb_hdrwidth ? this.selectedMap.vert_tb_hdrwidth+'%' : this.widths.name;
             },
             widths_col() {
-                return this.tableMeta.vert_tb_hdrwidth ? (100 - this.tableMeta.vert_tb_hdrwidth)+'%' : this.widths.col;
-            },
-            marker_header() {
-                return this.marker_hdr_tb && this.marker_hdr_tb._fields
-                    ? _.first(this.marker_hdr_tb._fields)
-                    : null;
-            },
-            tablePartStyle() {
-                if (this.imgHeader) {
-                    return {
-                        paddingRight: '10px',
-                        width: (100 - this.tableMeta.map_picture_width)+'%',
-                    };
-                } else {
-                    return {};
-                }
+                return this.selectedMap.vert_tb_hdrwidth ? (100 - this.selectedMap.vert_tb_hdrwidth)+'%' : this.widths.col;
             },
             imgHeader() {
-                return _.find(this.tableMeta._fields, {id: Number(this.tableMeta.map_picture_field)});
-            },
-            marker_fields_meta() {
-                let fields = this.tableMeta.map_position_refid ? this.marker_fields_tb : this.tableMeta._fields;
-                return {
-                    _fields: _.filter(fields, (fld) => {
-                        return fld.info_box && !fld.is_info_header_field;
-                    }),
-                }
+                return _.find(this.tableMeta._fields, {id: Number(this.selectedMap.map_picture_field)});
             },
             hdrBgClr() {
-                let bg = this.tableMeta.map_popup_header_color || '#CCC';
+                let bg = this.selectedMap.map_popup_header_color || '#CCC';
                 return {
                     backgroundColor: bg,
                     color: SpecialFuncs.smartTextColorOnBg(bg)
                 };
             },
+            vertAttach() {
+                return this.$root.inArray(this.selectedMap.map_picture_position, ['top', 'bottom']);
+            },
+            firstAttach() {
+                return this.$root.inArray(this.selectedMap.map_picture_position, ['top', 'left']);
+            },
         },
         props:{
             tableMeta: Object,
+            selectedMap: Object,
             radiusObject: Object,
             should_redraw: Boolean,
             columnValues: Array,
             request_params: Object,
-            user: Object,
         },
         methods: {
+            tablePartStyle() {
+                if (this.imgHeader) {
+                    if (this.vertAttach) {
+                        return {
+                            height: 'calc(100% - ' + this.attachSizeValue('map_picture_width') + ')',
+                        };
+                    } else {
+                        return {
+                            width: 'calc(100% - ' + this.attachSizeValue('map_picture_width') + ')',
+                        };
+                    }
+                }
+                return {};
+            },
+            attachSize() {
+                if (this.vertAttach) {
+                    return {
+                        height: this.attachSizeValue('map_picture_width'),
+                        minHeight: this.attachSizeValue('map_picture_min_width'),
+                    }
+                } else {
+                    return {
+                        width: this.attachSizeValue('map_picture_width'),
+                        minWidth: this.attachSizeValue('map_picture_min_width'),
+                    }
+                }
+            },
+            attachSizeValue(key) {
+                let less = Number(this.selectedMap[key]) <= 1;
+                let size = Number(this.selectedMap[key]) * (less ? 100 : 1);
+                let unit = less ? '%' : 'px';
+                return size + unit;
+            },
             loadingIcon(bool) {
                 this.loading = bool;
                 this.$nextTick(function () {
@@ -197,7 +213,7 @@ export default {
                     //applied in 'zoom_changed'
                     //this.loadRows();
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             loadRows() {
@@ -213,18 +229,17 @@ export default {
                     this.buildMap();
                 }).catch(errors => {
                     $(this.$refs.loader).LoadingOverlay('hide');
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             requestObject() {
-                let request = _.cloneDeep(this.request_params);
-                request.special_params = SpecialFuncs.specialParams();
-                request.page = 1;
-                request.rows_per_page = 0;
+                let request = SpecialFuncs.dataRangeRequestParams(this.selectedMap.map_data_range, this.tableMeta.id, this.request_params);
                 request.sort = [];
+                request.selected_map = this.selectedMap;
 
                 if (this.radiusObject.distance && this.addressCenter) {
                     request.radius_search = {
+                        map_id: this.selectedMap.id,
                         km: this.radiusObject.distance * 1.6,
                         center_lat: this.addressCenter.lat(),
                         center_long: this.addressCenter.lng(),
@@ -237,7 +252,9 @@ export default {
                 return request;
             },
             buildMap() {
-
+                if (!this.markers) {
+                    this.markers = [];
+                }
                 //remove markers
                 for (let i = 0; i < this.markers.length; i++) {
                     this.markers[i].setMap(null);
@@ -281,7 +298,7 @@ export default {
 
                         //add special icon for marker
                         if (markerRow['id']) {
-                            if (this.tableMeta.map_icon_style === 'dist' && this.columnValues.length) {
+                            if (this.selectedMap.map_icon_style === 'dist' && this.columnValues && this.columnValues.length) {
                                 let map_fld = _.find(this.columnValues, {row_val: markerRow['icon']});
                                 map_fld = (map_fld && map_fld.icon_path) ? map_fld : _.find(this.columnValues, {row_val: 'Default'});
 
@@ -297,7 +314,7 @@ export default {
                                     }
                                 }
                             }
-                            if (this.tableMeta.map_icon_style === 'comp' && markerRow['icon']) {
+                            if (this.selectedMap.map_icon_style === 'comp' && markerRow['icon']) {
                                 m_settings.icon = {
                                     url: this.$root.fileUrl({url:markerRow['icon']})
                                 };
@@ -322,12 +339,12 @@ export default {
                             marker.addListener('click', () => {
                                 axios.get('/ajax/table-data/marker-popup', {
                                     params: {
-                                        table_id: this.tableMeta.id,
+                                        map_id: this.selectedMap.id,
                                         row_id: markerRow['id'],
                                         special_params: SpecialFuncs.specialParams(),
                                     }
                                 }).then(({ data }) => {
-                                    if (!this.tableMeta.map_multiinfo) {
+                                    if (!this.selectedMap.map_multiinfo) {
                                         this.marker_rows_all = [];
                                     }
                                     data.marker_row._row_id = marker._row_id;
@@ -431,6 +448,29 @@ export default {
             showSrcRecord(lnk, header, tableRow) {
                 this.$emit('show-src-record', lnk, header, tableRow);
             },
+            mapHeaders(marker_row) {
+                let headers = this.marker_hdr_tb._fields;
+                let res = [];
+                _.each(headers, (hdr) => {
+                    let showName = _.find(this.selectedMap._map_field_settings, (mf) => {
+                        return mf.table_field_id == hdr.id && mf.is_info_header_field;
+                    });
+                    let showValue = _.find(this.selectedMap._map_field_settings, (mf) => {
+                        return mf.table_field_id == hdr.id && mf.is_info_header_value;
+                    });
+
+                    if (showName || showValue) {
+                        let row_value = marker_row
+                            ? SpecialFuncs.showhtml(hdr, marker_row, marker_row[hdr.field], this.marker_hdr_tb)
+                            : '';
+                        let ar = showName ? [this.$root.uniqName(hdr.name)] : [];
+                        if (showValue) { ar.push(row_value) }
+
+                        res.push( ar.join(': ') );
+                    }
+                });
+                return res.length ? res.join(' | ') : '';
+            },
 
             globalKeyHandler(e) {
                 if (e.keyCode === 27) {//esc - hide marker's infoBoxes
@@ -448,7 +488,7 @@ export default {
                 return _.last(name.split(','));
             },
             getSubHeaders(name) {
-                let arr = _.uniq( name.split(',') );
+                let arr = _.uniq( name.split(',') ) || [];
                 let res = '';
                 if (arr.length > 1) {
                     _.each(arr, (el, idx) => {
@@ -469,8 +509,8 @@ export default {
         },
         mounted() {
             this.map = new google.maps.Map(this.$refs.map_google, {
-                zoom: 5,
-                center: new google.maps.LatLng(0, 0)//USA center
+                zoom: 3,
+                center: new google.maps.LatLng(44, 103)//USA center
             });
             this.map.addListener('dragend', () => {
                 this.loadRows(true);

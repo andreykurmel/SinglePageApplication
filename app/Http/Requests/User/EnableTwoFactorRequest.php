@@ -16,7 +16,7 @@ class EnableTwoFactorRequest extends Request
     {
         return [
             'country_code' => 'required|numeric|integer',
-            'phone_number' => 'required|numeric',
+            'phone_number' => 'nullable|numeric',
             'two_factor_type' => 'nullable|string',
         ];
     }

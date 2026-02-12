@@ -4,22 +4,17 @@
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
-                <div class="inner-content">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
+                <div class="inner-content" :style="{textAlign: isOverview ? 'center' : ''}">
 
-                    <label class="switch_t" v-if="tableHeader.field === 'status'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
+                    <label class="switch_t" v-if="curHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
                         <input type="checkbox" :disabled="!enabledStatus" v-model="editValue" @change="updateValue()">
                         <span class="toggler round" :class="[!enabledStatus ? 'disabled' : '']"></span>
                     </label>
 
-                    <label class="switch_t" v-else-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
-                        <input type="checkbox" v-model="editValue" @change="updateValue()">
-                        <span class="toggler round"></span>
-                    </label>
-
-                    <a v-else-if="inArray(tableHeader.field, ['table_column_group_id', 'table_row_group_id']) && editValue"
+                    <a v-else-if="inArray(curHeader.field, ['table_column_group_id', 'table_row_group_id']) && editValue"
                        title="Open row/column group in popup."
                        @click.stop="showinlineGroupsPopup()"
                     >
@@ -27,15 +22,22 @@
                     </a>
 
                     <div v-else-if="is_multisel">
-                        <span v-for="str in editValue" v-if="str" :class="{'is_select': is_sel, 'm_sel__wrap': is_multisel}">
+                        <span v-for="str in editValue"
+                              v-if="str"
+                              :class="{'is_select': is_sel, 'm_sel__wrap': is_multisel}"
+                              :style="{paddingRight: isOverview ? '5px' : ''}"
+                        >
                             <span v-html="str"></span>
-                            <span v-if="is_sel && is_multisel" class="m_sel__remove" @click.prevent.stop="updateCheckedDDL(str)">&times;</span>
+                            <span v-if="canEdit && is_sel && is_multisel" class="m_sel__remove" @click.prevent.stop="updateCheckedDDL(str)">&times;</span>
                         </span>
                     </div>
 
                     <div v-else="">
-                        <span v-if="showField()" :class="{'is_select': is_sel}">{{ showField() }}</span>
-                        <button v-if="tableHeader.field === 'font_size' && showField() && canEdit"
+                        <span v-html="showField()"
+                              :class="{'is_select': is_sel}"
+                              :style="{paddingRight: isOverview ? '5px' : ''}"
+                        ></span>
+                        <button v-if="curHeader.field === 'font_size' && showField() && canEdit"
                                 class="btn btn-danger btn-sm btn-deletable flex flex--center"
                                 @click="updateCheckedDDL(null)"
                         >
@@ -51,7 +53,7 @@
 
 
         <!-- ABSOLUTE EDITINGS -->
-        <div v-if="tableHeader.f_type === 'Color'" class="cell-editing">
+        <div v-if="curHeader.f_type === 'Color'" class="cell-editing">
             <tablda-colopicker
                     :init_color="editValue"
                     :fixed_pos="true"
@@ -64,24 +66,7 @@
         <div v-else-if="isEditing()" class="cell-editing">
 
             <tablda-select-simple
-                    v-if="tableHeader.field === 'compare'"
-                    :options="[
-                        {val: '<', show: '<'},
-                        {val: '=', show: '='},
-                        {val: '>', show: '>'},
-                        {val: '!=', show: '!='},
-                        {val: 'Include', show: 'Include'},
-                    ]"
-                    :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
-                    :fixed_pos="true"
-                    :style="getEditStyle"
-                    @selected-item="updateCheckedDDL"
-                    @hide-select="hideEdit"
-            ></tablda-select-simple>
-
-            <tablda-select-simple
-                    v-else-if="tableHeader.field === 'font'"
+                    v-if="curHeader.field === 'font'"
                     :options="[
                         {val: 'Normal', show: 'Normal'},
                         {val: 'Italic', show: 'Italic'},
@@ -91,8 +76,8 @@
                         {val: 'Underline', show: 'Underline'},
                     ]"
                     :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
-                    :fld_input_type="tableHeader.input_type"
+                    :hdr_field="curHeader.field"
+                    :fld_input_type="curHeader.input_type"
                     :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -100,7 +85,7 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'font_size'"
+                    v-else-if="curHeader.field === 'font_size'"
                     :options="[
                         {val: '10', show: '10'},
                         {val: '12', show: '12'},
@@ -109,7 +94,7 @@
                         {val: '20', show: '20'},
                     ]"
                     :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
+                    :hdr_field="curHeader.field"
                     :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -117,13 +102,13 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'activity'"
+                    v-else-if="curHeader.field === 'activity'"
                     :options="[
                         {val: 'Active', show: 'Active'},
                         {val: 'Freezed', show: 'Freezed'},
                     ]"
                     :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
+                    :hdr_field="curHeader.field"
                     :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
@@ -131,10 +116,10 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'table_column_group_id'"
+                    v-else-if="curHeader.field === 'table_column_group_id'"
                     :options="globalColGroups()"
                     :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
+                    :hdr_field="curHeader.field"
                     :can_empty="true"
                     :fixed_pos="true"
                     :embed_func_txt="'Add New'"
@@ -145,10 +130,10 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'table_row_group_id'"
+                    v-else-if="curHeader.field === 'table_row_group_id'"
                     :options="globalRowGroups()"
                     :table-row="tableRow"
-                    :hdr_field="tableHeader.field"
+                    :hdr_field="curHeader.field"
                     :can_empty="true"
                     :fixed_pos="true"
                     :embed_func_txt="'Add New'"
@@ -159,7 +144,7 @@
             ></tablda-select-simple>
 
             <input
-                    v-else-if="inArray(tableHeader.field, ['name'])"
+                    v-else-if="inArray(curHeader.field, ['name'])"
                     v-model="editValue"
                     @blur="hideEdit();updateValue()"
                     ref="inline_input"
@@ -177,17 +162,19 @@
 <script>
 import {eventBus} from './../../app';
 
-import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
+import Select2DDLMixin from '../_Mixins/Select2DDLMixin.vue';
 import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
 import TabldaColopicker from './InCell/TabldaColopicker.vue';
 import TabldaSelectSimple from "./Selects/TabldaSelectSimple";
 
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
+
 export default {
         name: "CustomCellCondFormat",
         mixins: [
             Select2DDLMixin,
-            CellStyleMixin
+            CellStyleMixin,
         ],
         components: {
             TabldaSelectSimple,
@@ -210,33 +197,52 @@ export default {
             cellHeight: Number,
             maxCellRows: Number,
             user: Object,
-            isAddRow: Boolean
+            isAddRow: Boolean,
+            with_edit: {
+                type: Boolean,
+                default: true
+            },
+            special_extras: {
+                type: Object,
+                default: function () { return {}; }
+            },
+            parentRow: Object,
         },
         watch: {
         },
         computed: {
+            isOverview() {
+                return String(this.tableHeader.field).startsWith('_ov');
+            },
+            curHeader() {
+                return this.isOverview ? this.parentRow : this.tableHeader;
+            },
             canEdit() {
-                return !this.inArray(this.tableHeader.field, this.$root.systemFields)
+                return this.with_edit
+                    && !this.inArray(this.curHeader.field, this.$root.systemFields)
                     && (this.user.id == this.tableRow.user_id || this.isAddRow)
                     && (
-                        ['show_table_data','show_form_data'].indexOf(this.tableHeader.field) === -1
+                        ['show_table_data','show_form_data'].indexOf(this.curHeader.field) === -1
                         ||
                         this.$root.checkAvailable(this.$root.user, 'form_visibility')
                     );
             },
             enabledStatus() {
-                return this.user.id && (this.user.id == this.tableRow.user_id || !this.tableRow._always_on);
+                return this.user.see_view
+                    ? !this.tableRow._always_on
+                    : (this.user.id == this.tableRow.user_id || !this.tableRow._always_on);
             },
             getCustomCellStyle() {
-                let obj = this.getCellStyle;
-                obj.backgroundColor = (this.tableHeader.field === 'color' ? this.tableRow.color: 'transparent');
+                let obj = this.getCellStyle();
+                obj.backgroundColor = (this.curHeader.field === 'color' ? this.tableRow.color : 'transparent');
+                obj.backgroundColor = (['_of_name','_of_value'].indexOf(this.curHeader.field) > -1 ? 'white' : 'transparent');
                 return obj;
             },
             is_sel() {
-                return this.$root.issel(this.tableHeader.input_type);
+                return this.$root.issel(this.curHeader.input_type);
             },
             is_multisel() {
-                return this.$root.isMSEL(this.tableHeader.input_type);
+                return this.$root.isMSEL(this.curHeader.input_type);
             },
         },
         methods: {
@@ -315,33 +321,57 @@ export default {
             },
             showField() {
                 let res = '';
+
+                if (this.tableHeader.field === '_of_name') {
+                    res = this.tableRow.name;
+                }
+                else
+                if (this.tableHeader.field === '_of_value') {
+                    res = this.special_extras.direct_row
+                        ? SpecialFuncs.showFullHtml(this.tableRow, this.special_extras.direct_row)
+                        : '';
+                }
+                else
+                if (String(this.tableHeader.field).startsWith('_ov:')) {
+                    res = this.editValue;
+                }
+                else
                 if (this.tableHeader.f_type === 'User') {
                     res = this.$root.smallUserStr(this.tableRow, this.tableHeader, this.editValue);
                 }
+                else
                 if (this.tableHeader.field === 'status') {
                     res = (this.tableRow.status == 1 ? 'On' : 'Off');
                 }
                 else
+                if (this.tableHeader.field === 'activity') {
+                    res = this.tableRow.activity || 'Active';
+                }
+                else
                 if (this.tableHeader.field === 'table_column_group_id' && this.tableRow.table_column_group_id) {
-                    let col_gr = _.find(this.globalMeta._column_groups, {id: Number(this.tableRow.table_column_group_id)});
+                    let col_gr =
+                        _.find(this.globalMeta._column_groups, {id: Number(this.tableRow.table_column_group_id)})
+                        || _.find(this.globalMeta._gen_col_groups, {id: Number(this.tableRow.table_column_group_id)});
                     res = col_gr ? col_gr.name : '';
                 }
                 else
                 if (this.tableHeader.field === 'table_row_group_id' && this.tableRow.table_row_group_id) {
-                    let row_gr = _.find(this.globalMeta._row_groups, {id: Number(this.tableRow.table_row_group_id)});
+                    let row_gr =
+                        _.find(this.globalMeta._row_groups, {id: Number(this.tableRow.table_row_group_id)})
+                        || _.find(this.globalMeta._gen_row_groups, {id: Number(this.tableRow.table_row_group_id)});
                     res = row_gr ? row_gr.name : '';
                 }
                 else {
                     res = this.editValue;
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             showGroupsPopup(type) {
                 eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, type);
             },
             showinlineGroupsPopup() {
                 let type = '';
-                switch (this.tableHeader.field) {
+                switch (this.curHeader.field) {
                     case 'table_column_group_id': type = 'col'; break;
                     case 'table_row_group_id': type = 'row'; break;
                 }
@@ -359,9 +389,25 @@ export default {
                     return { val: rg.id, show: rg.name, }
                 });
             },
+            condFormatIsApplied(condFrm) {
+                return condFrm.status == 1
+                    &&
+                    (!this.special_extras.direct_row || this.testRow(this.special_extras.direct_row, condFrm.id))
+                    &&
+                    (!condFrm.table_column_group_id || this.testColumn(this.tableRow, condFrm.table_column_group_id, this.globalMeta));
+            },
         },
         mounted() {
-            this.editValue = this.convEditValue(this.tableRow[this.tableHeader.field]);
+            let edval = this.tableRow[this.curHeader.field];
+            if (String(this.tableHeader.field).startsWith('_ov')) {
+                let prFld = this.parentRow ? this.parentRow.field : '';
+                let cfID = _.last(String(this.tableHeader.field).split(':'));
+                let ovCF = _.find(this.globalMeta._cond_formats, {id: Number(cfID)});
+                edval = prFld && ovCF && this.condFormatIsApplied(ovCF)
+                    ? (ovCF[prFld] || (prFld === 'activity' ? 'Active' : ''))
+                    : '';
+            }
+            this.editValue = this.convEditValue(edval);
         },
     }
 </script>

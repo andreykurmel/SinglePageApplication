@@ -105,7 +105,7 @@ class SocialAuthController extends Controller
 
         if (settings('2fa.enabled') && Authy::isEnabled($user)) {
             session()->put('auth.2fa.id', $user->id);
-            return redirect()->route('auth.token');
+            return redirect()->route('auth.token', ['user' => $user]);
         }
 
         Auth::login($user);

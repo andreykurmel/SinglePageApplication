@@ -27,7 +27,7 @@ export class StimLinkParams {
         this.has_viewpop_active = !!obj.has_viewpop_active;
         this.on_edit_changers = obj.on_edit_changers || {};
         this.app_table_options = obj.app_table_options || '';
-        this.avail_columns_for_app = obj.avail_columns_for_app || [];
+        this.avail_cols_for_app = obj.avail_cols_for_app || [];
         this.top_columns_show = obj.top_columns_show || [];
         this.app_maps = obj.app_maps || [];
         this.app_fields = obj.app_fields || [];

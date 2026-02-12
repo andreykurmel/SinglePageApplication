@@ -8,6 +8,8 @@
     import {Tech} from "./Tech";
     import {Status} from "./Status";
     import {Sector} from "./Sector";
+    import {Elev} from "./Elev";
+    import {Azimuth} from "./Azimuth";
     import {MetaTabldaRows} from "../../../classes/MetaTabldaRows";
 
     import { eventBus } from '../../../app';
@@ -16,7 +18,6 @@
         methods: {
             //recalc Line Pos
             recalcPosOfAllLines() {
-                this.params.reverse_draw = !this.params.reverse_draw;
                 //recalc positions and save connected Lines
                 let conn_tb = this.popup_tables.linedata_2d;
                 if (!this.params.full_reflection) {
@@ -73,12 +74,13 @@
                 this.params.drag_point = point;
                 this.lineDragStart(line, offset_x, offset_y);
             },
-            dragFinishedDrop(sec, pos, top_lvl) {
-                let Y = window.event.offsetY || window.event.y, X = window.event.offsetX || window.event.x, i;
-                for (i = 0; i < window.event.path.length; i++) {
-                    if (String(window.event.path[i].nodeName).toLowerCase() === 'td') break;
-                    X += window.event.path[i].offsetLeft;
-                    Y += window.event.path[i].offsetTop;
+            dragFinishedDrop(eve, sec, pos, top_lvl) {
+                let Y = eve.offsetY || eve.y, X = eve.offsetX || eve.x, i;
+                let path = eve.path || eve.composedPath();
+                for (i = 0; i < path.length; i++) {
+                    if (String(path[i].nodeName).toLowerCase() === 'td') break;
+                    X += path[i].offsetLeft;
+                    Y += path[i].offsetTop;
                 }
                 X = this._getoffleft(X, sec, pos);
                 Y = this._getofftop(Y, top_lvl);
@@ -89,17 +91,18 @@
                     this.dragMassEqpt(top_lvl, sec, pos, Y, X);
                 }
             },
-            dragFinishedClick(sec, pos, top_lvl) {
+            dragFinishedClick(eve, sec, pos, top_lvl) {
+                let cmdOrCtrl = eve.metaKey || eve.ctrlKey;
                 if (this.params.drag_eqpt) {
-                    let Y = window.event.offsetY || window.event.y, X = window.event.offsetX || window.event.x;
+                    let Y = eve.offsetY || eve.y, X = eve.offsetX || eve.x;
                     X = this._getoffleft(X, sec, pos);
                     Y = this._getofftop(Y, top_lvl);
                     // center on adding by 'click'
-                    X -= this.params.drag_eqpt.calc_dx/2 * this.px_in_ft;
+                    X -= this.params.drag_eqpt.get_wi(this.params)/2 * this.px_in_ft;
                     Y += this.params.drag_eqpt.calc_dy/2;
 
                     this.saveEqpt(top_lvl, sec, pos, Y, X, 'eqpt');
-                } else {
+                } else if(!cmdOrCtrl) {
                     this.params.clearSel();
                     this.sett_select_eqpt = null;
                 }
@@ -120,13 +123,14 @@
 
             //save drag&drop position
             dragMassEqpt(top_lvl, sector, pos, off_top, X) {
-                let should_copy = !!window.event.ctrlKey || this.params.add_new;
+                let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+                let should_copy = !!cmdOrCtrl || this.params.add_new;
 
                 let sidx = sector ? sector._idx : -1;
                 let pidx = pos ? pos._idx : -1;
 
-                let ee = this.params.drag_eqpt;
-                let eqpt_left = this.params.calcSectorPosOffset(ee._sec_idx, ee._pos_idx, this.px_in_ft) + ee.pos_left*this.px_in_ft;
+                let ee = this.params.drag_eqpt || new Eqpt();
+                let eqpt_left = this.params.calcSectorPosOffset(ee._sec_idx, ee._pos_idx, this.px_in_ft) + ee.posLeft(this.params)*this.px_in_ft;
                 let glob_left = this.params.calcSectorPosOffset(sidx, pidx, this.px_in_ft) + X - this.params.drag_offset_x;
                 glob_left -= eqpt_left;
                 let glob_top = (off_top - ee.elevVal(this.params.elev_by)) * this.px_in_ft;
@@ -137,12 +141,13 @@
 
                 _.each(this.params.mass_eqpt, (eqpt) => {
                     let loc_top = (eqpt.elevVal(this.params.elev_by))*this.px_in_ft + glob_top;
-                    let loc_left = this.params.calcSectorPosOffset(eqpt._sec_idx, eqpt._pos_idx, this.px_in_ft) + eqpt.pos_left*this.px_in_ft + glob_left;
+                    let loc_left = this.params.calcSectorPosOffset(eqpt._sec_idx, eqpt._pos_idx, this.px_in_ft) + eqpt.posLeft(this.params)*this.px_in_ft + glob_left;
 
                     let result = this.params.getSectorAndPos(loc_left, loc_top, this.px_in_ft);
 
                     let new_eqpt = (should_copy ? _.clone(eqpt) : eqpt);
-                    new_eqpt.pos_left = (loc_left - result.left) / this.px_in_ft;
+                    let newleft = (loc_left - result.left) / this.px_in_ft;
+                    new_eqpt.posLeft(this.params, newleft);
                     new_eqpt.sector = result.sector ? result.sector.sector : '';
                     new_eqpt.pos = result.pos ? result.pos.name : '';
                     new_eqpt.location = top_lvl ? 'Air' : 'Base';
@@ -203,7 +208,8 @@
                 let app_tb = this.popup_tables.eqptdata_2d;
 
                 let eqpt = this.params.drag_eqpt;
-                eqpt.pos_left = (X - this.params.drag_offset_x) / this.px_in_ft;
+                let newleft = (X - this.params.drag_offset_x) / this.px_in_ft;
+                eqpt.posLeft(this.params, newleft);
                 eqpt.sector = sector ? sector.sector : '';
                 eqpt.pos = pos ? pos.name : '';
                 eqpt.location = top_lvl ? 'Air' : 'Base';
@@ -234,9 +240,9 @@
                 let s_idx = _.findIndex(this.params._sectors, {_id: sec._id});
                 let p_idx = _.findIndex(this.params._pos, {_id: pos._id});
                 let app_tb = this.popup_tables.linedata_2d;
-                let pos_left = (X - this.params.drag_offset_x) / this.px_in_ft;
-                pos_left += this.params.calcSectorPosOffset(s_idx, p_idx, this.px_in_ft) / this.px_in_ft;
-                pos_left = Math.round(pos_left * 100) / 100;
+                let linleft = (X - this.params.drag_offset_x) / this.px_in_ft;
+                linleft += this.params.calcSectorPosOffset(s_idx, p_idx, this.px_in_ft) / this.px_in_ft;
+                linleft = Math.round(linleft * 100) / 100;
 
                 if (this.params.drag_point) {
                     let k_control = this.params.getLineControlKey();
@@ -245,14 +251,14 @@
                     if (this.params.drag_point.is_new) {
                         let point = {
                             top: off_top,
-                            left: pos_left,
+                            left: linleft,
                             ord: Number(this.params.drag_point.order),
                         };
                         this.params.drag_line[k_obj].push( point );
                     } else {
                         let p_point = _.find(this.params.drag_line[k_obj], {ord: Number(this.params.drag_point.order)});
                         p_point.top = off_top;
-                        p_point.left = pos_left;
+                        p_point.left = linleft;
                     }
                     this.params.drag_line[k_control] = JSON.stringify( this.params.drag_line[k_obj] );
                 } else {
@@ -260,7 +266,7 @@
                     let k_top = this.params.getLineTopKey();
                     let k_left = this.params.getLineLeftKey();
                     this.params.drag_line[k_top] = off_top;
-                    this.params.drag_line[k_left] = pos_left;
+                    this.params.drag_line[k_left] = linleft;
                 }
 
                 if (this.params.add_new) {
@@ -304,7 +310,7 @@
                     this.reloadTablda(app_tb); // reload rows in another StimApp tabs
                     this.params.clearSel(sel_exclude);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             masterParams(app_tb) {
@@ -357,7 +363,7 @@
                     }
 
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             setData(data) {
@@ -369,10 +375,14 @@
 
                 this.status_list = _.map(data.colors_eq, (eq) => { return new Status(eq); });
                 this.tech_list = _.map(data.tech_list, (eq) => { return new Tech(eq); });
+                this.elevs_list = _.map(data.elevs_lib, (eq) => { return new Elev(eq); });
+                this.azimuth_list = _.map(data.azimuth_lib, (eq) => { return new Azimuth(eq); });
 
                 let secrs = data.sectors.length
                     ? _.map(data.sectors, (eq,i) => { return new Sector(eq,i); })
                     : [new Sector({},0)];
+
+                secrs = _.orderBy(secrs, (sector) => to_float(sector.face_norm));
                 this.params._sectors = _.filter(secrs, (sec) => {
                     return !in_array(sec.sector, this.params._shared_sectors_arr)
                 });
@@ -385,7 +395,7 @@
                     eqpt.setCoordIdx(this.params._sectors, this.params._pos);
                 });
 
-                this.total_cols = _.sumBy(this.params._sectors, (el) => { return to_float(el.pos_num) || 1; });
+                this.total_cols = _.sumBy(this.params._sectors, (el) => { return to_float(el._tot_pos_num); });
 
                 this.all_sectors = _.clone(this.params._shared_sectors_arr);
                 _.each(this.params._sectors, (s) => { this.all_sectors.push(s.sector) });
@@ -509,7 +519,7 @@
                     this.eqpt_all_rows = this.vuex_fm[eqpt_tb].rows;
 
                     let avail_keys = _.map(this.eqpt_all_rows.maps, (tablda) => { return tablda; });
-                    this.eqpt_avail_filters = _.intersection(avail_keys, this.vuex_links[eqpt_tb].avail_columns_for_app);
+                    this.eqpt_avail_filters = _.intersection(avail_keys, this.vuex_links[eqpt_tb].avail_cols_for_app);
                 }
             },
             changedFilter() {
@@ -579,8 +589,8 @@
             //direct popups
             modelidChaged(eqpt, from) {
                 _.each(this.data_eqpt, (eq) => {
-                    if (eq.model_id === from) {
-                        eq.model_id = eqpt.model_id;
+                    if (eq.locmod_id === from) {
+                        eq.locmod_id = eqpt.locmod_id;
                     }
                 });
                 let app_tb = this.popup_tables.eqptlib_2d;
@@ -609,6 +619,8 @@
                     case 'line_lib': this.popupLineLib(row_id); break;
                     case 'tech': this.popupTech(row_id); break;
                     case 'status': this.popupStatus(row_id); break;
+                    case 'elev': this.popupElev(row_id); break;
+                    case 'azimuth': this.popupAzimuth(row_id); break;
                 }
                 this.link_rows = this.vuex_fm[this.popup_app_tb] ? this.vuex_fm[this.popup_app_tb].rows : null;
             },
@@ -657,6 +669,16 @@
                 this.popup_app_tb = this.popup_tables.status_2d;
                 this.popup_type = 'status';
             },
+            popupElev(row_id) {
+                this.popup_row_id = row_id;
+                this.popup_app_tb = this.popup_tables.elevs_2d;
+                this.popup_type = 'elev';
+            },
+            popupAzimuth(row_id) {
+                this.popup_row_id = row_id;
+                this.popup_app_tb = this.popup_tables.azimuth_2d;
+                this.popup_type = 'azimuth';
+            },
             popupConn(row_id) {
                 this.popup_row_id = row_id;
                 this.popup_app_tb = this.popup_tables.linedata_2d;
@@ -694,8 +716,9 @@
             anotherDirectRow(is_next) {
                 let rowsObj = this.vuex_fm[this.popup_app_tb].rows;
                 if (!rowsObj.is_loaded) {
+                    let meta = this.vuex_fm[this.popup_app_tb].meta.params;
                     rowsObj.setModelAndGroup(this.master_row, this.vuex_links[this.popup_app_tb]);
-                    rowsObj.loadRows().then(() => {
+                    rowsObj.loadRows(meta).then(() => {
                         this.$root.anotherPopup(rowsObj.all_rows, this.popup_row_id, is_next, this.selectAnotherRow);
                     });
                 } else {

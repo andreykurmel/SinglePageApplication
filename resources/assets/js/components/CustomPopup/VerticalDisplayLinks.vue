@@ -1,10 +1,11 @@
 <template>
-    <div class="popup-wrapper" v-if="selectedCol > -1" @click.self="hide()" :style="{zIndex: zIdx}">
-        <div class="popup">
+    <div class="popup-wrapper" v-if="selHeader" @click.self="hide()" :style="{zIndex: zIdx}">
+        <div class="popup" :style="getPopupStyle()">
             <div class="flex flex--col">
                 <div class="popup-header">
-                    <span v-if="selectedCol < 0">You should select column</span>
-                    <span v-else="">Link(s) at Column: <span>{{ $root.uniqName(tableMeta._fields[selectedCol].name) }}</span></span>
+                    <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
+                    <span v-if="selHeader">You should select column</span>
+                    <span v-else="">Link(s) at Column: <span>{{ $root.uniqName(selHeader.name) }}</span></span>
                     <span class="glyphicon glyphicon-remove pull-right header-btn" @click="hide()"></span>
                 </div>
                 <div class="flex__elem-remain popup-content">
@@ -17,8 +18,8 @@
                                         :global-meta="tableMeta"
                                         :table-meta="settingsMeta['table_field_links']"
                                         :settings-meta="settingsMeta"
-                                        :all-rows="selectedCol > -1 ? tableMeta._fields[selectedCol]._links : []"
-                                        :rows-count="selectedCol > -1 ? tableMeta._fields[selectedCol]._links.length : 0"
+                                        :all-rows="selHeader ? selHeader._links : []"
+                                        :rows-count="selHeader ? selHeader._links.length : 0"
                                         :cell-height="1"
                                         :max-cell-rows="0"
                                         :is-full-width="true"
@@ -31,13 +32,14 @@
                                         @updated-row="updateLink"
                                         @delete-row="deleteLink"
                                         @row-index-clicked="rowIndexClickedLink"
+                                        @show-add-ddl-option="showLinkedPermissions"
                                 ></custom-table>
                             </div>
                             <div class="section-text">
-                                <span v-if="selectedLink < 0 || selectedCol < 0">Select a Link listed above</span>
+                                <span v-if="selectedLink < 0 || !selHeader">Select a Link listed above</span>
                                 <span v-else="">Details for Link #{{ selectedLink+1 }}</span>
                             </div>
-                            <div class="" v-if="selectedLink > -1 && selectedCol > -1">
+                            <div class="pt5" v-if="selectedLink > -1 && selHeader">
                                 <vertical-table
                                         class="spaced-table__fix"
                                         :td="'custom-cell-display-links'"
@@ -49,6 +51,7 @@
                                         :cell-height="1"
                                         :max-cell-rows="0"
                                         :available-columns="availableLinkColumns"
+                                        :headers-changer="headersChang"
                                         :widths="{name: '35%', col: '65%', history: 0, no_margins: true}"
                                         @show-add-ref-cond="showAddRefCond"
                                         @updated-cell="updateLink"
@@ -58,7 +61,17 @@
                     </div>
                 </div>
             </div>
+
+            <div class="resizer" draggable="true" @dragstart="dragResizeStart" @drag="dragResizeDo"></div>
         </div>
+
+        <permissions-settings-popup
+            v-if="linkedMeta"
+            :table-meta="linkedMeta"
+            :user="$root.user"
+            :init_show="true"
+            @hidden-form="linkedPermisClose()"
+        ></permissions-settings-popup>
     </div>
 </template>
 
@@ -67,9 +80,9 @@
     import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
 
     import CustomTable from '../CustomTable/CustomTable';
-    import VerticalTable from '../CustomTable/VerticalTable';
 
     import {eventBus} from '../../app';
+    import PermissionsSettingsPopup from "./PermissionsSettingsPopup.vue";
 
     export default {
         name: "VerticalDisplayLinks",
@@ -78,14 +91,17 @@
             PopupAnimationMixin,
         ],
         components: {
+            PermissionsSettingsPopup,
             CustomTable,
-            VerticalTable
         },
         data: function () {
             return {
-                selectedCol: -1,
+                linkedMeta: null,
+                selHeader: null,
+                selectedLink: -1,
                 //PopupAnimationMixin
-                getPopupWidth: 700,
+                getPopupHeight: '80%',
+                getPopupWidth: 820,
                 idx: 0,
             }
         },
@@ -94,24 +110,44 @@
             settingsMeta: Object,
             cellHeight: Number,
             maxCellRows: Number,
-            user:  Object,
+            user: Object,
             table_id: Number|null,
         },
         methods: {
+            storeSizes(width_px, height_px) {
+                this.getPopupWidth = width_px;
+                this.getPopupHeight = height_px+'px';
+            },
             hide() {
-                this.selectedCol = -1;
+                this.selHeader = null;
                 this.selectedLink = -1;
-                this.$root.tablesZidx -= 10;
+                this.$root.tablesZidxDecrease();
             },
             showAddRefCond(refId) {
                 eventBus.$emit('show-ref-conditions-popup', this.tableMeta.db_name, refId);
             },
-            showVerticalDisplayLinks(col) {
-                this.selectedCol = col;
-                this.$root.tablesZidx += 10;
+            showVerticalDisplayLinks(tableHeader) {
+                this.selHeader = tableHeader;
+                this.$root.tablesZidxIncrease();
                 this.zIdx = this.$root.tablesZidx;
                 this.runAnimation();
-            }
+            },
+            showLinkedPermissions(refTbId) {
+                $.LoadingOverlay('show');
+                axios.post('/ajax/table-data/get-headers', {
+                    table_id: refTbId,
+                    user_id: this.$root.user.id,
+                }).then(({ data }) => {
+                    this.linkedMeta = data;
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
+                }).finally(() => {
+                    $.LoadingOverlay('hide');
+                });
+            },
+            linkedPermisClose() {
+                this.linkedMeta = null;
+            },
         },
         mounted() {
             eventBus.$on('global-keydown', this.hideMenu);

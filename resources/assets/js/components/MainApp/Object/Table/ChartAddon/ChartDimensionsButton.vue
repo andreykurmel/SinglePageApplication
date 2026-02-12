@@ -1,7 +1,7 @@
 <template>
     <div ref="chart_button" class="chart_dimensions_button" title="Chart Dimensions" :style="textSysStyle">
-        <i class="glyphicon glyphicon-cog" @click="menuOpn()"></i>
-        <div v-show="menu_opened" class="chart_dimensions_menu" ref="chart_dim_menu" :style="ItemsListStyle()">
+        <i class="glyphicon glyphicon-cog" ref="chart_dim_menu" @click="menuOpn()"></i>
+        <div v-show="menu_opened" class="chart_dimensions_menu" :style="specialStyle()">
             <div>
                 <label>
                     <span>Name: </span>
@@ -97,7 +97,7 @@
                     <span>Auto Updating: </span>
                     <span class="indeterm_check__wrap" style="margin-right: 25px;">
                         <span class="indeterm_check"
-                              @click="all_settings.no_auto_update = !all_settings.no_auto_update; $emit('dimensions-changed')"
+                              @click="aUpdChange"
                         >
                             <i v-if="!all_settings.no_auto_update" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -112,6 +112,36 @@
                     >Update</button>
                 </label>
             </div>
+            <template v-if="all_settings.elem_type === 'pivot_table'">
+                <div>
+                    <label>
+                        <span>Alignment (V): </span>
+                        <select class="form-control control-inline"
+                                v-model="all_settings.vert_align"
+                                @change="$emit('dimensions-changed', 1)"
+                                style="padding: 6px 0px"
+                        >
+                            <option value="start">Top</option>
+                            <option value="center">Middle</option>
+                            <option value="end">Bottom</option>
+                        </select>
+                    </label>
+                </div>
+                <div>
+                    <label>
+                        <span>Alignment (H): </span>
+                        <select class="form-control control-inline"
+                                v-model="all_settings.hor_align"
+                                @change="$emit('dimensions-changed', 1)"
+                                style="padding: 6px 0px"
+                        >
+                            <option value="start">Left</option>
+                            <option value="center">Middle</option>
+                            <option value="end">Right</option>
+                        </select>
+                    </label>
+                </div>
+            </template>
         </div>
     </div>
 </template>
@@ -135,16 +165,25 @@
         ],
         data: function () {
             return {
+                fixed_pos: true,
                 menu_opened: false,
                 smart_wrapper: 'chart_dim_menu',
-                smart_limit: 5,
+                smart_limit: 380,
             }
         },
         props:{
             all_settings: Object,
-            can_edit: Boolean,
+            can_edit: Boolean|Number,
+            chart_hash: String,
         },
         methods: {
+            specialStyle() {
+                let style = this.ItemsListStyle();
+                style.left = 'initial';
+                style.right = (window.innerWidth - this.fix_left)+'px';
+                style.width = '220px';
+                return style;
+            },
             setColor(clr, save) {
                 if (save) {
                     this.$root.saveColorToPalette(clr);
@@ -162,6 +201,11 @@
                 if (container.has(e.target).length === 0 && color_p.has(e.target).length === 0){
                     this.menu_opened = false;
                 }
+            },
+            aUpdChange() {
+                this.all_settings.no_auto_update = !this.all_settings.no_auto_update;
+                this.$emit('dimensions-changed');
+                eventBus.$emit('bi-chart-redraw-highcharts', this.chart_hash);
             },
         },
         mounted() {
@@ -194,8 +238,6 @@
 
     .chart_dimensions_menu {
         position: absolute;
-        right: 100%;
-        top: 100%;
         z-index: 500;
         padding: 5px;
         border: 1px solid #777;

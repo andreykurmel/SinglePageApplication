@@ -20,29 +20,37 @@
 
                 <tos-checker></tos-checker>
                 <left-menu
-                    v-if="$root.user"
+                    v-if="$root.user && ['table','folder','page'].indexOf(object_type) > -1"
                     v-show="$root.isLeftMenu"
                     :app_domain="'{{$app_domain}}'"
-                    :table_id="object_id"
+                    :object_id="object_id"
+                    :object_type="object_type"
                     :settings-meta="$root.settingsMeta"
                     :embed="{{$embed}}"
                     :view_tree="{{ !empty($tree) ? json_encode($tree) : '{}' }}"
                     @update-object-id="updateObjectId"
                 ></left-menu>
+
                 <tables
-                    v-show="object_type === 'table'"
+                    v-if="object_type === 'table'"
                     :settings-meta="$root.settingsMeta"
                     :is-pagination="isPagination"
-                    :table_init_id="object_type === 'table' ? object_id : null"
-                    :recalc_id="'{{ Session::get('recalc_id') }}'"
+                    :table_init_id="object_id"
                     :filters_preset="{{ json_encode($filters) }}"
+                    :request_vars="{{ json_encode($request_vars ?? []) }}"
                 ></tables>
+                <pages
+                    v-if="object_type === 'page'"
+                    :page_id="object_id"
+                ></pages>
                 <folders
-                    v-show="object_type === 'folder'"
-                    :folder_id="object_type === 'folder' ? object_id : null"
+                    v-if="object_type === 'folder'"
+                    :folder_id="object_id"
                     :settings-meta="$root.settingsMeta"
                 ></folders>
+
                 <right-menu
+                    v-if="['table','folder','page'].indexOf(object_type) > -1"
                     v-show="$root.isRightMenu"
                     :table_id="object_type === 'table' ? object_id : null"
                 ></right-menu>

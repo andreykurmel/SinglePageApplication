@@ -15,6 +15,17 @@ use Vanguard\Models\Table\TableField;
  * @property int $table_field_id
  * @property string $row_id
  * @property string $remote_link
+ * @property string $filename
+ * @property int $is_img
+ * @property int $is_video
+ * @property int $is_audio
+ * @property int $can_upload
+ * @property string|null $special_mark
+ * @property string|null $special_content
+ * @property string|null $cloud_meta
+ * @property string|null $local_thumb
+ * @property string|null $filehash
+ * @property string|null $notes
  * @property int|null $created_by
  * @property string $created_on
  * @property int|null $modified_by
@@ -34,6 +45,17 @@ class RemoteFile extends Model
         'table_field_id',
         'row_id',
         'remote_link',
+        'filename',
+        'is_img',
+        'is_video',
+        'is_audio',
+        'can_upload',
+        'special_mark',
+        'special_content',
+        'cloud_meta',
+        'local_thumb',
+        'filehash',
+        'notes',
         'created_by',
         'created_on',
         'modified_by',

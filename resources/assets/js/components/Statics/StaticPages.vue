@@ -5,7 +5,7 @@
 
                 <template v-for="(links, type) in pages">
                     <a @click.prevent="showSection(type)" class="pages-section section__header" :ref="'btn_section_'+type">
-                        {{ sectionName(type) }}
+                        <type-header :type="type"></type-header>
                         <span class="state-shower">{{ type === currentType ? '-' : '+' }}</span>
                     </a>
                     <div :style="{height: (type === currentType ? 'auto' : 0)}"
@@ -15,6 +15,7 @@
                         <pages-tree :tree="links"
                                     :type="type"
                                     :page_id="currentPage.id"
+                                    :with_search="true"
                                     @selected-page="loadPage"
                         ></pages-tree>
                     </div>
@@ -52,7 +53,7 @@
                     <!-- CONTENT -->
                     <div class="section__content section__content--selected" ref="cont_wrapper" :style="{height: 'calc(100% - '+btnOuterHeight+'px)'}">
                         <template v-if="!editing_content">
-                            <div v-html="currentPage.content"></div>
+                            <div v-html="currentPage.content" class="full-frame"></div>
                             <div v-if="currentPage.embed_view" class="full-height" v-html="currentPage.embed_view"></div>
                         </template>
                         <template v-else="">
@@ -83,10 +84,12 @@
     import VueCkeditor from 'vue-ckeditor2';
 
     import PagesTree from "./PagesTree";
+    import TypeHeader from "./TypeHeader";
 
     export default {
         name: 'StaticPages',
         components: {
+            TypeHeader,
             PagesTree,
             VueCkeditor,
         },
@@ -131,9 +134,6 @@
 
                 this.ck_config.height = $(this.$refs.cont_wrapper).outerHeight();
             },
-            sectionName(name) {
-                return name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
-            },
             showEditElem() {
                 this.clone_content = this.currentPage.content;
                 this.clone_embed = this.currentPage.embed_view;
@@ -158,7 +158,7 @@
                 }).then(({ data }) => {
                     this.editing_content = false;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -178,12 +178,12 @@
                             window.location.href = data.href;
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
                 } else {
-                    Swal('', 'Please LogIn to save a copy!');
+                    Swal('Info', 'Please LogIn to save a copy!');
                 }
             },
 
@@ -194,7 +194,8 @@
                 window.history.pushState(pageObject.name, pageObject.name, href);
             },
             globalKeyHandler(e) {
-                if (e.ctrlKey) {
+                let cmdOrCtrl = e.metaKey || e.ctrlKey;
+                if (cmdOrCtrl) {
                     if (e.keyCode === 37) {//ctrl + left arrow
                         this.showTree();
                     }
@@ -218,7 +219,7 @@
 
             setTimeout(() => {
                 let el = document.getElementById(location.hash.substr(1));
-                if (el) {
+                if (!!window.chrome && el) {
                     el.scrollIntoView();
                 }
             },100);
@@ -243,7 +244,8 @@
         }
 
         .section__header {
-            display: block;
+            display: flex;
+            justify-content: space-between;
             cursor: pointer;
             text-decoration: none;
             color: #EEE;
@@ -343,5 +345,13 @@
             display: inline-block;
             top: 3px;
         }
+    }
+</style>
+<style>
+    iframe {
+        height: calc(100% - 1px);
+        overflow: auto;
+        margin: auto;
+        display: block;
     }
 </style>

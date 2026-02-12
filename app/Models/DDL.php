@@ -14,7 +14,13 @@ use Vanguard\User;
  * @property int $table_id
  * @property string $name
  * @property string $type
+ * @property string|null $datas_sort
+ * @property int $keep_sort_order
+ * @property int $ignore_lettercase
+ * @property int $owner_shared
+ * @property int $admin_public
  * @property string|null $notes
+ * @property int $row_order
  * @property int|null $created_by
  * @property string $created_on
  * @property int|null $modified_by
@@ -29,23 +35,7 @@ use Vanguard\User;
  * @property-read \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\DDLReference[] $_references
  * @property-read int|null $_references_count
  * @property-read \Vanguard\Models\Table\Table $_table
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL hasIdReferences()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL query()
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereCreatedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereCreatedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereItemsPos($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereModifiedBy($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereModifiedOn($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereName($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereNotes($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereTableId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereType($value)
  * @mixin \Eloquent
- * @property string|null $datas_sort
- * @method static \Illuminate\Database\Eloquent\Builder|\Vanguard\Models\DDL whereDatasSort($value)
  */
 class DDL extends Model
 {
@@ -59,7 +49,12 @@ class DDL extends Model
         'type',
         'notes',
         'items_pos',//['before','after']
-        'datas_sort',//['asc','desc']
+        'datas_sort',//[null,'asc','desc']
+        'keep_sort_order',
+        'ignore_lettercase',
+        'owner_shared',
+        'admin_public',
+        'row_order',
         'created_by',
         'created_on',
         'modified_by',

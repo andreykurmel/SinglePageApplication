@@ -1,21 +1,24 @@
 <template>
-    <td :style="getCustomCellStyle"
+    <td :style="getCustomCellStyle()"
         class="td-custom"
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getCustomWrapperStyle">
+            <div class="wrapper-inner" :style="getCustomWrapperStyle()">
                 <div class="inner-content">
 
-                    <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'">
-                        <input type="checkbox" v-model="tableRow[tableHeader.field]" @change="updateValue()">
-                        <span class="toggler round"></span>
+                    <label class="switch_t" v-if="headerFtype === 'Boolean'">
+                        <input type="checkbox"
+                               :disabled="disabledCheckBox"
+                               v-model="tableRow[tableHeader.field]"
+                               @click="disabledCheckBox ? '' : updateCheckBox()">
+                        <span class="toggler round" :class="[disabledCheckBox ? 'disabled' : '']"></span>
                     </label>
 
                     <input
-                            v-else-if="tableHeader.f_type === 'Radio' && !isAddRow"
+                            v-else-if="headerFtype === 'Radio' && !isAddRow"
                             :checked="tableRow[tableHeader.field]"
                             @click="updateRadio()"
                             type="radio"
@@ -23,7 +26,7 @@
                             class="checkbox-input"/>
 
                     <moment-timezones
-                            v-else-if="tableHeader.f_type === 'Timezone' && tableRow[tableHeader.field]"
+                            v-else-if="headerFtype === 'Timezone' && tableRow[tableHeader.field]"
                             :cur_tz="tableRow[tableHeader.field]"
                             :name="'Timezone'"
                             style="padding: 0;height: 16px;font-size: 13px;"
@@ -33,13 +36,24 @@
                     <span v-else-if="tableHeader.field === 'key'">{{ tableRow.key ? String(tableRow.key).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'login'">{{ tableRow.login ? String(tableRow.login).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'app_pass'">{{ tableRow.app_pass ? String(tableRow.app_pass).replace(/./gi, '*') : '' }}</span>
+                    <span v-else-if="tableHeader.field === 'auth_token'">{{ tableRow.auth_token ? String(tableRow.auth_token).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'secret_key'">{{ tableRow.secret_key ? String(tableRow.secret_key).replace(/./gi, '*') : '' }}</span>
                     <span v-else-if="tableHeader.field === 'public_key'">{{ tableRow.public_key ? String(tableRow.public_key).replace(/./gi, '*') : '' }}</span>
+                    <span v-else-if="tableHeader.field === 'twiml_app_id'">{{ tableRow.twiml_app_id ? String(tableRow.twiml_app_id).replace(/./gi, '*') : '' }}</span>
+
+                    <a v-else-if="tableHeader.field === 'user_cloud_id'"
+                       title="Open cloud settings in popup."
+                       @click.stop="showCloudPopup()"
+                    >{{ showField() }}</a>
+
+                    <a v-else-if="tableHeader.field === 'table_view_id'"
+                       title="Open views in popup."
+                       @click.stop="showTbViewsPop()"
+                    >{{ showField() }}</a>
 
                     <div v-else="">
                         <span v-if="!isAddRow && tableHeader.field === 'msg_to_user'">
                             <a v-if="tableRow.msg_to_user"
-                               target="_blank"
                                :href="tableRow.msg_to_user"
                                @click="linkClicked()"
                             >
@@ -72,7 +86,7 @@
         <div v-if="isEditing()" class="cell-editing">
 
             <input
-                    v-if="tableHeader.f_type === 'Password'"
+                    v-if="headerFtype === 'Password'"
                     type="password"
                     v-model="editValue"
                     @blur="hideEdit();updateValue()"
@@ -83,11 +97,29 @@
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'cloud'"
-                    :options="[
-                        {val: 'Dropbox', show: 'Dropbox'},
-                        {val: 'Google', show: 'Google Drive', img: '/assets/img/google-drive.png'},
-                        {val: 'OneDrive', show: 'One Drive'},
-                    ]"
+                    :options="cloudOpt()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'type'"
+                    :options="aiTypes()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'model'"
+                    :options="aiModels()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :fixed_pos="true"
@@ -135,6 +167,17 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
+                    v-else-if="tableHeader.field === 'table_view_id'"
+                    :options="tableViews()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
                     v-else-if="tableHeader.field === 'day'"
                     :options="[
                         {val: 'Daily', show: 'Daily'},
@@ -154,7 +197,7 @@
                     @hide-select="hideEdit"
             ></tablda-select-simple>
 
-            <input v-else-if="inArray(tableHeader.f_type, ['Date', 'Date Time', 'Time'])"
+            <input v-else-if="inArray(headerFtype, ['Date', 'Date Time', 'Time'])"
                    ref="inline_input"
                    @blur="hideDatePicker()"
                    class="form-control full-height"
@@ -175,6 +218,8 @@
 </template>
 
 <script>
+import {eventBus} from "../../app";
+
 import {SpecialFuncs} from '../../classes/SpecialFuncs';
 
 import Select2DDLMixin from './../_Mixins/Select2DDLMixin.vue';
@@ -203,6 +248,7 @@ export default {
             }
         },
         props:{
+            globalMeta: Object,
             tableMeta: Object,
             tableHeader: Object,
             tableRow: Object,
@@ -212,6 +258,10 @@ export default {
             isAddRow: Boolean,
             user: Object,
             cellValue: String|Number,
+            special_extras: {
+                type: Object,
+                default: function () { return {}; }
+            },
         },
         watch: {
             cellValue(val) {
@@ -219,30 +269,64 @@ export default {
             }
         },
         computed: {
-            getCustomCellStyle() {
-                let obj = this.getCellStyle;
-                obj.textAlign = (this.inArray(this.tableHeader.f_type, ['Boolean', 'Radio']) ? 'center' : '');
-                return obj;
-            },
-            getCustomWrapperStyle() {
-                let obj = this.getWrapperStyle;
-                if (this.tableHeader.f_type === 'Timezone') {
-                    obj.overflow = 'visible';
-                }
-                return obj;
-            },
             checkBoxOn() {
                 return Boolean(this.editValue);
             },
             canCellEdit() {
-                return this.tableHeader.f_type !== 'Radio'
-                    && (this.tableHeader.f_type !== 'Timezone')
+                return this.headerFtype !== 'Radio'
+                    && (this.headerFtype !== 'Timezone')
                     && (this.tableHeader.field !== 'cloud' || this.isAddRow)
                     && (this.tableHeader.field !== '_eml_pop')
                     && (this.tableHeader.field !== 'msg_to_user');
             },
+            disabledCheckBox() {
+                return !!this.$root.sm_msg_type;
+            },
+            headerFtype() {
+                return this.special_extras.active_is_boolean && this.tableHeader.field == 'is_active'
+                    ? 'Boolean'
+                    : this.tableHeader.f_type;
+            },
         },
         methods: {
+            aiTypes() {
+                return [
+                    {val: 'openai', show: 'OpenAI'},
+                    {val: 'gemini', show: 'Gemini'},
+                ];
+            },
+            aiModels() {
+                let models = {
+                    'openai': [
+                        {val: 'GPT-4.1', show: 'GPT-4.1'},
+                        {val: 'GPT-4.1-mini', show: 'GPT-4.1-mini'},
+                        {val: 'GPT-4.1-nano', show: 'GPT-4.1-nano'},
+                        {val: 'GPT-4o', show: 'GPT-4o'},
+                        {val: 'GPT-4o-mini', show: 'GPT-4o-mini'},
+                        {val: 'o3', show: 'o3'},
+                    ],
+                    'gemini': [
+                        {val: '2.5-Flash', show: '2.5 Flash'},
+                        {val: '2.5-Pro', show: '2.5 Pro'},
+                    ]
+                };
+                return models[this.tableRow.type] || [];
+            },
+            getCustomCellStyle() {
+                let obj = this.getCellStyle();
+                obj.textAlign = (this.inArray(this.headerFtype, ['Boolean', 'Radio']) ? 'center' : '');
+                return obj;
+            },
+            getCustomWrapperStyle() {
+                let obj = this.getWrapperStyle();
+                if (this.headerFtype === 'Timezone') {
+                    obj.overflow = 'visible';
+                }
+                if (this.special_extras.active_is_boolean && this.tableHeader.field == 'is_active') {
+                    obj.maxHeight = '17px';
+                }
+                return obj;
+            },
             inArray(item, array) {
                 return $.inArray(item, array) > -1;
             },
@@ -250,7 +334,7 @@ export default {
                 return this.editing && this.canCellEdit && !this.$root.global_no_edit;
             },
             showEdit() {
-                if (!this.canCellEdit || this.inArray(this.tableHeader.f_type, ['Boolean'])) {
+                if (!this.canCellEdit || this.inArray(this.headerFtype, ['Boolean'])) {
                     return;
                 }
                 //edit cell
@@ -259,7 +343,7 @@ export default {
                     this.oldValue = this.editValue;
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {
-                            if (this.inArray(this.tableHeader.f_type, ['Date Time', 'Date', 'Time'])) {
+                            if (this.inArray(this.headerFtype, ['Date Time', 'Date', 'Time'])) {
                                 this.showHideDatePicker(true);
                             } else
                             if (this.$refs.inline_input && this.$refs.inline_input.nodeName === 'SELECT') {
@@ -280,7 +364,7 @@ export default {
             hideDatePicker() {
                 this.hideEdit();
                 let value = $(this.$refs.inline_input).val();
-                switch (this.tableHeader.f_type) {
+                switch (this.headerFtype) {
                     case 'Date': value = moment( value ).format('YYYY-MM-DD'); break;
                     case 'Date Time': value = moment( value ).format('YYYY-MM-DD HH:mm:ss'); break;
                     case 'Time': value = moment( '0001-01-01 '+value ).format('HH:mm:ss'); break;
@@ -299,9 +383,15 @@ export default {
                 if (this.editValue !== this.oldValue) {
                     this.tableRow[this.tableHeader.field] = this.unitConvert(this.editValue, true);
                     this.tableRow._changed_field = this.tableHeader.field;
+                    if (this.tableHeader.field == 'type') {
+                        let def = _.first(this.aiModels());
+                        if (def && def.val) {
+                            this.tableRow.model = def.val;
+                        }
+                    }
                     this.$emit('updated-cell', this.tableRow);
                 } else
-                if (this.tableHeader.f_type === 'Boolean' || this.tableHeader.f_type === 'Radio') {
+                if (this.headerFtype === 'Boolean' || this.headerFtype === 'Radio') {
                     this.tableRow._changed_field = this.tableHeader.field;
                     this.$emit('updated-cell', this.tableRow);
                 }
@@ -326,7 +416,7 @@ export default {
             },
             showField() {
                 let res = '';
-                if (this.tableHeader.f_type === 'Password' && this.tableRow[this.tableHeader.field]) {
+                if (this.headerFtype === 'Password' && this.tableRow[this.tableHeader.field]) {
                     res = '*'.repeat( this.tableRow[this.tableHeader.field].length );
                 }
                 else
@@ -335,11 +425,18 @@ export default {
                     res = user_cloud ? user_cloud.name : '';
                 }
                 else
+                if (this.tableHeader.field === 'table_view_id' && this.tableRow.table_view_id) {
+                    let tbview = _.find(this.tableViews(), {val: Number(this.tableRow.table_view_id)});
+                    res = tbview ? tbview.show : this.tableRow.table_view_id;
+                }
+                else
                 if (this.tableHeader.field === 'cloud' && this.tableRow.cloud) {
                     switch (this.tableRow.cloud) {
-                        case 'Dropbox': res = 'Dropbox'; break;
+                        case 'Dropbox': res = '<img src="/assets/img/Dropbox_512.png" height="14"> Dropbox'; break;
                         case 'Google': res = '<img src="/assets/img/google-drive.png" height="14"> Google Drive'; break;
-                        case 'OneDrive': res = 'One Drive'; break;
+                        case 'OneDrive': res = '<img src="/assets/img/OneDrive_512.png" height="14"> OneDrive'; break;
+                        case 'Jira': res = '<img src="/assets/img/jira-logo.png" height="14"> Jira'; break;
+                        case 'Salesforce': res = '<img src="/assets/img/salesforce-with-type-logo.svg" height="14"> Salesforce'; break;
                     }
                 }
                 else
@@ -350,15 +447,29 @@ export default {
                     }
                 }
                 else
+                if (this.tableHeader.field === 'type') {
+                    let t = _.find(this.aiTypes(), {val: this.tableRow.type}) || {};
+                    res = t.show || this.tableRow.type;
+                }
+                else
+                if (this.tableHeader.field === 'model') {
+                    let t = _.find(this.aiModels(), {val: this.tableRow.type}) || {};
+                    res = t.show || this.tableRow.model;
+                }
+                else
                 if (this.tableHeader.field === 'air_type') {
                     switch (this.tableRow.air_type) {
                         case 'public_rest': res = 'Public Rest'; break;
                     }
                 }
+                else
+                if (this.tableHeader.field === 'root_folder') {
+                    res = this.tableRow.root_folder || '$username (default)';
+                }
                 else {
                     res = this.editValue;
                 }
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             updateCheckBox() {
                 this.tableRow[this.tableHeader.field] = !Boolean(this.tableRow[this.tableHeader.field]);
@@ -367,7 +478,7 @@ export default {
             },
             inactivateCloudRow() {
                 Swal({
-                    title: "",
+                    title: 'Info',
                     text: "Disconnect Cloud?",
                     confirmButtonText: "Yes",
                     cancelButtonText: "No",
@@ -384,7 +495,7 @@ export default {
                         }).then(({ data }) => {
                             this.tableRow['msg_to_user'] = data['msg_to_user'];
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             this.$root.sm_msg_type = 0;
                         });
@@ -399,10 +510,37 @@ export default {
                     return { val: cg.id, show: cg.name, }
                 });
             },
+            tableViews() {
+                let vvs = _.map(this.$root.tableMeta._views, (tw) => {
+                    return { val: tw.id, show: tw.name, }
+                });
+                vvs.unshift({ val: null, show: '', });
+                return vvs;
+            },
+            showCloudPopup() {
+                let id = this.tableRow.user_cloud_id;
+                let idx = _.findIndex(this.$root.settingsMeta.user_clouds_data, {id: id});
+                eventBus.$emit('open-resource-popup', 'connections', idx, 'cloud');
+            },
+            showTbViewsPop() {
+                eventBus.$emit('show-table-views-popup', this.$root.tableMeta.db_name);
+            },
+            cloudOpt() {
+                return [
+                    {val: 'Dropbox', show: 'Dropbox', img: location.origin+'/assets/img/Dropbox_512.png'},
+                    {val: 'Google', show: 'Google Drive', img: location.origin+'/assets/img/google-drive.png'},
+                    {val: 'OneDrive', show: 'OneDrive', img: location.origin+'/assets/img/OneDrive_512.png'},
+                    {val: 'Jira', show: 'Jira', img: location.origin+'/assets/img/jira-logo.png'},
+                    {val: 'Salesforce', show: 'Salesforce', img: location.origin+'/assets/img/salesforce-with-type-logo.svg'},
+                ];
+            },
         },
         mounted() {
-            if (this.tableHeader.f_type === 'Timezone' && !this.tableRow[this.tableHeader.field]) {
+            if (this.headerFtype === 'Timezone' && !this.tableRow[this.tableHeader.field]) {
                 this.tableRow[this.tableHeader.field] = this.user.timezone || moment.tz.guess();
+            }
+            if (this.tableHeader.field === 'jira_email' && !this.tableRow[this.tableHeader.field]) {
+                this.tableRow[this.tableHeader.field] = this.$root.user.email;
             }
             this.editValue = this.unitConvert(this.cellValue);
         },

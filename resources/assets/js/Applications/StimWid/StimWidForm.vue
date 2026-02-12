@@ -1,5 +1,5 @@
 <template>
-    <div class="full-frame flex flex--col" v-if="vuex_found_models._is_loaded">
+    <div class="full-frame flex flex--col" v-if="vuex_found_models._is_loaded && $root.settingsMeta && $root.settingsMeta.is_loaded">
 
         <top-panel-elem v-show="visible_navbar"></top-panel-elem>
 
@@ -145,7 +145,8 @@
             //GLOBAL KEYS
             globalKeyHandler(e) {
                 if (e.target.nodeName === 'BODY') {//target not in Input
-                    if (e.ctrlKey) {
+                    let cmdOrCtrl = e.metaKey || e.ctrlKey;
+                    if (cmdOrCtrl) {
                         if (e.keyCode === 37) {//ctrl + left arrow
                             this.toggleLeft();
                         }

@@ -19,8 +19,11 @@ export class Eqpt {
         this.elev_pd = Number(obj.elev_pd) || 0;
         this.elev_g = Number(obj.elev_g) || 0;
         this.pos_left = Number(obj.pos_left) || 0;
+        this.side_posleft = Number(obj.side_posleft) || 0;
         this.qty = Number(obj.qty) || 1;
-        this.model_id = String(obj.model_id || '');
+        this.locmod_id = String(obj.locmod_id || '');
+        this.azm = String(obj.azm || '');
+        this.at_rot_y = String(obj.at_rot_y || '');
 
         this.technology = String(obj.technology || '');
         this.tech_arr = SpecialFuncs.parseMsel(this.technology);
@@ -62,6 +65,20 @@ export class Eqpt {
 
     /**
      *
+     * @param {Settings} settings
+     * @param new_value
+     * @returns {Number}
+     */
+    posLeft(settings, new_value) {
+        let key = settings.use_eqpt_width() ? 'pos_left' : 'side_posleft';
+        if (new_value !== undefined) {
+            this[key] = to_float(new_value);
+        }
+        return this[key];
+    }
+
+    /**
+     *
      * @param tech
      */
     setTech(tech) {
@@ -90,10 +107,19 @@ export class Eqpt {
 
     /**
      *
+     * @param {Settings} settings
+     * @returns {*|number}
+     */
+    get_wi(settings) {
+        return settings.use_eqpt_width() ? this.calc_dx : this.calc_dz;
+    }
+
+    /**
+     *
      * @returns {boolean}
      */
     is_top() {
-        return String(this.location).toLowerCase().indexOf( 'air' ) > -1;
+        return String(this.location).toLowerCase().indexOf( 'base' ) === -1;
     }
 
     /**
@@ -138,11 +164,11 @@ export class Eqpt {
      */
     elevVal(elev_by, new_val) {
         if (new_val === undefined) {
-            return elev_by === 'g' ? this.elev_g : this.elev_pd;
+            return elev_by === 'pd' ? this.elev_pd : this.elev_g;
         } else {
-            elev_by === 'g'
-                ? this.elev_g = new_val
-                : this.elev_pd = new_val;
+            elev_by === 'pd'
+                ? this.elev_pd = new_val
+                : this.elev_g = new_val;
         }
     }
 

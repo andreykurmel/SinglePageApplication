@@ -15,6 +15,7 @@ class AddAuthyTypeToUsersTable extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->string('two_factor_type', 32)->default('authy')->after('two_factor_options');
+            $table->string('two_factor_etoken', 32)->nullable()->after('two_factor_type');
         });
     }
 
@@ -27,6 +28,7 @@ class AddAuthyTypeToUsersTable extends Migration
     {
         Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('two_factor_type');
+            $table->dropColumn('two_factor_etoken');
         });
     }
 }

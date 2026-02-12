@@ -3,6 +3,8 @@
 namespace Vanguard\Classes;
 
 
+use Illuminate\Support\Str;
+
 class Randoms
 {
     protected static $rand;
@@ -12,6 +14,6 @@ class Randoms
      */
     public static function rand_one()
     {
-        return self::$rand = self::$rand ?: str_random(1);
+        return self::$rand = self::$rand ?: Str::random(1);
     }
 }

@@ -8,10 +8,12 @@ use Laravel\Socialite\Contracts\User as SocialUser;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Correspondences\CorrespApp;
 use Vanguard\Models\Subscription;
+use Vanguard\Models\User\UserGroup;
 use Vanguard\Repositories\Role\RoleRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Role;
 use Vanguard\Services\Auth\Social\ManagesSocialAvatarSize;
+use Vanguard\Services\Tablda\HelperService;
 use Vanguard\Services\Tablda\UserService;
 use Vanguard\Services\Upload\UserAvatarManager;
 use Vanguard\User;
@@ -124,6 +126,12 @@ class EloquentUser implements UserRepository
         $data['avail_credit'] = 15;
         $user = User::create($data);
 
+        UserGroup::create([
+            'user_id' => $user->id,
+            'name' => HelperService::getFolderShareSysName(),
+            'is_system' => 1,
+        ]);
+
         if (!settings('reg_email_confirmation')) {
             $this->awardInvites();
         } elseif ($data['email'] ?? null) {
@@ -198,6 +206,9 @@ class EloquentUser implements UserRepository
     {
         if (isset($data['country_id']) && $data['country_id'] == 0) {
             $data['country_id'] = null;
+        }
+        if (!empty($data['birthday'])) {
+            $data['birthday'] = Carbon::parse($data['birthday'])->toDateString();
         }
 
         $user = $this->find($id);

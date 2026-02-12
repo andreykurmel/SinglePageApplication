@@ -73,6 +73,21 @@ class PlanRepository
     }
 
     /**
+     * @param int $id
+     * @param string $name
+     * @param string $description
+     * @return bool
+     */
+    public function renameAddon(int $id, string $name, string $description): bool
+    {
+        return Addon::where('id', '=', $id)
+            ->update([
+                'name' => $name,
+                'description' => $description,
+            ]);
+    }
+
+    /**
      * Copy Plan Features For User.
      *
      * @param \Vanguard\Models\User\Plan $plan
@@ -306,21 +321,23 @@ class PlanRepository
     }
 
     /**
-     * Add Payment History.
-     *
      * @param $user_id
-     * @param $amount
      * @param $type
-     * @param $to
-     * @param $from
-     * @param $from_details
+     * @param $amount
+     * @param string $to
+     * @param string $from
+     * @param string $from_details
      * @return Payment
      */
-    public function addPaymentHistory($user_id, $type, $amount, $to = '', $from = '', $from_details = '')
+    public function addPaymentHistory($user_id, $type, $amount, $to = '', $from = '', $from_details = ''): Payment
     {
+        $now = Carbon::now();
         return Payment::create(array_merge(
             [
-                'due_date' => Carbon::now()->toDateTimeString(),
+                'due_date' => $now->toDateTimeString(),
+                'year' => $now->year,
+                'month' => $now->month,
+                'week' => $now->weekOfYear,
                 'user_id' => $user_id,
                 'type' => $type,
                 'amount' => $amount,

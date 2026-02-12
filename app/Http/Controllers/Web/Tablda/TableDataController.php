@@ -7,10 +7,12 @@ use Vanguard\AppsModules\AppOnChangeHandler;
 use Vanguard\Classes\TabldaUser;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\GetTableRequest;
+use Vanguard\Http\Requests\Tablda\TableData\BatchAutoselectRequest;
 use Vanguard\Http\Requests\Tablda\TableData\BatchUploadingRequest;
 use Vanguard\Http\Requests\Tablda\TableData\DeleteTableDataRequest;
 use Vanguard\Http\Requests\Tablda\TableData\FavoriteAllRowsRequest;
 use Vanguard\Http\Requests\Tablda\TableData\FavoriteToggleRowRequest;
+use Vanguard\Http\Requests\Tablda\TableData\GetDcrCatalogRequest;
 use Vanguard\Http\Requests\Tablda\TableData\GetDcrRowsRequest;
 use Vanguard\Http\Requests\Tablda\TableData\GetDDLvaluesRequest;
 use Vanguard\Http\Requests\Tablda\TableData\GetTableDataRequest;
@@ -33,6 +35,7 @@ use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableFieldLink;
+use Vanguard\Modules\InheritColumnModule;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FileRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
@@ -49,6 +52,7 @@ use Vanguard\Services\Tablda\Permissions\TableDataRequestService;
 use Vanguard\Services\Tablda\Permissions\TablePermissionService;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
 use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Services\Tablda\TableMapService;
 use Vanguard\Services\Tablda\TableService;
 use Vanguard\Services\Tablda\UserService;
 use Vanguard\User;
@@ -58,6 +62,7 @@ class TableDataController extends Controller
 
     private $tableDataService;
     private $tableService;
+    private $mapService;
     private $DDLRepository;
     private $fieldRepository;
     private $planRepository;
@@ -66,6 +71,7 @@ class TableDataController extends Controller
     private $tablePermissionService;
     private $tableDataRequestService;
     private $fileRepository;
+    private $service;
 
     /**
      * TableDataController constructor.
@@ -74,6 +80,7 @@ class TableDataController extends Controller
     {
         $this->tableDataService = new TableDataService();
         $this->tableService = new TableService();
+        $this->mapService = new TableMapService();
         $this->DDLRepository = new DDLRepository();
         $this->fieldRepository = new TableFieldRepository();
         $this->planRepository = new PlanRepository();
@@ -82,6 +89,7 @@ class TableDataController extends Controller
         $this->tablePermissionService = new TablePermissionService();
         $this->tableDataRequestService = new TableDataRequestService();
         $this->fileRepository = new FileRepository();
+        $this->service = new HelperService();
     }
 
     /**
@@ -131,15 +139,18 @@ class TableDataController extends Controller
     {
         $user = TabldaUser::get($request->all());
 
-        if ($request->ref_cond_id) {
+        if (floatval($request->ref_cond_id)) {
             $ref_cond = (new TableRefConditionRepository())->getRefCondition($request->ref_cond_id);
-            $table_id = $ref_cond && $ref_cond->incoming_allow ? $ref_cond->ref_table_id : null;
+            if ($ref_cond && !$ref_cond->incoming_allow) {
+                throw new \Exception("The link is disallowed at the Source table.", 1);
+            }
+            $table_id = $ref_cond?->ref_table_id;
         } else {
             $table_id = $request->table_id;
         }
 
         $table_t = $this->tableService->getTable($table_id);
-        if ($table_t) {
+        if ($table_t && !$request->ref_cond_id) {
             $this->authorizeForUser($user, 'load', [TableData::class, $table_t, $request->all()]);
         }
         return [$table_id, $user];
@@ -194,9 +205,10 @@ class TableDataController extends Controller
     public function searchOnMap(SearchDataRequest $request)
     {
         $user = auth()->user() ?: new User();
-        $table = $this->tableService->getTable($request->table_id);
+        $map = $this->mapService->get($request->map_id);
+        $table = $map->_table;
         $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
-        return (new MapRepository())->searchDataInMap($table, $request->term, $request->columns, $request->special_params);
+        return (new MapRepository())->searchDataInMap($map, $request->term, $request->columns, $request->special_params);
     }
 
     /**
@@ -226,6 +238,21 @@ class TableDataController extends Controller
         $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
         return [
             'job_id' => $this->tableDataService->uploadingJob($table, $request->url_field_id, $request->attach_field_id, $request->row_group_id),
+        ];
+    }
+
+    /**
+     * @param RemoveDuplicatesRequest $request
+     * @return array
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function batchAutoselect(BatchAutoselectRequest $request)
+    {
+        $user = auth()->user() ?: new User();
+        $table = $this->tableService->getTableByField($request->select_field_id);
+        $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
+        return [
+            'job_id' => $this->tableDataService->fieldAutoselect($table, $request->select_field_id, $request->auto_comparison, $request->row_group_id),
         ];
     }
 
@@ -265,9 +292,11 @@ class TableDataController extends Controller
             $this->authorizeForUser($user, 'update', [TableData::class, $table, $request->request_params ?? []]);
         }
 
+        //needed to save trimmed spaces from request
+        $content = json_decode($request->getContent(), true);
         $rep = [
-            'old_val' => $request->term ?: '',
-            'new_val' => $request->replace ?: '',
+            'old_val' => $content['term'] ?? '',
+            'new_val' => $content['replace'] ?? '',
             'force' => !!$request->force,
         ];
         return ['status' => $this->tableDataService->doReplace($table, $rep, $table_fields, $request->request_params)];
@@ -288,11 +317,14 @@ class TableDataController extends Controller
         }
         //$sysColumn = new SysColumnCreator();
 
-        $edit_fields = ['id', 'row_order', '_defaults_applied', '_applied_cond_formats', '_applied_row_groups'];
+        $edit_fields = ['id', 'row_order', '_defaults_applied', '_applied_cond_formats', '_applied_row_groups', '_changed_field'];
         foreach ($table->_fields as $fld) {
             $edit_fields[] = $fld->field;
             if ($fld->input_type === 'Formula') {
                 $edit_fields[] = $fld->field . '_formula';
+            }
+            if ($fld->input_type === 'Mirror') {
+                $edit_fields[] = $fld->field . '_mirror';
             }
         }
         $table_fields = [];
@@ -397,17 +429,18 @@ class TableDataController extends Controller
     /**
      * Get map markers
      *
-     * @param GetTableRequest $request
+     * @param Request $request
      * @return array
      */
-    public function getMarkerPopup(GetTableRequest $request)
+    public function getMarkerPopup(Request $request)
     {
         $user = auth()->check() ? auth()->user() : new User();
-        $table = $this->tableService->getTable($request->table_id);
+        $map = $this->mapService->get($request->map_id);
+        $table = $map->_table;
 
         $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
 
-        return (new MapRepository())->getMarkerPopup($table, $request->row_id);
+        return (new MapRepository())->getMarkerPopup($map, $request->row_id);
     }
 
     /**
@@ -448,7 +481,7 @@ class TableDataController extends Controller
         $tmp_files = $value_fields['_temp_id'] ?? '';
         $value_fields = $this->getUpdateTableFields($table, $value_fields);
 
-        $row_id = $this->tableDataService->insertRow($table, $value_fields, $user->id);
+        $row_id = $this->tableDataService->insertRow($table, $value_fields, $user->id, $request->is_copy);
 
         if ($row_id) {
             $this->tableDataService->recalcTableFormulas($table, $user->id, [$row_id]);
@@ -476,20 +509,32 @@ class TableDataController extends Controller
      */
     public function massUpdate(MassPutTableDataRequest $request)
     {
-        $results = [];
-        foreach ($request->row_datas as $row_id => $fields) {
-            $rows = $results['rows'] ?? [];
-            $rows_count = $results['rows_count'] ?? 0;
+        $results = [
+            'rows' => [],
+            'rows_count' => 0,
+            'filters' => null,
+            'row_group_statuses' => null,
+            'hidden_row_groups' => null,
+            'global_rows_count' => null,
+            'version_hash' => null,
+        ];
 
-            $results = $this->rowUpdate([
+        foreach ($request->row_datas as $row_id => $fields) {
+            $single = $this->rowUpdate([
                 'table_id' => $request->table_id,
                 'row_id' => $row_id,
                 'fields' => $fields,
                 'get_query' => $request->get_query,
             ]);
 
-            $results['rows'] = array_merge(($results['rows'] ?? []), $rows);
-            $results['rows_count'] = ($results['rows_count'] ?? 0) + $rows_count;
+            $results['rows'] = array_merge($results['rows'], $single['rows'] ?? []);
+            $results['rows_count'] += $single['rows_count'] ?? 0;
+
+            $results['filters'] = $single['filters'] ?? null;
+            $results['row_group_statuses'] = $single['row_group_statuses'] ?? null;
+            $results['hidden_row_groups'] = $single['hidden_row_groups'] ?? null;
+            $results['global_rows_count'] = $single['global_rows_count'] ?? null;
+            $results['version_hash'] = $single['version_hash'] ?? null;
         }
 
         return $results;
@@ -516,9 +561,12 @@ class TableDataController extends Controller
      */
     protected function rowUpdate(array $request): array
     {
-        $table = $this->tableService->getTable($request['table_id']);
+        $table = \Cache::store('array')->rememberForever(self::class.$request['table_id'], function () use ($request) {
+            $table = $this->tableService->getTable($request['table_id']);
+            $table->_fields = $this->fieldRepository->loadFieldsWithPermissions($table, auth()->id(), 'edit');
+            return $table;
+        });
 
-        $table->_fields = $this->fieldRepository->loadFieldsWithPermissions($table, auth()->id(), 'edit');
         $table_fields = $this->getUpdateTableFields($table, $request['fields']);
         $table_fields = $this->specialRules($table, $table_fields);
 
@@ -556,7 +604,6 @@ class TableDataController extends Controller
             }
         } else {
             $this->tableDataService->updateRow($table, $request['row_id'], $table_fields, auth()->id());
-            $this->tableDataService->recalcTableFormulas($table, $user->id, [$request['row_id']]);
         }
 
         return $table->db_name == 'user_subscriptions' ?
@@ -588,7 +635,7 @@ class TableDataController extends Controller
         $linked_params = $request->linked_params ?: [];
         $linked_params = $this->tableDataService->changeLinkedForSysTable($table, $linked_params);
 
-        $updated_row = $this->saveNewInDb($table, $updated_row);
+        $updated_row = $this->saveTempInDb($table, $updated_row);
 
         //autocomplete DDLs
         if ($table->_fields()->hasAutoFillDdl()->count()) {
@@ -596,22 +643,37 @@ class TableDataController extends Controller
         }
         //check formulas
         $evaluator = new FormulaEvaluatorRepository($table, $user->id);
-        $updated_row = $evaluator->recalcRowFormulas($updated_row, false);
+        $updated_row = $evaluator->recalcRowFormulas($updated_row, false, $request->dcr_rows_linked ?: []);
         //fill link params
         foreach ($linked_params as $key => $param) {
             $updated_row[$key] = $param;
         }
 
-        $checked_row = $this->saveNewInDb($table, $updated_row);
+        $checked_row = $this->saveTempInDb($table, $updated_row);
         //apply APP on Change Handler
-        $checked_row = (new AppOnChangeHandler($table))->testRow($checked_row);
+        [$checked_row, $applied] = (new AppOnChangeHandler($table))->testRow($checked_row);
+        if ($applied) {
+            $checked_row = $this->saveTempInDb($table, $checked_row);
+        }
+
+        //Pass params via RC from ParentRow to DCR Linked Tables
+        if (!empty($request->special_params['dcr_parent_row'])) {
+            $linked_dcr = $this->tableDataRequestService->getLinkedTable($request->special_params['dcr_linked_id'] ?? 0);
+            if ($linked_dcr) {
+                $checked_row = $this->tableDataRequestService->fillLinkedRow($linked_dcr, $checked_row, $request->special_params['dcr_parent_row']);
+                $checked_row = $this->saveTempInDb($table, $checked_row);
+            }
+        }
 
         //Fix showing of correct 'Data,Field' for new row
         if ($table->db_name == 'correspondence_fields') {
             $collection = collect([ new CorrespField($checked_row) ]);
             $collection = (new TableDataRowsRepository())->attachSpecialFields($collection, $table, auth()->id());
-            $checked_row = $collection->first();
+            $checked_row = $collection->first()->toArray();
         }
+
+        //Apply Temp-AutoNumber
+        $checked_row = $this->service->setDefaultAutoValues($table, $checked_row);
 
         return ['row' => $checked_row];
     }
@@ -622,22 +684,26 @@ class TableDataController extends Controller
      * @param bool $light
      * @return array
      */
-    protected function saveNewInDb(Table $table, array $updated_row, bool $light = false)
+    protected function saveTempInDb(Table $table, array $updated_row, bool $light = false)
     {
-        //save in DB and attach special fields
-        if ($table->is_system != 1) {
-            $db_row = $this->tableDataService->saveInDbNewRow($table, $updated_row);
-            if ($db_row && !empty($db_row['id'])) {
-                $db_row = $this->tableDataService->getDirectRow($table, $db_row['id'], ['users', 'groups', 'refs', 'conds']);
+        try {
+            //save in DB and attach special fields
+            if ($table->is_system != 1) {
+                $db_row = $this->tableDataService->saveInDbTempRow($table, $updated_row);
+                if ($db_row && strlen($db_row['id'] ?? '')) {
+                    $db_row = $this->tableDataService->getDirectRow($table, $db_row['id'], ['users', 'groups', 'refs', 'conds']);
+                }
+                //new row doesn't have 'id'
+                $db_row = is_array($db_row) ? $db_row : $db_row->toArray();
+                $checked_row = array_merge($updated_row, $db_row);
+                $checked_row['id'] = $updated_row['id'] ?? null;
+            } else {
+                $checked_row = $updated_row;
             }
-            //new row doesn't have 'id'
-            $db_row = is_array($db_row) ? $db_row : $db_row->toArray();
-            $checked_row = array_merge($updated_row, $db_row);
-            $checked_row['id'] = $updated_row['id'] ?? null;
-        } else {
-            $checked_row = $updated_row;
+            return $checked_row;
+        } catch (\Exception $e) {
+            return $updated_row;
         }
-        return $checked_row;
     }
 
     /**
@@ -802,7 +868,34 @@ class TableDataController extends Controller
         $table = $this->tableService->getTable($linked_dcr->linked_table_id);
         $this->authorizeForUser(new User(), 'load', [TableData::class, $table, $request->all()]);
 
-        return ['rows' => $this->tableDataService->getDcrRows($table, $linked_dcr, $request->parent_row_id)];
+        return ['rows' => $this->tableDataService->getDcrRows($table, $linked_dcr, $request->parent_row_dcr)];
+    }
+
+    /**
+     * @param GetDcrCatalogRequest $request
+     * @return array
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function getDcrCatalog(GetDcrCatalogRequest $request)
+    {
+        $linked_dcr = $this->tableDataRequestService->getLinkedTable($request->special_params['dcr_linked_id'] ?? 0);
+        $table = $this->tableService->getTable($linked_dcr->linked_table_id);
+        $this->authorizeForUser(new User(), 'load', [TableData::class, $table, $request->all()]);
+
+        $catalogTable = $this->tableService->getTable($request->dcr_linked_table['ctlg_table_id'] ?? 0);
+        $specialParams = $request->special_params ?: [];
+        $specialParams['no_permission_hidden'] = $linked_dcr->ctlg_visible_field_ids;
+
+        $filterFields = $catalogTable->_fields
+            ->whereIn('id', $linked_dcr->ctlg_filter_field_ids)
+            ->pluck('field', 'field')
+            ->toArray();
+
+        return [
+            'meta' => $this->tableService->getWithFields($catalogTable->id, $catalogTable->user_id, $specialParams, true),
+            'rows' => $this->tableDataService->getDcrCatalog($catalogTable, $linked_dcr, $request->filters),
+            'filters' => $this->tableDataService->getFiltersForFields($catalogTable->id, $filterFields, $request->filters),
+        ];
     }
 
     /**
@@ -819,10 +912,14 @@ class TableDataController extends Controller
 
         $this->authorizeForUser($user, 'delete', [TableData::class, $table, $request->all()]);
 
+        if ($request->no_inheritance_ids) {
+            InheritColumnModule::$processed_table_ids = $request->no_inheritance_ids;
+        }
+
         if ($request->rows_ids) {
             return $this->tableDataService->deleteSelectedRows($table, $request->rows_ids);
         } else {
-            dispatch(new AllRowsDelete($table, $request->request_params, auth()->id()));
+            (new AllRowsDelete($table, $request->request_params, auth()->id()))->handle();
             return ['version_hash' => $table->version_hash];
         }
     }
@@ -840,6 +937,10 @@ class TableDataController extends Controller
         $table = $this->tableService->getTable($request->table_id);
 
         $this->authorizeForUser($user, 'insert', [TableData::class, $table, $request->all()]);
+
+        if ($request->no_inheritance_ids) {
+            InheritColumnModule::$processed_table_ids = $request->no_inheritance_ids;
+        }
 
         [$added_ids, $corrs] = $this->tableDataService->massCopy(
             $table,
@@ -891,6 +992,8 @@ class TableDataController extends Controller
             foreach ($vals as $v) {
                 $results[ $v['value'] ] = $v['show'] ?? $v['value'];
             }
+        } else {
+            $results = $this->tableDataService->distinctiveFieldValues($table, $field);
         }
         return $results;
     }
@@ -905,11 +1008,18 @@ class TableDataController extends Controller
     {
         $user = auth()->user() ?: new User();
         $ddl = $this->DDLRepository->getDDLwithRefs($request->ddl_id);
-        if ($ddl->table_id != $request->table_id) {
+
+        if (!$ddl->table_id == $request->table_id && !$ddl->owner_shared && !$ddl->admin_public) {
             return [];
         }
         $this->authorizeForUser($user, 'get', [TableData::class, $ddl->_table, $request->all()]);
-        return $this->tableDataService->getDDLvalues($ddl, $request->row ?: [], strtolower($request->search ?: ''), 200);
+        return $this->tableDataService->getDDLvalues(
+            $ddl,
+            $request->row ?: [],
+            strtolower($request->search ?: ''),
+            200,
+            ['ddl_applied_field_id' => $request->ddl_applied_field_id ?: 0]
+        );
     }
 
     /**
@@ -921,18 +1031,23 @@ class TableDataController extends Controller
     public function getFieldRows(Request $request)
     {
         [$table_id, $user] = $this->allForLoad($request);
-        $ref = $this->refConditionRepository->getRefCondition($request->link['table_ref_condition_id']);
+        $ref = $this->refConditionRepository->getRefCondition($request->link['table_ref_condition_id'] ?? null);
         $table = $this->tableService->getTable($table_id);
 
-        if ($ref && $ref->incoming_allow) {
-            [$rows_count, $rows] = $this->tableDataService->getFieldRows($table, $request->link, $request->table_row, $request->page ?: 1, $request->maxlimit ?: 0);
-            (new TableRepository())->loadCurrentRight($table, $user->id);
-            $references = $ref->_items()->with('_compared_field', '_field')->get();
-        } else {
-            $rows = [];
-            $rows_count = 0;
-            $references = [];
+        if ($ref && !$ref->incoming_allow) {
+            throw new \Exception("The link is disallowed at the Source table.", 1);
         }
+
+        [$rows_count, $rows] = $this->tableDataService->getFieldRows(
+            $table,
+            $request->link,
+            $request->table_row,
+            $request->page ?: 1,
+            $request->maxlimit ?: 0,
+            ['sort' => $request->sort ?: []]
+        );
+        (new TableRepository())->loadCurrentRight($table, $user->id);
+        $references = $ref ? $ref->_items()->with('_compared_field', '_field')->get() : [];
 
         return [
             'rows' => $rows,
@@ -1003,12 +1118,13 @@ class TableDataController extends Controller
 
         if (auth()->id()) {
             $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
-            $table->map_icon_field_id = $field ? $field->id : null;
-            $table->map_icon_style = $request->map_style;
-            $table->save();
+            $this->mapService->update($request->map_id, [
+                'map_icon_field_id' => $field ? $field->id : null,
+                'map_icon_style' => $request->map_style,
+            ]);
         }
 
-        return $table->map_icon_style == 'dist'
+        return $request->map_style == 'dist'
             ? $this->tableService->getMapIcons($table, $field)
             : [];
     }
@@ -1080,8 +1196,10 @@ class TableDataController extends Controller
         $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
 
         $recalc = Import::create([
+            'table_id' => $table->id,
             'file' => '',
-            'status' => 'initialized'
+            'status' => 'initialized',
+            'type' => 'RecalcTableFormula',
         ]);
         dispatch(new RecalcTableFormula($table, auth()->id(), $recalc->id));
 
@@ -1099,5 +1217,27 @@ class TableDataController extends Controller
             $row = $this->tableService->infoRow($request->table_id, $request->table_row);
         }
         return ['row' => $row];
+    }
+
+    /**
+     * @param Request $request
+     * @return array
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function onlyRows(Request $request)
+    {
+        [$table_id, $user] = $this->allForLoad($request);
+        $table = $this->tableService->getTable($request->table_id);
+
+        $more = [];
+        if ($request->selected_row_group_id) {
+            $more['row_group_id'] = $request->selected_row_group_id;
+        }
+        if ($request->selected_saved_filter_id) {
+            $more['saved_filter_id'] = $request->selected_saved_filter_id;
+        }
+
+        $this->authorizeForUser($user, 'get', [TableData::class, $table, $request->all()]);
+        return (new TableDataRowsRepository())->getOnlyRows($table, $request->all(), $user->id, $more);
     }
 }

@@ -1,7 +1,7 @@
 <template>
     <div class="star-wrapper flex flex--center">
 
-        <template v-if="getIcon(0) && star_count <= 5">
+        <template v-if="getIcon(0) && enough_width">
             <img v-for="i in star_count"
                  :src="getIcon(i)"
                  :style="getStyle(i)"
@@ -11,8 +11,8 @@
                  @mouseout="tmpClear()"/>
         </template>
 
-        <template v-else-if="getIcon(0) && star_count > 5">
-            <select class="form-control select-star" v-model="select_star" @change="setStar(select_star)" @mousedown.stop="" @mouseup.stop="">
+        <template v-else-if="getIcon(0) && !enough_width">
+            <select class="form-control select-star" v-model="cur_val" @change="setStar(cur_val)" @mousedown.stop="" @mouseup.stop="">
                 <option :value="0">0</option>
                 <option v-for="i in star_count" :value="i">{{ i }}</option>
             </select>
@@ -20,13 +20,6 @@
         </template>
 
         <template v-else=""></template>
-
-        <button v-if="table_header._empty_row"
-                class="btn btn-danger btn-sm btn-deletable flex flex--center"
-                @click.stop.prevent="$emit('remove-icon')"
-        >
-            <span>×</span>
-        </button>
     </div>
 </template>
 
@@ -36,15 +29,20 @@
         data: function () {
             return {
                 tmp_star: 0,
-                select_star: this.cur_val || 0,
             }
         },
         props:{
-            cur_val: Number,
-            can_edit: Boolean,
+            cur_val: {
+                type: Number,
+                default: 0,
+            },
+            can_edit: Boolean|Number,
             table_header: Object,
         },
         computed: {
+            enough_width() {
+                return this.star_count * 26 < this.table_header.width;
+            },
             star_count() {
                 return this.table_header.f_format
                     ? Number( String(this.table_header.f_format).replace(/[^\d]/gi, '') ) || 5
@@ -52,9 +50,6 @@
             },
         },
         watch: {
-            cur_val(val) {
-                this.select_star = val || 0;
-            },
         },
         methods: {
             getStyle(val) {

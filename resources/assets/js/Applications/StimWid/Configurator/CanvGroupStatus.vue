@@ -31,7 +31,7 @@
             },
         },
         props: {
-            status: status,
+            status: Status,
             settings: Settings,
         },
         watch: {

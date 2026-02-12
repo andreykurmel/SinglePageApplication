@@ -1,7 +1,8 @@
 <template>
-    <div class="formulas-calculating" v-show="progressBarWidth > -1">
+    <div id="top-calculating" class="formulas-calculating" v-show="progressBarWidth > -1">
         <div class="bar-wrapper">
-            <span>Calculating...</span>
+            <span v-if="job_type == 'SmartAutoselect'">Smart Autoselect working...</span>
+            <span v-else>Calculating formulas...</span>
             <div class="progress-wrapper">
                 <div class="progress-bar" :style="{width: progressBarWidth+'%'}"></div>
             </div>
@@ -18,8 +19,9 @@
                 progressBarWidth: 0
             }
         },
-        props:{
-            job_id: String
+        props: {
+            job_id: String|Number,
+            job_type: String,
         },
         mounted() {
             this.interval = setInterval(() => {
@@ -29,15 +31,19 @@
                             import_jobs: [this.job_id]
                         }
                     }).then(({ data }) => {
-                        this.progressBarWidth = data.complete;
-                        if (data.status === 'done') {
+                        let firstData = _.first(data);
+                        this.progressBarWidth = firstData.complete;
+                        if (firstData.status === 'done') {
                             this.progressBarWidth = -1;
                             clearInterval(this.interval);
-                            //Swal('Formulas are calculated', '', 'info');
+                            //Swal('Info','Formulas are calculated');
                         }
                     });
                 }
-            }, 1000);
+            }, 2000);
+        },
+        beforeDestroy() {
+            clearInterval(this.interval);
         }
     }
 </script>

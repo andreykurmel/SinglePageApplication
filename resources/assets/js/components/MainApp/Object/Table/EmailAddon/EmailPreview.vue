@@ -1,8 +1,8 @@
 <template>
     <div class="full-height preview-wrap">
         <template v-if="incorrect_settings">
-            <div class="form-group label_blocks">
-                <label>Server settings are incorrect!</label>
+            <div class="form-group label_blocks" :style="textSysStyleSmart">
+                <label>Server/email settings are incorrect!</label>
                 <label v-if="emailSettings.server_type === 'sendgrid' && !emailSettings.sender_email && !emailSettings.sender_email_fld_id">
                     <span>Please check 'Sender Email'.</span>
                 </label>
@@ -24,7 +24,7 @@
                 <label v-if="emailSettings.server_type === 'google' && emailSettings.smtp_key_mode === 'table' && !emailSettings.google_email && !emailSettings.google_app_pass">
                     <span>Empty 'Email' or 'App Password'.</span>
                 </label>
-                <label>Or rows are not found!</label>
+                <label>Or Row Group is not found!</label>
             </div>
         </template>
         <div v-else-if="all_rows && all_rows.length" class="tab-settings">
@@ -43,11 +43,14 @@
             <div class="menu-body">
                 <div v-if="acttab === 'single'" class="full-height body-view flex">
                     <div style="width: 25%; border-right: 1px solid #CCC;">
-                        <select class="form-control" v-model="listing_field">
+                        <select class="form-control"
+                                v-model="emailSettings.preview_listing_id"
+                                @change="sendUpdate(emailSettings, 'preview_listing_id')"
+                        >
                             <option value="id">ID</option>
                             <option v-for="fld in tableMeta._fields"
                                     v-if="!$root.inArray(fld.field, $root.systemFields)"
-                                    :value="fld.field"
+                                    :value="fld.id"
                             >{{ $root.uniqName(fld.name) }}</option>
                         </select>
                         <div class="many-rows-content">
@@ -63,17 +66,19 @@
                             :selected_addon="emailSettings"
                             :total_emails="total_emails"
                             :email_row_id="selected_id"
+                            :can_edit="can_edit"
                             :has-history="hasHistory(selected_id)"
                             @update-addon="sendUpdate"
-                            @load-history="loadHistory"
+                            @load-history="getPreview"
                         ></email-send-block>
                         <email-preview-element
                             v-if="selPreview"
                             :element="selPreview"
                             :table-meta="tableMeta"
                             :email-settings="emailSettings"
-                            :short-view="false"
+                            :short-view="true"
                             style="margin: 5px;"
+                            @history-delete="clearHistory"
                         ></email-preview-element>
                     </div>
                 </div>
@@ -91,9 +96,10 @@
                         :table-meta="tableMeta"
                         :selected_addon="emailSettings"
                         :total_emails="total_emails"
+                        :can_edit="can_edit"
                         :has-history="hasHistory()"
                         @update-addon="sendUpdate"
-                        @load-history="loadHistory"
+                        @load-history="getPreview"
                     ></email-send-block>
                     <div v-for="prev in preview_emails">
                         <email-preview-element
@@ -121,9 +127,12 @@
     import EmailPreviewElement from "./EmailPreviewElement";
     import EmailSendBlock from "./EmailSendBlock";
 
+    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin.vue";
+
     export default {
         name: "EmailPreview",
         mixins: [
+            CellStyleMixin,
         ],
         components: {
             EmailSendBlock,
@@ -132,7 +141,6 @@
         data: function () {
             return {
                 selected_id: null,
-                listing_field: 'id',
 
                 incorrect_settings: false,
                 preview_emails: {},
@@ -144,6 +152,7 @@
             tableMeta: Object,
             emailSettings: Object,
             total_emails: Number,
+            can_edit: Boolean|Number,
         },
         computed: {
             selPreview() {
@@ -162,9 +171,6 @@
                 });
                 return !!find;
             },
-            loadHistory() {
-                this.getPreview();
-            },
             changeActtab(str) {
                 this.acttab = str;
                 if (str == 'all' && this.all_rows.length <= 50) {
@@ -172,10 +178,16 @@
                 }
             },
             boolUpdate(key) {
+                if (!this.can_edit) {
+                    return;
+                }
                 this.emailSettings[key] = !this.emailSettings[key];
                 this.sendUpdate(this.emailSettings, 'allow_resending');
             },
             sendUpdate(addonSettings, type) {
+                if (!this.can_edit) {
+                    return;
+                }
                 this.$emit('update-addon', addonSettings, type);
             },
             //Single
@@ -186,18 +198,18 @@
                 }
             },
             shwManyRows(row) {
-                if (this.listing_field) {
-                    let header = _.find(this.tableMeta._fields, {field: this.listing_field});
-                    let val = row[this.listing_field];
-                    if (val && header && this.$root.isMSEL(header.input_type)) {
+                let header = _.find(this.tableMeta._fields, {id: this.emailSettings.preview_listing_id});
+                if (header) {
+                    let val = row[header.field];
+                    if (val && this.$root.isMSEL(header.input_type)) {
                         let arr = SpecialFuncs.parseMsel(val);
                         val = '';
                         _.each(arr, (el) => {
                             val += '<span class="is_select">'+el+'</span> ';
                         });
                     }
-                    if (header && $.inArray(header.input_type, this.$root.ddlInputTypes) > -1) {
-                        val = this.$root.rcShow(row, this.listing_field);
+                    if ($.inArray(header.input_type, this.$root.ddlInputTypes) > -1) {
+                        val = this.$root.rcShow(row, header.field);
                     }
                     return val;
                 } else {
@@ -212,7 +224,9 @@
                     row_id: this.acttab === 'single' ? this.selected_id : null,
                     special: special || '',
                 }).then(({data}) => {
-                    if (data && data.all_rows && data.all_rows.length) {
+                    let rows = data && data.all_rows && data.all_rows.length;
+                    let prevs = special || (data && data.previews);
+                    if (rows && prevs) {
                         if (!this.all_rows) {
                             this.all_rows = data.all_rows;
                             this.cngManyRow(_.first(this.all_rows));
@@ -222,7 +236,22 @@
                         this.incorrect_settings = true;
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
+                });
+            },
+            clearHistory(hist_id) {
+                if (!this.can_edit) {
+                    return;
+                }
+                axios.delete('/ajax/addon-email-sett/history', {
+                    params: {
+                        email_add_id: this.emailSettings.id,
+                        history_id: hist_id,
+                    },
+                }).then(({data}) => {
+                    this.getPreview();
+                }).catch(errors => {
+                    Swal('Info', getErrors(errors));
                 });
             },
         },

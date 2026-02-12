@@ -4,11 +4,13 @@ namespace Vanguard\Repositories\Tablda;
 
 use Exception;
 use Illuminate\Database\Eloquent\Collection;
+use Vanguard\Classes\Tablda;
 use Vanguard\Models\Folder\Folder;
 use Vanguard\Models\Folder\Folder2Table;
 use Vanguard\Models\Folder\FolderStructure;
 use Vanguard\Models\Folder\FolderView;
 use Vanguard\Models\Folder\FolderViewTable;
+use Vanguard\Models\MenutreeRecent;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableView;
 use Vanguard\Services\Tablda\HelperService;
@@ -255,7 +257,7 @@ class FolderRepository
      * @param $user_id
      * @param string $folder_name
      * @param string $structure
-     * @return mixed
+     * @return Folder
      */
     public function getSysFolder($user_id, $folder_name = 'SHARED', $structure = 'private')
     {
@@ -285,6 +287,16 @@ class FolderRepository
     }
 
     /**
+     * @return int
+     */
+    public function ownedFolders($user_id = 0)
+    {
+        return Folder::where('user_id', $user_id)
+            ->orWhere('inside_folder_link', $user_id)
+            ->count();
+    }
+
+    /**
      * Insert folder into user`s folders tree.
      *
      * @param $parent_id
@@ -297,18 +309,25 @@ class FolderRepository
      */
     public function insertFolder($parent_id, $user_id, $name, $structure, $additions = [])
     {
+        if ($this->ownedFolders($user_id) > 500) {
+            throw new \Exception('You have reached folders limit = 500!', 1);
+        }
+
         //menutree is changed
         (new UserRepository())->newMenutreeHash($user_id);
 
         $inserts = array_merge(
             $this->service->delSystemFields([
                 'user_id' => $user_id,
-                'name' => trim($name),
+                'name' => Tablda::safeName($name),
                 'structure' => $structure,
+                'description' => $additions['description'] ?? null,
                 'is_opened' => $additions['is_opened'] ?? 0,
                 'is_system' => $additions['is_system'] ?? 0,
                 'in_shared' => $additions['in_shared'] ?? 0,
                 'is_folder_link' => $additions['is_folder_link'] ?? 0,
+                'inside_folder_link' => $additions['inside_folder_link'] ?? null,
+                'shared_from_id' => $additions['shared_from_id'] ?? null,
                 'for_shared_user_id' => $additions['for_shared_user_id'] ?? null,
             ]),
             $this->service->getModified(),
@@ -502,16 +521,47 @@ class FolderRepository
         }
 
         $upd = collect($data)->only([
-                'name', 'is_opened', 'icon_path', 'import_source', 'importfolder_airtable_save',
+                'name', 'description', 'is_opened', 'icon_path', 'import_source', 'importfolder_airtable_save',
                 'importfolder_google_save', 'importfolder_dropbox_save', 'importfolder_onedrive_save',
-                'importfolder_ocr_save', 'importfolder_local_save',
+                'importfolder_ocr_save', 'importfolder_local_save', 'menutree_accordion_panel',
             ])
             ->toArray();
+
+        if(isset($upd['menutree_accordion_panel'])) {
+            $this->syncTheSameLevel($folder_id, $upd['menutree_accordion_panel']);
+        }
 
         Folder::where('id', '=', $folder_id)
             ->update($upd);
 
         return $hash;
+    }
+
+    /**
+     * @param int $folder_id
+     * @param bool $menutree_accordion_panel
+     * @return void
+     */
+    protected function syncTheSameLevel(int $folder_id, bool $menutree_accordion_panel)
+    {
+        $folder = Folder::where('folders.id', '=', $folder_id)->joinFolderStructure()->first();
+
+        if ($folder->parent_id) {
+            $folderIdsOnLevel = FolderStructure::where('parent_id', $folder->parent_id)->pluck('child_id')->unique();
+        } else {
+            $folderIdsOnLevel = Folder::where('structure', '=', $folder->structure)
+                ->where('parent_id', '=', 0)
+                ->when(
+                    $folder->structure != 'public',
+                    function ($q) { $q->where('folders.user_id', '=', auth()->id()); }
+                )
+                ->joinFolderStructure()
+                ->pluck('folders.id');
+        }
+
+        Folder::whereIn('id', $folderIdsOnLevel)->update([
+            'menutree_accordion_panel' => (int)$menutree_accordion_panel
+        ]);
     }
 
     /**
@@ -690,5 +740,26 @@ class FolderRepository
             }
         }
         return $res;
+    }
+
+    /**
+     * @param string $type
+     * @param int $id
+     * @return void
+     */
+    public function saveRecent(string $type, int $id): void
+    {
+        if (auth()->id()) {
+            MenutreeRecent::updateOrCreate([
+                'user_id' => auth()->id(),
+                'object_type' => $type,
+                'object_id' => $id,
+            ], [
+                'user_id' => auth()->id(),
+                'object_type' => $type,
+                'object_id' => $id,
+                'last_access' => now(),
+            ]);
+        }
     }
 }

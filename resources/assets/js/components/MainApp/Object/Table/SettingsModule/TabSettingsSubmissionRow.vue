@@ -1,15 +1,21 @@
 <template>
-    <table class="spaced-table">
-        <tbody v-if="requestFields">
+    <table class="spaced-table" :style="bgColor">
+        <tbody v-if="requestFields" :style="textColor">
 
             <tr>
                 <td :style="getTdStyle" class="flex flex--center">
                     <div class="td td--100 h-32 flex flex--center-v" :style="getTdStyle">
-                        <label>{{ $root.uniqName(requestFields['one_per_submission'].name) }}:&nbsp;</label>
-                        <label class="switch_t" style="display: inline-block;margin-left: 30px;">
-                            <input type="checkbox" v-model="requestRow['one_per_submission']" :disabled="!with_edit" @change="updatedCell">
+                        <label>Download:&nbsp;&nbsp;</label>
+                        <label class="switch_t" style="display: inline-block;">
+                            <input type="checkbox" v-model="requestRow['download_pdf']" :disabled="!with_edit" @change="updatedCell">
                             <span class="toggler round" :class="[!with_edit ? 'disabled' : '']"></span>
                         </label>
+                        <label>&nbsp;PDF&nbsp;&nbsp;</label>
+                        <label class="switch_t" style="display: inline-block;">
+                            <input type="checkbox" v-model="requestRow['download_png']" :disabled="!with_edit" @change="updatedCell">
+                            <span class="toggler round" :class="[!with_edit ? 'disabled' : '']"></span>
+                        </label>
+                        <label>&nbsp;PNG</label>
                     </div>
                 </td>
             </tr>
@@ -22,10 +28,10 @@
 
             <tr>
                 <td :style="getTdStyle">
-                    <div class="td td--66 h-32" :style="getTdStyle">
+                    <div class="td td--50 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['dcr_record_url_field_id'].name) }}:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_url_field_id']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                            <label class="frst-col-label">Field for saving record specific URL:&nbsp;</label>
+                            <select v-model="requestRow['dcr_record_url_field_id']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell('dcr_record_url_field_id')" class="form-control">
                                 <option :value="null" style="color: #bbb;">Select a String or Text field</option>
                                 <option v-for="field in tableMeta._fields"
                                         v-if="$root.inArray(field.f_type, ['String','Text','Long Text'])"
@@ -34,10 +40,10 @@
                             </select>
                         </div>
                     </div>
-                    <div class="td td--33 h-32" :style="getTdStyle">
+                    <div class="td td--50 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['dcr_record_status_id'].name) }}:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_status_id']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell" class="form-control">
+                            <label class="secnd-col-label">Field for saving "Save/Submit/Update" Status:&nbsp;</label>
+                            <select v-model="requestRow['dcr_record_status_id']" :style="textSysStyle" :disabled="!with_edit" @change="updatedCell('dcr_record_status_id')" class="form-control">
                                 <option :value="null" style="color: #bbb;">Select a String or Text field</option>
                                 <option v-for="field in tableMeta._fields"
                                         v-if="$root.inArray(field.f_type, ['String','Text','Long Text'])"
@@ -60,7 +66,7 @@
                                        @change="updatedCell">
                                 <span class="toggler round" :class="[!with_edit || !requestRow['dcr_record_url_field_id'] ? 'disabled' : '']"></span>
                             </label>
-                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_record_allow_unfinished'].name) }}</label>
+                            <label>&nbsp;Allow saving unfinished form and Submitting later (enable “Save”).</label>
                         </div>
                     </div>
                 </td>
@@ -68,14 +74,9 @@
 
             <tr>
                 <td :style="getTdStyle">
-                    <div class="td td--40 h-32" :style="getTdStyle">
+                    <div class="td td--50 h-32" :style="getTdStyle">
                         <div class="flex flex--center-v full-height">
-                            <label>Fields saving statuses:</label>
-                        </div>
-                    </div>
-                    <div class="td td--60 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['dcr_record_visibility_id'].name) }}:&nbsp;</label>
+                            <label class="frst-col-label">Fields saving statuses for: Visibility:&nbsp;</label>
                             <select v-model="requestRow['dcr_record_visibility_id']"
                                     :style="textSysStyle"
                                     :disabled="!with_edit || !requestRow['dcr_record_url_field_id']"
@@ -88,8 +89,13 @@
                                         :value="field.id" style="color: #444;"
                                 >{{ $root.uniqName(field.name) }}</option>
                             </select>
-                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_record_editability_id'].name) }}:&nbsp;</label>
+                        </div>
+                    </div>
+                    <div class="td td--50 h-32" :style="getTdStyle">
+                        <div class="flex flex--center-v full-height">
+                            <label :class="{'visi-hidden': !requestRow['dcr_record_visibility_id']}" class="secnd-col-label">Editability:&nbsp;</label>
                             <select v-model="requestRow['dcr_record_editability_id']"
+                                    :class="{'visi-hidden': !requestRow['dcr_record_visibility_id']}"
                                     :style="textSysStyle"
                                     :disabled="!with_edit || !requestRow['dcr_record_url_field_id']"
                                     @change="updatedCell"
@@ -106,90 +112,94 @@
                 </td>
             </tr>
 
-            <tr>
-                <td :style="getTdStyle">
-                    <div class="td td--40 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['dcr_record_save_visibility_def'].name) }}:&nbsp;</label>
+            <template v-if="requestRow['dcr_record_visibility_id']">
+                <tr>
+                    <td :style="getTdStyle">
+                        <div class="td td--50 h-32" :style="getTdStyle">
+                            <div class="flex flex--center-v full-height">
+                                <label class="frst-col-label">Default value upon saving: Visibility:&nbsp;</label>
+                                <select v-model="requestRow['dcr_record_save_visibility_def']"
+                                        :style="textSysStyle"
+                                        :disabled="!with_edit"
+                                        @change="updatedCell"
+                                        class="form-control"
+                                >
+                                    <option :value="1">On</option>
+                                    <option :value="null">Off</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                    <div class="td td--60 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>Visibility:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_save_visibility_def']"
-                                    :style="textSysStyle"
-                                    :disabled="!with_edit"
-                                    @change="updatedCell"
-                                    class="form-control"
-                            >
-                                <option :value="1">On</option>
-                                <option :value="null">Off</option>
-                            </select>
-                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_record_save_editability_def'].name) }}:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_save_editability_def']"
-                                    :style="textSysStyle"
-                                    :disabled="!with_edit"
-                                    @change="updatedCell"
-                                    class="form-control"
-                            >
-                                <option :value="1">On</option>
-                                <option :value="null">Off</option>
-                            </select>
+                        <div class="td td--50 h-32" :style="getTdStyle">
+                            <div class="flex flex--center-v full-height">
+                                <label :class="{'visi-hidden': !requestRow['dcr_record_editability_id'] || !requestRow['dcr_record_save_visibility_def']}" class="secnd-col-label">
+                                    Editability:&nbsp;
+                                </label>
+                                <select v-model="requestRow['dcr_record_save_editability_def']"
+                                        :class="{'visi-hidden': !requestRow['dcr_record_editability_id'] || !requestRow['dcr_record_save_visibility_def']}"
+                                        :style="textSysStyle"
+                                        :disabled="!with_edit"
+                                        @change="updatedCell"
+                                        class="form-control"
+                                >
+                                    <option :value="1">On</option>
+                                    <option :value="null">Off</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                </td>
-            </tr>
+                    </td>
+                </tr>
 
-            <tr>
-                <td :style="getTdStyle">
-                    <div class="td td--40 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>{{ $root.uniqName(requestFields['dcr_record_visibility_def'].name) }}:&nbsp;</label>
+                <tr>
+                    <td :style="getTdStyle">
+                        <div class="td td--50 h-32" :style="getTdStyle">
+                            <div class="flex flex--center-v full-height">
+                                <label class="frst-col-label">Default value upon submitting: Visibility:&nbsp;</label>
+                                <select v-model="requestRow['dcr_record_visibility_def']"
+                                        :disabled="!with_edit"
+                                        @change="updatedCell"
+                                        class="form-control"
+                                >
+                                    <option :value="1">On</option>
+                                    <option :value="null">Off</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                    <div class="td td--60 h-32" :style="getTdStyle">
-                        <div class="flex flex--center-v full-height">
-                            <label>Visibility:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_visibility_def']"
-                                    :disabled="!with_edit"
-                                    @change="updatedCell"
-                                    class="form-control"
-                            >
-                                <option :value="1">On</option>
-                                <option :value="null">Off</option>
-                            </select>
-                            <label>&nbsp;{{ $root.uniqName(requestFields['dcr_record_editability_def'].name) }}:&nbsp;</label>
-                            <select v-model="requestRow['dcr_record_editability_def']"
-                                    :disabled="!with_edit"
-                                    @change="updatedCell"
-                                    class="form-control"
-                            >
-                                <option :value="1">On</option>
-                                <option :value="null">Off</option>
-                            </select>
+                        <div class="td td--50 h-32" :style="getTdStyle">
+                            <div class="flex flex--center-v full-height">
+                                <label :class="{'visi-hidden': !requestRow['dcr_record_editability_id'] || !requestRow['dcr_record_visibility_def']}" class="secnd-col-label">
+                                    Editability:&nbsp;
+                                </label>
+                                <select v-model="requestRow['dcr_record_editability_def']"
+                                        :class="{'visi-hidden': !requestRow['dcr_record_editability_id'] || !requestRow['dcr_record_visibility_def']}"
+                                        :disabled="!with_edit"
+                                        @change="updatedCell"
+                                        class="form-control"
+                                >
+                                    <option :value="1">On</option>
+                                    <option :value="null">Off</option>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-                </td>
-            </tr>
+                    </td>
+                </tr>
+            </template>
 
         </tbody>
     </table>
 </template>
 
 <script>
-    import CellStyleMixin from "../../../../_Mixins/CellStyleMixin.vue";
+    import StyleMixinWithBg from "../../../../_Mixins/StyleMixinWithBg.vue";
     import ReqRowMixin from "./ReqRowMixin.vue";
 
-    import FormulaHelper from "../../../../CustomCell/InCell/FormulaHelper";
     import CustomTable from "../../../../CustomTable/CustomTable";
 
     export default {
         components: {
             CustomTable,
-            FormulaHelper,
         },
         mixins: [
-            CellStyleMixin,
+            StyleMixinWithBg,
             ReqRowMixin,
         ],
         name: "TabSettingsSubmissionRow",
@@ -208,7 +218,8 @@
             maxCellRows: Number,
             tableRequest: Object,
             requestRow: Object,
-            with_edit: Boolean
+            with_edit: Boolean,
+            bg_color: String,
         },
         computed: {
             getTdStyle() {
@@ -233,4 +244,22 @@
 
 <style lang="scss" scoped>
     @import "ReqRowStyle";
+    .visi-hidden {
+        visibility: hidden;
+    }
+    .frst-col-label {
+        width: 100%;
+        text-align: left;
+    }
+    .secnd-col-label {
+        width: 100%;
+        text-align: right;
+    }
+    .spaced-table td label {
+        white-space: normal;
+    }
+    .spaced-table td select {
+        width: 170px;
+        flex-shrink: 0;
+    }
 </style>

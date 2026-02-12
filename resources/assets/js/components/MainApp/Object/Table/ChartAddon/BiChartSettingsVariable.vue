@@ -19,7 +19,7 @@
                             v-model="variable_obj.chart_id"
                             @change="changedVar()"
                             @blur="hideVar()">
-                        <option v-for="ch in tableMeta._charts_saved" v-if="ch.chart_settings.elem_type === 'bi_chart'" :value="ch.id">{{ ch.title }}</option>
+                        <option v-for="ch in tableMeta._bi_charts" v-if="ch.chart_settings.elem_type === 'bi_chart'" :value="ch.id">{{ ch.title }}</option>
                     </select>
                     <span v-else="">{{ linked_chart ? linked_chart.title : '' }}</span>
                 </td>
@@ -85,7 +85,7 @@
                             v-model="variable_obj.chart_id"
                             @change="changedVar()"
                             @blur="hideVar()">
-                        <option v-for="ch in tableMeta._charts_saved" v-if="ch.chart_settings.elem_type === 'pivot_table'" :value="ch.id">{{ ch.title }}</option>
+                        <option v-for="ch in tableMeta._bi_charts" v-if="ch.chart_settings.elem_type === 'pivot_table'" :value="ch.id">{{ ch.title }}</option>
                     </select>
                     <span v-else="">{{ linked_chart ? linked_chart.title : '' }}</span>
                 </td>

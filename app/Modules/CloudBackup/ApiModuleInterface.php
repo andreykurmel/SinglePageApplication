@@ -6,6 +6,11 @@ namespace Vanguard\Modules\CloudBackup;
 interface ApiModuleInterface
 {
     /**
+     * @param string $type
+     */
+    public function __construct(string $type = '');
+
+    /**
      * @param int $cloud_id
      * @return string
      */

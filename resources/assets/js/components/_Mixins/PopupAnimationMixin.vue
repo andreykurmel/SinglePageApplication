@@ -2,12 +2,17 @@
     /**
      *  should be present:
      *
-     *  this.getPopupWidth: Number
      *  this.idx: Number
+     *  ---for resize:
+     *  this.getPopupWidth: Number,
+     *  this.getPopupHeight: Number,
+     *  this.storeSizes(): Function,
      *  */
     export default {
         data: function () {
             return {
+                resizerX: 0,
+                resizerY: 0,
                 topPos: this.$root.lastMouseClick.clientY,
                 leftPos: this.$root.lastMouseClick.clientX,
                 anim_opac: 0,
@@ -19,7 +24,34 @@
                 is_vis: false,
             }
         },
+        computed: {
+            popupHeightPx() {
+                let pophe = (to_float(this.getPopupHeight) || to_float('80%')) / 100 * window.innerHeight;
+                if (String(this.getPopupHeight).match(/px/)) {
+                    pophe = to_float(this.getPopupHeight);
+                }
+                return pophe;
+            },
+        },
         methods: {
+            //resize
+            dragResizeStart(e) {
+                if (this.storeSizes) {
+                    e = e || window.event;
+                    this.resizerX = e.clientX - this.getPopupWidth;
+                    this.resizerY = e.clientY - this.popupHeightPx;
+                } else {
+                    Swal('Info','Resize is not available!');
+                }
+            },
+            dragResizeDo(e) {
+                if (this.storeSizes) {
+                    e = e || window.event;
+                    if (e.clientX && e.clientY) {
+                        this.storeSizes(e.clientX - this.resizerX, e.clientY - this.resizerY);
+                    }
+                }
+            },
             //additionals
             hideMenu(e) {
                 if (this.is_vis && e.keyCode === 27 && this.$root.tablesZidx <= this.zIdx && !this.$root.e__used) {
@@ -79,7 +111,7 @@
             },
             _endPositions() {
                 let positions = {
-                    top: ((window.innerHeight * 0.1) + (this.idx * 40)),
+                    top: ((window.innerHeight - this.popupHeightPx) / 2 + (this.idx * 40)),
                     left: ((window.innerWidth - this.getPopupWidth) / 2 + this.idx * 30),
                 };
 

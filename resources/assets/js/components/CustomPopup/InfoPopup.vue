@@ -3,6 +3,7 @@
         <div class="popup" :style="extraStl">
             <div class="flex flex--col">
                 <div class="popup-header">
+                    <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
                     <div class="flex">
                         <div class="flex__elem-remain" style="text-align: left">{{ title_html }}</div>
                         <div class="" style="padding-bottom: 4px;">

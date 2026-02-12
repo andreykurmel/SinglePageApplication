@@ -62,10 +62,10 @@
                     if (data.status) {
                         this.$root.user.view_locked = false;
                     } else {
-                        Swal('Password incorrect!');
+                        Swal('Info','Password incorrect!');
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

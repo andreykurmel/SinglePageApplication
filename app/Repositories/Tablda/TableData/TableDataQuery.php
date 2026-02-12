@@ -4,7 +4,9 @@ namespace Vanguard\Repositories\Tablda\TableData;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Vanguard\Models\Correspondences\CorrespField;
 use Vanguard\Models\Correspondences\CorrespTable;
 use Vanguard\Models\DataSetPermissions\TableRefCondition;
@@ -13,19 +15,25 @@ use Vanguard\Models\FavoriteRow;
 use Vanguard\Models\Table\Table;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Models\Table\TableField;
+use Vanguard\Models\Table\TableSavedFilter;
 use Vanguard\Models\User\Plan;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserSubscription;
+use Vanguard\Modules\DdlShow\DdlShowModule;
 use Vanguard\Modules\Permissions\TableRights;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
+use Vanguard\Repositories\Tablda\TableSavedFilterRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
 
 class TableDataQuery
 {
+    public static $checkedGroups = [];
+
+    public $one_filter = null;
     public $filters = [];
     public $row_group_statuses = [];
     public $hidden_row_groups = [];
@@ -68,7 +76,7 @@ class TableDataQuery
             $table->_t_prepared_rels = true;
         }
 
-        $this->query = $this->getTableDataSql($table, $no_join);
+        $this->query = self::getTableDataSql($table, $no_join);
 
         $this->service = new HelperService();
     }
@@ -103,10 +111,10 @@ class TableDataQuery
      * @param bool $no_join
      * @return Builder
      */
-    protected function getTableDataSql(Table $table, bool $no_join = false)
+    public static function getTableDataSql(Table $table, bool $no_join = false)
     {
         if ($table->source == 'remote') {
-            $conn = $this->service->configRemoteConnection($table->connection_id);
+            $conn = (new HelperService())->configRemoteConnection($table->connection_id);
         }
 
         if ($table->db_name === 'sum_usages') {
@@ -147,7 +155,7 @@ class TableDataQuery
         } else {
             $sql = new TableData();
             $sql = $sql->setTable(isset($conn) ? $conn['table'] : $table->db_name)
-                ->setConnection($this->getConn($table))
+                ->setConnection(self::getConn($table))
                 ->newQuery();
         }
         return $sql;
@@ -159,7 +167,7 @@ class TableDataQuery
      * @param $table
      * @return string
      */
-    public function getConn($table)
+    public static function getConn($table)
     {
         if ($table->source == 'remote') {
             return 'mysql_remote';
@@ -173,23 +181,10 @@ class TableDataQuery
     }
 
     /**
-     * @param TableRefCondition $ref_cond
-     * @return int
-     */
-    public function hasReferencesInFormulas(TableRefCondition $ref_cond)
-    {
-        $formula_fields = $this->table->_fields->where('input_type', '=', 'Formula');
-        foreach ($formula_fields as $fld) {
-            $this->query->orWhere($fld->field . '_formula', 'like', '%"' . $ref_cond->name . '"%');
-        }
-        return $this->query->count();
-    }
-
-    /**
      * @param bool $applySysRules
      * @return Builder
      */
-    public function getQuery(bool $applySysRules = true)
+    public function getQuery(bool $applySysRules = true): Builder
     {
         if ($applySysRules) {
             $this->applySystemRules();
@@ -202,7 +197,7 @@ class TableDataQuery
      */
     public function clearQuery()
     {
-        $this->query = $this->getTableDataSql($this->table, $this->no_join);
+        $this->query = self::getTableDataSql($this->table, $this->no_join);
     }
 
     /**
@@ -247,7 +242,7 @@ class TableDataQuery
             }
             if ($this->table->db_name == 'user_subscriptions') {
                 $this->query->where('active', '=', '1');
-                $this->query->with(['_addons', '_plan']);
+                $this->query->with(['_addons', '_plan', '_user']);
             }
 
             //correspondences
@@ -320,8 +315,8 @@ class TableDataQuery
      */
     public function getRowsForRefCondition(TableRefCondition $ref_condition, array $subquery_data = [])
     {
-        $ref_condition->__reverse = $subquery_data ?: true;
         $applier = new RefConditionApplier($ref_condition);
+        $applier->setSubqueryData($subquery_data);
         $applier->applyToQuery($this->query);
         $this->applyRowRightsForUser(auth()->id());
     }
@@ -332,7 +327,6 @@ class TableDataQuery
      */
     public function getAffectedRows(TableRefCondition $ref_condition, array $watchrow = [])
     {
-        $ref_condition->__reverse = true;
         $applier = new RefConditionApplier($ref_condition);
         $applier->applyToQuery($this->query, $watchrow);
     }
@@ -365,7 +359,7 @@ class TableDataQuery
      * @param $user_id - integer|null
      * @param $special_params
      */
-    protected function applyRowRightsForUser($user_id, array $special_params = [])
+    public function applyRowRightsForUser($user_id, array $special_params = [])
     {
         $permis = TableRights::permissions($this->table);
 
@@ -380,6 +374,7 @@ class TableDataQuery
                 $this->query->whereRaw('false');
             }
 
+            //dd($this->query->toSql(), $row_groups->toArray());
             $this->applyRowGroupsToQuery($this->query, $row_groups);
 
             $this->forSystemTableUserCanGetSpecialRows($user_id);
@@ -403,6 +398,13 @@ class TableDataQuery
                 },
                 '_regulars'
             ]);
+
+            $row_groups = $row_groups->filter(function ($rg) {
+                return $rg->_ref_condition || ($rg->_regulars && $rg->_regulars->count());
+            });
+            if (!$row_groups->count()) {
+                return;
+            }
 
             $query->where(function (Builder $right_q) use ($row_groups, $and) {
 
@@ -433,6 +435,18 @@ class TableDataQuery
                 }
 
             });
+
+            if ($row_groups->pluck('id')->diff(self::$checkedGroups)->count()) {
+                self::$checkedGroups = $row_groups->pluck('id')->concat(self::$checkedGroups)->unique()->values()->toArray();
+                try {
+                    (clone $query)->first();
+                } catch (\Exception $e) {
+                    $row_groups->each(function ($group) {
+                        $group->update(['row_ref_condition_id' => null]);
+                    });
+                    throw new \Exception('Only RCs referring to THIS table can be used for defining RowGroups. Selected RC refers to other table: '.join(',', $row_groups->pluck('name')->toArray()), 1);
+                }
+            }
         }
     }
 
@@ -474,6 +488,8 @@ class TableDataQuery
         if (!empty($special_params['view_object'])) {
             if ($special_params['view_object']->row_group_id) {
                 $this->applySelectedRowGroup($special_params['view_object']->row_group_id);
+            } else {
+                $this->query->whereRaw('false');
             }
             //TODO: saved view data mark
 //            $view_data = json_decode($special_params['view_object']->data, 1);
@@ -596,7 +612,7 @@ class TableDataQuery
                 $data['search_columns'] = $this->expandSearchUserColumns($data['search_columns']);
 
                 if (!is_array($data['search_words'])) {
-                    $data['search_words'] = $this->searchStringToArr($data['search_words']);
+                    $data['search_words'] = self::searchStringToArr($data['search_words']);
                 }
 
                 foreach ($data['search_words'] as $word_obj) {
@@ -627,13 +643,14 @@ class TableDataQuery
         if (!empty($data['search_view'])) {
             $this->query->where(function ($search_q) use ($data) {
                 foreach ($data['search_view'] as $viewfilt) {
+                    $dbField = $this->service->convertSysField($this->table, $viewfilt['field']);
                     switch ($viewfilt['criteria']) {
-                        case 'contain': $search_q->where($viewfilt['field'], 'like', '%'.$viewfilt['search'].'%');
-                        case 'less': $search_q->where($viewfilt['field'], '<', $viewfilt['search']);
-                        case 'more': $search_q->where($viewfilt['field'], '>', $viewfilt['search']);
+                        case 'contain': $search_q->where($dbField, 'like', '%'.$viewfilt['search'].'%');
+                        case 'less': $search_q->where($dbField, '<', $viewfilt['search']);
+                        case 'more': $search_q->where($dbField, '>', $viewfilt['search']);
                         case 'equal':
                         case 'match':
-                        default: $search_q->where($viewfilt['field'], '=', $viewfilt['search']);
+                        default: $search_q->where($dbField, '=', $viewfilt['search']);
                     }
                 }
             });
@@ -648,12 +665,15 @@ class TableDataQuery
         //get rows which are found by 'radius search'
         if (($data['radius_search']['km']??0) && ($data['radius_search']['center_lat']??0) && ($data['radius_search']['center_long']??0)) {
 
-            $lat_header = $this->table->_fields->where('is_lat_field', '=', 1)->first();
-            $long_header = $this->table->_fields->where('is_long_field', '=', 1)->first();
+            $map = (new MapRepository())->get($data['radius_search']['map_id'] ?? 0);
+            $lat_header = $map->_map_field_settings->where('is_lat_field', '=', 1)->first();
+            $long_header = $map->_map_field_settings->where('is_long_field', '=', 1)->first();
 
             if (!$lat_header || !$long_header) {
                 return;
             }
+            $lat_header = $lat_header->_field;
+            $long_header = $long_header->_field;
 
             $distance_str = '6371*acos(';
             $distance_str .= ' ( ';
@@ -678,15 +698,21 @@ class TableDataQuery
      * @param Builder $q
      * @param string $db_field
      * @param string|null $word
+     * @param bool $and
      */
-    protected function applySearchWord(Builder $q, string $db_field, string $word = null)
+    protected function applySearchWord(Builder $q, string $db_field, string $word = null, bool $and = false)
     {
         $arr = explode('.', $db_field);
         $just_field = array_pop($arr);
+        $just_field = $this->service->convertSysField($this->table, $just_field);
         $header = $this->table
             ->_fields
             ->where('field', $just_field)
             ->first();
+
+        if ($header && $ddlCol = DdlShowModule::hasSyscol($this->table, $header)) {
+            $db_field = str_replace($just_field, $ddlCol, $db_field);
+        }
 
         $operator = '=';
 
@@ -706,7 +732,8 @@ class TableDataQuery
         }
 
         if ($header) {
-            $q->orWhere(function($in) use ($header, $db_field, $operator, $word) {
+            $method = $and ? 'where' : 'orWhere';
+            $q->{$method}(function($in) use ($header, $db_field, $operator, $word) {
                 (new FieldTypeApplier($header->f_type, $db_field))->where($in, $operator, $word);
             });
         }
@@ -723,7 +750,7 @@ class TableDataQuery
         //remove sys columns and empty columns
         // && set table pointer
         foreach ($search_columns as $i => $col) {
-            if (!$col || preg_match('/^[^a-zA-Z\d]/i', $col) || in_array($col, $this->service->system_fields)) {
+            if (!$col || preg_match('/^[^a-zA-Z\d]/i', $col) || in_array($col, $this->service->system_fields_noid)) {
                 unset($search_columns[$i]);
             } else {
                 $col = $this->service->convertSysField($this->table, $col);
@@ -758,11 +785,11 @@ class TableDataQuery
      * @param string $search
      * @return array
      */
-    public function searchStringToArr(string $search)
+    public static function searchStringToArr(string $search): array
     {
         $search = preg_replace('/[&]/', 'AND', $search);
         $search = preg_replace('/[,\|]/', 'OR', $search);
-        $arr = preg_split('/( AND | OR )/', $search, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $arr = preg_split('/( AND | OR )/i', $search, -1, PREG_SPLIT_DELIM_CAPTURE);
         $result = [];
         for ($idx = 0; $idx < count($arr); $idx += 2) {
             $result[] = [
@@ -996,6 +1023,31 @@ class TableDataQuery
     }
 
     /**
+     * @param string $data_range
+     * @return void
+     */
+    public function checkAndApplyDataRange(string $data_range): void
+    {
+        $grp = '';
+        $rangeVal = $data_range;
+        if (Str::contains($data_range, ':')) {
+            $grp = Arr::first( explode(':', $data_range) );
+            $rangeVal = Arr::last( explode(':', $data_range) );
+        }
+        $rangeVal = intval($rangeVal);
+
+        //apply 'row group' if selected
+        if ($grp === 'rg' && $rangeVal > 0) {
+            $this->applySelectedRowGroup($rangeVal);
+        }
+        //apply 'saved filters' if selected
+        if ($grp === 'sf' && $rangeVal > 0) {
+            $sf = (new TableSavedFilterRepository())->get($rangeVal);
+            $this->externalFilters($sf->filters_object);
+        }
+    }
+
+    /**
      * Apply filters to the query
      *
      * @param Builder $query
@@ -1014,14 +1066,19 @@ class TableDataQuery
 
                 if (!empty($a_filter['input_type']) && MselectData::isMSEL($a_filter['input_type'])) {
                     $query->where(function ($inner) use ($filter_field, $a_filter) {
-                        $inner->orWhereRaw('false'); // if all unchecked -> none of results
+                        $inner->whereRaw('false'); // if all unchecked -> none of results
                         foreach ($a_filter['values'] as $item) {
-                            $inner->orWhere($filter_field, 'like', '%' . $item['val'] . '%');
+                            if ($item['val']) {
+                                $inner->orWhere($filter_field, 'like', '%' . $item['val'] . '%');
+                            } else {
+                                $inner->orWhereNull($filter_field);
+                                $inner->orWhere($filter_field, '=', '');
+                            }
                         }
                     });
                 } else {
                     $query->where(function ($inner) use ($filter_field, $a_filter) {
-                        $a_filter_values = array_pluck($a_filter['values'], 'val');
+                        $a_filter_values = Arr::pluck($a_filter['values'], 'val');
                         (new FieldTypeApplier($a_filter['f_type'], $filter_field))
                             ->whereIn($inner, $a_filter_values, false);
                     });
@@ -1058,7 +1115,7 @@ class TableDataQuery
      */
     protected function getOnlyFavoriteRows($user_id)
     {
-        //note: not subquery because tables in different databases or even servers.
+        //NOTE: not subquery because tables in different databases or even servers.
         $favorite_ids = FavoriteRow::where('table_id', $this->table->id)
             ->where('user_id', $user_id)
             ->select('row_id')
@@ -1099,7 +1156,10 @@ class TableDataQuery
     {
         if (count($sort)) {
             foreach ($sort as $srt_elem) {
-                $this->query->orderBy($srt_elem['field'], $srt_elem['direction']);
+                if ($srt_elem['field'] ?? '') {
+                    $dbField = $this->service->convertSysField($this->table, $srt_elem['field'] ?? '');
+                    $this->query->orderBy($dbField, $srt_elem['direction'] ?? 'asc');
+                }
             }
         }
         if ($this->table->is_system != 1) {
@@ -1136,6 +1196,23 @@ class TableDataQuery
 
         if ($row_groups->count()) {
             $this->applyRowGroupsToQuery($this->query, $row_groups);
+        }
+    }
+
+    /**
+     * @param array $request
+     * @return void
+     */
+    public function applyDataRange(array $request): void
+    {
+        //apply 'row group' if selected
+        if (!empty($request['selected_row_group_id'])) {
+            $this->applySelectedRowGroup($request['selected_row_group_id']);
+        }
+        //apply 'saved filters' if selected
+        if (!empty($request['selected_saved_filter_id'])) {
+            $sf = (new TableSavedFilterRepository())->get($request['selected_saved_filter_id']);
+            $this->externalFilters($sf->filters_object);
         }
     }
 }

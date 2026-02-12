@@ -44,7 +44,13 @@
 
                 style.top += 'px';
                 style.left += 'px';
-                return style;
+
+                let extra = this.extra_style || {};
+
+                return {
+                    ...style,
+                    ...extra,
+                };
             },
             htmlHe() {
                 return this.html_str.length * 8 / 300 * 24;
@@ -57,6 +63,7 @@
             p_top: Number,
             p_left: Number,
             c_offset: Number,
+            extra_style: Object,
         },
         methods: {
         },

@@ -1,5 +1,5 @@
 <template>
-    <div class="full-height">
+    <div class="full-height" v-if="tableMeta && tableMeta._fields">
         <custom-table
                 :cell_component_name="'custom-cell-settings-display'"
                 :global-meta="tableMeta"
@@ -9,11 +9,12 @@
                 :rows-count="tableMeta._fields.length"
                 :cell-height="1"
                 :is-full-width="false"
+                :with_edit="canEdit"
                 :user="$root.user"
                 :behavior="'settings_display'"
+                :parent-row="selectedMap"
                 :redraw_table="redraw_table"
-                :available-columns="$root.availableMapColumns"
-                :forbidden-columns="limitColumns ? frbCols : []"
+                :available-columns="limitColumns"
                 @updated-row="updateRow"
                 @row-index-clicked="rowIndexClicked"
         ></custom-table>
@@ -29,6 +30,7 @@
                 @popup-update="updateRow"
                 @popup-close="closePopUp"
                 @another-row="anotherRowPopup"
+                @direct-row="rowIndexClicked"
         ></for-settings-pop-up>
     </div>
 </template>
@@ -55,23 +57,15 @@
             return {
                 editPopUpRow: null,
                 redraw_table: 0,
-                frbCols: [
-                    'is_lat_field',
-                    'is_long_field',
-                    'is_info_header_field',
-                    'map_find_street_field',
-                    'map_find_city_field',
-                    'map_find_state_field',
-                    'map_find_county_field',
-                    'map_find_zip_field',
-                ],
             }
         },
         computed: {
         },
         props:{
             tableMeta: Object,
-            limitColumns: Boolean,
+            limitColumns: Array,
+            canEdit: Boolean,
+            selectedMap: Object,
         },
         methods: {
             updateRow(tableRow) {
@@ -83,7 +77,7 @@
                 this.$root.anotherPopup(this.tableMeta._fields, row_id, is_next, this.rowIndexClicked);
             },
             rowIndexClicked(index) {
-                this.editPopUpRow = this.tableMeta._fields[index];
+                this.editPopUpRow = this.canEdit ? this.tableMeta._fields[index] : null;
             },
             closePopUp() {
                 this.editPopUpRow = null;

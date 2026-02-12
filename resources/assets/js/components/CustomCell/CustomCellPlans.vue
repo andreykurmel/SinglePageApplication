@@ -1,12 +1,12 @@
 <template>
-    <td :style="getCellStyle"
+    <td :style="getCellStyle()"
         class="td-custom"
         ref="td"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
 
                     <label class="switch_t"
@@ -122,7 +122,7 @@ export default {
                     res = this.tableRow[this.tableHeader.field];
                 }
 
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
         },
         created() {

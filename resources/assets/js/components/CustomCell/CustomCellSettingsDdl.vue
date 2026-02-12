@@ -8,16 +8,18 @@
         @drop.prevent.stop="ddlDrop"
         @click="showEdit()"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
 
                     <span v-if="tableHeader.f_type === 'Boolean'" class="indeterm_check__wrap">
                         <span class="indeterm_check checkbox-input"
                               ref="inline_input"
-                              @click="updateCheckBox()"
-                              :style="$root.checkBoxStyle"
+                              @click="boolDisabled ? null : updateCheckBox()"
+                              :class="{'disabled': boolDisabled}"
+                              :title="boolTitle"
+                              :style="checkBoxStyleWithLimits"
                         >
                             <i v-if="tableRow[tableHeader.field]" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
@@ -28,6 +30,7 @@
                         :init_color="tableRow[tableHeader.field]"
                         :avail_null="true"
                         :fixed_pos="true"
+                        :can_edit="canCellEdit"
                         @set-color="updateCheckedDDL"
                     ></tablda-colopicker>
 
@@ -35,22 +38,33 @@
                        title="Open file in a new tab."
                        target="_blank"
                        class="has-deleter"
-                       :href="$root.fileUrl({url:tableRow[tableHeader.field]})"
+                       :href="$root.fileUrl({url:tableRow[tableHeader.field]}, 'sm')"
                     >
                         <img class="_img_preview"
-                             :src="$root.fileUrl({url:tableRow[tableHeader.field]})"
+                             :src="$root.fileUrl({url:tableRow[tableHeader.field]}, 'sm')"
                              :style="{maxHeight: (maxCellHGT ? maxCellHGT+'px' : tdCellHGT+'px')}"
                              @click="imgClick([{url:tableRow[tableHeader.field]}], 0)">
                         <span class="delete-icon-btn" @click.stop.prevent="uploadItemFile(null)">&times;</span>
                     </a>
 
-                    <button v-if="tableHeader.field === '_ref_colors' && !isAddRow"
+                    <button v-else-if="tableHeader.field === '_ref_colors' && !isAddRow"
                             class="btn btn-primary btn-sm blue-gradient btn-detail"
                             @click.stop.prevent="showRefValueColors()"
                             :style="$root.themeButtonStyle"
                     >
                         <span>Detail</span>
                     </button>
+
+                    <div v-else-if="tableHeader.field === '_unit_uses' || tableHeader.field === '_input_uses'" class="inner-content">
+                        <span v-for="fldId in tableRow[tableHeader.field]" class="is_select m_sel__wrap no-wrap">
+                            <span>{{ fldName(fldId) }}</span>
+                            <span class="m_sel__remove"
+                                  @click.prevent.stop=""
+                                  @mousedown.prevent.stop="updateUses(fldId, false)"
+                                  @mouseup.prevent.stop=""
+                            >&times;</span>
+                        </span>
+                    </div>
 
                     <a v-else-if="tableHeader.field === 'apply_target_row_group_id'"
                        title="Open row group in popup."
@@ -81,6 +95,7 @@
             <tablda-select-simple
                 v-if="'datas_sort' === tableHeader.field"
                 :options="[
+                        {val: null, show: ''},
                         {val: 'asc', show: 'A->Z(0->9)'},
                         {val: 'desc', show: 'Z->A(9->0)'},
                     ]"
@@ -94,10 +109,25 @@
 
             <!--DDL References-->
             <tablda-select-simple
+                    v-else-if="tableHeader.field === '_unit_uses' || tableHeader.field === '_input_uses'"
+                    :options="selectFields()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fld_input_type="tableHeader.input_type"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <!--DDL References-->
+            <tablda-select-simple
                     v-else-if="tableHeader.field === 'apply_target_row_group_id'"
                     :options="globalRowGroups()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
+                    :can_empty="true"
                     :fixed_pos="true"
                     :embed_func_txt="'Add New'"
                     :style="getEditStyle"
@@ -133,7 +163,19 @@
 
             <tablda-select-simple
                     v-else-if="['image_field_id'].indexOf(tableHeader.field) > -1  && tableRow.table_ref_condition_id"
-                    :options="nameAttachsFromConds()"
+                    :options="nameFilterFromConds('Attachment')"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="['color_field_id'].indexOf(tableHeader.field) > -1  && tableRow.table_ref_condition_id"
+                    :options="nameFilterFromConds('Color')"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
@@ -155,7 +197,7 @@
                     :style="getEditStyle">
 
             <input
-                    v-else-if="inArray(tableHeader.field, ['name', 'notes', 'option', 'show_option', 'ref_value'])"
+                    v-else-if="inArray(tableHeader.field, ['name', 'notes', 'option', 'show_option', 'ref_value', 'max_selections'])"
                     v-model="tableRow[tableHeader.field]"
                     @blur="hideEdit();updateValue()"
                     ref="inline_input"
@@ -172,6 +214,7 @@
                 v-if="overImages && overImages.length"
                 :file_arr="overImages"
                 :file_idx="overImageIdx"
+                :single_full_size_image="true"
                 @close-full-img="overImages = null"
         ></full-size-img-block>
 
@@ -179,6 +222,7 @@
 </template>
 
 <script>
+import {DDLHelper} from "../../classes/helpers/DDLHelper";
 import {SpecialFuncs} from "../../classes/SpecialFuncs";
 import {Endpoints} from "../../classes/Endpoints";
 
@@ -212,7 +256,7 @@ export default {
                 overImageIdx: null,
             }
         },
-        props:{
+        props: {
             globalMeta: {
                 type: Object,
                 default: function () {
@@ -233,8 +277,11 @@ export default {
             },
         },
         computed: {
+            no_height_limit() {
+                return this.inArray(this.tableHeader.field, ['_unit_uses', '_input_uses']);
+            },
             is_attach() {
-                return this.inArray(this.tableHeader.field, ['image_path']);
+                return this.inArray(this.tableHeader.field, ['image_path', 'image_ref_path']);
             },
             fields_from_condition() {
                 let fields = [];
@@ -245,19 +292,49 @@ export default {
                 return fields;
             },
             canCellEdit() {
+                if (this.parentRow && this.parentRow.ddl_id) {
+                    if (!this.parentRow.has_individ_images && this.tableHeader.field === 'image_ref_path') {
+                        return false;
+                    }
+                    if (!this.parentRow.has_individ_colors && this.tableHeader.field === 'color') {
+                        return false;
+                    }
+                    if (!this.parentRow.has_individ_max_selections && this.tableHeader.field === 'max_selections') {
+                        return false;
+                    }
+                }
+
                 return this.with_edit
                     && this.globalMeta._is_owner
                     && !this.inArray(this.tableHeader.field, this.$root.systemFields)
                     && (this.tableHeader.field !== 'target_field_id' || this.tableRow.table_ref_condition_id)
                     && (this.tableHeader.field !== 'show_field_id' || this.tableRow.table_ref_condition_id)
                     && (this.tableHeader.field !== 'image_field_id' || this.tableRow.table_ref_condition_id)
+                    && (this.tableHeader.field !== 'color_field_id' || this.tableRow.table_ref_condition_id)
                     && (this.tableHeader.field !== '_ref_colors');
             },
             custCellStyle() {
-                let stl = this.getCellStyle;
+                let stl = this.getCellStyle();
+                stl.backgroundColor = 'transparent';
                 if (!this.with_edit) {
                     stl.backgroundColor = '#EEE';
                 }
+
+                if (this.parentRow && this.parentRow.ddl_id) {
+                    if (!this.parentRow.has_individ_images && this.tableHeader.field === 'image_ref_path') {
+                        stl.backgroundColor = '#EEE';
+                    }
+                    if (!this.parentRow.has_individ_colors && this.tableHeader.field === 'color') {
+                        stl.backgroundColor = '#EEE';
+                    }
+                    if (!this.parentRow.has_individ_max_selections && this.tableHeader.field === 'max_selections') {
+                        stl.backgroundColor = '#EEE';
+                    }
+                }
+                if (this.boolDisabled) {
+                    stl.backgroundColor = '#EEE';
+                }
+
                 if (this.tableHeader.field === '_ref_colors') {
                     stl.textAlign = 'center';
                 }
@@ -271,6 +348,23 @@ export default {
                         color: SpecialFuncs.smartTextColorOnBg(bg),
                     }
                     : {};
+            },
+            boolDisabled() {
+                let res = false;
+                if (this.tableRow && (this.tableHeader.field === 'owner_shared' || this.tableHeader.field === 'admin_public')) {
+                    _.each(this.tableRow._references, (refItem) => {
+                        let rc = _.find(this.globalMeta._ref_conditions, {id: Number(refItem.table_ref_condition_id)});
+                        res = res || !rc.rc_static;
+                    });
+                }
+                return res;
+            },
+            boolTitle() {
+                let title = '';
+                if (this.tableHeader.field === 'owner_shared' || this.tableHeader.field === 'admin_public') {
+                    title = this.boolDisabled ? 'Only DDL w/ STATIC RCs can be shared' : '';
+                }
+                return title;
             },
         },
         methods: {
@@ -315,16 +409,77 @@ export default {
                     this.tableRow.target_field_id = null;
                     this.tableRow.show_field_id = null;
                     this.tableRow.image_field_id = null;
+                    this.tableRow.color_field_id = null;
                 }
                 this.tableRow._changed_field = this.tableHeader.field;
                 this.$emit('updated-cell', this.tableRow);
             },
             updateCheckedDDL(item) {
-                this.tableRow[this.tableHeader.field] = item;
-                this.updateValue();
+                if (this.tableHeader.field === '_unit_uses' || this.tableHeader.field === '_input_uses') {
+                    item = String(item);
+                    let edit = this.tableRow[this.tableHeader.field];
+                    edit = Array.isArray(edit) ? edit : [String(edit)];
+                    if (edit.indexOf(item) > -1) {
+                        this.updateUses(item, false);
+                        edit.splice( edit.indexOf(item), 1 );
+                    } else {
+                        this.updateUses(item, true);
+                        edit.push(item);
+                    }
+                    this.tableRow[this.tableHeader.field] = edit;
+                } else {
+                    this.tableRow[this.tableHeader.field] = item;
+                    this.updateValue();
+                }
+            },
+            updateUses(fldId, isAdd) {
+                let fld = _.find(this.globalMeta._fields, {id: Number(fldId)});
+                if (fld) {
+
+                    if (this.tableHeader.field === '_unit_uses') {
+                        if (isAdd) {
+                            fld.unit_ddl_id = this.tableRow.id;
+                            fld._changed_field = 'unit_ddl_id';
+                            this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                DDLHelper.setUses(this.globalMeta);
+                            });
+                        } else {
+                            fld.unit_ddl_id = null;
+                            fld._changed_field = 'unit_ddl_id';
+                            this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                DDLHelper.setUses(this.globalMeta);
+                            });
+                        }
+                    }
+
+                    if (this.tableHeader.field === '_input_uses') {
+                        if (isAdd) {
+                            fld.input_type = 'S-Select';
+                            fld._changed_field = 'input_type';
+                            this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                fld.ddl_id = this.tableRow.id;
+                                fld._changed_field = 'ddl_id';
+                                this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                    DDLHelper.setUses(this.globalMeta);
+                                });
+                            });
+                        } else {
+                            fld.input_type = 'Input';
+                            fld._changed_field = 'input_type';
+                            this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                fld.ddl_id = null;
+                                fld._changed_field = 'ddl_id';
+                                this.$root.updateSettingsColumn(this.globalMeta, fld).then(() => {
+                                    DDLHelper.setUses(this.globalMeta);
+                                });
+                            });
+                        }
+                    }
+
+                }
             },
             updateCheckBox() {
-                this.tableRow[this.tableHeader.field] = !Boolean(this.tableRow[this.tableHeader.field]);
+                this.tableRow[this.tableHeader.field] = this.tableRow[this.tableHeader.field] ? 0 : 1;
                 this.emitUpdateSignal();
             },
             showField() {
@@ -344,8 +499,8 @@ export default {
                 }
                 else
                 if (this.tableHeader.field === 'table_ref_condition_id' && this.tableRow.table_ref_condition_id) {
-                    let idx = _.findIndex(this.globalMeta._ref_conditions, {id: Number(this.tableRow.table_ref_condition_id)});
-                    res = idx > -1 ? this.globalMeta._ref_conditions[idx].name : '';
+                    let rc = _.find(this.globalRefConds(), {val: Number(this.tableRow.table_ref_condition_id)});
+                    res = rc ? rc.show : this.tableRow.table_ref_condition_id;
                 }
                 else
                 if (this.tableHeader.field === 'datas_sort' && this.tableRow.datas_sort) {
@@ -355,7 +510,7 @@ export default {
                     }
                 }
                 else
-                if (['target_field_id','show_field_id','image_field_id'].indexOf(this.tableHeader.field) > -1) {
+                if (['target_field_id','show_field_id','image_field_id','color_field_id'].indexOf(this.tableHeader.field) > -1) {
                     let idx = _.findIndex(this.fields_from_condition, {id: Number(this.tableRow[this.tableHeader.field])});
                     res = idx > -1
                         ? this.$root.uniqName( this.fields_from_condition[idx].name )
@@ -365,7 +520,7 @@ export default {
                     res = this.tableRow[this.tableHeader.field];
                 }
 
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
             },
             showGroupsPopup(type, id) {
                 eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, type, id);
@@ -392,14 +547,14 @@ export default {
                     Endpoints.fileUpload({
                         table_id: this.globalMeta.id,
                         table_field_id: this.tableHeader.id,
-                        row_id: 'ddl_'+rw_id,
+                        row_id: (this.tableHeader.field==='image_ref_path' ? 'ddl_ref_' : 'ddl_') + rw_id,
                         file: file,
                         clear_before: 1,
                     }).then(({ data }) => {
                         this.tableRow[this.tableHeader.field] = data.filepath + data.filename;
                         this.emitUpdateSignal();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                         this.editing = false;
@@ -407,6 +562,10 @@ export default {
                 } else {
                     this.editing = false;
                 }
+            },
+            fldName(fldId) {
+                let fld = _.find(this.globalMeta._fields, {id: Number(fldId)});
+                return fld ? fld.name : fldId;
             },
             
             //Drag&Drop
@@ -441,12 +600,18 @@ export default {
             //arrays for selects
             globalRefConds() {
                 return _.map(this.globalMeta._ref_conditions, (rc) => {
-                    return { val: rc.id, show: rc.name, }
+                    let dis = (this.parentRow.owner_shared || this.parentRow.admin_public) && !rc.rc_static;
+                    return { val: rc.id, show: rc.name, disabled: dis }
                 });
             },
             globalRowGroups() {
                 return _.map(this.globalMeta._row_groups, (rc) => {
                     return { val: rc.id, show: rc.name, }
+                });
+            },
+            selectFields() {
+                return _.map(this.globalMeta._fields, (hdr) => {
+                    return { val: hdr.id, show: hdr.name, }
                 });
             },
             nameFieldsFromConds() {
@@ -460,17 +625,18 @@ export default {
                     return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
                 });
             },
-            nameAttachsFromConds() {
+            nameFilterFromConds(ftype) {
                 let fields = _.filter(this.fields_from_condition, (hdr) => {
                     return !this.inArray(hdr.field, this.$root.systemFields)
-                        && hdr.f_type === 'Attachment';
+                        && hdr.f_type === ftype;
                 });
                 return _.map(fields, (hdr) => {
                     return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
                 });
             },
             imgClick(images, idx) {
-                if (!window.event.ctrlKey) {
+                let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+                if (!cmdOrCtrl) {
                     this.overImages = images;
                     this.overImageIdx = idx;
                     window.event.stopPropagation();
@@ -478,8 +644,10 @@ export default {
                 }
             },
             showRefValueColors() {
-                eventBus.$emit('show-ref-value-colors', this.parentRow, this.tableRow);
+                eventBus.$emit('show-ref-value-colors', this.parentRow, this.tableRow, this.fields_from_condition);
             },
+        },
+        mounted() {
         }
     }
 </script>
@@ -487,6 +655,9 @@ export default {
 <style lang="scss" scoped>
     @import "CustomCell.scss";
 
+    .btn-sm {
+        padding: 0 10px;
+    }
     .btn-detail {
         font-size: 0.8em;
         padding: 0 7px;

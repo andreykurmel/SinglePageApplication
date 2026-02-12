@@ -33,7 +33,14 @@ class UserPresenter extends Presenter
     {
         return $this->entity->birthday
             ? $this->entity->birthday->format(config('app.date_format'))
-            : 'N/A';
+            : '';
+    }
+
+    public function birthdayDate()
+    {
+        return $this->entity->birthday
+            ? $this->entity->birthday->format('m/d/Y')
+            : '';
     }
 
     public function fullAddress()

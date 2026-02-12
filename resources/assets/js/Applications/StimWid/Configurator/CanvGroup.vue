@@ -1,5 +1,5 @@
 <template>
-    <div class="group-wrap" v-if="data_eqpt && settings" @click.self="$emit('empty-clicked')">
+    <div class="group-wrap" v-if="data_eqpt && settings" @click.self="emptyClicked">
         <!--Equipments-->
         <template v-for="d_eqpt in eqptGroup">
             <!--<template v-for="i in d_eqpt.qty">-->
@@ -17,7 +17,7 @@
                         @modelid-changed="modelidChaged"
                 ></canv-group-eqpt>
             <!--</template>-->
-            <div class="tooltip__bg" :title="getTitle" @click.self="$emit('empty-clicked')"></div>
+            <div class="tooltip__bg" :title="getTitle" @click.self="emptyClicked"></div>
         </template>
         <!--Equipments-->
     </div>
@@ -55,7 +55,7 @@
             },
             getTitle() {
                 return this.pos
-                    ? 'Pos:' + this.pos.name
+                    ? 'Pos:' + this.pos.name + this.suffix
                     : (this.sector ? 'Sector:' + this.sector.sector : '');
             },
             eqptParams() {
@@ -74,6 +74,7 @@
             group_he: Number,
             top_lvl: Number,
             settings: Settings,
+            suffix: String,
         },
         watch: {
         },
@@ -91,6 +92,9 @@
             modelidChaged(eqpt, from_model_id) {
                 this.$emit('modelid-changed', eqpt, from_model_id);
             },
+            emptyClicked(e) {
+                this.$emit('empty-clicked', e);
+            }
         },
         mounted() {
         },

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Vanguard\Models\DataSetPermissions\TableColumnGroup;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\DataSetPermissions\TablePermissionColumn;
+use Vanguard\Repositories\Tablda\TableGroupingRepository;
 use Vanguard\Services\Tablda\HelperService;
 use Vanguard\User;
 
@@ -119,6 +120,7 @@ class TableColGroupRepository
             }
         }
         $columnGroup->_fields()->attach($arr);
+        (new TableGroupingRepository())->syncRelatedFields([], [$columnGroup->id]);
         return 1;
     }
 
@@ -135,6 +137,7 @@ class TableColGroupRepository
             $table_field_ids,
             array_merge($this->service->getModified(), $this->service->getCreated())
         );
+        (new TableGroupingRepository())->syncRelatedFields([], [$columnGroup->id]);
         return 1;
     }
 
@@ -147,6 +150,8 @@ class TableColGroupRepository
      */
     public function deleteColFieldFromGroup(TableColumnGroup $columnGroup, Array $table_field_ids)
     {
-        return $columnGroup->_fields()->detach($table_field_ids);
+        $res = $columnGroup->_fields()->detach($table_field_ids);
+        (new TableGroupingRepository())->syncRelatedFields([], [$columnGroup->id]);
+        return $res;
     }
 }

@@ -2,31 +2,85 @@
 
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
-use DB;
+use Carbon\Carbon;
 use Exception;
+use GuzzleHttp\Psr7\MimeType;
 use Illuminate\Contracts\View\Factory;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\Request;
-use Illuminate\Support\Collection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Redis;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Excel as ExcelFormat;
+use Maatwebsite\Excel\Facades\Excel;
 use Ramsey\Uuid\Uuid;
+use Vanguard\AppsModules\EriParserWriterModule;
+use Vanguard\AppsModules\GeneralJson\GeneralJsonImportExport;
+use Vanguard\AppsModules\StimMaJson\JsonService;
+use Vanguard\Classes\SysColumnCreator;
 use Vanguard\Http\Controllers\Controller;
-use Vanguard\Ideas\Repos\CachedTableRepository;
+use Vanguard\Jobs\AnaSnapshots;
+use Vanguard\Jobs\OldSessionsRemover;
+use Vanguard\Jobs\TablesUsagesFixing;
+use Vanguard\Jobs\UsersDailyPay;
+use Vanguard\Mail\TabldaMail;
+use Vanguard\Models\AppSetting;
+use Vanguard\Models\AutomationHistory;
+use Vanguard\Models\Correspondences\CorrespField;
+use Vanguard\Models\DataSetPermissions\TableRefCondition;
+use Vanguard\Models\DataSetPermissions\TableRowGroup;
+use Vanguard\Models\Dcr\TableDataRequest;
+use Vanguard\Models\Folder\Folder;
+use Vanguard\Models\Pages\Pages;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableAlert;
+use Vanguard\Models\Table\TableBackup;
+use Vanguard\Models\Table\TableData;
+use Vanguard\Models\Table\TableEmailAddonSetting;
+use Vanguard\Models\Table\TableField;
+use Vanguard\Models\Table\TableFieldLink;
+use Vanguard\Models\Table\TableFieldLinkEriTable;
+use Vanguard\Models\Table\TableKanbanSettings;
+use Vanguard\Models\Table\TableView;
+use Vanguard\Models\User\UserApiKey;
+use Vanguard\Models\User\UserCloud;
+use Vanguard\Models\User\UserGroup;
+use Vanguard\Modules\AiRequests\OpenAiApi;
+use Vanguard\Modules\Jira\JiraApiModule;
+use Vanguard\Modules\QRGenerator;
+use Vanguard\Modules\Salesforce\SalesforceApiModule;
 use Vanguard\Repositories\Tablda\DDLRepository;
 use Vanguard\Repositories\Tablda\FolderRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableRefConditionRepository;
+use Vanguard\Repositories\Tablda\Permissions\TableRowGroupRepository;
 use Vanguard\Repositories\Tablda\TableData\TableDataQuery;
 use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
+use Vanguard\Repositories\Tablda\TableGroupingRepository;
+use Vanguard\Repositories\Tablda\TableKanbanRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
+use Vanguard\Repositories\Tablda\UserRepository;
+use Vanguard\Services\Tablda\AlertFunctionsService;
 use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Services\Tablda\ImportService;
+use Vanguard\Services\Tablda\PaymentService;
+use Vanguard\Services\Tablda\Permissions\TableDataRequestService;
 use Vanguard\Services\Tablda\Permissions\UserPermissionsService;
+use Vanguard\Services\Tablda\TableAlertService;
+use Vanguard\Services\Tablda\TableDataService;
 use Vanguard\Services\Tablda\TableService;
 use Vanguard\Services\Tablda\UserService;
 use Vanguard\Singletones\AuthUserModule;
 use Vanguard\Singletones\AuthUserSingleton;
+use Vanguard\Support\Excel\ArrayExport;
+use Vanguard\Support\FileHelper;
+use Vanguard\Support\SimilarityHelper;
+use Vanguard\User;
 use Vanguard\Watchers\FormulaWatcher;
+use function GuzzleHttp\Psr7\mimetype_from_extension;
 
 class TestController extends Controller
 {
@@ -81,58 +135,34 @@ class TestController extends Controller
      */
     public function test(Request $request)
     {
-        ini_set('max_execution_time', 1200);
+        dd('Completed!');
 
-        if (auth()->id() == 1) {
-            foreach (Table::all() as $tb) {
-                $tb->update(['hash' => Uuid::uuid4()]);
-            }
-            dd('dcr_hash');
-        }
+        return (new TableDataRequestService())->sendRequestEmails(
+            Table::find(2043),
+            2281,
+            (new TableDataRepository())->getDirectRow(Table::find(2043), 7)->toArray()
+        );
 
-        Redis::set('asd', 'hgy23fg2837i23');
-        dd(Redis::get('asd'));
-
-        /*$tb_entity = (new \Vanguard\Ideas\QueriesOnlyFromRepo\TableRepository())->get(977);
-        dd($tb_entity->_user());
-        return 'finish';*/
-
-        //Patterns
-        /*$woodFactory = ShapeStrategy::getFactory('steel');
-        $sph = $woodFactory->buildSphere(16);
-        $cude = $woodFactory->buildCube(5, 10, 15);
-
-        $collect = new ShapeCollection();
-        $collect->addShape($sph);
-        $collect->addShape($cude);
-
-        $it = $collect->shapeIterator();
-        while ($shape = $it->next()) {
-            echo $shape->getVolume().'<br>';
-        }
-        echo '<br>';
-
-        return ($cude->getVolume().' '.$cude->getWeight());*/
-        //Patterns
-
-
-        $cacheRepo = new CachedTableRepository();
-        $justRepo = new \Vanguard\Ideas\Repos\TableRepository();
-        $tb1 = $cacheRepo->get([35, 36, 40, 45]);
-        $tb = $cacheRepo->get([35])->first();
-        $tb2 = $cacheRepo->get([40]);
-        //$tb3 = $justRepo->get([40]);
-
-        $t = microtime(true);
-        for ($i = 0; $i < 1000; $i++) {
-            $tb->_table->add_notes = $i;
-        }
-        return (microtime(true) - $t);
-        dd($tb, $tb1, $tb2);
-
-        dd('finished');
+        return (new AlertFunctionsService())->sendEmailNotificationjob(
+            50,
+            [(new TableDataRepository())->getDirectRow(Table::find(2043), 7)->toArray()],
+            ['to'=>'test@gmail.com'],
+            [],
+            'added'
+        );
     }
     // CONTAINER FUNCTIONS ^^^^^
+    public function tokenize(string $s): array
+    {
+        // lower, trim, collapse whitespace, strip punctuation except digits/letters/spaces
+        $s = mb_strtolower($s);
+        $s = preg_replace('/[^\p{L}\p{N}\s]+/u', ' ', $s);
+        $s = preg_replace('/\s+/u', ' ', trim($s));
+        if ($s === '') {
+            return [];
+        }
+        return array_values(array_unique(explode(' ', $s)));
+    }
 
 
     // Strategies functions --->>>

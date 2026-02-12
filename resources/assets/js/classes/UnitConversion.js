@@ -115,13 +115,31 @@ export class UnitConversion {
      * @returns {*}
      */
     static formatVal(value, tableHeader) {
-        value = isNumber(value) ? to_float(value) : value;
-        if (tableHeader.show_zeros) {
-            value = String(value) || '0';
-        }/* else {
-            value = value || '';
-        }*/
+        //is string -> return as is
+        if (value && String(value).match(/[^\d-.]/gi)) {
+            return value;
+        }
 
+        if (value === null || value === undefined) {
+            value = '';
+        }
+
+        return this.applyShowZero(value, tableHeader);
+    }
+
+    /**
+     *
+     * @param value
+     * @param tableHeader
+     * @returns {*}
+     */
+    static applyShowZero(value, tableHeader) {
+        value = isNumber(value) ? to_float(value) : value;
+        if (String(value) === '0') {
+            value = tableHeader.show_zeros ? 0 : '';
+        } else {
+            value = value || '';
+        }
         return value;
     }
 
@@ -272,7 +290,7 @@ export class UnitConversion {
             && (
                 operator !== 'formula'
                 ||
-                (String(conv.formula).match(/\$val[^\d\w]/gi) && String(conv.formula_reverse).match(/\$val[^\d\w]/gi))
+                (String(conv.formula).match(newRegexp('\\$val[^\\p{L}\\d]')) && String(conv.formula_reverse).match(newRegexp('\\$val[^\\p{L}\\d]')))
             );
     }
 

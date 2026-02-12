@@ -1,37 +1,67 @@
 <template>
     <div :class="[tab_style ? '' : 'flex flex--col']" v-if="tableRow && tableMeta">
         <div class="popup-menu">
+            <button v-if="canWorkWithAttach" class="btn btn-default" :class="{active: activeAttachTab === 'uploads'}" @click="activeAttachTab = 'uploads'">Upload New</button>
             <button class="btn btn-default" :class="{active: activeAttachTab === 'pictures'}" @click="activeAttachTab = 'pictures'">Pictures ({{ imgCount }})</button>
             <button class="btn btn-default" :class="{active: activeAttachTab === 'files'}" @click="activeAttachTab = 'files'">Files ({{ fileCount }})</button>
-            <button v-if="canWorkWithAttach" class="btn btn-default" :class="{active: activeAttachTab === 'uploads'}" @click="activeAttachTab = 'uploads'">Upload New</button>
         </div>
         <!--Pictures Tab-->
         <div class="flex__elem-remain popup-tab" v-show="activeAttachTab === 'pictures'" :style="tab_style">
             <div v-for="(tableHeader, index) in tableMeta._fields"
                  v-if="headerAvailToShow(tableHeader, '_images_for_')">
                 <label>{{ getHeader(tableHeader, '_images_for_') }}</label>
+                <attachments-block-buttons
+                    v-if="canChangeFile(tableHeader)"
+                    :all_type="'images'"
+                    :table-row="tableRow"
+                    :table-header="tableHeader"
+                    :special_params="special_params"
+                    style="float: right"
+                    @changed-file="$emit('updated-cell')"
+                ></attachments-block-buttons>
                 <table class="table">
                     <colgroup>
-                        <col width="40%">
-                        <col width="10%">
-                        <col width="40%">
-                        <col width="10%">
+                        <col :style="{width: '40%'}">
+                        <col :style="{width: '10%'}">
+                        <col :style="{width: '40%'}">
+                        <col :style="{width: '10%'}">
                     </colgroup>
                     <thead>
                     <tr>
                         <th>Picture</th>
                         <th>Rename</th>
                         <th>Notes</th>
-                        <th>Action</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
                     <tr v-for="(image, idx) in tableRow['_images_for_'+tableHeader.field]">
                         <td>
                             <a target="_blank" :href="$root.fileUrl(image)">
-                                <img class="_img_preview"
-                                     :src="$root.fileUrl(image)"
-                                     @click.prevent="imageClick(tableRow['_images_for_'+tableHeader.field], idx)"
+                                <iframe v-if="image.special_mark === 'youtube'"
+                                        :src="$root.fileUrl(image)"
+                                        allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowfullscreen
+                                        width="100%"
+                                        height="100%"
+                                ></iframe>
+                                <video v-else-if="image.is_video"
+                                       controls
+                                       class="_img_preview"
+                                       :src="$root.fileUrl(image)"
+                                       @click.prevent="imageClick([image], idx, tableHeader)"
+                                ></video>
+                                <audio v-else-if="image.is_audio"
+                                       controls
+                                       class="_img_preview"
+                                       :src="$root.fileUrl(image)"
+                                       @click.prevent="imageClick([image], idx, tableHeader)"
+                                ></audio>
+                                <img v-else
+                                     class="_img_preview"
+                                     :title="image.filename"
+                                     :src="$root.fileUrl(image, 'md')"
+                                     @click.prevent="imageClick([image], idx, tableHeader)"
                                 >
                             </a>
                         </td>
@@ -42,18 +72,23 @@
                             >GO</button>
                         </td>
                         <td>
-                            <input class="form-control"
-                                   :disabled="!canChangeFile(tableHeader)"
-                                   type="text"
-                                   @change="updateFile(image)"
-                                   v-model="image.notes"
-                            />
+                            <textarea class="form-control"
+                                      rows="3"
+                                      :disabled="!canChangeFile(tableHeader)"
+                                      @change="updateFile(image)"
+                                      v-model="image.notes"
+                            ></textarea>
                         </td>
                         <td>
-                            <button class="btn btn-danger"
-                                    v-if="canChangeFile(tableHeader)"
-                                    @click="deleteFile('img', idx, tableHeader)"
-                            >×</button>
+                            <attachments-block-buttons
+                                v-if="canChangeFile(tableHeader)"
+                                :table-row="tableRow"
+                                :table-header="tableHeader"
+                                :special_params="special_params"
+                                :file="image"
+                                :idx="idx"
+                                @changed-file="$emit('updated-cell')"
+                            ></attachments-block-buttons>
                         </td>
                     </tr>
                     </tbody>
@@ -65,25 +100,41 @@
             <div v-for="(tableHeader, index) in tableMeta._fields"
                  v-if="headerAvailToShow(tableHeader, '_files_for_')">
                 <label>{{ getHeader(tableHeader, '_files_for_') }}</label>
+                <attachments-block-buttons
+                    v-if="canChangeFile(tableHeader)"
+                    :all_type="'files'"
+                    :table-row="tableRow"
+                    :table-header="tableHeader"
+                    :special_params="special_params"
+                    style="float: right"
+                    @changed-file="$emit('updated-cell')"
+                ></attachments-block-buttons>
                 <table class="table">
                     <colgroup>
-                        <col width="40%">
-                        <col width="10%">
-                        <col width="40%">
-                        <col width="10%">
+                        <col :style="{width: '40%'}">
+                        <col :style="{width: '10%'}">
+                        <col :style="{width: '40%'}">
+                        <col :style="{width: '10%'}">
                     </colgroup>
                     <thead>
                     <tr>
                         <th>File</th>
                         <th>Rename</th>
                         <th>Notes</th>
-                        <th>Action</th>
+                        <th>Actions</th>
                     </tr>
                     </thead>
                     <tbody>
                     <tr v-for="(file, idx) in tableRow['_files_for_'+tableHeader.field]">
                         <td>
-                            <a target="_blank" :href="$root.fileUrl(file)">{{ file.filename }}</a>
+                            <a target="_blank" :href="$root.fileUrl(file)">
+                                <audio v-if="file.is_audio"
+                                       controls
+                                       class="_img_preview"
+                                       :src="$root.fileUrl(file)"
+                                ></audio>
+                                <span v-else>{{ file.filename }}</span>
+                            </a>
                         </td>
                         <td>
                             <button class="btn btn-success btn-sm"
@@ -92,18 +143,23 @@
                             >GO</button>
                         </td>
                         <td>
-                            <input class="form-control"
-                                   :disabled="!canChangeFile(tableHeader)"
-                                   type="text"
-                                   @change="updateFile(file)"
-                                   v-model="file.notes"
-                            />
+                            <textarea class="form-control"
+                                      rows="3"
+                                      :disabled="!canChangeFile(tableHeader)"
+                                      @change="updateFile(file)"
+                                      v-model="file.notes"
+                            ></textarea>
                         </td>
                         <td>
-                            <button class="btn btn-danger"
-                                    v-if="canChangeFile(tableHeader)"
-                                    @click="deleteFile('file', idx, tableHeader)"
-                            >×</button>
+                            <attachments-block-buttons
+                                v-if="canChangeFile(tableHeader)"
+                                :table-row="tableRow"
+                                :table-header="tableHeader"
+                                :special_params="special_params"
+                                :file="file"
+                                :idx="idx"
+                                @changed-file="$emit('updated-cell')"
+                            ></attachments-block-buttons>
                         </td>
                     </tr>
                     </tbody>
@@ -118,7 +174,7 @@
                     v-for="(tableHeader, index) in tableMeta._fields"
                     v-if="canChangeFile(tableHeader)"
                 >
-                    <label>{{ getHeader(tableHeader) }}</label>
+                    <label>Field: {{ getHeader(tableHeader) }}</label>
                     <div class="form-group upload-group">
                         <file-uploader-block
                                 v-if="!recreate_dropzones"
@@ -128,6 +184,7 @@
                                 :field_id="tableHeader.id"
                                 :row_id="role === 'add' ? tableRow._temp_id : tableRow.id"
                                 :special_params="local_spec_params"
+                                :default_method="tableHeader.f_default"
                                 @uploaded-file="insertedFile"
                         ></file-uploader-block>
                     </div>
@@ -140,8 +197,12 @@
         <!-- Full-size img for attachments if mouse over -->
         <full-size-img-block
                 v-if="overImages && overImages.length"
+                :table_meta="tableMeta"
+                :table_header="overImgHeader"
+                :table_row="tableRow"
                 :file_arr="overImages"
                 :file_idx="overImageIdx"
+                :single_full_size_image="true"
                 @close-full-img="overImages = null"
         ></full-size-img-block>
 
@@ -158,6 +219,7 @@
 
 <script>
     import {SpecialFuncs} from '../../classes/SpecialFuncs';
+    import {FileHelper} from "../../classes/helpers/FileHelper";
 
     import CanEditMixin from '../_Mixins/CanViewEditMixin';
 
@@ -165,6 +227,7 @@
     import FullSizeImgBlock from './FullSizeImgBlock';
     import FilesAttacher from "./FilesAttacher";
     import FileRenamerBlock from "./FileRenamerBlock";
+    import AttachmentsBlockButtons from "./AttachmentsBlockButtons";
 
     export default {
         name: "AttachmentsBlock",
@@ -172,6 +235,7 @@
             CanEditMixin,
         ],
         components: {
+            AttachmentsBlockButtons,
             FileRenamerBlock,
             FilesAttacher,
             FileUploaderBlock,
@@ -180,9 +244,11 @@
         data: function () {
             return {
                 activeAttachTab: 'uploads',
+                overImgHeader: null,
                 overImages: null,
                 overImageIdx: null,
                 fileRenamer: null,
+                fileRenamerType: null,
                 recreate_dropzones: false,
             };
         },
@@ -213,7 +279,7 @@
                 return res;
             },
             total_id() {
-                return this.tableMeta.id + '_' + this.tableRow.id;
+                return this.tableMeta.id + '_' + (this.tableRow ? this.tableRow.id : '');
             },
             local_spec_params() {
                 return this.special_params || SpecialFuncs.specialParams();
@@ -229,6 +295,10 @@
             forbiddenColumns: Array,
             availableColumns: Array,
             special_params: Object,
+            with_edit: {
+                type: Boolean,
+                default: true
+            },
         },
         watch: {
             total_id(val) {
@@ -247,7 +317,8 @@
             },
 
             canChangeFile(tableHeader) {
-                return tableHeader.f_type === 'Attachment'
+                return this.with_edit
+                    && tableHeader.f_type === 'Attachment'
                     && (
                         (this.role === 'update' && this.canEditCell(tableHeader, this.tableRow))
                         ||
@@ -277,9 +348,10 @@
             insertedFile(idx, file) {
                 let tableHeader = this.tableMeta._fields[idx];
                 this.$root.attachFileToRow(this.tableRow, tableHeader, file);
+                this.$emit('updated-cell');
             },
             updateFile(file) {
-                axios.put('/ajax/files', {
+                axios.put(FileHelper.fileUrl(file), {
                     id: file.id,
                     table_id: file.table_id,
                     table_field_id: file.table_field_id,
@@ -292,30 +364,8 @@
                         this.$emit('updated-cell');
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
-                });
-            },
-            deleteFile(type, idx, tableHeader) {
-                let key = (type === 'file' ? '_files_for_' : '_images_for_') + tableHeader.field;
-                let file = this.tableRow[key][idx];
-                $.LoadingOverlay('show');
-                axios.delete('/ajax/files', {
-                    params: {
-                        id: file.id,
-                        table_id: file.table_id,
-                        table_field_id: file.table_field_id,
-                        row_id: this.tableRow.id,
-                        special_params: this.local_spec_params,
-                    }
-                }).then(({ data }) => {
-                    this.tableRow[key].splice(idx, 1);
-                    this.tableRow[tableHeader.field] = '';
-                    this.$emit('updated-cell');
-                }).catch(errors => {
-                    Swal('', getErrors(errors));
-                }).finally(() => {
-                    $.LoadingOverlay('hide');
                 });
             },
             setFiles(field, files) {
@@ -329,9 +379,10 @@
                 this.updateFile(this.fileRenamer);
                 this.fileRenamer = null;
             },
-            imageClick(images, idx) {
+            imageClick(images, idx, tableHeader) {
                 this.overImages = images;
-                this.overImageIdx = idx;
+                this.overImageIdx = 0;
+                this.overImgHeader = tableHeader;
             },
         },
         mounted() {
@@ -341,4 +392,10 @@
 
 <style lang="scss" scoped>
     @import "../CustomPopup/CustomEditPopUp";
+
+    .btn-danger, .btn-success {
+        line-height: 20px;
+        padding: 6px;
+        margin: 2px;
+    }
 </style>

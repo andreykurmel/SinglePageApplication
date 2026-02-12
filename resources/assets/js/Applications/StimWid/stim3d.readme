@@ -112,8 +112,9 @@ Each table which is used in 3D model must have special "APP,Property" in Corresp
         rotz, //Float
         elev_pd, //Float
         elev_rad, //Float
-        elev_gctr, //Float
+        elev_g, //Float
         dist_to_node_s, //Float
+        azm, //String
         local_id, //Int
     ]
 
@@ -224,9 +225,13 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
         elev_rad, //Float
         qty, //Int
         pos_left, //Float
+        side_posleft, //Float
+        locmod_id, //Float
         label_side, //String [top,left,bottom,right]
         label_dir, //String [horizontal,vertical]
         technology, //String
+        azm, //String
+        at_rot_y, //String
     ]
     App,Array: '${table with 2d:filters}' //NOTE: table for available filters in ConfiguratorComponent
     APP,Property: [
@@ -249,8 +254,12 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
     App,Array: '${table with 2d:sectors}'
     APP,Property: [
         sector, //String
+        face_norm, //Float (as string)
+        antn_azims, //String
         pos_num, //Int
         pos_widths, //Array '5,5,5'
+        spt_pos_num, //Int
+        spt_pos_widths, //Array '5,5,5'
     ]
     App,Array: '${table with 2d:pos}'
     APP,Property: [
@@ -298,7 +307,7 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
         g_sector_he, //Float
         g_rest_he, //Float
         g_bot_he, //Float
-        elev_by, //String [g, pd] -> 'elev_g' or 'elev_pd' in Eqpt
+        elev_by, //String [gc, pd] -> 'elev_g' or 'elev_pd' in Eqpt
         shared_sectors, //String "name1,name2..."
         show_eqpt_size, //0,1
         show_eqpt_model, //0,1
@@ -306,9 +315,14 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
         show_eqpt_id, //0,1
         show_line_model, //0,1
         show_eqpt_tooltip, //0,1
+        show_eqpt_azimuths, //0,1
+        show_elev_lib_lines, //0,1
         show_eqpt_size__font, //String
         show_eqpt_size__size, //Int
         show_eqpt_size__color, //#000000
+        show_eqpt_azimuth__font, //String
+        show_eqpt_azimuth__size, //Int
+        show_eqpt_azimuth__color, //#000000
         show_eqpt_model__font, //String
         show_eqpt_model__size, //Int
         show_eqpt_model__color, //#000000
@@ -330,6 +344,17 @@ Each table which is used in 2D Configurator must have special "APP,Property" in 
     APP,Property: [
         loading, //String
         technology, //String
+    ]
+
+    App,Array: '${table with 2d:elevs_lib}'
+    APP,Property: [
+        type, //String ['PD','GC','RC']
+        elev, //Number
+    ]
+
+    App,Array: '${table with 2d:azimuth_lib}'
+    APP,Property: [
+        deg, //Number
     ]
 
     App,Array: '${table with 2d:eqpt_colors}'
@@ -396,6 +421,7 @@ Additional Settings in Correspondence Fields.tbl ("Options"):
 - 'logo:in_select' - fields where stored logo image;
 - 'on:edit' - fill field from Fields/Notes;
 - 'key:true' - key columns for Risa3DParser;
+- 'is_export_import:file' - column to store JSON export/import file for "Loading","Geometry","MA";
 
 Additional Settings in Correspondence UI Parts.tbl ("Options"):
 - 'is_master:true' - master table (each combination of "TopTabs,Select" must have one master table);

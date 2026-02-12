@@ -11,7 +11,7 @@ let mix = require('laravel-mix');
  |
  */
 
-/* VENDOR SCRIPTS */
+/* VANGUARD SCRIPTS */
 mix.scripts([
     'public/assets/js/jquery-3.3.1.min.js',
     'public/assets/js/popper.min.js',
@@ -26,12 +26,12 @@ mix.scripts([
 ], 'public/assets/js/vendor.js');
 
 
-/* VENDOR STYLES */
+/* VANGUARD STYLES */
 mix.styles([
     'public/assets/fontawesome/css/all.min.css',
     'public/assets/plugins/bootstrap-datepicker/bootstrap-datepicker.min.css',
     'public/assets/plugins/croppie/croppie.css',
-    'node_modules/jquery-loading/plugins/croppie/croppie.css',
+    'public/assets/plugins/gridstack/gridstack.css',
 ],  'public/assets/css/vendor.css');
 
 
@@ -59,7 +59,18 @@ mix.babel([
 
 
 /* TABLDA APP */
-mix.js('resources/assets/js/vendor.js', 'public/assets/js/tablda/vendor.js')
+mix.vue({
+        version: 2,
+        runtimeOnly: false,
+    })
+    .webpackConfig({
+        resolve: {
+            alias: {
+                'vue$': 'vue/dist/vue.esm.js', // Ensures all dependencies use the same full version of Vue
+            }
+        }
+    })
+    .js('resources/assets/js/vendor.js', 'public/assets/js/tablda/vendor.js')
     .js('resources/assets/js/app.js', 'public/assets/js/tablda/app.js')
     .js('resources/assets/js/vanguard.js', 'public/assets/js')
     .sass('resources/assets/sass/app.scss', 'public/assets/css')

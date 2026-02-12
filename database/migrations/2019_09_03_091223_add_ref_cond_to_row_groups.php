@@ -14,6 +14,7 @@ class AddRefCondToRowGroups extends Migration
     public function up()
     {
         Schema::table('table_row_groups', function (Blueprint $table) {
+            $table->unsignedInteger('preview_col_id')->nullable();
             $table->unsignedInteger('row_ref_condition_id')->nullable();
 
             $table->foreign('row_ref_condition_id', 'table_row_groups__row_ref_condition_id')

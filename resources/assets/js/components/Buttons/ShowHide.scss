@@ -1,0 +1,53 @@
+.show_hide_button {
+    cursor: pointer;
+    width: 35px;
+    height: 30px;
+    padding: 0;
+    font-size: 22px;
+    background-color: transparent;
+    position: relative;
+    outline: none;
+}
+.show_hide_button > .blue-gradient {
+    padding: 0;
+    position: relative;
+    width: 100%;
+}
+.show_hide_button > .blue-gradient > img {
+    height: 30px;
+}
+
+.show_hide_menu {
+    position: absolute;
+    right: 100%;
+    top: 100%;
+    z-index: 500;
+    max-height: 500px;
+    background-color: #EEE;
+    border: 1px solid #777;
+    border-radius: 5px;
+    display: flex;
+
+    .menu_part {
+        margin: 5px;
+        width: 240px;
+        overflow: auto;
+    }
+    .vert_line {
+        width: 1px;
+        border-right: 1px solid #777;
+    }
+    .menu_part > div {
+        border-bottom: 1px dashed #CCC;
+        line-height: 20px;
+    }
+    .menu_part > div > label {
+        white-space: nowrap;
+        font-size: 0.7em;
+        margin: 0;
+    }
+}
+.title-elem {
+    text-align: center;
+    background-color: #DDD;
+}

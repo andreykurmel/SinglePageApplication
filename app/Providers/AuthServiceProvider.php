@@ -6,6 +6,7 @@ use Illuminate\Contracts\Auth\Access\Gate as GateContract;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\DataSetPermissions\CondFormat;
+use Vanguard\Models\Pages\Pages;
 use Vanguard\Models\StaticPage;
 use Vanguard\Models\Table\TableAlert;
 use Vanguard\Models\User\UserGroup;
@@ -15,6 +16,7 @@ use Vanguard\Models\Table\TableView;
 use Vanguard\Policies\AppThemePolicy;
 use Vanguard\Policies\CondFormatPolicy;
 use Vanguard\Policies\FolderPolicy;
+use Vanguard\Policies\PagesPolicy;
 use Vanguard\Policies\StaticPagePolicy;
 use Vanguard\Policies\TableAlertPolicy;
 use Vanguard\Policies\TableDataPolicy;
@@ -38,6 +40,7 @@ class AuthServiceProvider extends ServiceProvider
         CondFormat::class => CondFormatPolicy::class,
         StaticPage::class => StaticPagePolicy::class,
         AppTheme::class => AppThemePolicy::class,
+        Pages::class => PagesPolicy::class,
     ];
 
     /**

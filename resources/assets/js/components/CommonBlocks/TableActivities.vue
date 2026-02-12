@@ -95,7 +95,7 @@
                     this.page = 1;
                     this.loadAllHistories(this.tableMeta.id, this.tableRow.id);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -110,9 +110,6 @@
 
 <style lang="scss" scoped>
     .history-pane {
-        flex-basis: 300px;
-        margin-left: 5px;
-
         .history-del {
             float: right;
             font-size: 2em;

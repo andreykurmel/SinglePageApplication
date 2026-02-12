@@ -1,5 +1,5 @@
 <template>
-    <div id="tables" class="full-frame" :style="{overflow: scrlFlow ? 'auto' : 'hidden'}">
+    <div id="tables" ref="mainrequest" class="full-frame relative" :style="{overflow: scrlFlow ? 'auto' : 'hidden'}" @scroll="dcrScroll">
         <template v-if="dcrObject.pass && !pass">
 
             <request-pass-pop-up :table_request_id="dcrObject.id" @pass-popup-close="setPass"></request-pass-pop-up>
@@ -7,9 +7,55 @@
         </template>
         <template v-else>
 
-            <div v-if="$root.tableMeta.id" class="dcr_wrap flex flex--col" :style="{backgroundColor: getBgCol('dcr_sec_bg_bot')}">
+            <div v-if="canDownload || canDcrEdit" class="flex flex--center-v" style="position: fixed; right: 15px; top: 10px; z-index: 500;">
+                <request-dwn-button
+                    v-if="canDownload"
+                    :dcr-object="dcrObject"
+                    :dwn-form-elem="'dcrform_wrap'"
+                    :dwn-window-elem="'dcrall_wrap'"
+                    class="r-btn"
+                    @force-flow="(val) => { forceFlow = val; }"
+                ></request-dwn-button>
 
-                <img v-if="dcrObject.dcr_sec_bg_img"
+                <button v-if="canDcrEdit" class="btn btn-default blue-gradient r-btn" @click="editStartOrStore" :style="$root.themeButtonStyle">
+                    <i v-if="!dcrEditMode" class="fas fa-edit"></i>
+                    <i v-if="dcrEditMode" class="fas fa-check"></i>
+                </button>
+                <button v-if="canDcrEdit && dcrEditMode" class="btn btn-default r-btn" @click="editCancel">
+                    <i class="fa fa-times"></i>
+                </button>
+
+                <div v-if="canDcrEdit && dcrEditMode" class="dcr-edit-panel">
+                    <label class="no-margin">Design</label>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditOverall = true">
+                        Overall
+                    </button>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditTitle = true">
+                        Header
+                    </button>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditForm = true">
+                        Form
+                    </button>
+                    <label style="margin: 5px 0 0 0;">Fields</label>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditThisTable = true">
+                        This Table
+                    </button>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditEmbedTable = true">
+                        Embedded Tables
+                    </button>
+                    <label style="margin: 5px 0 0 0;">Other</label>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditActions = true">
+                        Actions & Status
+                    </button>
+                    <button class="btn btn-default r-btn edit-hdr-btn" @click="dcrEditNotifications = true">
+                        Notifications
+                    </button>
+                </div>
+            </div>
+
+            <div v-if="$root.tableMeta.id" id="dcrall_wrap" class="dcr_wrap flex flex--col" :style="{backgroundColor: getBgCol('dcr_sec_bg_bot')}">
+
+                <img v-if="dcrObject.dcr_sec_background_by === 'image' && dcrObject.dcr_sec_bg_img"
                      class="dcr-title--item item__img"
                      :src="$root.fileUrl({url:dcrObject.dcr_sec_bg_img})"
                      style="z-index: auto;position: fixed;"
@@ -20,95 +66,23 @@
                      }"
                 />
 
-                <div class="navbar navbar-default no-border"
-                     v-if="(dcrObject.dcr_title || dcrObject.dcr_title_bg_img) && !is_embed"
-                     :style="{ backgroundColor: getBgCol('dcr_sec_bg_top'), }"
-                >
-                    <!--TITLE-->
-                    <div class="flex flex--center-h">
-                        <div class="dcr-title"
-                             :style="{
-                                width: (dcrObject.dcr_title_width+'px' || null),
-                                height: (dcrObject.dcr_title_height+'px' || null),
-                                backgroundColor: getBgCol('dcr_title_bg_color', true),
-                                boxShadow: getBgCol('dcr_title_bg_color', true) ? getBoxShad : null,
-                                borderTopLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderTopRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                            }"
-                        >
-                            <h1 class="hid item__h1" :style="fontStyleObj('dcr_title_font')" v-html="dcrObject.dcr_title"></h1>
-                            <h1 class="dcr-title--item item__h1" :style="fontStyleObj('dcr_title_font')" v-html="dcrObject.dcr_title"></h1>
-                            <img v-if="dcrObject.dcr_title_bg_img"
-                                 class="dcr-title--item item__img"
-                                 :src="$root.fileUrl({url:dcrObject.dcr_title_bg_img})"
-                                 :style="{
-                                    height: (['Height','Fill'].indexOf(dcrObject.dcr_title_bg_fit) > -1 ? '100%' : null),
-                                    width: (['Width','Fill'].indexOf(dcrObject.dcr_title_bg_fit) > -1 ? '100%' : null),
-                                    objectFit: (dcrObject.dcr_title_bg_fit === 'Fill' ? 'cover' : null),
-                                 }"
-                            />
-                        </div>
-                    </div>
-                    <!--TITLE-->
+                <main-request-title
+                    v-if="!scrlConversational || !dcrObject.dcr_sec_slide_top_header"
+                    :dcr-object="dcrObject"
+                    :is_embed="!!is_embed"
+                    :loaded="!!(table_id && settingsMeta)"
+                    :dcr_form_msg="dcrFormMsage"
+                    :sm_text="headerSmText"
+                    :all-rows="tableRows"
+                    :can-add-row="canAdd"
+                    :dcr-edit-mode="dcrEditMode"
+                    :transition_time_ms="transition_time_ms"
+                    :class="{ 'sticky-top': scrlFlow && dcrObject.dcr_flow_header_stick }"
+                    @store-rows-click="manyRowsStore"
+                    @title-popup="dcrEditTitle = true"
+                    @set-view-table="(v) => { viewTable = v; prepareLinkedRows(); }"
+                ></main-request-title>
 
-                    <div v-if="dcrObject.dcr_form_line_top" :style="{
-                        borderBottom: (dcrObject.dcr_form_line_type == 'line' ? (dcrObject.dcr_form_line_thick || 1)+'px solid '+(dcrObject.dcr_form_line_color || '#d3e0e9') : null),
-                        marginBottom: (dcrObject.dcr_form_line_type == 'space' ? (dcrObject.dcr_form_line_thick || 1)+'px' : null),
-                    }"></div>
-
-                    <!--TOP MESSAGE-->
-                    <div class="dcr-top-msg" :style="{
-                            width: viewTable ? '100%' : (dcrObject.dcr_form_width || 600)+'px',
-                            margin: 'auto',
-                            boxShadow: getBoxShad,
-                            borderTopLeftRadius: dcrObject.dcr_form_line_radius+'px',
-                            borderTopRightRadius: dcrObject.dcr_form_line_radius+'px',
-                            borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                            borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                    }">
-                        <div v-if="dcrFormMsage"
-                             class="top-message-wrap"
-                             :style="{
-                                    backgroundColor: formBgTransp(),
-                                    borderTopLeftRadius: dcrObject.dcr_form_line_radius+'px',
-                                    borderTopRightRadius: dcrObject.dcr_form_line_radius+'px',
-                                    borderBottomLeftRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                                    borderBottomRightRadius: (dcrObject.dcr_form_line_type == 'space' ? dcrObject.dcr_form_line_radius+'px' : ''),
-                             }"
-                        >
-                            <div v-html="dcrFormMsage"></div>
-                        </div>
-                        <div class="flex navbar navbar-default fit-content" :class="flexCenterClass" v-if="!dcrObject.one_per_submission">
-                            <div v-if="table_id && $root.tableMeta && settingsMeta" class="nav flex flex--center flex--automargin">
-                                <div style="height: 40px;"></div>
-                                <div class="active">
-                                    <a @click.prevent="viewTable = !viewTable"><span class="glyphicon glyphicon-list"></span> {{ viewTable ? 'Form' : 'Grid View' }}</a>
-                                </div>
-                                <div v-if="getAvaRows" v-show="viewTable">
-                                    <a><button type="button" class="btn btn-success" :style="$root.themeButtonStyle" @click="storeRows()">Submit</button></a>
-                                </div>
-                                <div v-show="viewTable" v-if="$root.tableMeta">
-                                    <a><cell-height-button
-                                            :table_meta="$root.tableMeta"
-                                            :cell-height="$root.cellHeight"
-                                            :max-cell-rows="$root.maxCellRows"
-                                            @change-cell-height="$root.changeCellHeight"
-                                            @change-max-cell-rows="$root.changeMaxCellRows"
-                                    ></cell-height-button></a>
-                                </div>
-                                <div v-if="getAvaRows" v-show="viewTable">
-                                    <a><button class="btn btn-primary btn-sm blue-gradient" @click="clickAddRow()" :style="$root.themeButtonStyle">Add</button></a>
-                                </div>
-                                <div v-show="viewTable">
-                                    <a @click.prevent="$root.fullWidthCellToggle()"><full-width-button :full-width-cell="$root.fullWidthCell"></full-width-button></a>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <!--TOP MESSAGE-->
-                </div>
                 <div class="flex__elem-remain"
                      style="position: relative;"
                      :style="{paddingTop: dcrObject.dcr_sec_line_top ? (dcrObject.dcr_sec_line_thick || 1)+'px' : null}"
@@ -124,6 +98,8 @@
                             :style="specShadow"
                         >
                             <div v-if="$root.tableMeta.id"
+                                 class="relative"
+                                 :style="{paddingLeft: !viewTable && dcrObject.one_per_submission != 1 ? 'calc('+dcrManyRowsWi.width+' + 5px)' : null}"
                                  :class="{'flex__elem-remain': scrlFlow && viewTable, 'full-height': !scrlFlow || viewTable}"
                             >
 
@@ -137,21 +113,23 @@
                                             :settings-meta="settingsMeta"
                                             :all-rows="tableRows"
                                             :page="page"
-                                            :rows-count="present_row_count"
+                                            :rows-count="tableRows.length"
                                             :cell-height="$root.cellHeight"
                                             :full-width-cell="$root.fullWidthCell"
+                                            :adding-row="{ active: canAdd && availableAdding, position: 'top' }"
                                             :is-pagination="true"
                                             :sort="sort"
-                                            :adding-row="addingRow"
                                             :user="$root.user"
                                             :behavior="'request_view'"
-                                            @added-row="insertRow"
+                                            style="width: 100%"
+                                            @added-row="tableAddRow"
                                             @updated-row="updateRow"
                                             @delete-row="deleteRow"
                                             @change-page="changePage"
                                             @sort-by-field="sortByField"
                                             @sub-sort-by-field="subSortByField"
                                             @row-index-clicked="rowIndexClicked"
+                                            @show-src-record="tableShowSrcRecord"
                                     ></custom-table>
                                     <custom-edit-pop-up
                                             v-if="$root.tableMeta && editPopUpRow"
@@ -165,30 +143,83 @@
                                             :user="$root.user"
                                             :cell-height="$root.cellHeight"
                                             @popup-close="closePopUp"
+                                            @show-src-record="tableShowSrcRecord"
                                     ></custom-edit-pop-up>
                                 </div>
+
+                                <div v-if="!viewTable && dcrObject.one_per_submission != 1"
+                                     class="many-rows"
+                                     :style="dcrManyRowsWi">
+                                    <div class="full-height">
+                                        <div class="many-rows--height">
+                                            <select class="form-control" v-model="listing_field">
+                                                <option v-for="fld in $root.tableMeta._fields"
+                                                        v-if="!$root.inArray(fld.field, $root.systemFields)"
+                                                        :value="fld.field"
+                                                >{{ $root.uniqName(fld.name) }}</option>
+                                            </select>
+                                            <div class="many-rows--content full-width">
+                                                <div v-for="i in tableRows.length" :class="[((i-1) === selIdx ? 'active' : '')]" @click="selRow(i-1)">
+                                                    <label v-html="showListingManyRows(i)"></label>
+                                                </div>
+                                                <div v-if="selIdx === -1" class="active" @click="() => {selIdx = -1}">
+                                                    <label>&nbsp;</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <table-pagination
+                                            :page="page"
+                                            :table-meta="$root.tableMeta"
+                                            :rows-count="tableRows.length"
+                                            :compact="true"
+                                            :style="{ position: 'relative', top: '38px' }"
+                                            @change-page="changePage"
+                                        ></table-pagination>
+                                    </div>
+                                    <header-resizer :table-header="listingRows"></header-resizer>
+                                </div>
                                 <request-form-view
-                                        v-if="!viewTable && empty_row"
+                                        v-if="!viewTable && receiveRow(selIdx)"
+                                        id="dcrform_wrap"
                                         :table-meta="$root.tableMeta"
-                                        :table-row="empty_row"
+                                        :table-row="receiveRow(selIdx)"
                                         :settings-meta="settingsMeta"
                                         :cell-height="$root.cellHeight"
                                         :can-add-row="canAdd"
                                         :user="$root.user"
                                         :dcr-object="dcrObject"
-                                        :dcr-linked-rows="dcrLinkedRows"
+                                        :dcr-linked-rows="dcrLinkedRows[lrKey(selIdx)]"
                                         :footer_height="footer_height"
                                         :frm_color="formBgTransp()"
                                         :box_shad="getBoxShad"
                                         :scrl-flow="scrlFlow"
+                                        :scrl-conversational="scrlConversational"
+                                        :scrl-accordion="scrlAccordion"
+                                        :scrl-tabs="scrlTabs"
                                         :with_edit="!!withEdit"
-                                        @insert="insertRow"
-                                        @submit="submitRow"
+                                        :is_embed="!!is_embed"
+                                        :dcr-form-msage="dcrFormMsage"
+                                        :get-ava-rows="getAvaRows"
+                                        :available-adding="availableAdding"
+                                        :clear-after-submis="clearAfterSubmis"
+                                        @add-row="addRow"
                                         @scroll-fields="scrollFields"
                                         @set-form-elem="setFormElem"
                                         @show-src-record="showSrcRecord"
-                                        :style="getWidth"
+                                        @store-rows-click="manyRowsStore"
+                                        @clear-submission-changed="updateClearSubmis"
                                 ></request-form-view>
+
+                                <header-resizer
+                                    v-if="dcrEditMode"
+                                    :table-header="dcrObject"
+                                    :hdr_key="'dcr_form_width'"
+                                    :resize-only="true"
+                                    :step="10"
+                                    style="z-index: 150;"
+                                ></header-resizer>
+                                <i v-if="dcrEditMode" class="fas fa-edit pop-icon" @click="dcrEditThisTable = true" :style="{top: (dcrObject.dcr_form_line_thick || 1)+3+'px'}"></i>
 
                             </div>
                         </div>
@@ -198,14 +229,17 @@
                      :style="{
                          borderTop: (dcrObject.dcr_sec_line_bot ? (dcrObject.dcr_sec_line_thick || 1)+'px solid '+(dcrObject.dcr_sec_line_color || '#d3e0e9') : null),
                          backgroundColor: getBgCol('dcr_sec_bg_bot'),
-                         height: (show_footer ? footer_height+'px' : 0),
-                         transition: transition_time_ms+'ms',
                      }"
                 >
-                    <div class="footer--toggler" @click="toggleFooter()">
-                        <i class="fas" :class="[show_footer ? 'fa-caret-down' : 'fa-caret-up']"></i>
+                    <div class="footer--toggler" :style="{width: footerWi}" @click="toggleFooter()">
+                        <img src="/assets/img/DCR_Hide_Show.png" :style="{transform: show_footer ? 'rotate(180deg)' : '', top: show_footer ? '' : '-25px'}"/>
                     </div>
-                    <div class="footer-wr" :style="{color: txtClr}">
+                    <div class="footer-wr" :style="{
+                        color: txtClr,
+                        height: (show_footer ? footer_height+'px' : 0),
+                        transition: transition_time_ms+'ms',
+                        paddingTop: (show_footer ? '10px' : 0),
+                    }">
                         <p>
                             <a href="/privacy" target="_blank" :style="{color: txtClr}">Privacy</a>,
                             <a href="/tos" target="_blank" :style="{color: txtClr}">Terms</a>
@@ -224,19 +258,31 @@
 
             <!--Link Popups from ListView and MapView.-->
             <template v-for="(linkObj, idx) in linkPopups">
+                <header-history-pop-up
+                    v-if="linkObj.key === 'show' && linkObj.link.link_type === 'History'"
+                    :idx="linkObj.index"
+                    :table-meta="$root.tableMeta"
+                    :table-row="linkObj.row"
+                    :history-header="linkObj.header"
+                    :link="linkObj.link"
+                    :popup-key="idx"
+                    :is-visible="true"
+                    @popup-close="closeLinkPopup"
+                ></header-history-pop-up>
                 <link-pop-up
-                        v-if="linkObj.key === 'show'"
+                        v-else-if="linkObj.key === 'show'"
+                        :source-meta="$root.tableMeta"
                         :idx="linkObj.index"
-                        :settings-meta="settingsMeta"
-                        :user="$root.user"
                         :link="linkObj.link"
                         :meta-header="linkObj.header"
                         :meta-row="linkObj.row"
-                        :cell-height="$root.cellHeight"
-                        :max-cell-rows="$root.maxCellRows"
                         :popup-key="idx"
-                        :no_animation="linkObj.behavior === 'map'"
-                        :view_authorizer="{dcr_hash: dcrObject.dcr_hash}"
+                        :view_authorizer="{
+                            mrv_marker: $root.is_mrv_page,
+                            srv_marker: $root.is_srv_page,
+                            dcr_marker: $root.is_dcr_page,
+                            dcr_hash: dcrObject.dcr_hash,
+                        }"
                         @show-src-record="showSrcRecord"
                         @link-popup-close="closeLinkPopup"
                 ></link-pop-up>
@@ -254,6 +300,7 @@
                     @hide-popup="AnrPop = null"
             ></proceed-automation-popup>
 
+            <!-- DCR password -->
             <dcr-pass-block
                 v-if="row_protection_show"
                 :dcr_id="dcrObject.id"
@@ -262,50 +309,222 @@
                 @cancel-pass="openedRowRestricted()"
             ></dcr-pass-block>
 
+            <!--Edit Popup for 'Email','Phone Number'-->
+            <cell-email-phone-popup v-if="$root.tableMeta.id" :table-meta="$root.tableMeta"></cell-email-phone-popup>
+
+            <!-- DCR Edit Popups -->
+            <slot-popup
+                v-if="dcrEditOverall"
+                :popup_width="1000"
+                :popup_height="300"
+                @popup-close="dcrEditOverall = false"
+            >
+                <template v-slot:title><span>DCR / Design / Overall</span></template>
+                <template v-slot:body>
+                    <tab-settings-requests-row-overall
+                        :table_id="$root.tableMeta.id"
+                        :table-meta="$root.tableMeta"
+                        :cell-height="1"
+                        :max-cell-rows="0"
+                        :table-request="$root.settingsMeta['table_data_requests']"
+                        :request-row="dcrObject"
+                        :with_edit="canDcrEdit"
+                        @updated-cell="updateDCR"
+                        @upload-file="uploadDcrFile"
+                        @del-file="delDcrFile"
+                    ></tab-settings-requests-row-overall>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditTitle"
+                :popup_width="1000"
+                @popup-close="dcrEditTitle = false"
+            >
+                <template v-slot:title><span>DCR / Design / Header</span></template>
+                <template v-slot:body>
+                    <tab-settings-requests-row-title
+                        :table_id="$root.tableMeta.id"
+                        :table-meta="$root.tableMeta"
+                        :cell-height="1"
+                        :max-cell-rows="0"
+                        :table-request="$root.settingsMeta['table_data_requests']"
+                        :request-row="dcrObject"
+                        :with_edit="canDcrEdit"
+                        :titleuniqid="titleuniqid"
+                        @updated-cell="updateDCR"
+                        @upload-file="uploadDcrFile"
+                        @del-file="delDcrFile"
+                    ></tab-settings-requests-row-title>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditForm"
+                :popup_width="1000"
+                :popup_height="300"
+                @popup-close="dcrEditForm = false"
+            >
+                <template v-slot:title><span>DCR / Design / Form</span></template>
+                <template v-slot:body>
+                    <tab-settings-requests-row-form
+                        :table_id="$root.tableMeta.id"
+                        :table-meta="$root.tableMeta"
+                        :cell-height="1"
+                        :max-cell-rows="0"
+                        :table-request="$root.settingsMeta['table_data_requests']"
+                        :request-row="dcrObject"
+                        :with_edit="canDcrEdit"
+                        :titleuniqid="titleuniqid"
+                        class="full-height p5"
+                        @updated-cell="updateDCR"
+                    ></tab-settings-requests-row-form>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditThisTable"
+                :popup_width="1000"
+                @popup-close="dcrEditThisTable = false"
+            >
+                <template v-slot:title><span>DCR / Fields / This Table</span></template>
+                <template v-slot:body>
+                    <tab-settings-requests-this-table
+                        :table_id="$root.tableMeta.id"
+                        :table-meta="$root.tableMeta"
+                        :dcr-object="dcrObject"
+                        :with-edit="canDcrEdit && !stopEdition"
+                        :can-adding-row="canDcrEdit"
+                        @check-row="dcrSettCheck"
+                    ></tab-settings-requests-this-table>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditEmbedTable"
+                :popup_width="1000"
+                @popup-close="dcrEditEmbedTable = false"
+            >
+                <template v-slot:title><span>DCR / Fields / Embedded Tables</span></template>
+                <template v-slot:body>
+                    <tab-settings-requests-linked-tables
+                        :table-meta="$root.tableMeta"
+                        :dcr-object="dcrObject"
+                    ></tab-settings-requests-linked-tables>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditActions"
+                :popup_width="1000"
+                :popup_height="400"
+                @popup-close="dcrEditActions = false"
+            >
+                <template v-slot:title><span>DCR / Actions & Status</span></template>
+                <template v-slot:body>
+                    <tab-settings-submission-row
+                        :table-meta="$root.tableMeta"
+                        :table_id="$root.tableMeta.id"
+                        :cell-height="1"
+                        :max-cell-rows="0"
+                        :table-request="$root.settingsMeta['table_data_requests']"
+                        :request-row="dcrObject"
+                        :with_edit="canDcrEdit"
+                        :bg_color="'white'"
+                        @updated-cell="updateDCR"
+                    ></tab-settings-submission-row>
+                </template>
+            </slot-popup>
+
+            <slot-popup
+                v-if="dcrEditNotifications"
+                :popup_width="1000"
+                @popup-close="dcrEditNotifications = false"
+            >
+                <template v-slot:title><span>DCR / Notifications</span></template>
+                <template v-slot:body>
+                    <tab-settings-request-notifs
+                        :table-meta="$root.tableMeta"
+                        :table_id="$root.tableMeta.id"
+                        :cell-height="1"
+                        :max-cell-rows="0"
+                        :table-request="$root.settingsMeta['table_data_requests']"
+                        :request-row="dcrObject"
+                        :with_edit="canDcrEdit"
+                        :bg_color="'white'"
+                        @updated-cell="updateDCR"
+                    ></tab-settings-request-notifs>
+                </template>
+            </slot-popup>
+
         </template>
     </div>
 </template>
 
 <script>
+    import {RowDataHelper} from "../../classes/helpers/RowDataHelper";
+    import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
     import {SpecialFuncs} from "../../classes/SpecialFuncs";
     import {JsFomulaParser} from "../../classes/JsFomulaParser";
     import {RequestFuncs} from "./RequestFuncs";
+    import {DcrEndpoints} from "../../classes/DcrEndpoints";
 
     import {eventBus} from '../../app';
 
     import RequestMixin from "./RequestMixin.vue";
+    import SortFieldsForVerticalMixin from './../_Mixins/SortFieldsForVerticalMixin.vue';
 
     import GoogleAddressAutocomplete from "../CommonBlocks/GoogleAddressAutocomplete";
     import RequestFormView from './RequestFormView';
     import CustomTable from './../CustomTable/CustomTable';
     import CustomEditPopUp from './../CustomPopup/CustomEditPopUp';
-    import FullWidthButton from './../Buttons/FullWidthButton';
-    import CellHeightButton from './../Buttons/CellHeightButton';
     import AddButton from './../Buttons/AddButton';
     import SearchButton from './../Buttons/SearchButton';
     import ShowHideButton from './../Buttons/ShowHideButton';
     import RequestPassPopUp from './RequestPassPopUp';
-    import LinkPopUp from "../CustomPopup/LinkPopUp";
     import TableDataStringPopup from "../CustomPopup/TableDataStringPopup";
     import ProceedAutomationPopup from "../CustomPopup/ProceedAutomationPopup";
-    import {RefCondHelper} from "../../classes/helpers/RefCondHelper";
     import DcrPassBlock from "../CommonBlocks/DcrPassBlock";
+    import MainRequestTitle from "./MainRequestTitle";
+    import RequestDwnButton from "../Buttons/RequestDwnButton";
+    import HeaderHistoryPopUp from "../CustomPopup/HeaderHistoryPopUp";
+    import CellEmailPhonePopup from "../CustomPopup/CellEmailPhonePopup";
+    import TablePagination from "../CustomTable/Pagination/TablePagination.vue";
+    import HeaderResizer from "../CustomTable/Header/HeaderResizer.vue";
+    import TabSettingsRequestsRowTitle from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestsRowTitle.vue";
+    import TabSettingsRequestsRowForm from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestsRowForm.vue";
+    import TabSettingsRequestsRowOverall from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestsRowOverall.vue";
+    import TabSettingsRequestsThisTable from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestsThisTable.vue";
+    import TabSettingsRequestsLinkedTables from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestsLinkedTables.vue";
+    import TabSettingsSubmissionRow from "../MainApp/Object/Table/SettingsModule/TabSettingsSubmissionRow.vue";
+    import TabSettingsRequestNotifs from "../MainApp/Object/Table/SettingsModule/TabSettingsRequestNotifs.vue";
 
     export default {
         name: "MainRequest",
         mixins: [
             RequestMixin,
+            SortFieldsForVerticalMixin,
         ],
         components: {
+            TabSettingsRequestNotifs,
+            TabSettingsSubmissionRow,
+            TabSettingsRequestsLinkedTables,
+            TabSettingsRequestsThisTable,
+            TabSettingsRequestsRowOverall,
+            TabSettingsRequestsRowForm,
+            TabSettingsRequestsRowTitle,
+            HeaderResizer,
+            TablePagination,
+            CellEmailPhonePopup,
+            HeaderHistoryPopUp,
+            RequestDwnButton,
+            MainRequestTitle,
             DcrPassBlock,
             ProceedAutomationPopup,
             TableDataStringPopup,
-            LinkPopUp,
             GoogleAddressAutocomplete,
             RequestFormView,
             CustomTable,
-            FullWidthButton,
-            CellHeightButton,
             AddButton,
             SearchButton,
             ShowHideButton,
@@ -314,6 +533,19 @@
         },
         data: function () {
             return {
+                titleuniqid: uuidv4(),
+                dcrEditNotifications: false,
+                dcrEditActions: false,
+                dcrEditEmbedTable: false,
+                dcrEditThisTable: false,
+                dcrEditForm: false,
+                dcrEditTitle: false,
+                dcrEditOverall: false,
+                dcrEditMode: false,
+                stopEdition: false,
+                headerSmText: false,
+                clearAfterSubmis: true,
+                forceFlow: false,
                 row_protection: null,
                 row_protection_show: false,
                 AnrPop: null,
@@ -321,9 +553,7 @@
                 loaded: false,
                 pass: '',
                 tableRows: [],
-                present_row_count: 0,
-                request_row_count: 0,
-                available_row_count: 1000,
+                request_row_count: -1,
                 searchObject: {
                     keyWord: '',
                     columns: [],
@@ -335,6 +565,9 @@
                     field: 'id',
                     direction: 'desc'
                 }],
+                listingRows: {
+                    width: this.dcrObject.dcr_many_rows_width || 250,
+                },
 
                 editPopUpRow: null,
 
@@ -354,6 +587,9 @@
                 hashRow: null,
 
                 dcrLinkedRows: {},
+                listing_field: null,
+                selIdx: 0,
+                check_errors: 0,
             }
         },
         props: {
@@ -363,28 +599,71 @@
             is_embed: Boolean|Number
         },
         computed: {
+            canDownload() {
+                return this.dcrObject.download_pdf || this.dcrObject.download_png;
+            },
+            canDcrEdit() {
+                return this.dcrObject.user_id == this.$root.user._pre_id;
+            },
+            footerWi() {
+                let fw = this.dcrObject.dcr_title_width;
+                let width = '100%';
+                if (fw) {
+                    width = fw <= 1 ? (fw*100)+'%' : fw+'px';
+                }
+                return width;
+            },
+            dcrManyRowsWi() {
+                let listingWi = Number(this.listingRows.width) || 250;
+                let minWi = 70;
+                return {
+                    top: (this.dcrObject.dcr_form_line_thick || 1)+'px',
+                    width: listingWi < 1 ? ((listingWi*100) + '%') : (listingWi + 'px'),
+                    minWidth: minWi < 1 ? ((minWi*100) + '%') : (minWi + 'px'),
+                };
+            },
             dcrFormMsage() {
                 let pars = new JsFomulaParser(this.$root.tableMeta);
-                return this.dcrObject.dcr_form_message && this.empty_row ?
+                return this.dcrObject.dcr_form_message && this.receiveRow(this.selIdx) ?
                     (
                         this.viewTable
-                            ? pars.replaceVars(_.first(this.tableRows), this.dcrObject.dcr_form_message, this.$root.tableMeta.unit_conv_is_active)
-                            : pars.replaceVars(this.empty_row, this.dcrObject.dcr_form_message, this.$root.tableMeta.unit_conv_is_active)
+                            ? pars.replaceVars(_.first(this.tableRows), this.dcrObject.dcr_form_message, this.$root.tableMeta)
+                            : pars.replaceVars(this.receiveRow(this.selIdx), this.dcrObject.dcr_form_message, this.$root.tableMeta)
                     )
                     : '';
             },
             scrlFlow() {
+                if (this.forceFlow) {
+                    return true;
+                }
                 return this.dcrObject
                     && String(this.dcrObject.dcr_sec_scroll_style).toLowerCase() === 'flow';
             },
-            flexCenterClass() {
-                return [window.screen.width > 767 ? 'flex--center' : ''];
+            scrlConversational() {
+                if (this.forceFlow) {
+                    return false;
+                }
+                return this.dcrObject
+                    && String(this.dcrObject.dcr_sec_scroll_style).toLowerCase() === 'conversational';
+            },
+            scrlAccordion() {
+                if (this.forceFlow) {
+                    return false;
+                }
+                return this.dcrObject
+                    && String(this.dcrObject.dcr_sec_scroll_style).toLowerCase() === 'accordion';
+            },
+            scrlTabs() {
+                if (this.forceFlow) {
+                    return false;
+                }
+                return this.dcrObject
+                    && String(this.dcrObject.dcr_sec_scroll_style).toLowerCase() === 'horizontal_tabs';
             },
             canAdd() {
                 return this.$root.tableMeta
                     && this.$root.tableMeta._current_right
                     && this.$root.tableMeta._current_right.can_add
-                    && (this.request_row_count === -1 || this.available_row_count !== 0)
                     &&
                     (
                         !this.$root.tableMeta._rows_count
@@ -393,18 +672,7 @@
                     );
             },
             getAvaRows() {
-                return this.canAdd ? (this.request_row_count > -1 ? this.available_row_count : 'Infinite') : 0;
-            },
-            addingRow() {
-                return {
-                    active: !!this.getAvaRows,
-                    position: 'top'
-                }
-            },
-            getWidth() {
-                return {
-                    width: Math.min( window.screen.width, (this.dcrObject.dcr_form_width || 600) )+'px',
-                };
+                return this.canAdd ? (this.request_row_count > -1 ? this.availableRowCount : 'Infinite') : 0;
             },
             getBoxShad() {
                 return this.dcrObject.dcr_form_shadow
@@ -412,50 +680,43 @@
                     : null;
             },
             specShadow() {
-                let stl = this.$root.themeMainBgStyle;
+                let stl = _.clone(this.$root.themeMainBgStyle);
                 stl.backgroundColor = 'transparent';//this.getBgCol('dcr_sec_bg_bot');
+
+                let fw = this.dcrObject.dcr_form_width;
+                let width = '100%';
+                if (fw) {
+                    width = fw <= 1 ? (fw*100)+'%' : fw+'px';
+                }
+                stl.maxWidth = '100%';
+                stl.width = width;
+
                 return stl;
             },
             txtClr() {
                 return SpecialFuncs.smartTextColorOnBg(this.getBgCol('dcr_sec_bg_bot'));
             },
             withEdit() {
-                return this.empty_row && this.editabil(this.empty_row);
+                return this.receiveRow(this.selIdx) && this.editabil(this.receiveRow(this.selIdx));
+            },
+            availableRowCount() {
+                return Math.max(this.request_row_count - this.tableRows.length, 0);
+            },
+            availableAdding() {
+                return this.request_row_count === -1 || this.availableRowCount !== 0;
             },
         },
         methods: {
+            selRow(idx) {
+                this.selIdx = -2;
+                this.$nextTick(() => {
+                    this.selIdx = idx;
+                    this.prepareLinkedRows();
+                });
+            },
             //getters
             getBgCol(key, force) {
                 return this.dcrObject.dcr_sec_bg_img && !force ? 'transparent' : (this.dcrObject[key] || 'transparent');
-            },
-            dcrTitleStyle() {
-                let font = {
-                    width: (this.dcrObject.dcr_title_width+'px' || null),
-                    height: (this.dcrObject.dcr_title_height+'px' || null),
-                    backgroundColor: this.getBgCol('dcr_title_bg_color', true),
-                };
-                let style = this.fontStyleObj('dcr_title_font');
-                return {
-                    ...font,
-                    ...style,
-                };
-            },
-            fontStyleObj(type) {
-                let stl = {
-                    fontFamily: this.dcrObject[type+'_font'] || this.dcrObject[type+'_type'] || 'Raleway, sans-serif',
-                    fontSize: (this.dcrObject[type+'_size'] || 14)+'px',
-                    lineHeight: (to_float(this.dcrObject[type+'_size'] || 14)*1.1)+'px',
-                    color: this.dcrObject[type+'_color'] || null,
-                };
-                let fonts = this.$root.parseMsel(this.dcrObject[type+'_style']);
-                _.each(fonts, (f) => {
-                    //(f === 'Italic' ? stl.fontStyle = 'italic' : stl.fontStyle = stl.fontStyle || null);
-                    (f === 'Bold' ? stl.fontWeight = 'bold' : stl.fontWeight = stl.fontWeight || null);
-                    (f === 'Strikethrough' ? stl.textDecoration = 'line-through' : stl.textDecoration = stl.textDecoration || null);
-                    (f === 'Overline' ? stl.textDecoration = 'overline' : stl.textDecoration = stl.textDecoration || null);
-                    (f === 'Underline' ? stl.textDecoration = 'underline' : stl.textDecoration = stl.textDecoration || null);
-                });
-                return stl;
             },
             formBgTransp() {
                 let clr = this.dcrObject.dcr_form_bg_color || 'transparent';
@@ -466,10 +727,6 @@
                     clr += Number(255 - transp).toString(16);
                 }
                 return clr;
-            },
-            //system
-            inArray(item, array) {
-                return $.inArray(item, array) > -1;
             },
             setPass(pass) {
                 this.pass = pass;
@@ -497,12 +754,15 @@
 
                     this.had_address_fld = true;//!!_.find(this.$root.tableMeta._fields, {f_type: 'Address'});
 
+                    let fld = _.find(this.$root.tableMeta._fields, {id: Number(this.$root.tableMeta.listing_fld_id)}) || {};
+                    this.listing_field = fld.field || null;
+
                     console.log('TableHeaders', this.$root.tableMeta, 'size about: ', JSON.stringify(this.$root.tableMeta).length);
 
                     //this.getTableData();
                     (window.location.hash ? this.loadOpenedRow() : this.emptyObject());
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => $.LoadingOverlay('hide'));
             },
 
@@ -559,6 +819,7 @@
                         }
                     }).then(({ data }) => {
                         if (data && data.rows && data.rows.length) {
+                            RowDataHelper.fillCanEdits(this.$root.tableMeta, data.rows);
                             let back_row = _.first(data.rows);
                             if (this.visibil(back_row)) {
                                 if (this.dcrObject.stored_row_protection) {
@@ -569,14 +830,16 @@
                                 }
                             } else {
                                 this.openedRowRestricted();
-                                Swal({ title: 'Record is not accessible.', text: '', timer: 3000 });
+                                Swal({ title: 'Info', text: 'Record is not accessible.', timer: 3000 });
                             }
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         $.LoadingOverlay('hide');
                     });
+                } else {
+                    this.emptyObject();
                 }
             },
             openedRowConfirm(back_row) {
@@ -584,6 +847,7 @@
                 this.empty_row = back_row;
                 this.empty_row._new_status = '';
                 this.tableRows.push(this.empty_row);
+                this.prepareLinkedRows();
             },
             openedRowRestricted() {
                 this.row_protection_show = false;
@@ -591,10 +855,20 @@
                 this.emptyObject();
             },
             emptyObject() {
-                this.empty_row = SpecialFuncs.emptyRow(this.$root.tableMeta);
+                let savedValues = {};
+                if (!this.clearAfterSubmis && this.empty_row) {
+                    let visibleFields = this.sortAndFilterFields(this.$root.tableMeta, this.$root.tableMeta._fields, this.empty_row, true);
+                    _.each(visibleFields, (header) => {
+                        savedValues[header.field] = this.empty_row[header.field];
+                    });
+                }
+
+                this.empty_row = SpecialFuncs.emptyRow(this.$root.tableMeta, this.dcrObject._default_fields);
                 this.setDefaValues(this.empty_row);
+                this.$root.assignObject(savedValues, this.empty_row);
+                //
                 this.tableRows.splice(0, 0, this.empty_row);
-                this.prepareLinkedRows();
+                this.selRow(0);
             },
             setDefaValues(tableRow) {
                 if (this.$root.tableMeta.db_name === "user_connections") {
@@ -614,22 +888,57 @@
                         : !!this.dcrObject.dcr_record_editability_def;
                 }
             },
+            getRecordUrl(tableRow) {
+                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_url_field_id');
+                return record_hdr ? tableRow[record_hdr.field] : '';
+            },
+            setRecordUrl(tableRow) {
+                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_url_field_id');
+                if (record_hdr && !tableRow[record_hdr.field]) {
+                    tableRow[record_hdr.field] = uuidv4();
+                    return tableRow[record_hdr.field];
+                }
+                return this.getRecordUrl(tableRow);
+            },
+            //rows functions
+            setRowStatus(tableRow, status) {
+                this.hasChanges = false;
+
+                let status_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_status_id');
+                if (status_hdr) {
+                    tableRow[status_hdr.field] = status;
+                }
+
+                tableRow._new_status = status;
+            },
+            updateClearSubmis(val) {
+                this.clearAfterSubmis = val;
+            },
+            tableAddRow(tableRow) {
+                this.insertRow(tableRow, 'from_table');
+            },
+            addRow(param, new_status, tableRow) {
+                if (this.$root.setCheckRequired(this.$root.tableMeta, tableRow)) {
+                    this.setRowStatus(tableRow, new_status);
+                    switch (param) {
+                        case 'submit': this.submitRow(tableRow); break;
+                        case 'insert': this.insertRow(tableRow); break;
+                    }
+                }
+            },
             submitRow(tableRow) {
                 this.insertRow(tableRow, 'nonew');
                 this.storeRows();
             },
             insertRow(tableRow, nonew) {
-                let record_hdr = RequestFuncs.recordUrlHeader(this.$root.tableMeta, this.dcrObject, 'dcr_record_url_field_id');
-                if (record_hdr && !tableRow[record_hdr.field]) {
-                    tableRow[record_hdr.field] = uuidv4();
-                }
+                let hash = this.setRecordUrl(tableRow);
                 this.setDefaValues(tableRow);
 
-                this.present_row_count++;
-                this.available_row_count = Math.max(this.request_row_count - this.present_row_count, 0);
-
+                if (nonew === 'from_table') {
+                    this.tableRows.splice(0, 0, tableRow);
+                } else
                 if (nonew === 'nonew') {
-                    window.location.hash = record_hdr ? tableRow[record_hdr.field] : '';
+                    window.location.hash = hash;
                 } else {
                     this.emptyObject();
                 }
@@ -643,6 +952,17 @@
                     this.tableRows.splice(index, 1);
                 }
             },
+            manyRowsStore(status) {
+                _.each(this.tableRows, (tableRow) => {
+                    if (this.$root.setCheckRequired(this.$root.tableMeta, tableRow)) {
+                        this.setRowStatus(tableRow, status);
+                        let hash = this.setRecordUrl(tableRow);
+                        this.setDefaValues(tableRow);
+                        window.location.hash = hash;
+                    }
+                });
+                this.storeRows();
+            },
 
             //store data
             storeRows() {
@@ -651,6 +971,7 @@
                 let requests = [];
                 let last_row = {};
                 let last_status = '';
+                $.LoadingOverlay('show');
 
                 _.each(this.tableRows, (row, idx) => {
 
@@ -658,7 +979,6 @@
                         last_status = row._new_status;
                         last_row = row;
                         this.new_rows++;
-                        $.LoadingOverlay('show');
                         let promise = axios.post('/ajax/table-request', {
                             table_id: this.table_id,
                             fields: row,
@@ -676,7 +996,7 @@
                             table_dcr_pass: this.dcrObject.pass,
                             special_params: { dcr_hash: this.dcrObject.dcr_hash, },
                             html_row: this.getHtmlRow(row),
-                            dcr_linked_rows: this.dcrLinkedRows,
+                            dcr_linked_rows: this.dcrLinkedRows[this.lrKey(idx)],
                         }).then(({data}) => {
                             this.$root.assignObject(data, row);
                             row.id = data.id;
@@ -695,7 +1015,6 @@
                         last_status = row._new_status;
                         last_row = row;
                         this.new_rows++;
-                        $.LoadingOverlay('show');
                         let promise = axios.put('/ajax/table-request', {
                             table_id: this.table_id,
                             row_id: row.id,
@@ -704,7 +1023,7 @@
                             table_dcr_pass: this.dcrObject.pass,
                             special_params: { dcr_hash: this.dcrObject.dcr_hash, },
                             html_row: this.getHtmlRow(row),
-                            dcr_linked_rows: this.dcrLinkedRows,
+                            dcr_linked_rows: this.dcrLinkedRows[this.lrKey(idx)],
                         }).then(({data}) => {
                             let backend = _.first(data.rows || []);
                             if (backend) {
@@ -737,22 +1056,23 @@
                                 break;
                         }
                         let pars = new JsFomulaParser(this.$root.tableMeta);
-                        err_message = pars.replaceVars(_.first(this.tableRows), err_message, this.$root.tableMeta.unit_conv_is_active);
-                        Swal('', err_message);
+                        err_message = pars.formulaEval(_.first(this.tableRows), err_message, this.$root.tableMeta);
+                        Swal('Info', err_message);
                     })
                     .then(() => {
-                        $.LoadingOverlay('hide');
                         if (!this.has_errors && this.new_rows) {
 
                             let msg = 'You have successfully submitted '+this.new_rows+' record(s) to "'+(this.dcrObject.dcr_title || 'Data Collection Request')+'"';
                             let pref = RequestFuncs.prefix(last_status);
                             if (this.dcrObject[pref+'confirm_msg']) {
                                 let pars = new JsFomulaParser(this.$root.tableMeta);
-                                msg = pars.replaceVars(_.first(this.tableRows), this.dcrObject[pref+'confirm_msg'], this.$root.tableMeta.unit_conv_is_active);
+                                msg = pars.formulaEval(_.first(this.tableRows), this.dcrObject[pref+'confirm_msg'], this.$root.tableMeta);
                             }
 
                             //new record only for 'Submitted', 'Updated' if not 'visibil','editabil'
                             if (
+                                this.dcrObject.one_per_submission == 1
+                                &&
                                 (last_status === 'Submitted' || last_status === 'Updated')
                                 &&
                                 (!this.visibil(last_row) || !this.editabil(last_row))
@@ -761,19 +1081,22 @@
                                 this.emptyObject();
                             }
 
-                            Swal({ title: msg, text: '', timer: 4000 });
+                            Swal({ title: 'Info', text: msg, timer: 4000 }).then(() => {
+                                if (this.dcrObject.one_per_submission != 1 && last_status === 'Submitted') {
+                                    window.location.reload();
+                                }
+                            });
                         }
+                    }).finally(() => {
+                        $.LoadingOverlay('hide');
                     });
             },
             getHtmlRow(row) {
                 let htmlrow = {};
                 _.each(this.$root.tableMeta._fields, (hdr) => {
-                    htmlrow[hdr.field] = SpecialFuncs.showFullHtml(hdr, row, this.$root.tableMeta.unit_conv_is_active);
+                    htmlrow[hdr.field] = SpecialFuncs.showFullHtml(hdr, row, this.$root.tableMeta);
                 });
                 return htmlrow;
-            },
-            clickAddRow() {
-                eventBus.$emit('add-inline-clicked');
             },
 
             /**** popups ******/
@@ -807,6 +1130,8 @@
                 if (
                     !this.scroll_process
                     &&
+                    this.$refs.scroll_tb
+                    &&
                     (
                         (this.show_footer && this.scroll_table > this.$refs.scroll_tb.scrollTop)
                         ||
@@ -821,13 +1146,13 @@
                 this.scroll_process = true;
                 setTimeout(() => {
                     this.scroll_process = false;
-                    this.scroll_table = this.$refs.scroll_tb.scrollTop;
-                    this.scroll_fields = this.form_elem.scrollTop;
+                    this.scroll_table = this.$refs.scroll_tb ? this.$refs.scroll_tb.scrollTop : 0;
+                    this.scroll_fields = this.form_elem ? this.form_elem.scrollTop : 0;
                 }, this.transition_time_ms);
             },
 
             intervalPermis(e) {
-                if (this.dcrObject) {
+                if (this.dcrObject && this.check_errors < 3 && ! this.dcrEditMode) {
                     axios.post('/ajax/table-data-request/check', {
                         table_dcr_id: this.dcrObject.id,
                     }).then(({ data }) => {
@@ -836,6 +1161,8 @@
                                 this.dcrObject[key] = val
                             }
                         });
+                    }).catch(errors => {
+                        this.check_errors += 1;
                     });
                 }
             },
@@ -850,11 +1177,17 @@
                         if (!this.AnrPop && data.wait_automations && data.wait_automations._anr_tables) {
                             this.AnrPop = data.wait_automations;
                         }
+                        if (data.job_msg) {
+                            Swal('Info', data.job_msg);
+                        }
                     });
                 }
             },
 
             //Link PopUps
+            tableShowSrcRecord(lnk, header, tableRow, behavior) {
+                this.showSrcRecord(lnk, header, tableRow, 'list_view');
+            },
             showSrcRecord(lnk, header, tableRow, behavior) {
                 let index = this.linkPopups.filter((el) => {return el.key === 'show'}).length;
                 this.linkPopups.push({
@@ -876,27 +1209,93 @@
                     }
                 }
             },
+            dcrScroll() {
+                if (this.scrlFlow && this.dcrObject.dcr_flow_header_stick && this.$refs.mainrequest) {
+                    this.headerSmText = this.$refs.mainrequest.scrollTop > 50;
+                }
+            },
             //DCR Linked Tables
             prepareLinkedRows() {
-                this.dcrLinkedRows = {};
-                _.each(this.dcrObject._dcr_linked_tables || [], (linkedObj) => {
-                    this.$set(this.dcrLinkedRows, linkedObj.linked_table_id, []);
-                });
+                if (! this.dcrLinkedRows[this.lrKey(this.selIdx)]) {
+                    this.$set(this.dcrLinkedRows, this.lrKey(this.selIdx), {});
+                    _.each(this.dcrObject._dcr_linked_tables || [], (linkedObj) => {
+                        this.$set(this.dcrLinkedRows[this.lrKey(this.selIdx)], linkedObj.linked_table_id, []);
+                    });
+                }
+                console.log('this.dcrLinkedRows',this.dcrLinkedRows);
+            },
+            lrKey(idx) {
+                let row = this.receiveRow(idx) || {};
+                return row._temp_id || row.id || 'temp';
+            },
+
+            //MANY ROWS
+            showListingManyRows(i) {
+                if (this.listing_field) {
+                    let header = _.find(this.$root.tableMeta._fields, {field: this.listing_field});
+                    let val = this.receiveRow(i-1)[this.listing_field];
+                    if (val && header && this.$root.isMSEL(header.input_type)) {
+                        let arr = SpecialFuncs.parseMsel(val);
+                        val = '';
+                        _.each(arr, (el) => {
+                            val += '<span class="is_select">'+el+'</span> ';
+                        });
+                    }
+                    if (header && $.inArray(header.input_type, this.$root.ddlInputTypes) > -1) {
+                        val = this.$root.rcShow(this.receiveRow(i-1), this.listing_field);
+                    }
+                    return val;
+                } else {
+                    return i;
+                }
+            },
+            receiveRow(idx) {
+                return this.tableRows[idx] || (this.selIdx === -1 ? this.empty_row : null);
+            },
+
+            //Edit DCR functions
+            editStartOrStore() {
+                if (this.dcrEditMode) {
+                    this.updateDCR();
+                }
+                this.dcrEditMode = ! this.dcrEditMode;
+            },
+            editCancel() {
+                window.location.reload();
+            },
+            updateDCR() {
+                DcrEndpoints.update(this.dcrObject);
+            },
+            uploadDcrFile(dcr, field, file) {
+                DcrEndpoints.uploadFile(this.dcrObject, field, file);
+            },
+            delDcrFile(dcr, field) {
+                DcrEndpoints.delFile(this.dcrObject, field);
+            },
+            dcrSettCheck(field, val) {
+                this.stopEdition = true;
+                DcrEndpoints.checkColumn(this.dcrObject, field, val)
+                    .then(({ data }) => {
+                        this.stopEdition = false;
+                    });
             },
         },
         mounted() {
             console.log('DcrObject', this.dcrObject, 'size about: ', JSON.stringify(this.dcrObject).length);
+            console.log('TableRows', this.tableRows);
 
             if (this.table_id) {
                 this.getTableMeta();
             }
 
-            this.request_row_count = Number(this.dcrObject.row_request);
+            this.request_row_count = Number(this.dcrObject.row_request)
+                || (this.dcrObject.one_per_submission > 1 ? Number(this.dcrObject.one_per_submission) : undefined);
             this.request_row_count = isNaN(this.request_row_count) ? -1 : this.request_row_count;
 
             $('head title').html(this.$root.app_name+' - DCR: '+this.dcrObject.name);
 
-            this.$root.is_dcr_page = true;
+            this.$root.is_dcr_page = this.dcrObject.id;
+            this.$root.dcrPivotFields = this.dcrObject._fields_pivot;
 
             //sync table dcr with collaborators
             setInterval(() => {
@@ -919,17 +1318,6 @@
     }
 </script>
 
-<style lang="scss">
-    .top-message-wrap {
-        text-align: initial;
-        padding: 10px;
-
-        p, label {
-            margin: 0 !important;
-        }
-    }
-</style>
-
 <style lang="scss" scoped>
     #tables {
         overflow: hidden;
@@ -939,19 +1327,6 @@
             height: auto;
         }
 
-        .dcr-top-msg {
-            max-width: 100%;
-        }
-
-        .dcr-title {
-            max-width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hid {
-            visibility: hidden;
-        }
         .dcr-title--item {
             max-width: 100%;
             position: absolute;
@@ -959,21 +1334,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
         }
-        .item__h1 {
-            z-index: 20;
-            margin: 0;
-            width: 100%;
-        }
         .item__img {
             z-index: 10;
-        }
-
-        .titler {
-            position: absolute;
-            left: 0;
-            right: 0;
-            top: 0;
-            height: 44px;
         }
 
         .tabs-wrapper {
@@ -994,31 +1356,6 @@
             height: calc(100% - 10px);
         }
 
-        .navbar-default {
-            text-align: center;
-
-            .navbar-nav {
-                float: left;
-                margin: 0;
-
-                li {
-                    float: left;
-                }
-            }
-        }
-
-        .no-border {
-            border: none;
-        }
-
-        .available-rows {
-            display: flex;
-            height: 40px;
-            align-items: center;
-            padding: 0 5px;
-            font-weight: bold;
-        }
-
         .flx__scroller {
             height: 100%;
             width: 100%;
@@ -1030,17 +1367,22 @@
             transition: 1s;
 
             .footer--toggler {
-                position: absolute;
-                left: calc(50% - 13px);
-                top: -20px;
-                font-size: 3em;
-                width: 26px;
-                height: 20px;
+                text-align: center;
+                position: relative;
+                height: 15px;
                 cursor: pointer;
+                margin: 0 auto;
+                transition: 1s;
+                opacity: 0;
 
-                i {
-                    position: relative;
-                    top: -24px;
+                img {
+                    position: absolute;
+                    left: 0;
+                    width: 100%;
+                }
+
+                &:hover {
+                    opacity: 1;
                 }
             }
 
@@ -1058,10 +1400,6 @@
             }
         }
 
-        .top_off {
-            position: relative;
-            top: 1px;
-        }
         .borderer {
             position: absolute;
             left: 0;
@@ -1074,10 +1412,83 @@
             overflow: visible;
         }
 
-        .fit-content {
-            width: fit-content;
-            margin: 0 auto;
+    }
+
+    .sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        transition: all 0.3s linear;
+    }
+
+    .many-rows-collapsed {
+        width: 7px;
+        cursor: pointer;
+        background: #eee;
+        margin: 5px 0 5px 5px;
+    }
+    .many-rows {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 250px;
+
+        .many-rows--height {
+            height: calc(100% - 38px);
         }
 
+        .many-rows--content {
+            height: calc(100% - 36px);
+            border: 1px solid #CCC;
+            border-radius: 5px;
+            padding: 5px;
+            overflow: auto;
+
+            label {
+                margin: 0;
+            }
+            div {
+                border-bottom: 1px dashed #CCC;
+                cursor: pointer;
+
+                &:hover {
+                    border: 1px dashed #AAA;
+                }
+            }
+            .active {
+                background-color: #FFC;
+            }
+        }
+    }
+    .r-btn {
+        width: 35px;
+        height: 30px;
+        margin-left: 5px;
+        padding: 0;
+    }
+    .pop-icon {
+        position: absolute;
+        top: 5px;
+        right: 2px;
+        z-index: 250;
+        cursor: pointer;
+        color: #777;
+    }
+    .dcr-edit-panel {
+        position: absolute;
+        top: 35px;
+        right: 0;
+        width: auto;
+        background: rgba(255,255,255,0.5);
+        z-index: 100;
+        padding: 2px 5px 5px 5px;
+        border-radius: 5px;
+    }
+    .edit-hdr-btn {
+        width: 130px;
+        font-size: 14px;
+        font-weight: bold;
+        margin: 3px 0 0 0;;
     }
 </style>

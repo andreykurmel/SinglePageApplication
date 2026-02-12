@@ -85,7 +85,6 @@
 
     import CanEditMixin from "../_Mixins/CanViewEditMixin";
 
-    import SingleTdField from "../CommonBlocks/SingleTdField";
     import TabldaSelectSimple from "../CustomCell/Selects/TabldaSelectSimple";
 
     export default {
@@ -95,7 +94,6 @@
         ],
         components: {
             TabldaSelectSimple,
-            SingleTdField,
         },
         data: function () {
             return {
@@ -177,7 +175,7 @@
                 }).then(({data}) => {
                     this.single_field_vals = data;
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 });
             },
             getRequestParams() {
@@ -219,11 +217,11 @@
                                 rows_per_page: 0,
                             };
                         } else {
-                            Swal('No record has been selected.');
+                            Swal('Info','No record has been selected.');
                         }
                         break;
 
-                    default: Swal('Incorrect Request Type! Check the replace settings');
+                    default: Swal('Info','Incorrect Request Type! Check the replace settings');
                 }
                 request_opt.special_params = SpecialFuncs.specialParams();
                 return request_opt;
@@ -241,7 +239,8 @@
                         request_params: request_params,
                     }).then(({data}) => {
                         Swal({
-                            title: 'Total ' + data.total + ' item(s) found. Total ' + data.can_replace + ' item(s) will be replaced. Confirm to proceed?',
+                            title: 'Info',
+                            text: 'Total ' + data.total + ' item(s) found. Total ' + data.can_replace + ' item(s) will be replaced. Confirm to proceed?',
                             confirmButtonClass: 'btn-danger',
                             confirmButtonText: 'Yes',
                             showCancelButton: true,
@@ -258,12 +257,12 @@
                                 }).then(({data}) => {
                                     eventBus.$emit('reload-page');
                                 }).catch(errors => {
-                                    Swal('', getErrors(errors));
+                                    Swal('Info', getErrors(errors));
                                 }).finally(() => $.LoadingOverlay('hide'));
                             }
                         });
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => $.LoadingOverlay('hide'));
                 }
             },

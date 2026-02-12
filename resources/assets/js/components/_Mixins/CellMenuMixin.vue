@@ -32,6 +32,9 @@
                 SpecialFuncs.strToClipboard(str);
             },
             showRowMenu(tableRow, index, tableHeader) {
+                if (this.special_extras && this.special_extras.no_row_menu) {
+                    return;
+                }
                 this.row_menu_show = true;
                 this.row_menu_left = window.event.clientX;
                 this.row_menu_top = window.event.clientY;

@@ -28,6 +28,7 @@
         methods: {
             createObjectForAdd() {
                 this.objectForAdd = SpecialFuncs.emptyRow(this.leo_metaTable);
+                this.$emit('created-object-for-add', this.objectForAdd);
             },
             getLinkParams(condition_items, linkSourceRow) {
                 linkSourceRow = linkSourceRow || {};

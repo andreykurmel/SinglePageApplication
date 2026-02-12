@@ -111,10 +111,10 @@ class UserPermissionsService
     public function getUsersCountForTable(int $table_id)
     {
         return User::whereHas('_member_of_groups', function ($ug) use ($table_id) {
-            $ug->whereHas('_tables', function ($t) use ($table_id) {
-                $t->where('tables.id', $table_id);
-            });
-        })
+                $ug->whereHas('_tables', function ($t) use ($table_id) {
+                    $t->where('tables.id', $table_id);
+                });
+            })
             ->orWhereHas('_tables', function ($t) use ($table_id) {
                 $t->where('tables.id', $table_id);
             })
@@ -253,6 +253,44 @@ class UserPermissionsService
         $this->cacheUsersFromConditions($userGroup);
         $this->updateCollaboratorsForTables($userGroup->_tables);
         return $res;
+    }
+
+    /**
+     * @param UserGroup $userGroup
+     * @param array $data
+     * @return Collection
+     */
+    public function addSubgroup(UserGroup $userGroup, array $data)
+    {
+        $this->userGroupRepository->addSubGroup(array_merge($data, ['usergroup_id' => $userGroup->id]));
+        $this->updateCollaboratorsForTables($userGroup->_tables);
+        return $userGroup->_subgroups()->get();
+    }
+
+    /**
+     * @param UserGroup $userGroup
+     * @param $model_id
+     * @param $data
+     * @return Collection
+     */
+    public function updateSubgroup(UserGroup $userGroup, $model_id, $data)
+    {
+        $this->userGroupRepository->updateSubGroup($model_id, $data);
+        $this->updateCollaboratorsForTables($userGroup->_tables);
+        return $userGroup->_subgroups()->get();
+    }
+
+    /**
+     * @param UserGroup $userGroup
+     * @param $model_id
+     * @return Collection
+     * @throws \Exception
+     */
+    public function deleteSubgroup(UserGroup $userGroup, $model_id)
+    {
+        $this->userGroupRepository->deleteSubGroup($model_id);
+        $this->updateCollaboratorsForTables($userGroup->_tables);
+        return $userGroup->_subgroups()->get();
     }
 
     /**

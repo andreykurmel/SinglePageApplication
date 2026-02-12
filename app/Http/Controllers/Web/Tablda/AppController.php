@@ -3,47 +3,70 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Laravel\ImageResponseFactory;
 use Ramsey\Uuid\Uuid;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Vanguard\AppsModules\GeneralJson\GeneralJsonAutoRemover;
+use Vanguard\AppsModules\GeneralJson\GeneralJsonImportExport;
 use Vanguard\Classes\DiscourseSso;
+use Vanguard\Classes\TabldaUser;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Jobs\AppSendMail;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\Table\TableData;
+use Vanguard\Models\Table\TableFieldLink;
 use Vanguard\Models\Table\TableUsedCode;
 use Vanguard\Models\Table\TableView;
+use Vanguard\Modules\CloudBackup\GoogleApiModule;
 use Vanguard\Policies\TableDataPolicy;
 use Vanguard\Repositories\Tablda\FileRepository;
+use Vanguard\Repositories\Tablda\FolderRepository;
+use Vanguard\Repositories\Tablda\RemoteFilesRepository;
+use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
+use Vanguard\Repositories\Tablda\TableFieldRepository;
+use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\TableViewRepository;
+use Vanguard\Repositories\Tablda\UserCloudRepository;
+use Vanguard\Services\Tablda\AlertFunctionsService;
 use Vanguard\Services\Tablda\BladeVariablesService;
 use Vanguard\Services\Tablda\FolderService;
+use Vanguard\Services\Tablda\HelperService;
+use Vanguard\Services\Tablda\PagesService;
 use Vanguard\Services\Tablda\TableDataService;
+use Vanguard\Services\Tablda\TableFieldService;
 use Vanguard\Services\Tablda\TableService;
+use Vanguard\Support\FileHelper;
 use Vanguard\User;
 
 class AppController extends Controller
 {
+    private $pageService;
     private $folderService;
     private $tableService;
     private $tableDataService;
     private $variablesService;
 
     /**
-     * AppController constructor.
-     *
+     * @param PagesService $pageService
      * @param FolderService $folderService
      * @param TableService $tableService
      * @param TableDataService $tableDataService
      * @param BladeVariablesService $variablesService
      */
     public function __construct(
+        PagesService $pageService,
         FolderService $folderService,
         TableService $tableService,
         TableDataService $tableDataService,
         BladeVariablesService $variablesService
     )
     {
+        $this->pageService = $pageService;
         $this->folderService = $folderService;
         $this->tableService = $tableService;
         $this->tableDataService = $tableDataService;
@@ -55,7 +78,7 @@ class AppController extends Controller
      *
      * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
      */
-    public function index()
+    public function index(Request $request)
     {
         return view('tablda.data', array_merge(
             $this->variablesService->getVariables(),
@@ -63,6 +86,7 @@ class AppController extends Controller
                 'type' => 'table',
                 'object' => (Object)['id' => 0, 'name' => ''],
                 'filters' => [],
+                'request_vars' => $request->all() ?? [],
             ]
         ));
     }
@@ -83,20 +107,26 @@ class AppController extends Controller
     }
 
     /**
-     * @param Request $request
-     * @return array
+     * Tablda Data
+     *
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
      */
-    public function user_state(Request $request)
+    public function docs()
     {
-        return [
-            'changed' => $request->app_user_id != auth()->id(),
-        ];
+        return view('tablda.docs', array_merge(
+            $this->variablesService->getVariables(),
+            [
+                'lightweight' => true,
+                'docs_domain' => str_replace('//docs.', '//docs-content.', url()->current()),
+                'route_group' => 'docs',
+            ]
+        ));
     }
 
     /**
      * Ping server
      *
-     * @return string
+     * @return array
      */
     public function ping(Request $request)
     {
@@ -104,36 +134,38 @@ class AppController extends Controller
         $error_code = 0;
 
         try {
-            $ses = \DB::connection('mysql')
-                ->table('sessions')
-                ->where('id', Session::getId())
-                ->first();
+            $ses = auth()->id()
+                ? \DB::connection('mysql')
+                    ->table('sessions')
+                    ->where('id', Session::getId())
+                    ->first()
+                : null;
 
             $request->pathname = preg_replace('/%20/i', ' ', $request->pathname);
 
-            if (
+            /*if (
                 $request->app_user['vendor_script'] != mix('assets/js/tablda/vendor.js')->toHtml()
                 ||
                 $request->app_user['app_script'] != mix('assets/js/tablda/app.js')->toHtml()
             ) { //new scripts version
                 $result_message = config('app.debug') ? '' : 'Page reloading needed.';
-            }
-            elseif ($ses && $ses->user_id && $ses->disconnected) // session disconnected
+            }*/
+            if ($ses && $ses->user_id && $ses->disconnected) // session disconnected
             {
                 $usr_id = auth()->id();
                 Auth::logout();
                 (new DiscourseSso())->syncUnlog($usr_id);
                 $result_message = 'You have been automatically logged out from another terminal.';
             }
-            elseif ($request->app_user && $request->app_user['id'] && !auth()->id()) // session expired on back-end
+            if ($request->app_user['id'] && !auth()->id()) // session expired on back-end
             {
                 Log::info('!!!---Session Expired---!!! uid:'.$request->app_user['id'].' session:'.Session::getId());
                 /*$error_code = 1;
                 $result_message = 'Session expired. Please login';*/
             }
-            elseif (preg_match('/^\/dcr\//i', $request->pathname)) // data request closed
+            if (preg_match('/^\/dcr\//i', $request->pathname)) // data request closed
             {
-                $code = preg_replace('/^\/dcr\//i', '', $request->pathname);
+                $code = preg_replace('/^\/dcr\//i', '', urldecode($request->pathname));
                 if (!$this->tableService->tableRequest($code)) {
                     $result_message = 'Data Collection Request (DCR) module has been inactivated.';
                 }
@@ -144,6 +176,8 @@ class AppController extends Controller
         setcookie('ping_message', $result_message);
 
         return [
+            'sync_reloading' => auth()->user() ? auth()->user()->sync_reloading : TabldaUser::unlogged()->sync_reloading,
+            'user_changed' => $request->app_user['id'] != auth()->id(),
             'error_code' => $error_code, //1 - needs page reloading
             'error' => $result_message,
             'memutree_hash' => auth()->user() ? auth()->user()->memutree_hash : '',
@@ -165,13 +199,21 @@ class AppController extends Controller
             //Table
             if ($object['type'] == 'table') {
                 $data = $this->loadTablePage($object['id'], $object['type'], $request);
+            } //Page
+            elseif ($object['type'] == 'page') {
+                $data = $this->variablesService->getVariables();
+                $data['type'] = 'page';
+                $data['object'] = $this->pageService->getPage($object['id']);
+                $data['filters'] = [];
             } //Folder
             else {
                 $data = $this->variablesService->getVariables();
-                $data['type'] = $object['type'];
+                $data['type'] = 'folder';
                 $data['object'] = $this->folderService->getFolderMeta($object['id'], auth()->id());
                 $data['filters'] = [];
             }
+
+            $data['request_vars'] = $request->all() ?? [];
 
             return view('tablda.data', $data);
         } else {
@@ -222,6 +264,7 @@ class AppController extends Controller
                 return $this->view($visView->hash, $request);
             } else {
                 $data = $this->loadTablePage($tid, 'table', $request);
+                $data['request_vars'] = $request->all() ?? [];
                 return view('tablda.data', $data);
             }
         } else {
@@ -255,7 +298,7 @@ class AppController extends Controller
             $owner = $tb->_user;
             $this->variablesService->setUserTheme($owner);
             $vars['user']->_selected_theme = $owner->_selected_theme;
-            $vars['user']->see_srv = true;
+            $vars['user']->_srv_hash = $tb->hash;//will be changed to 'srvRecord.statis_hash' at front end
 
             return view('tablda.single-record-view', $vars);
         }
@@ -271,13 +314,18 @@ class AppController extends Controller
      */
     public function multiRecordView($view, Request $request)
     {
+        $viewHash = explode('/', $view)[0] ?? '';
+        $rowHash = explode('/', $view)[1] ?? '';
+
         $user = auth()->check() ? auth()->user() : new User();
-        $viewObj = $this->tableService->viewExists($view);
+        $viewObj = $this->tableService->viewExists($viewHash);
         //Is TableView
         if ($viewObj) {
 
             $queryPreset = json_decode($viewObj->data, true);
             $tb = $this->tableService->getTable($viewObj['table_id']);
+
+            $viewObj->view_filtering_row = $this->receiveFilteringRow($tb, $rowHash);
 
             return view('tablda.data', array_merge(
                 $this->variablesService->setTableObj($tb, $viewObj->_user)->getVariables($viewObj),
@@ -286,10 +334,60 @@ class AppController extends Controller
                     'object' => $tb,
                     'filters' => [],
                     'panels_preset' => $queryPreset['panels_preset'] ?? null,
+                    'request_vars' => $request->all() ?? [],
                 ]
             ));
         }
         return redirect(route('homepage'));
+    }
+
+    /**
+     * View dashboard.
+     *
+     * @param $view
+     * @param Request $request
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\Http\RedirectResponse|\Illuminate\Routing\Redirector|\Illuminate\View\View
+     */
+    public function dashboardView($view, Request $request)
+    {
+        $page = $this->pageService->viewExists($view);
+        if ($page) {
+            return view('tablda.data', array_merge(
+                $this->variablesService->getVariables(),
+                [
+                    'type' => 'page',
+                    'object' => $page,
+                    'filters' => [],
+                    'request_vars' => $request->all() ?? [],
+                ]
+            ));
+        }
+        return redirect(route('homepage'));
+    }
+
+    /**
+     * @param Table $tb
+     * @param $rowHash
+     * @return array|null
+     */
+    protected function receiveFilteringRow(Table $tb, $rowHash)
+    {
+        $row = null;
+        if ($rowHash) {
+            $customUrlFieldIds = $tb->_fields
+                ->pluck('_links')
+                ->flatten()
+                ->pluck('share_custom_field_id')
+                ->filter();
+            $customFields = (new TableFieldRepository())->getField($customUrlFieldIds->toArray());
+
+            $rowKeys = $customFields->pluck('field')->toArray();
+            $rowKeys[] = 'static_hash';
+            foreach ($rowKeys as $key) {
+                $row = $row ?: $this->tableDataService->getRowBy($tb, $key, $rowHash);
+            }
+        }
+        return $row ? $row->toArray() : null;
     }
 
     /**
@@ -329,6 +427,7 @@ class AppController extends Controller
                     'object' => $object,
                     'filters' => [],
                     'tree' => collect(['folder_view' => $folder->_sub_tree]),
+                    'request_vars' => $request->all() ?? [],
                 ]
             ));
         }
@@ -352,6 +451,7 @@ class AppController extends Controller
             $data['type'] = 'table';
             $data['object'] = $tb;
             $data['filters'] = [];
+            $data['request_vars'] = $request->all() ?? [];
 
             return view('tablda.data', $data);
         } elseif ($view && ($view->is_active || $user->id)) {
@@ -363,6 +463,7 @@ class AppController extends Controller
 
             $queryPreset = json_decode($view->data, true);
             $data['panels_preset'] = $queryPreset['panels_preset'] ?? null;
+            $data['request_vars'] = $request->all() ?? [];
 
             return view('tablda.data', $data);
         }
@@ -391,6 +492,7 @@ class AppController extends Controller
                     'object' => $object,
                     'filters' => [],
                     'tree' => collect(['folder_view' => $folder->_sub_tree]),
+                    'request_vars' => $request->all() ?? [],
                 ]
             ));
         }
@@ -469,6 +571,47 @@ class AppController extends Controller
     }
 
     /**
+     * Consulting Page
+     *
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     */
+    public function consultingEn()
+    {
+        return view('tablda.consulting-en', $this->variablesService->getVariables());
+    }
+
+    /**
+     * Consulting Page
+     *
+     * @return \Illuminate\Contracts\View\Factory|\Illuminate\View\View
+     */
+    public function consultingCn()
+    {
+        return view('tablda.consulting-cn', $this->variablesService->getVariables());
+    }
+
+    /**
+     * @param Request $request
+     * @return \Illuminate\Foundation\Application|\Illuminate\Http\RedirectResponse|\Illuminate\Routing\Redirector
+     * @throws \Exception
+     */
+    public function anaClick(Request $request)
+    {
+        $datas = explode('_', $request->link);
+        if (!empty($datas[1]) && !empty($datas[2])) {
+            try {
+                $str = (new AlertFunctionsService())->anaClickUpdateRun($datas[1], $datas[2]);
+                Session::flash('home_message_flash', $str);
+            } catch (\Exception $e) {
+                Session::flash('home_message_flash', $e->getMessage());
+            }
+        } else {
+            Session::flash('home_message_flash', 'Error: Link is incorrect!');
+        }
+        return redirect('/');
+    }
+
+    /**
      * Send Mail
      *
      * @param Request $request
@@ -529,34 +672,131 @@ class AppController extends Controller
      */
     public function protectFile($filehash, Request $request)
     {
+        $file = null;
+        $base_dir = 'app/public/';
+
         if (preg_match('/\//i', $filehash)) {
             $filepath = $filehash;
+            $lasthash = Arr::last(explode('/', $filehash));
+            if ($file = (new RemoteFilesRepository())->getByHash($lasthash)) {
+                $base_dir = 'app/remote_image_thumbs/';
+            }
         } else {
             $file = (new FileRepository())->getByHash($filehash);
             $filepath = $file ? $file->filepath . $file->filename : '';
         }
 
-        $file_full = storage_path('app/public/' . $filepath);
+        $file_full = storage_path($base_dir . $filepath);
 
         if ($filepath && file_exists($file_full)) {
             if ($this->isAvailUrl($filepath)) {
-                return \Response::file($file_full);
+                return $this->fileResponse($file_full);
             }
 
-            $tb_id = array_first(explode('/', $filepath));
-            $tb_id = $tb_id ? array_first(explode('_', $tb_id)) : null;
-            $tb_id = intval($tb_id);
+            if ($file) {
+                $tb_id = $file->table_id;
+            } else {
+                $tb_id = Arr::first(explode('/', $filepath));
+                $tb_id = $tb_id ? Arr::first(explode('_', $tb_id)) : null;
+                $tb_id = intval($tb_id);
+            }
             $table = $tb_id ? (new TableService())->getTable($tb_id) : null;
 
             if (!$table || $this->canLoad($table, $request->s ?: '')) {
-                return $request->dwn || $this->mustDwn($file_full)
-                    ? \Response::download($file_full)
-                    : \Response::file($file_full);
+                if ($request->dwn || $this->mustDwn($file_full)) {
+                    return $this->fileResponse($file_full, true);
+                } else {
+                    return $request->thumb
+                        ? $this->magickResizer($file_full, $filepath, $request->thumb)
+                        : $this->fileResponse($file_full);
+                }
             }
         }
 
-        return redirect('/');
-        //return abort(404);
+//        return redirect('/');
+        abort(403);
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     */
+    public function saveRecent(Request $request)
+    {
+        (new FolderRepository())->saveRecent($request->type, $request->id);
+
+        $service = new HelperService();
+        return auth()->id()
+            ? $service->getRecentsForUser(auth()->user())
+            : [];
+    }
+
+    /**
+     * @param Request $request
+     * @return string
+     * @throws \Illuminate\Auth\Access\AuthorizationException
+     */
+    public function autoExport(Request $request)
+    {
+        $this->validate($request, [
+            'table_id' => 'required|integer',
+            'row_id' => 'required|integer',
+        ]);
+        $table = (new TableRepository())->getTable($request->table_id);
+        $this->authorizeForUser(auth()->user(), 'get', [TableData::class, $table, $request->all()]);
+        $link = (new TableFieldLinkRepository())->findExportLink($table);
+
+        if ($link && $link->json_auto_export) {
+            $message = (new GeneralJsonImportExport($table))->export($request->row_id, $link->json_export_field_id, $link->id);
+            if ($link->json_auto_remove_after_export) {
+                (new GeneralJsonAutoRemover($table))->removeLinkedRows($request->row_id);
+            }
+        } else {
+            $message = 'Link was not found!';
+        }
+        return $message;
+    }
+
+    /**
+     * @param string $filepath
+     * @param bool $download
+     * @return BinaryFileResponse
+     */
+    protected function fileResponse(string $filepath, bool $download = false): BinaryFileResponse
+    {
+        $headers = [
+            'Content-Disposition attachment; filename="'.FileHelper::name($filepath).'"'
+        ];
+        return $download
+            ? \Response::download($filepath, FileHelper::name($filepath), $headers)
+            : \Response::file($filepath, $headers);
+    }
+
+    /**
+     * @param string $file_full
+     * @param string $filepath
+     * @param string $size
+     * @return mixed
+     */
+    protected function magickResizer(string $file_full, string $filepath, string $size)
+    {
+        if (!in_array($size, ['sm', 'md', 'lg'])) {
+            return \Response::file($file_full);
+        }
+        try {
+            return \Cache::rememberForever("resizer-$filepath-$size", function () use ($file_full, $size) {
+                switch ($size) {
+                    case 'sm': $w = 128; $h = 96; break;
+                    case 'md': $w = 256; $h = 192; break;
+                    case 'lg': $w = 512; $h = 384; break;
+                    default: $w = 512; $h = 512; break;
+                }
+                $image = ImageManager::imagick()->read($file_full)->scale($w, $h);
+                return ImageResponseFactory::make($image);
+            });
+        } catch (\Exception $e) {
+            return $this->fileResponse($file_full);
+        }
     }
 
     /**
@@ -568,10 +808,12 @@ class AppController extends Controller
     {
         $user = auth()->user() ?: new User();
         return (new TableDataPolicy())->load($user, $table, [
-            'view_hash' => $web_hash ?: '',
-            'is_folder_view' => $web_hash ?: '',
-            'dcr_hash' => $web_hash ?: '',
-            'srv_hash' => $web_hash ?: '',
+            'special_params' => [
+                'view_hash' => $web_hash ?: '',
+                'is_folder_view' => $web_hash ?: '',
+                'dcr_hash' => $web_hash ?: '',
+                'srv_hash' => $web_hash ?: '',
+            ],
         ]);
     }
 
@@ -592,8 +834,6 @@ class AppController extends Controller
      */
     protected function mustDwn(string $file)
     {
-        $path_parts = pathinfo($file);
-        $ext = strtolower($path_parts['extension'] ?? '');
-        return in_array($ext, ['json','r3d']);
+        return in_array(FileHelper::extension($file), ['json','r3d','docx','csv']);
     }
 }

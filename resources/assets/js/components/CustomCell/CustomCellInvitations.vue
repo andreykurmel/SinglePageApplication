@@ -1,11 +1,11 @@
 <template>
-    <td :style="getCellStyle"
+    <td :style="getCellStyle()"
         class="td-custom"
         ref="td"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content">
                     <div v-html="showField()"></div>
                 </div>

@@ -1,14 +1,18 @@
 
 <template>
     <div>
-        <div class="eml_block">
+        <div v-if="!noMain" class="eml_block">
 
             <div class="eml_header" :style="{backgroundColor: emailSettings.email_background_header}">
-                <div class="flex flex--center-v">
-                    <label>From:</label>
-                    <span>{{ element.from }}</span>
-                    <label>&nbsp;&nbsp;&nbsp;Reply To:</label>
-                    <span>{{ element.reply.join(', ') }}</span>
+                <div class="full-width flex flex--center-v flex--space">
+                    <div class="no-wrap">
+                        <label>From:</label>
+                        <span>{{ element.from }}</span>
+                    </div>
+                    <div class="no-wrap">
+                        <label>Reply To:</label>
+                        <span>{{ element.reply.join(', ') }}</span>
+                    </div>
                 </div>
                 <div>
                     <label>To:</label>
@@ -53,53 +57,64 @@
 
         <template v-if="!shortView">
             <div v-for="hist in element.history" class="eml_block">
+                <template v-if="canDraw(hist)">
 
-                <div class="eml_header" :style="{backgroundColor: emailSettings.email_background_header}">
-                    <div class="flex flex--center-v">
-                        <label>From:</label>
-                        <span>{{ hist.preview_from }}</span>
-                        <label>&nbsp;&nbsp;&nbsp;Reply To:</label>
-                        <span>{{ hist.preview_reply.join(', ') }}</span>
-                    </div>
-                    <div>
-                        <label>To:</label>
-                        <span>{{ hist.preview_to.join(', ') }}</span>
-                    </div>
-                    <div v-if="hist.preview_cc.length">
-                        <label>CC:</label>
-                        <span>{{ hist.preview_cc.join(', ') }}</span>
-                    </div>
-                    <div v-if="hist.preview_bcc.length">
-                        <label>BCC:</label>
-                        <span>{{ hist.preview_bcc.join(', ') }}</span>
-                    </div>
-                    <div>
-                        <label>Subject:</label>
-                        <span>{{ hist.preview_subject }}</span>
-                    </div>
+                    <div class="eml_header" :style="{backgroundColor: emailSettings.email_background_header}">
+                        <div class="full-width flex flex--center-v flex--space">
+                            <div class="no-wrap">
+                                <label>From:</label>
+                                <span>{{ hist.preview_from }}</span>
+                            </div>
+                            <div class="no-wrap">
+                                <label>Reply To:</label>
+                                <span>{{ hist.preview_reply.join(', ') }}</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label>To:</label>
+                            <span>{{ hist.preview_to.join(', ') }}</span>
+                        </div>
+                        <div v-if="hist.preview_cc.length">
+                            <label>CC:</label>
+                            <span>{{ hist.preview_cc.join(', ') }}</span>
+                        </div>
+                        <div v-if="hist.preview_bcc.length">
+                            <label>BCC:</label>
+                            <span>{{ hist.preview_bcc.join(', ') }}</span>
+                        </div>
+                        <div>
+                            <label>Subject:</label>
+                            <span>{{ hist.preview_subject }}</span>
+                        </div>
 
-                    <div v-if="emlAttachField && hist.preview_row_tablda">
-                        <div class="eml_attach_field flex felx--center-v">
-                            <label>Attachments:</label>
-                            <show-attachments-block
-                                :images-as-files="true"
-                                :force-files="true"
-                                :table-header="emlAttachField"
-                                :table-meta="tableMeta"
-                                :table-row="hist.preview_row_tablda"
-                            ></show-attachments-block>
+                        <div v-if="emlAttachField && hist.preview_row_tablda">
+                            <div class="eml_attach_field flex flex--center-v">
+                                <label>Attachments:</label>
+                                <show-attachments-block
+                                    :images-as-files="true"
+                                    :force-files="true"
+                                    :table-header="emlAttachField"
+                                    :table-meta="tableMeta"
+                                    :table-row="hist.preview_row_tablda"
+                                ></show-attachments-block>
+                            </div>
+                        </div>
+
+                        <div class="sent_at">
+                            <label>Sent at: {{ $root.convertToLocal(hist.send_date, $root.user.timezone) }}</label>
+                            <span class="glyphicon glyphicon-remove gray hover-red"
+                                  style="cursor: pointer;"
+                                  title="Remove history"
+                                  @click="$emit('history-delete', hist.id)"
+                            ></span>
                         </div>
                     </div>
 
-                    <div class="sent_at">
-                        <label>Sent at: {{ $root.convertToLocal(hist.send_date, $root.user.timezone) }}</label>
+                    <div :style="{backgroundColor: emailSettings.email_background_body}">
+                        <div v-html="hist.preview_body"></div>
                     </div>
-                </div>
 
-                <div :style="{backgroundColor: emailSettings.email_background_body}">
-                    <div v-html="hist.preview_body"></div>
-                </div>
-
+                </template>
             </div>
         </template>
     </div>
@@ -124,6 +139,8 @@
             tableMeta: Object,
             emailSettings: Object,
             shortView: Boolean,
+            noMain: Boolean,
+            withFilters: Array,
         },
         computed: {
             emlAttachField() {
@@ -134,6 +151,19 @@
             },
         },
         methods: {
+            canDraw(hist) {
+                if (!this.withFilters) {
+                    return true;
+                }
+                let found = true;
+                _.each(this.withFilters, (filter) => {
+                    found = found && _.findIndex(filter.values, (vl) => {
+                        let arr = typeof hist[filter.field] === 'object' ? hist[filter.field] : [hist[filter.field]];
+                        return vl.checked && arr.indexOf(vl.val) > -1;
+                    }) > -1;
+                });
+                return !!found;
+            },
         },
         mounted() {
         },

@@ -4,9 +4,12 @@ namespace Vanguard\Modules;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Arr;
 use Vanguard\Models\Folder\Folder;
+use Vanguard\Models\Folder\Folder2Entity;
 use Vanguard\Models\Folder\Folder2Table;
 use Vanguard\Models\Folder\FolderStructure;
+use Vanguard\Models\Pages\Pages;
 use Vanguard\Models\Table\Table;
 use Vanguard\Repositories\Tablda\FolderRepository;
 use Vanguard\Services\Tablda\HelperService;
@@ -52,7 +55,7 @@ class MenuTreeModule
 
             $found = $type == 'folder'
                 ? $node['li_attr']['data-id'] == $compare_val //by folder id
-                : in_array($compare_val, array_pluck($node['li_attr']['data-object']['_tables'] ?? [], 'id')); // by table id
+                : in_array($compare_val, Arr::pluck($node['li_attr']['data-object']['_tables'] ?? [], 'id')); // by table id
             if ($node['li_attr']['data-type'] == 'folder' && $found) {
                 return $node;
             }
@@ -106,6 +109,9 @@ class MenuTreeModule
             if (!empty($root_tables[$tab])) {
                 $res[$tab] = $this->addRootTablesToTree($res[$tab], $root_tables[$tab], $root_link, $tab);
             }
+
+            //attach root tables to each menutree tab.
+            $res[$tab] = $this->addRootPagesToTree($res[$tab], $root_link, $tab);
         }
         return $res;
     }
@@ -149,7 +155,7 @@ class MenuTreeModule
                 ->orWhereIn("$folders_table.id", $this->getSharedFoldersIds(false));
         }
 
-        $folders = $folders->get()->groupBy('structure');
+        $folders = $folders->limit(500)->get()->groupBy('structure');
         foreach ($folders as $key => $folderTab) {
             //link shared folders
             if ($key == 'private') {
@@ -219,6 +225,7 @@ class MenuTreeModule
                 //order
                 $t->orderBy("$tables_tb.menutree_order");
                 $t->orderBy("$tables_tb.name");
+                $t->limit(2000);
 
                 $t->with([
                     '_shared_names' => function ($sn) use ($AuthUserModule) {
@@ -234,7 +241,16 @@ class MenuTreeModule
                         });
                     },
                 ]);
-            }
+            },
+            '_pages' => function ($t) use ($AuthUserModule) {
+                $tables_tb = (new Pages())->getTable();
+                $pivots = (new Folder2Entity())->getTable();
+                $t->where(function ($inner) use ($tables_tb, $pivots, $AuthUserModule) {
+                    $inner->where("$pivots.structure", '!=', 'private');
+                    $inner->orWhere("$tables_tb.user_id", '=', $AuthUserModule->user->id);
+                });
+                $t->orderBy("$tables_tb.name");
+            },
         ];
     }
 
@@ -465,6 +481,7 @@ class MenuTreeModule
                 $q->where("$f2_table.folder_id", '=', null);
                 $q->where("$f2_table.structure", '=', 'favorite');
             })
+            ->limit(250)
             ->get();
 
         $root_tables = $root_tables->groupBy('link.structure');
@@ -558,12 +575,15 @@ class MenuTreeModule
                 $folder_link = $link . $element->name . '/';
 
                 $children = $this->buildFolderTree($elements, $tab, $folder_link, $element->id);
-                $children['tables'] += count($element->_tables);
+                $children['tables'] += count($element->_tables) + count($element->_pages);
 
                 //mark folders in 'SHARED' for which user is owner.
                 $folder_class = ($element->in_shared && $element->user_id == $this->user_id && $element->name != 'SHARED') ? 'user-available-link' : '';
 
-                $children['sub_tables'] = $this->generateTablesElements($element->id, $element->_tables, $folder_link, $tab);
+                $children['sub_tables'] = array_merge(
+                    $this->generatePagesElements($element->id, $element->_pages, $folder_link),
+                    $this->generateTablesElements($element->id, $element->_tables, $folder_link, $tab)
+                );
                 $obj = $this->service->getFolderObjectForMenuTree($element, $children, $folder_link, false, $folder_class);
 
                 $branch['tree'][] = $obj;
@@ -576,7 +596,7 @@ class MenuTreeModule
     }
 
     /**
-     * Add tables to folder in the tree.
+     * Add Tables to folder in the tree.
      *
      * @param $parent_folder_id
      * @param $tables
@@ -593,6 +613,23 @@ class MenuTreeModule
                 $link_type = $this->getLinkType($table);
                 $arr[] = $this->service->getTableObjectForMenuTree($table, $link_type, $path, $parent_folder_id, $link_class);
             }
+        }
+        return $arr;
+    }
+
+    /**
+     * Add Pages to folder in the tree.
+     *
+     * @param $parent_folder_id
+     * @param $pages
+     * @param $path
+     * @return array
+     */
+    protected function generatePagesElements($parent_folder_id, $pages, $path)
+    {
+        $arr = [];
+        foreach ($pages as $page) {
+            $arr[] = $this->service->getPageObjectForMenuTree($page, $path, $parent_folder_id);
         }
         return $arr;
     }
@@ -617,7 +654,7 @@ class MenuTreeModule
     }
 
     /**
-     * Attach owned root tables to tree tab.
+     * Attach owned root tables to the tree tab.
      *
      * @param array $menutree_tab
      * @param $tables
@@ -627,9 +664,41 @@ class MenuTreeModule
      */
     protected function addRootTablesToTree(array $menutree_tab, $tables, $root_link, $tab)
     {
-        //$owned_tables = $tables->where('user_id', $this->user_id);
+        $owned_tables = $tables->where('user_id', $this->user_id);
         return array_merge(
-            $this->generateTablesElements(null, $tables, $root_link, $tab),
+            $this->generateTablesElements(null, $owned_tables, $root_link, $tab),
+            $menutree_tab
+        );
+    }
+
+    /**
+     * Attach root pages to the tree tab.
+     *
+     * @param array $menutree_tab
+     * @param $root_link
+     * @param $tab
+     * @return array
+     */
+    protected function addRootPagesToTree(array $menutree_tab, $root_link, $tab)
+    {
+        $links = Folder2Entity::query()
+            ->whereNull('folder_id')
+            ->where('entity_type', '=', 'page')
+            ->where('structure', '=', $tab);
+
+        if ($tab != 'public') {
+            $links->where('user_id', '=', $this->user_id);
+        }
+
+        $links = $links->limit(250)->get(['entity_id'])->pluck('entity_id');
+        if (!$links->count()) {
+            return $menutree_tab;
+        }
+
+        $pages = Pages::whereIn('id', $links)->get();
+
+        return array_merge(
+            $this->generatePagesElements(null, $pages, $root_link),
             $menutree_tab
         );
     }

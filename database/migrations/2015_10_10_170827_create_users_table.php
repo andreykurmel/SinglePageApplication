@@ -28,7 +28,7 @@ class CreateUsersTable extends Migration
             $table->timestamp('last_login')->nullable();
             $table->string('confirmation_token', 60)->nullable();
             $table->string('status', 20)->index();
-            $table->integer('two_factor_country_code')->nullable();
+            $table->integer('two_factor_country_code')->default(1);
             $table->integer('two_factor_phone')->nullable();
             $table->text('two_factor_options')->nullable();
             $table->tinyInteger('extracttable_terms')->default(0);

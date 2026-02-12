@@ -4,6 +4,7 @@ namespace Vanguard\Services\Tablda;
 
 
 use Carbon\Carbon;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use PayPal\Api\Amount;
 use PayPal\Api\CreditCard;
@@ -25,9 +26,13 @@ use Vanguard\Models\AppSetting;
 use Vanguard\Models\AppTheme;
 use Vanguard\Models\Import;
 use Vanguard\Models\Table\Table;
+use Vanguard\Models\User\Addon;
 use Vanguard\Models\User\UserCard;
 use Vanguard\Models\User\UserGroup;
 use Vanguard\Models\User\UserSubscription;
+use Vanguard\Models\User\UserSubscription2Addons;
+use Vanguard\Repositories\Tablda\DDLRepository;
+use Vanguard\Repositories\Tablda\TableData\TableDataRepository;
 use Vanguard\Repositories\Tablda\TableRepository;
 use Vanguard\Repositories\Tablda\UserRepository;
 use Vanguard\Services\Tablda\Permissions\TablePermissionService;
@@ -40,6 +45,10 @@ class UserService
     protected $tableRepository;
     protected $userRepository;
     protected $planService;
+    protected $ddlRepo;
+    protected $tableDataRepo;
+
+    protected $allAddonsIds;
 
     /**
      * UserService constructor.
@@ -51,6 +60,10 @@ class UserService
         $this->tableRepository = new TableRepository();
         $this->userRepository = new UserRepository();
         $this->planService = new PlanService();
+        $this->ddlRepo = new DDLRepository();
+        $this->tableDataRepo = new TableDataRepository();
+
+        $this->allAddonsIds = Addon::query()->select(['id'])->get()->pluck('id');
     }
 
     /**
@@ -211,14 +224,13 @@ class UserService
     }
 
     /**
-     * Users Search by Key
-     *
      * @param $q
-     * @param null $table_id
-     * @param null $request_field
+     * @param $table_id
+     * @param $request_field
+     * @param $extras
      * @return array
      */
-    public function searchUsers($q, $table_id = null, $request_field = null)
+    public function searchUsers($q, $table_id = null, $request_field = null, $extras = null)
     {
         $users_ids = [];
         if ($table_id) {
@@ -242,10 +254,14 @@ class UserService
             //check that property is present
             $val_field = ($request_field && $usr->{$request_field} ? $request_field : null);
 
+            $extra_field = is_array($extras) && !empty($extras['show_field'])
+                ? $extras['show_field']
+                : $request_field;
+
             $res[] = [
                 'id' => ($val_field ? $usr->{$val_field} : $usr->id),
                 'text' => ($usr->first_name ? $usr->first_name . " " . $usr->last_name : $usr->username)
-                    . ($request_field ? ' (' . $usr->{$request_field} . ')' : '')
+                    . ($extra_field ? ' (' . $usr->{$extra_field} . ')' : '')
             ];
         }
         return $res;//['results' => $res, 'type' => 'user'];
@@ -289,13 +305,12 @@ class UserService
     }
 
     /**
-     * Users Search by Key or relating to UserGroups
-     *
      * @param string $q
      * @param int $table_id
+     * @param int|null $ddl_id
      * @return array
      */
-    public function searchUsersInUserGroups(string $q, int $table_id)
+    public function searchUsersInUserGroups(string $q, int $table_id, int $ddl_id = null): array
     {
         $tb = (new TableRepository())->getTable($table_id);
         $cur_user_id = auth()->id();
@@ -330,6 +345,23 @@ class UserService
                 '_users' => $usrs
             ];
         }
+
+        if ($ddl_id) {
+            $ddl = $this->ddlRepo->getDDL($ddl_id);
+            $ddl_datas = $this->tableDataRepo->getDDLvalues($ddl);
+            if ($ddl_datas) {
+                $ddl_datas = Arr::pluck($ddl_datas, 'value');
+                $res = array_filter($res, function ($res_irem) use ($ddl_datas) {
+                    $usr_ids = Arr::pluck($res_irem['_users'], 'id');
+                    return in_array($res_irem['id'], $ddl_datas) || array_intersect($usr_ids, $ddl_datas);
+                });
+                foreach ($res as &$it) {
+                    $it['_users'] = array_filter($it['_users'], function ($usr) use ($ddl_datas) {
+                        return in_array($usr['id'], $ddl_datas);
+                    });
+                }
+            }
+        }
         return $res;
     }
 
@@ -345,7 +377,11 @@ class UserService
         $cur_user_id = auth()->id();
         $owner_id = $special ? $cur_user_id : $tb->user_id;
 
-        $groups = UserGroup::where(function ($ug) use ($q) {
+        $groups = UserGroup::where('user_id', $owner_id)
+            ->with('_individuals_all')
+            ->limit(50);
+        if ($q) {
+            $groups->where(function ($ug) use ($q) {
                 $ug->where('name', 'like', '%' . $q . '%');
                 $ug->orWhereHas('_individuals_all', function ($usr) use ($q) {
                     $usr->where('username', 'LIKE', '%' . $q . '%');
@@ -353,10 +389,8 @@ class UserService
                     $usr->orWhere('first_name', 'LIKE', '%' . $q . '%');
                     $usr->orWhere('last_name', 'LIKE', '%' . $q . '%');
                 });
-            })
-            ->where('user_id', $owner_id)
-            ->with('_individuals_all')
-            ->limit(5);
+            });
+        }
 
         if ($owner_id != $cur_user_id) {
             $groups->whereHas('_table_permissions', function ($tp) use ($tb) {
@@ -401,6 +435,12 @@ class UserService
             'add_gantt' => 'gantt',
             'add_email' => 'email',
             'add_calendar' => 'calendar',
+            'add_twilio' => 'twilio',
+            'add_tournament' => 'tournament',
+            'add_simplemap' => 'simplemap',
+            'add_grouping' => 'grouping',
+            'add_report' => 'report',
+            'add_ai' => 'ai',
         ];
         foreach ($arr as $key => $code) {
             if (!empty($fields[$key]) && $userSubscription->plan_code != 'basic') {
@@ -410,7 +450,7 @@ class UserService
             }
         }
 
-        $this->calcSubscription($userSubscription, $user->renew);
+        $this->calcSubscription($userSubscription, $user);
 
         return $userSubscription->id;
     }
@@ -419,29 +459,33 @@ class UserService
      * Calc days and costs for User's Subscription.
      *
      * @param UserSubscription $userSubscription
+     * @param User $user
      * @param $all_cost
-     * @param $renew
+     * @return void
      */
-    public function calcSubscription(UserSubscription $userSubscription, $renew, $all_cost = null)
+    protected function calcSubscription(UserSubscription $userSubscription, User $user, $all_cost = null)
     {
-        $key = $renew == 'Yearly' ? 'per_year' : 'per_month';
-        $adn_included = in_array($userSubscription->plan_code, ['advanced','enterprise']);
-
+        $key = $user->renew == 'Yearly' ? 'per_year' : 'per_month';
         $calc_cost = $userSubscription->_plan->{$key};
 
-        if (!$adn_included) {
-            $all_adn = $userSubscription->_addons->where('is_special', '=', '1')->first();
+        $adn_included = in_array($userSubscription->plan_code, ['standard']);
+        $all_adn = $userSubscription->_addons->where('is_special', '=', '1')->first();
+
+        if ($userSubscription->plan_code == 'advanced' || $all_adn) {
+            $this->activeAllAddons($user);
+        }
+        if ($adn_included) {
             if ($all_adn) {
-                $calc_cost += ($userSubscription->plan_code !== 'basic' ? $all_adn->{$key} : 0);
+                $calc_cost += $all_adn->{$key};
             } else {
                 foreach ($userSubscription->_addons as $adn) {
-                    $calc_cost += ($userSubscription->plan_code !== 'basic' ? $adn->{$key} : 0);
+                    $calc_cost += $adn->{$key};
                 }
             }
         }
 
         $userSubscription->cost = $calc_cost;
-        $userSubscription->total_days = $renew == 'Yearly' ? 365 : 30;
+        $userSubscription->total_days = $user->renew == 'Yearly' ? 365 : 30;
         $userSubscription->left_days = $userSubscription->total_days;
         if (!is_null($all_cost) && $all_cost != $calc_cost) {
             $userSubscription->left_days *= ($all_cost / $calc_cost);
@@ -607,7 +651,7 @@ class UserService
 
         //update NextSubscription
         $user->_next_subscription->plan_code = $plan_code;
-        $this->calcSubscription($user->_next_subscription, $renew);
+        $this->calcSubscription($user->_next_subscription, $user);
 
         //user decibe to stay on current subscription
         if (
@@ -704,7 +748,7 @@ class UserService
             $user->save();
 
             //activate subscription
-            $this->calcSubscription($user->_subscription, $user->renew, $left_cost + $amount + $used_credit);
+            $this->calcSubscription($user->_subscription, $user, $left_cost + $amount + $used_credit);
 
             if ($used_credit > 0) {
                 //subscription was payed by credit (full or partially)
@@ -721,6 +765,25 @@ class UserService
             $user->save();
             //was added available credit
             $this->planService->addPaymentHistory($user->id, $amount, 'Adding Credit', $result['from'], $result['from_details']);
+        }
+    }
+
+    /**
+     * @param User $user
+     * @return void
+     */
+    public function activeAllAddons(User $user): void
+    {
+        $present_addon_ids = UserSubscription2Addons::where('user_subscription_id', '=', $user->_subscription->id)
+            ->select(['addon_id'])
+            ->get()
+            ->pluck('addon_id');
+
+        foreach ($this->allAddonsIds->diff($present_addon_ids) as $addon_id) {
+            UserSubscription2Addons::create([
+                'addon_id' => $addon_id,
+                'user_subscription_id' => $user->_subscription->id,
+            ]);
         }
     }
 
@@ -818,7 +881,8 @@ class UserService
     {
         $job = Import::create([
             'file' => '',
-            'status' => 'initialized'
+            'status' => 'initialized',
+            'type' => 'SendInvitations',
         ]);
 
         dispatch(new SendInvitations($user, $invit_ids, $job->id));

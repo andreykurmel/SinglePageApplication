@@ -1,0 +1,2 @@
+[2023-06-14 09:29:04] production.ALERT: CloudBackuper ImportRepository::copyTableInDB - No "ID"! (example20221102074921_tmpbkp)  
+[2023-06-14 14:43:03] production.ALERT: CloudBackuper ImportRepository::copyTableInDB - No "ID"! (multiple20210902172222_tmpbkp)  

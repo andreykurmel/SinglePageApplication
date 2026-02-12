@@ -14,7 +14,8 @@ class AddMaxRowsInLinkPopupToTables extends Migration
     public function up()
     {
         Schema::table('tables', function (Blueprint $table) {
-            $table->unsignedInteger('max_rows_in_link_popup')->default(200);
+            $table->unsignedInteger('max_rows_in_link_popup')->default(50);
+            $table->unsignedInteger('max_mirrors_in_one_row')->default(10);
         });
     }
 
@@ -27,6 +28,7 @@ class AddMaxRowsInLinkPopupToTables extends Migration
     {
         Schema::table('tables', function (Blueprint $table) {
             $table->dropColumn('max_rows_in_link_popup');
+            $table->dropColumn('max_mirrors_in_one_row');
         });
     }
 }

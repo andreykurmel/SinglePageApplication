@@ -3,6 +3,7 @@
     height: 100%;
     padding: 5px;
     background-color: #FFF;
+    position: relative;
 
     .data-menu {
         button {
@@ -82,6 +83,9 @@
             }
             .w-mid {
                 width: 180px;
+            }
+            .w-method {
+                width: 270px;
             }
             .w-long {
                 width: 400px;

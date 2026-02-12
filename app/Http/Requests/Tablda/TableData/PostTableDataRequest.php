@@ -38,6 +38,7 @@ class PostTableDataRequest extends FormRequest
             'table_dcr_pass' => 'string|nullable',
             'from_link_id' => 'integer|nullable',
             'dcr_linked_rows' => 'array|nullable',
+            'is_copy' => 'integer|nullable',
         ];
     }
 }

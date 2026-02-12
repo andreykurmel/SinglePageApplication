@@ -4,7 +4,7 @@
         <!--SELECT-->
         <template v-if="!ddl_type_panel">
             <div class="select-element" @click="opened = !opened">
-                <div class="element-value">{{ showPresent() }}</div>
+                <div class="element-value" v-html="showPresent()"></div>
                 <div class="element-triangle">
                     <b :class="[opened ? 'b-opened' : '']"></b>
                 </div>
@@ -12,23 +12,30 @@
 
             <div v-if="opened" class="select-results border-radius--bottom" :style="ItemsListStyle()">
                 <div v-if="show_search" class="filter-wrapper">
-                    <input class="form-control" v-model="search_text" @input="loadItemsDebounce()" placeholder="Search"/>
+                    <input class="form-control"
+                           ref="search_inp"
+                           v-model="search_text"
+                           :disabled="disabledSearch"
+                           @input="loadItemsDebounce()"
+                           placeholder="Search"
+                    />
                 </div>
 
                 <!--For 'Search' don't show DDL immediately-->
-                <div v-if="show_variants" class="result-wrapper">
+                <div v-if="show_variants" class="result-wrapper" :style="{maxHeight: this.$root.ddlHeight+'px'}">
                     <div v-if="can_empty" class="result-item" @click="selectedItem( {value:''} )">&nbsp;</div>
 
                     <template v-if="fld_input_type !== 'Search' || search_text.length">
                         <div v-for="option in filtered_options"
                              class="result-item"
-                             :title="option.description"
+                             :title="option.description || option.value"
                              :class="[isSelected(option.value) ? 'result-item--selected' : '']"
-                             :style="specClr(option)"
                              @click="selectedItem(option)"
                         >
-                            <img v-if="option.image" :src="$root.fileUrl({url:option.image})" class="item-image"/>
-                            <span>{{ option.show || option.value || '&nbsp;' }}</span>
+                            <img v-if="option.image" :src="$root.fileUrl({url:option.image}, 'sm')" class="item-image"/>
+                            <span :style="optStyle(option)">
+                                {{ option.show || option.value || '&nbsp;' }}
+                            </span>
                         </div>
 
                         <div v-if="has_too_many_options" class="result-item disabled">Too many options, please use 'search'</div>
@@ -43,7 +50,7 @@
 
         <!--PANEL-->
         <template v-else="">
-            <div v-for="option in filtered_options" class="panel-ddl" :style="specClr(option)">
+            <div v-for="option in filtered_options" class="panel-ddl">
                 <label>
                     <input :type="($root.isMSEL(fld_input_type) ? 'checkbox' : 'radio')"
                            :disabled="disabled"
@@ -51,8 +58,10 @@
                            :value="option.value"
                            @click="selectedItem(option)"
                     />
-                    <img v-if="option.image" :src="$root.fileUrl({url:option.image})" class="item-image" :height="lineHeight"/>
-                    <span>{{ option.show || option.value || '&nbsp;' }}</span>
+                    <img v-if="option.image" :src="$root.fileUrl({url:option.image}, 'sm')" class="item-image" :height="lineHeight"/>
+                    <span :style="optStyle(option, true)">
+                        {{ option.show || option.value || '&nbsp;' }}
+                    </span>
                 </label>
             </div>
         </template>
@@ -78,6 +87,7 @@
             return {
                 show_search: this.$root.hasStype(this.fld_input_type),
                 search_text: '',
+                disabledSearch: false,
                 debounced: null,
 
                 avail_ddl_items: [],
@@ -87,7 +97,8 @@
                 multiselect: this.$root.isMSEL(this.fld_input_type),
             }
         },
-        props:{
+        props: {
+            ddl_applied_field_id: Number,
             table_id: Number,
             ddl_id: Number,
             tableRow: Object,
@@ -108,9 +119,13 @@
             },
         },
         methods: {
-            specClr(option) {
+            optStyle(option, noBg) {
+                let bg = option.color || '#DDD';
                 return {
-                    color: this.spec_colors ? (this.spec_colors[option.value] || this.spec_colors['_all']) : null,
+                    padding: '0 5px',
+                    borderRadius: '7px',
+                    backgroundColor: noBg ? null : bg,
+                    color: this.spec_colors ? (this.spec_colors[option.value] || this.spec_colors['_all']) : SpecialFuncs.smartTextColorOnBg(bg),
                 };
             },
             //Standard DDL
@@ -120,6 +135,9 @@
                     if (this.isSelected(opt.value)) {
                         let str = (opt.show && opt.show !== opt.value ? '$id ' : '');
                         str += opt.show || opt.value || '';
+                        let style = this.optStyle(opt);
+                        str = '<span style="padding: 0 5px; border-radius: 7px; background-color: ' + style.backgroundColor + '; color: ' + style.color + '">'
+                            + str + '</span>'
                         arr.push(str);
                     }
                 });
@@ -147,7 +165,7 @@
                     this.has_too_many_options = false;
                 }
 
-                this.showItemsList();
+                this.showItemsList('search_inp');
             },
             emitEmbed() {
                 this.$emit('embed-func');
@@ -157,19 +175,22 @@
             //DDL Data Receiving
             loadDDLitems() {
                 if (this.ddl_id) {
-                    let tbRow = this.abstract_values ? [] : this.tableRow || [];
+                    let tbRow = this.abstract_values ? [] : (this.tableRow || []);
                     this.$root.sm_msg_type = 1;
+                    this.disabledSearch = true;
                     axios.post('/ajax/table-data/ddl/get-values', {
+                        ddl_applied_field_id: this.ddl_applied_field_id || null,
                         table_id: this.table_id,
                         ddl_id: this.ddl_id,
                         row: tbRow,
                         search: this.search_text,
                         special_params: SpecialFuncs.specialParams(),
                     }).then(({data}) => {
+                        this.disabledSearch = false;
                         this.avail_ddl_items = data;
                         this.filterOptions();
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                         this.debounced = null;
@@ -180,7 +201,7 @@
                 if (this.debounced) {
                     clearTimeout(this.debounced);
                 }
-                this.debounced = setTimeout(this.loadDDLitems, 300);
+                this.debounced = setTimeout(this.loadDDLitems, 750);
             },
         },
         mounted() {

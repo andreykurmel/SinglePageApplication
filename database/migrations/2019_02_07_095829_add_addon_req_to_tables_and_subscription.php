@@ -19,7 +19,12 @@ class AddAddonReqToTablesAndSubscription extends Migration
             $table->unsignedInteger('add_gantt')->nullable();
             $table->unsignedInteger('add_email')->nullable();
             $table->unsignedInteger('add_calendar')->nullable();
-            $table->unsignedInteger('map_multiinfo')->nullable();
+            $table->unsignedInteger('add_twilio')->nullable();
+            $table->unsignedInteger('add_tournament')->nullable();
+            $table->unsignedInteger('add_simplemap')->nullable();
+            $table->unsignedInteger('add_grouping')->nullable();
+            $table->unsignedInteger('add_report')->nullable();
+            $table->unsignedInteger('add_ai')->nullable();
         });
     }
 
@@ -36,7 +41,12 @@ class AddAddonReqToTablesAndSubscription extends Migration
             $table->dropColumn('add_gantt');
             $table->dropColumn('add_email');
             $table->dropColumn('add_calendar');
-            $table->dropColumn('map_multiinfo');
+            $table->dropColumn('add_twilio');
+            $table->dropColumn('add_tournament');
+            $table->dropColumn('add_simplemap');
+            $table->dropColumn('add_grouping');
+            $table->dropColumn('add_report');
+            $table->dropColumn('add_ai');
         });
     }
 }

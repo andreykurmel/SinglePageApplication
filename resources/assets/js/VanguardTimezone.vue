@@ -7,7 +7,7 @@
         <!--Select-->
         <div class="select-element" @click="opened = !opened">
             <div class="element-value">
-                <span>{{ sel_value }}</span>
+                <span>{{ show_value }}</span>
             </div>
             <div class="element-triangle">
                 <b :class="[opened ? 'b-opened' : '']"></b>
@@ -24,9 +24,9 @@
                 <template v-for="opt in filtered_options">
 
                     <div class="result-item"
-                         :class="[isSelected(opt) ? 'result-item--selected' : '']"
-                         @click="tzChanged( opt )"
-                    >{{ opt || '&nbsp;' }}</div>
+                         :class="[isSelected(opt.name) ? 'result-item--selected' : '']"
+                         @click="tzChanged(opt.name, opt.full)"
+                    >{{ opt.full || '&nbsp;' }}</div>
 
                 </template>
             </div>
@@ -36,13 +36,16 @@
 </template>
 
 <script>
+    import {MomentTzHelper} from "./classes/helpers/MomentTzHelper";
+
     export default {
         name: "VanguardTimezone",
         data: function () {
             return {
                 filtered_options: [],
-                timezones: moment.tz.names(),
+                timezones: MomentTzHelper.timezones(),
                 sel_value: this.cur_tz ? this.cur_tz : moment.tz.guess(),
+                show_value: '',
                 opened: false,
                 search_text: '',
             }
@@ -52,8 +55,9 @@
             cur_tz: String,
         },
         methods: {
-            tzChanged(val) {
+            tzChanged(val, show) {
                 this.sel_value = val;
+                this.show_value = show;
                 this.$emit('changed-tz', this.sel_value);
                 this.opened = false;
             },
@@ -65,13 +69,16 @@
                     let res = true;
                     if (this.search_text) {
                         //case insensitive
-                        res = String(opt).toLowerCase().indexOf( String(this.search_text).toLowerCase() ) > -1;
+                        res = String(opt.name).toLowerCase().indexOf( String(this.search_text).toLowerCase() ) > -1;
                     }
                     return res;
                 });
             },
         },
         mounted() {
+            let tz = _.find(this.timezones, {name: this.sel_value});
+            this.show_value = tz ? tz.full : this.sel_value;
+
             this.filterOptions();
         }
     }

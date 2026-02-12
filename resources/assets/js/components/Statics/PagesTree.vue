@@ -1,8 +1,22 @@
 <template>
-    <div class="full-height">
+    <div class="full-height" style="position:relative;">
 
-        <div class="jstree-wrapper" @contextmenu.prevent="contextMenuOnEmpty()">
+        <div class="jstree-wrapper"
+             :class="{'full-height': !with_search}"
+             @contextmenu.prevent="contextMenuOnEmpty()"
+        >
             <div ref="jstree"></div>
+        </div>
+
+        <div v-if="with_search" class="search-in-tree flex">
+            <input type="text"
+                   class="form-control"
+                   placeholder="Type to search for tables or links to tables"
+                   @input="clearSearchIndex"
+                   @keydown="searchKey"
+                   v-model="searchVal">
+            &nbsp;
+            <button class="btn btn-default" @click="searchInTab()"><i class="fa fa-search"></i></button>
         </div>
 
         <!--Context Menu On Empty Place-->
@@ -106,6 +120,8 @@
 </template>
 
 <script>
+    import {eventBus} from "../../app";
+
     export default {
         name: 'PagesTree',
         data() {
@@ -120,13 +136,16 @@
                     object: null,
                     node: null,
                     is_folder: false,
-                }
+                },
+                searchVal: '',
+                search_index: 0,
             }
         },
         props: {
             type: String,
             page_id: Number,
             tree: Array,
+            with_search: Boolean,
         },
         methods: {
             //additional functions
@@ -173,6 +192,25 @@
                     })
                     .on('move_node.jstree', function (e, data) {
                         self.jstree_move_node(data);
+                    })
+                    .on('copy_node.jstree', function (e, data) {
+                        if (data.is_multi) {
+                            self.jstree_move_node(data);//move between trees
+                        } else {
+                            Swal("Copy is not available");
+                        }
+                    })
+                    .on('search.jstree', function (e, data) {
+                        let array = $(this).find('.jstree-search');
+                        if (array && array.length) {
+                            if (!array[this.search_index]) {
+                                this.search_index = 0;
+                            }
+                            if (!!window.chrome) {
+                                array[this.search_index].scrollIntoView();
+                            }
+                            this.search_index++;
+                        }
                     });
             },
             jstree_select_node(e, $node) {
@@ -200,22 +238,26 @@
                         .addClass(is_open ? 'fa-folder-open' : 'fa-folder');
                 }
             },
-            jstree_move_node(data) {
-                let $node = data.node;
-                let target_folder = data.instance.get_node(data.parent);
-                let targetObject = target_folder.li_attr['data-object'];
+            jstree_move_node(param) {
+                let $node = param.node;
+                let target_folder = param.instance.get_node(param.parent);
+                let isRoot = target_folder && !target_folder.parent;
+                let targetObject = !isRoot
+                    ? target_folder.li_attr['data-object'] //folder
+                    : { id: null, type: this.type }; //root of the tree
                 let pageObject = $node.li_attr['data-object'];
 
                 $.LoadingOverlay('show');
                 axios.put('/ajax/static-page/move', {
                     page_id: pageObject.id,
                     folder_id: targetObject.id,
-                    position: data.position,
+                    position: param.position,
                     type: this.type,
                 }).then(({ data }) => {
                     if (pageObject.is_folder) {
                         $(this.$refs.jstree).jstree().open_node($node, false, false);
                     }
+                    this.updateObjectLinks($node, pageObject.type, targetObject.type, 1);
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -224,7 +266,7 @@
             //creating context menu ------------------------------------------------------------------------------------
             getContextMenu() {
                 let self = this;
-                let plugins = [];
+                let plugins = ['search'];
                 let context_menu = {
                     'contextmenu': {
                         'items': function ($node) {
@@ -312,8 +354,11 @@
             },
             treeCheckCallback(jstree, operation, node, node_parent) {
                 if (operation === "move_node") {
-                    let parentObject = node_parent && node_parent.li_attr ? node_parent.li_attr['data-object'] : {};
-                    if (!parentObject.is_folder || this.$root.user.role_id == 2) {
+                    if ([1,3].indexOf(this.$root.user.role_id) < 0) {//Admin and Editor can move
+                        return false;
+                    }
+                    let parentObject = node_parent && node_parent.li_attr ? node_parent.li_attr['data-object'] : null;
+                    if (parentObject && !parentObject.is_folder) {
                         return false;
                     }
                 }
@@ -323,7 +368,7 @@
             //Menu functions for 'Pages' ------------------------------------------------------------------------------
             addObject(pageObject, $node, $is_folder = 0) {
                 Swal({
-                    title: '',
+                    title: 'Info',
                     input: 'text',
                     showCancelButton: true,
                     animation: 'slide-from-top',
@@ -346,7 +391,7 @@
                             $(this.$refs.jstree).jstree().create_node($node, data, 'last', false, false);
                             $(this.$refs.jstree).jstree().open_node($node);
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });
@@ -400,8 +445,8 @@
             },
             deleteObject(pageObject, $node, $is_folder = 0) {
                 Swal({
-                    title: 'Delete '+($is_folder ? 'Folder' : 'Page'),
-                    text: 'Are you sure?',
+                    title: 'Info',
+                    text: 'Delete '+($is_folder ? 'Folder' : 'Page')+'. Are you sure?',
                     showCancelButton: true,
                 }).then((result) => {
                     if (result.value) {
@@ -416,18 +461,40 @@
                             }
                             $(this.$refs.jstree).jstree('delete_node', $node);
                         }).catch(errors => {
-                            Swal('', getErrors(errors));
+                            Swal('Info', getErrors(errors));
                         }).finally(() => {
                             $.LoadingOverlay('hide');
                         });
                     }
                 });
             },
+            //SEARCH
+            clearSearchIndex() {
+                this.search_index = 0;
+            },
+            searchKey(e) {
+                if (e.keyCode == 13) {
+                    this.searchInTab();
+                }
+            },
+            searchInTab(external) {
+                $(this.$refs.jstree).jstree().search( external || this.searchVal );
+            },
+            externalSearch(search, withClear) {
+                if (withClear) {
+                    this.clearSearchIndex();
+                }
+                this.searchInTab(search);
+            },
         },
         mounted() {
             if (this.tree) {
                 this.createTreeMenu();
             }
+            eventBus.$on('static-page-global-search', this.externalSearch);
+        },
+        beforeDestroy() {
+            eventBus.$off('static-page-global-search', this.externalSearch);
         }
     }
 </script>
@@ -440,7 +507,7 @@
 
 <style lang="scss" scoped>
     .jstree-wrapper {
-        height: 100%;
+        height: calc(100% - 38px);
         overflow: auto;
     }
     .my_context_menu {
@@ -499,6 +566,25 @@
                     }
                 }
             }
+        }
+    }
+
+    .search-in-tree {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+
+        input {
+            width: 100%;
+        }
+
+        button {
+            border: none;
+            width: 25px;
+            background-color: transparent;
+            padding: 0;
+            font-size: 1.6em;
         }
     }
 </style>

@@ -1,8 +1,8 @@
 <template>
-    <td :style="getCellStyle" class="td-custom">
-        <div class="td-wrapper" :style="getTdWrappStyle">
+    <td :style="getCellStyle()" class="td-custom">
+        <div class="td-wrapper" :style="getTdWrappStyle()">
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
+            <div class="wrapper-inner" :style="getWrapperStyle()">
                 <div class="inner-content" style="text-align: center">
 
                     <label class="switch_t" v-if="tableHeader.f_type === 'Boolean'" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
@@ -10,9 +10,9 @@
                         <span class="toggler round" :class="[!canCellEdit ? 'disabled' : '']"></span>
                     </label>
 
-                    <div v-if="tableHeader.field === 'table_name'" class="inner-content">
+                    <div v-else-if="tableHeader.field === 'table_name'" class="inner-content">
                         <a target="_blank"
-                           title="Open the “Visiting” view in a new tab."
+                           title="Open the “Visiting” MRV in a new tab."
                            :href="showField('__visiting_url')"
                            @click.stop=""
                            v-html="showField()"></a>
@@ -32,6 +32,16 @@
                         <span v-html="userFull()"></span>
                     </a>
 
+                    <a v-else-if="tableHeader.field === 'ref_cond_name' && tableRow.table_id == globalMeta.id"
+                       title="Open ref condition in popup."
+                       @click.stop="showPopRefCond()"
+                    >{{ showField() }}</a>
+
+                    <a v-else-if="tableHeader.field === 'use_name' && tableRow.table_id == globalMeta.id"
+                       title="Open used category in popup."
+                       @click.stop="showUseCatPop()"
+                    >{{ showField() }}</a>
+
                     <div v-else="">{{ showField() }}</div>
 
                 </div>
@@ -42,6 +52,8 @@
 </template>
 
 <script>
+import {eventBus} from "../../app";
+
 import CellStyleMixin from '../_Mixins/CellStyleMixin.vue';
 
 export default {
@@ -97,7 +109,7 @@ export default {
                     let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tableRow.table_id)});
                     res = tb && link
                         ? tb[link]
-                        : (this.tableRow.table_name == this.globalMeta.name
+                        : (this.tableRow.table_id == this.globalMeta.id
                             ? '<span style="color: #00F;">SELF</span>'
                             : this.tableRow.table_name);
                 }
@@ -105,7 +117,23 @@ export default {
                     res = this.tableRow[this.tableHeader.field];
                 }
 
-                return this.$root.strip_tags(res);
+                return this.$root.strip_danger_tags(res);
+            },
+            showPopRefCond() {
+                eventBus.$emit('show-ref-conditions-popup', this.globalMeta.db_name, this.tableRow.ref_cond_id);
+            },
+            showUseCatPop() {
+                switch (this.tableRow.use_category) {
+                    case 'RowGroup':
+                        eventBus.$emit('show-grouping-settings-popup', this.globalMeta.db_name, 'row', this.tableRow.use_id);
+                        break;
+                    case 'DDL':
+                        eventBus.$emit('show-ddl-settings-popup', this.globalMeta.db_name, this.tableRow.use_id);
+                        break;
+                    case 'Link':
+                        eventBus.$emit('show-display-links-settings-popup', this.tableRow.use_id);
+                        break;
+                }
             },
         },
     }

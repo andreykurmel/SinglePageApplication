@@ -55,15 +55,15 @@
                         </span>
                     </span>
                 </td>
-                <td><span>Referencing</span></td>
+                <td><span>Referencing for Sharing</span></td>
                 <td class="in-tb-check">
                     <span class="indeterm_check__wrap">
-                        <span class="indeterm_check" @click="updateGroup(selPermission,'referencing_shared')">
-                            <i v-if="selPermission.referencing_shared" class="glyphicon glyphicon-ok group__icon"></i>
+                        <span class="indeterm_check" @click="updateGroup(selPermission,'hide_folder_structure')">
+                            <i v-if="selPermission.hide_folder_structure" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                 </td>
-                <td><span>Referencing for Sharing</span></td>
+                <td><span>Hide Directory</span></td>
             </tr>
             <tr>
                 <td class="in-tb-check">
@@ -112,12 +112,12 @@
                 <td><span>Allow Copy for Public Sharing</span></td>
                 <td class="in-tb-check">
                     <span class="indeterm_check__wrap">
-                        <span class="indeterm_check" @click="updateGroup(selPermission,'hide_folder_structure')">
-                            <i v-if="selPermission.hide_folder_structure" class="glyphicon glyphicon-ok group__icon"></i>
+                        <span class="indeterm_check" @click="updateGroup(selPermission,'can_change_primaryview')">
+                            <i v-if="selPermission.can_change_primaryview" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
                 </td>
-                <td><span>Hide Directory</span></td>
+                <td><span>Change Primary View</span></td>
             </tr>
             </tbody>
         </table>
@@ -278,7 +278,7 @@
                             </label>
                         </td>
                         <td>
-                            <a target="_blank" :href="'/mrv/'+view.hash">{{ view.name }}</a>
+                            <a target="_blank" :href="'/mrv/'+(view.custom_path || view.hash)">{{ view.name }}</a>
                         </td>
                     </tr>
                 </template>
@@ -533,7 +533,7 @@
                 import_methods: [
                     {name: 'Paste to Import',  avail: true,    key: 5,     code: 'paste'},
                     {name: 'Build/Update',     avail: false,   key: 0,     code: 'scratch'},
-                    {name: 'CSV/Excel Import',       avail: true,    key: 1,     code: 'csv'},
+                    {name: 'CSV/Excel Import', avail: true,    key: 1,     code: 'csv'},
                     {name: 'MySQL Import',     avail: false,   key: 2,     code: 'mysql'},
                     {name: 'Remote MySQL',     avail: false,   key: 3,     code: 'remote'},
                     {name: 'Referencing',      avail: true,    key: 4,     code: 'reference'},
@@ -552,7 +552,7 @@
                 },
                 basic_params: [
                     'can_add','enforced_theme','can_see_history','can_reference','can_public_copy',
-                    'can_edit_tb','can_drag_rows','referencing_shared','can_drag_columns','hide_folder_structure',
+                    'can_edit_tb','can_drag_rows','can_drag_columns','hide_folder_structure','can_change_primaryview',
                 ],
                 availability_cols_first: [],
                 availability_cols_second: [],
@@ -617,7 +617,9 @@
             },
             someAddon() {
                 return this.tableMeta.add_map || this.tableMeta.add_bi || this.tableMeta.add_request || this.tableMeta.add_email
-                    || this.tableMeta.add_alert || this.tableMeta.add_kanban || this.tableMeta.add_gantt || this.tableMeta.add_calendar;
+                    || this.tableMeta.add_alert || this.tableMeta.add_kanban || this.tableMeta.add_gantt || this.tableMeta.add_calendar
+                    || this.tableMeta.add_twilio || this.tableMeta.add_tournament || this.tableMeta.add_report || this.tableMeta.add_ai
+                    || this.tableMeta.add_grouping || this.tableMeta.add_simplemap;
             },
         },
         methods: {
@@ -651,7 +653,7 @@
                     }).then(({ data }) => {
                         this.selPermission._forbid_settings = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -661,7 +663,7 @@
                     }).then(({ data }) => {
                         this.selPermission._forbid_settings = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -769,7 +771,7 @@
                     }).then(({ data }) => {
                         view._view_rights.splice(vr_idx, 1);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -780,7 +782,7 @@
                     }).then(({ data }) => {
                         view._view_rights.push(data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -806,7 +808,7 @@
                     }).then(({ data }) => {
                         Object.assign(cond_format, data);
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -824,7 +826,7 @@
                             this.$emit('share-group-row', cond_format.table_row_group_id, 1);
                         }
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -850,7 +852,7 @@
                 }).then(({ data }) => {
                     Object.assign(cond_format, data);
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     this.$root.sm_msg_type = 0;
                 });
@@ -871,7 +873,7 @@
                     }).then(({ data }) => {
                         this.selPermission._forbid_settings = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });
@@ -882,7 +884,7 @@
                     }).then(({ data }) => {
                         this.selPermission._forbid_settings = data;
                     }).catch(errors => {
-                        Swal('', getErrors(errors));
+                        Swal('Info', getErrors(errors));
                     }).finally(() => {
                         this.$root.sm_msg_type = 0;
                     });

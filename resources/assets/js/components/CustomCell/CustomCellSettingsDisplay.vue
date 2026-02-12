@@ -1,18 +1,36 @@
 <template>
     <td :style="getCustomCellStyle"
         class="td-custom"
-        ref="td"
-        @click="showEdit()"
+        ref="cell_tb_data"
+        @click.stop=""
+        @mouseenter="show_expand = $root.inArray(tableHeader.f_type, ['String', 'Text', 'Long Text', 'Auto String'])"
+        @mouseleave="show_expand = false"
     >
-        <div class="td-wrapper" :style="getTdWrappStyle">
+        <single-td-field
+            v-if="tableHeader.field === 'f_default' && tableRow.f_type !== 'Attachment'"
+            :table-meta="globalMeta"
+            :table-header="tableRow"
+            :td-value="tableRow.f_default"
+            :with_edit="true"
+            :force_edit="true"
+            :style="stfStyle"
+            @updated-td-val="updateSingle"
+        ></single-td-field>
 
-            <div class="wrapper-inner" :style="getWrapperStyle">
-                <div class="inner-content">
+        <div v-else
+             class="td-wrapper"
+             @mousedown.prevent="showEdit()"
+             @mouseup.prevent="endSquareSelect()"
+             :style="getTdWrappStyle()"
+        >
+
+            <div class="wrapper-inner" :style="getWrapperStyle()">
+                <div class="inner-content" :style="{textAlign: tableHeader.col_align}">
 
                     <div v-if="tableHeader.f_type === 'Boolean' && tableHeader.field === 'header_unit_ddl'">
                         <label class="switch_t" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
                             <input type="checkbox"
-                                   v-model="tableRow[tableHeader.field]"
+                                   v-model="editValue"
                                    @click="header_unit_ddl_click"
                                    @change="disabledCheckBox ? '' : updateValue()">
                             <span class="toggler round" :class="[disabledCheckBox ? 'disabled' : '']"></span>
@@ -27,14 +45,14 @@
 
                     <div v-else-if="tableHeader.f_type === 'Boolean'">
                         <label class="switch_t" :style="{height: Math.min(maxCellHGT, 17)+'px'}">
-                            <input type="checkbox" :disabled="disabledCheckBox" v-model="tableRow[tableHeader.field]" @change="updateValue()">
+                            <input type="checkbox" :disabled="disabledCheckBox" v-model="editValue" @change="updateValue()">
                             <span class="toggler round" :class="[disabledCheckBox ? 'disabled' : '']"></span>
                         </label>
                     </div>
 
                     <input
                             v-else-if="tableHeader.f_type === 'Radio' && !isAddRow"
-                            :checked="tableRow[tableHeader.field]"
+                            :checked="editValue"
                             :disabled="disabledCheckBox"
                             @click="updateRadio()"
                             type="radio"
@@ -43,13 +61,26 @@
 
                     <a v-else-if="tableHeader.field === 'mirror_rc_id'"
                        title="Open ref condition in popup."
-                       @click.stop="showRefSettingsPopup(tableRow.mirror_rc_id)"
+                       @mousedown.stop="showRefSettingsPopup(tableRow.mirror_rc_id)"
                     >{{ showField() }}</a>
 
                     <a v-else-if="tableHeader.field === 'ddl_id' || tableHeader.field === 'unit_ddl_id'"
                        title="Open DDL settings in popup."
-                       @click.stop="showDdlSettingsPopup()"
+                       @mousedown.stop="showDdlSettingsPopup()"
+                    >
+                        <i v-if="isSharedDDL()" class="fa fa-share-alt-square" style="color: #444;"></i>
+                        {{ showField() }}
+                    </a>
+
+                    <a v-else-if="inArray(tableHeader.field, ['twilio_google_acc_id','twilio_sendgrid_acc_id','twilio_sms_acc_id','twilio_voice_acc_id'])"
+                       title="Open settings in popup."
+                       @mousedown.stop="showUserSettings()"
                     >{{ showField() }}</a>
+
+                    <div v-else-if="tableHeader.field === 'validation_rules'"
+                         style="cursor: pointer"
+                         @click="$emit('show-add-ddl-option', tableHeader, tableRow)"
+                    >{{ showField() }}&nbsp;</div>
 
                     <div v-else="" :title="getTitle" ref="sett_content_elem">{{ showField() }}</div>
 
@@ -57,14 +88,11 @@
             </div>
 
             <cell-table-data-expand
-                    v-if="cont_height > maxCellHGT+cell_top_padding"
+                    v-if="show_expand"
                     style="background-color: #FFF;"
-                    :cont_height="cont_height"
-                    :cont_width="cont_width"
                     :table-meta="globalMeta"
                     :table-row="tableRow"
                     :table-header="tableHeader"
-                    :html="cont_html"
                     :uniqid="getuniqid()"
                     :can-edit="canCellEdit"
                     :user="user"
@@ -77,9 +105,9 @@
         <!-- ABSOLUTE EDITINGS -->
         <div v-if="tableHeader.f_type === 'Color'" class="cell-editing">
             <tablda-colopicker
-                    :init_color="tableRow[tableHeader.field]"
+                    :init_color="editValue"
                     :avail_null="true"
-                    @set-color="(clr, save) => {updateColor(tableHeader, clr, save)}"
+                    @set-color="updateColor"
             ></tablda-colopicker>
         </div>
 
@@ -87,7 +115,7 @@
             <align-of-column
                     :table-row="tableRow"
                     :table-meta="tableMeta"
-                    @set-align="updateValue()"
+                    @set-align="updateAlign"
             ></align-of-column>
         </div>
 
@@ -102,8 +130,31 @@
                     :header-key="'f_formula'"
                     :can-edit="canCellEdit"
                     :pop_width="'100%'"
-                    @set-formula="updateRow"
+                    @close-formula="hideEdit"
+                    @set-formula="updateRow(true)"
             ></formula-helper>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'f_default' && tableRow.f_type === 'Attachment'"
+                    :options="attachmentDefaultMethods()"
+                    :table-row="tableRow"
+                    :hdr_field="'f_default'"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="tableHeader.field === 'width_of_table_popup'"
+                    :options="tableWidths()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
+            ></tablda-select-simple>
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'name' && isAddRow"
@@ -117,8 +168,8 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                v-else-if="tableHeader.field === 'fetch_source_id'"
-                :options="metaFields()"
+                v-else-if="tableHeader.field === 'fetch_source_id' || tableHeader.field === 'fetch_by_row_cloud_id'"
+                :options="metaFields(tableHeader.field === 'fetch_source_id' ? 'String' : 'Connected Clouds')"
                 :table-row="tableRow"
                 :hdr_field="tableHeader.field"
                 :can_empty="true"
@@ -126,6 +177,30 @@
                 :style="getEditStyle"
                 @selected-item="updateCheckedDDL"
                 @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                v-else-if="tableHeader.field === 'fetch_one_cloud_id'"
+                :options="availClouds()"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :can_empty="true"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                    v-else-if="inArray(tableHeader.field, ['twilio_google_acc_id','twilio_sendgrid_acc_id','twilio_sms_acc_id','twilio_voice_acc_id'])"
+                    :options="globalTwilios()"
+                    :table-row="tableRow"
+                    :hdr_field="tableHeader.field"
+                    :can_empty="true"
+                    :fixed_pos="true"
+                    :style="getEditStyle"
+                    @selected-item="updateCheckedDDL"
+                    @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
@@ -157,10 +232,10 @@
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'mirror_part'"
                     :options="[
-                            {val: 'id', show: 'ID'},
-                            {val: 'value', show: 'Value'},
-                            {val: 'show', show: 'Show'},
-                        ]"
+                        {val: 'id', show: 'ID'},
+                        {val: 'value', show: 'Value'},
+                        {val: 'show', show: 'Show'},
+                    ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :fixed_pos="true"
@@ -170,35 +245,90 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'image_display_view'"
+                    v-else-if="tableHeader.field === 'fld_display_header_type'"
                     :options="[
-                            {val: 'scroll', show: 'Scroll'},
-                            {val: 'slide', show: 'Slide'},
-                        ]"
+                        {val: 'default', show: 'Default'},
+                        {val: 'symbol', show: 'Symbol'},
+                        {val: 'tooltip', show: 'Tooltip'},
+                        {val: 'placeholder', show: 'Placeholder'},
+                    ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'image_display_fit'"
+                    v-else-if="tableHeader.field === 'image_fitting'"
                     :options="[
-                            {val: 'fill', show: 'Fill'},
-                            {val: 'width', show: 'Width'},
-                            {val: 'height', show: 'Height'},
-                        ]"
+                        {val: 'fill', show: 'Fill'},
+                        {val: 'width', show: 'Width'},
+                        {val: 'height', show: 'Height'},
+                    ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
+                    :fixed_pos="true"
                     :style="getEditStyle"
                     @selected-item="updateCheckedDDL"
                     @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                v-else-if="tableHeader.field === 'section_font'"
+                :options="[
+                    {val: 'Normal', show: 'Normal'},
+                    {val: 'Italic', show: 'Italic'},
+                    {val: 'Bold', show: 'Bold'},
+                    {val: 'Strikethrough', show: 'Strikethrough'},
+                    {val: 'Overline', show: 'Overline'},
+                    {val: 'Underline', show: 'Underline'},
+                ]"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fld_input_type="tableHeader.input_type"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                v-else-if="tableHeader.field === 'section_align_h'"
+                :options="[
+                    {val: 'Left', show: 'Left'},
+                    {val: 'Center', show: 'Center'},
+                    {val: 'Right', show: 'Right'},
+                ]"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fld_input_type="tableHeader.input_type"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
+            ></tablda-select-simple>
+
+            <tablda-select-simple
+                v-else-if="tableHeader.field === 'section_align_v'"
+                :options="[
+                    {val: 'Top', show: 'Top'},
+                    {val: 'Middle', show: 'Middle'},
+                    {val: 'Bottom', show: 'Bottom'},
+                ]"
+                :table-row="tableRow"
+                :hdr_field="tableHeader.field"
+                :fld_input_type="tableHeader.input_type"
+                :fixed_pos="true"
+                :style="getEditStyle"
+                @selected-item="updateCheckedDDL"
+                @hide-select="hideEdit"
             ></tablda-select-simple>
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'unit_ddl_id'"
-                    :options="globalMetaDdls()"
+                    :options="globalMetaDdls(true)"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
@@ -211,8 +341,8 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'ddl_id' && inArray(tableRow.input_type, $root.ddlInputTypes)"
-                    :options="globalMetaDdls()"
+                    v-else-if="tableHeader.field === 'ddl_id' && inArray(rowInputType, $root.ddlInputTypes)"
+                    :options="globalMetaDdls(true)"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
                     :can_empty="true"
@@ -226,6 +356,7 @@
 
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'default_stats'"
+                    :fld_input_type="tableHeader.input_type"
                     :options="availRowSumFormulas()"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
@@ -237,7 +368,7 @@
             ></tablda-select-simple>
 
             <tablda-select-simple
-                    v-else-if="tableHeader.field === 'input_type'"
+                    v-else-if="inArray(tableHeader.field, ['input_type','mirror_edit_component'])"
                     :options="[
                         {show: 'Auto', val: 'Auto'},
                         {show: 'Input', val: 'Input'},
@@ -247,9 +378,9 @@
                         {show: 'M-Select', val: 'M-Select'},
                         {show: 'M-Search', val: 'M-Search'},
                         {show: 'M-SS', val: 'M-SS'},
-                        {show: 'Formula', val: 'Formula'},
-                        {show: 'Mirror', val: 'Mirror'},
-                        {show: 'Fetch', val: 'Fetch', disabled: tableHeader.f_type !== 'Attachment'},
+                        {show: 'Formula', val: 'Formula', disabled: tableRow.input_type === 'Mirror' && tableHeader.field === 'mirror_edit_component'},
+                        {show: 'Mirror', val: 'Mirror', disabled: tableRow.input_type === 'Mirror' && tableHeader.field === 'mirror_edit_component'},
+                        {show: 'Fetch', val: 'Fetch', disabled: tableRow.f_type !== 'Attachment'},
                     ]"
                     :table-row="tableRow"
                     :hdr_field="tableHeader.field"
@@ -294,7 +425,7 @@
             <tablda-select-simple
                     v-else-if="tableHeader.field === 'ddl_style'
                         && tableRow.ddl_id
-                        && inArray(tableRow.input_type, $root.ddlInputTypes)"
+                        && inArray(rowInputType, $root.ddlInputTypes)"
                     :options="[
                         {val: 'ddl', show: 'DDL'},
                         {val: 'panel', show: 'Panel'},
@@ -322,18 +453,20 @@
 
             <input
                     v-else-if="inArray(tableHeader.field, ownerInputs) && !inArray(tableHeader.field, fieldsWithSpecialRules)"
-                    v-model="tableRow[tableHeader.field]"
+                    v-model="editValue"
                     @blur="updateRow()"
                     ref="inline_input"
                     class="form-control full-height"
+                    :type="tableHeader.f_type === 'Integer' ? 'number' : 'text'"
                     :style="getEditStyle">
 
             <input
                     v-else-if="inArray(tableHeader.field, fieldsForUser) && !inArray(tableHeader.field, fieldsWithSpecialRules)"
-                    v-model="tableRow[tableHeader.field]"
+                    v-model="editValue"
                     @blur="updateRow()"
                     ref="inline_input"
                     class="form-control full-height"
+                    :type="tableHeader.f_type === 'Integer' ? 'number' : 'text'"
                     :style="getEditStyle">
 
             <div v-else="">{{ hideEdit() }}</div>
@@ -346,6 +479,10 @@
 
 <script>
 import {SelectedCells} from '../../classes/SelectedCells';
+import {SpecialFuncs} from "../../classes/SpecialFuncs";
+import {CellSettingsDisplayHelper} from "./CellSettingsDisplayHelper";
+import {Validator} from "../../classes/Validator";
+import {VerticalTableFldObject} from "../CustomTable/VerticalTableFldObject";
 
 import {eventBus} from '../../app';
 
@@ -360,14 +497,12 @@ import TabldaSelectSimple from "./Selects/TabldaSelectSimple.vue";
 import TabldaSelectDdl from "./Selects/TabldaSelectDdl.vue";
 import HoverBlock from "../CommonBlocks/HoverBlock.vue";
 import InfoPopup from "../CustomPopup/InfoPopup.vue";
-import FormulaHelper from "./InCell/FormulaHelper";
 import CellTableDataExpand from "./InCell/CellTableDataExpand";
 
 export default {
     name: "CustomCellSettingsDisplay",
     components: {
         CellTableDataExpand,
-        FormulaHelper,
         InfoPopup,
         HoverBlock,
         TabldaSelectDdl,
@@ -383,14 +518,18 @@ export default {
     ],
     data: function () {
         return {
+            show_expand: false,
+            oldVal: null,
+            editValue: null,
             radio_top: 0,
             radio_left: 0,
             radio_help: false,
             editing: false,
-            oldVal: null,
             ownerInputs: [
-                'formula_symbol','tooltip','verttb_he_auto','verttb_cell_height','verttb_row_height',
-                'notes','placeholder_content','kanban_field_name'
+                'formula_symbol','tooltip','verttb_he_auto','verttb_cell_height','verttb_row_height','pop_tab_order',
+                'notes','placeholder_content','kanban_field_name','kanban_field_description','form_row_spacing',
+                'twilio_sender_name','twilio_sender_email','copy_prefix_value','copy_suffix_value','pop_tab_name',
+                'section_header','section_font','section_size','section_align_h','section_align_v','section_height',
             ],
             fieldsWithSpecialRules: [
                 'filter_type',
@@ -412,25 +551,55 @@ export default {
                 return {};
             }
         },
+        cellValue: String|Number,
         selectedCell: SelectedCells,
         tableMeta: Object,
         tableHeader: Object,
         tableRow: Object,
+        allRows: Object|null,
         rowIndex: Number,
         cellHeight: Number,
         maxCellRows: Number,
         user: Object,
         isAddRow: Boolean,
         isVertTable: Boolean,
-        isSelected: Boolean,
+        isSelectedExt: Boolean,
         behavior: String,
         is_visible: Boolean,
+        parentRow: Object,
+    },
+    watch: {
+        cellValue: {
+            handler(val) {
+                this.initEditFill();
+            },
+            immediate: true,
+        },
     },
     computed: {
+        rowInputType() {
+            return this.tableRow.input_type === 'Mirror' && this.tableRow.mirror_rc_id
+                ? this.tableRow.mirror_edit_component
+                : this.tableRow.input_type;
+        },
+        stfStyle() {
+            return {
+                width: '100%',
+                backgroundColor: this.$root.systemFields.indexOf(this.tableRow.field) > -1 ? '#EEE' : null,
+            };
+        },
+        isSelected() {
+            return this.isSelectedExt;
+        },
         getCustomCellStyle() {
-            let obj = this.getCellStyle;
+            let obj = this.getCellStyle();
             obj.textAlign = (this.inArray(this.tableHeader.f_type, ['Boolean', 'Radio']) ? 'center' : '');
             obj.backgroundColor = this.isSelected ? '#CFC' : 'inherit';
+
+            if (this.tableHeader.field === 'f_default' && this.tableRow.f_type === 'Attachment') {
+                return obj;
+            }
+
             let has_unit = this.tableRow.unit && this.tableRow.unit_ddl_id && this.globalMeta.unit_conv_is_active;// && this.globalMeta.__unit_convers && this.globalMeta.__unit_convers.length;
             if (
                 //In Settings/Links
@@ -439,9 +608,9 @@ export default {
                 this.tableRow.link_type === 'Table' && this.inArray(this.tableHeader.field, ['listing_field_id'])
                 ||
                 //In Settings/Basics
-                (!this.tableRow.ddl_id || !this.inArray(this.tableRow.input_type, this.$root.ddlInputTypes)) && this.inArray(this.tableHeader.field, ['ddl_style'])
+                (!this.tableRow.ddl_id || !this.inArray(this.rowInputType, this.$root.ddlInputTypes)) && this.inArray(this.tableHeader.field, ['ddl_style'])
                 ||
-                !this.inArray(this.tableRow.input_type, this.$root.ddlInputTypes) && this.inArray(this.tableHeader.field, ['ddl_id'])
+                !this.inArray(this.rowInputType, this.$root.ddlInputTypes) && this.inArray(this.tableHeader.field, ['ddl_id'])
                 ||
                 !this.tableRow.unit_ddl_id && this.inArray(this.tableHeader.field, ['unit'])
 //                        ||
@@ -451,54 +620,30 @@ export default {
                 ||
                 (this.tableHeader.field === 'is_default_show_in_popup' && !this.$root.checkAvailable(this.$root.user, 'form_visibility'))
                 ||
-                (this.tableHeader.field === 'f_formula' && this.tableRow.input_type !== 'Formula')
-                ||
-                (this.tableHeader.field === 'is_topbot_in_popup' && this.tableRow.is_table_field_in_popup)
-                ||
-                (this.tableHeader.field === 'is_gantt_left_header' && this.tableRow.is_gantt_group)
+                (this.tableHeader.field === 'f_formula' && this.rowInputType !== 'Formula')
                 ||
                 (this.tableHeader.field === 'verttb_row_height' && this.tableRow.verttb_he_auto)
                 ||
-                (this.tableHeader.field === 'filter_type' && !this.inArray(this.tableRow.f_type, this.availRangeTypes))
+                (this.tableHeader.field === 'pop_tab_order' && this.tableRow._poptaborder_disabled)
+                ||
+                (
+                    this.tableHeader.field === 'filter_type'
+                    &&
+                    (!this.inArray(this.tableRow.f_type, this.availRangeTypes) || !this.tableRow.filter)
+                )
                 ||
                 this.disabledCheckBox
             ) {
                 obj.backgroundColor = '#EEE';
             }
+
+            if (this.tableHeader.field === 'input_type' && this.$root.systemFields.indexOf(this.tableRow.field) !== -1) {
+                obj.backgroundColor = '#EEE';
+            }
             return obj;
         },
         disabledCheckBox() {
-            return !this.canCellEdit
-                ||
-                ( //autofill and autocomplete are not accessible for not DDL Input types
-                    this.inArray(this.tableHeader.field, ['ddl_add_option','ddl_auto_fill'])
-                    &&
-                    !this.inArray(this.tableRow.input_type, this.$root.ddlInputTypes)
-                )
-                ||
-                ( //is_search_autocomplete_display is not accessible for 'User','Attachment'
-                    this.tableHeader.field === 'is_search_autocomplete_display'
-                    &&
-                    this.inArray(this.tableRow.f_type, ['Attachment'])
-                )
-                ||
-                ( //'is_uniform_formula','f_formula' is not accessible for not 'Formula' input
-                    this.inArray(this.tableHeader.field, ['is_uniform_formula','f_formula'])
-                    &&
-                    this.tableRow.input_type !== 'Formula'
-                )
-                ||
-                ( //'is_uniform_formula','f_formula' is not accessible for not 'Formula' input
-                    this.inArray(this.tableHeader.field, ['is_gantt_left_header'])
-                    &&
-                    ( _.find(this.globalMeta._fields, {is_gantt_main_group: 1}) || _.find(this.globalMeta._fields, {is_gantt_parent_group: 1}) )
-                )
-                ||
-                ( //'is_gantt_main_group' is not accessible for not 'Formula' input
-                    this.inArray(this.tableHeader.field, ['is_gantt_main_group'])
-                    &&
-                    !_.find(this.globalMeta._fields, {is_gantt_parent_group: 1})
-                )
+            return CellSettingsDisplayHelper.disabledCheckBox(this.globalMeta, this.tableHeader, this.tableRow, this.behavior);
         },
         getTitle() {
             let title = '';
@@ -511,20 +656,8 @@ export default {
             return title;
         },
         canCellEdit() {
-            let has_unit = this.tableRow.unit && this.tableRow.unit_ddl_id && this.globalMeta.unit_conv_is_active;// && this.globalMeta.__unit_convers && this.globalMeta.__unit_convers.length;
-            return (this.tableHeader.field !== 'name' || this.isAddRow)
-                && (this.globalMeta._is_owner || this.inArray(this.tableHeader.field, this.fieldsForUser))
-                && !this.inArray(this.tableHeader.field, this.$root.systemFields)
-                && (!this.inArray(this.tableHeader.field, ['header_unit_ddl','unit_display']) || has_unit)
-                && (this.tableHeader.field !== 'f_formula' || this.tableRow.input_type === 'Formula')
-                && (this.tableHeader.field !== 'is_default_show_in_popup' || this.$root.checkAvailable(this.$root.user, 'form_visibility'))
-                && (this.tableHeader.field !== 'is_topbot_in_popup' || !this.tableRow.is_table_field_in_popup)
-                && (this.tableHeader.field !== 'is_gantt_left_header' || !this.tableRow.is_gantt_group)
-                && (this.tableHeader.field !== 'verttb_row_height' || !this.tableRow.verttb_he_auto)
-                && (this.tableHeader.field !== 'mirror_rc_id' || this.tableRow.input_type === 'Mirror')
-                && (this.tableHeader.field !== 'mirror_field_id' || (this.tableRow.input_type === 'Mirror' && this.tableRow.mirror_rc_id))
-                && (this.tableHeader.field !== 'mirror_part' || (this.tableRow.input_type === 'Mirror' && this.tableRow.mirror_rc_id))
-                && (this.tableHeader.field !== 'fetch_source_id' || (this.tableRow.f_type === 'Attachment'));
+            return (this.tableHeader.field === 'f_default' && this.tableRow.f_type === 'Attachment')
+                || CellSettingsDisplayHelper.canCellEdit(this.globalMeta, this.tableHeader, this.tableRow, true, this.behavior);
         },
     },
     methods: {
@@ -548,20 +681,28 @@ export default {
             return this.editing && this.canCellEdit && !this.$root.global_no_edit;
         },
         showEdit() {
+            if (window.event.button != 0 && this.selectedCell) {
+                this.selectedCell.single_select(this.tableHeader, this.rowIndex);
+                return;
+            }
+            let cmdOrCtrl = window.event.metaKey || window.event.ctrlKey;
+            if (cmdOrCtrl && this.selectedCell) {
+                this.selectedCell.square_select(this.tableHeader, this.rowIndex);
+                return;
+            }
             //edit cell
             if (
-                window.screen.width >= 768
+                window.innerWidth >= 768
                 && this.selectedCell
                 && !this.selectedCell.is_selected(this.globalMeta, this.tableHeader, this.rowIndex)
             ) {
                 this.selectedCell.single_select(this.tableHeader, this.rowIndex);
             } else {
-                if (!this.canCellEdit || this.inArray(this.tableHeader.f_type, ['Boolean'])) {
+                if (!this.canCellEdit || this.inArray(this.tableHeader.f_type, ['Boolean','Color'])) {
                     return;
                 }
                 this.editing = true;
                 if (this.isEditing()) {
-                    this.oldValue = this.tableRow[this.tableHeader.field];
                     this.$nextTick(function () {
                         if (this.$refs.inline_input) {
                             if (this.$refs.inline_input && this.$refs.inline_input.nodeName === 'SELECT') {
@@ -578,86 +719,149 @@ export default {
                 }
             }
         },
+        endSquareSelect() {
+            if (this.selectedCell && !this.selectedCell.is_selected(this.tableMeta, this.tableHeader, this.rowIndex)) {
+                this.selectedCell.square_select(this.tableHeader, this.rowIndex);
+            }
+        },
         hideEdit() {
             this.editing = false;
         },
         updateCheckedDDL(item) {
             if (this.tableHeader.field === 'name') {
                 this.tableRow.id = item;
+            } else if (this.$root.isMSEL(this.tableHeader.input_type)) {
+                this.editValue = Array.isArray(this.editValue) ? this.editValue : [String(this.editValue)];
+                if (this.editValue.indexOf(item) > -1) {
+                    this.editValue.splice( this.editValue.indexOf(item), 1 );
+                } else {
+                    this.editValue.push(item);
+                }
             } else {
-                this.tableRow[this.tableHeader.field] = item;
+                this.editValue = item;
             }
             this.updateValue();
         },
-        updateValue() {
-            if (this.tableHeader.field === 'name' && !this.tableRow.name) {
-                let fld = _.find(this.globalMeta._fields, {id: Number(this.tableRow.id)});
-                this.tableRow.name = fld ? fld.name : this.tableRow.id;
+        updateSingle(val, header, ddl_option) {
+            this.editValue = val;
+            if (ddl_option) {
+                this.editValue = ddl_option.show;
             }
-            if (this.tableHeader.field === 'unit_ddl_id') {
-                this.tableRow.unit = null;
-                this.tableRow.unit_display = null;
-            }
+            this.updateValue();
+        },
+        updateValue(force) {
+            let row = this.getCurrentRow();
+            let editVal = SpecialFuncs.applySetMutator(this.tableHeader, this.editValue);
+            if (row[this.tableHeader.field] !== editVal || force) {
+                row[this.tableHeader.field] = editVal;
+                row._changed_field = this.tableHeader.field;
 
-            if (this.tableRow[this.tableHeader.field] !== this.oldValue) {
+                if (this.tableHeader.field === 'name' && !row.name) {
+                    let fld = _.find(this.globalMeta._fields, {id: Number(row.id)});
+                    row.name = fld ? fld.name : row.id;
+                }
+                if (this.tableHeader.field === 'unit_ddl_id') {
+                    row.unit = null;
+                    row.unit_display = null;
+                }
+
+                //3rd party Twilio
+                if (this.tableHeader.field === 'twilio_google_acc_id') {
+                    row.twilio_sendgrid_acc_id = null;
+                }
+                if (this.tableHeader.field === 'twilio_sendgrid_acc_id') {
+                    row.twilio_google_acc_id = null;
+                }
+
                 if (this.tableHeader.f_type === 'Boolean') {
-                    this.tableRow[this.tableHeader.field] = this.tableRow[this.tableHeader.field] ? 1 : 0;
+                    row[this.tableHeader.field] = editVal ? 1 : 0;
+                    if (this.tableHeader.field === 'filter' && !row.filter) {
+                        row.filter_search = 0;
+                    }
                 }
-
                 if (this.tableHeader.field === 'verttb_row_height') {
-                    this.tableRow.verttb_row_height = Number(this.tableRow.verttb_row_height);
-                    this.tableRow.verttb_row_height = Math.max(1, this.tableRow.verttb_row_height);
-                    this.tableRow.verttb_row_height = Math.min(20, this.tableRow.verttb_row_height);//max_he_for_auto_rows: 20
+                    row.verttb_row_height = Number(row.verttb_row_height);
+                    row.verttb_row_height = Math.max(1, row.verttb_row_height);
+                    row.verttb_row_height = Math.min(20, row.verttb_row_height);//max_he_for_auto_rows: 20
+                }
+                if (this.tableHeader.field === 'fetch_one_cloud_id') {
+                    row.fetch_by_row_cloud_id = null;
+                }
+                if (this.tableHeader.field === 'fetch_by_row_cloud_id') {
+                    row.fetch_one_cloud_id = null;
                 }
 
-                this.tableRow._changed_field = this.tableHeader.field;
-                this.$emit('updated-cell', this.tableRow);
+                this.$emit('updated-cell', row, this.tableHeader);
                 this.$nextTick(() => {
                     this.changedContSize();
                 });
             }
         },
-        updateRow() {
-            this.hideEdit();
+        updateAlign(val) {
+            this.editValue = val;
             this.updateValue();
+        },
+        updateRow(fromFormula) {
+            if (this.tableHeader.field == 'pop_tab_order') {
+                _.each(this.globalMeta._fields, (fld) => {
+                    if (fld.id != this.tableRow.id && fld.pop_tab_name == this.tableRow.pop_tab_name && !fld.pop_tab_order) {
+                        fld._poptaborder_disabled = !! this.editValue;
+                    }
+                });
+            }
+            if (fromFormula) {
+                this.initEditFill();
+            }
+            this.hideEdit();
+            this.updateValue(fromFormula);
         },
         updateRadio() {
-            this.tableRow[this.tableHeader.field] = this.tableRow[this.tableHeader.field] ? 0 : 1;
+            this.editValue = this.editValue ? 0 : 1;
             this.updateValue();
         },
-        updateColor(header, clr, save) {
+        updateColor(clr, save) {
             if (save) {
                 this.$root.saveColorToPalette(clr);
             }
-            this.tableRow[header.field] = clr;
+            this.editValue = clr;
+            this.hideEdit();
             this.updateValue();
         },
         showField() {
             let res = '';
             if (this.tableHeader.f_type === 'User') {
-                res = this.$root.smallUserStr(this.tableRow, this.tableHeader, this.tableRow[this.tableHeader.field]);
+                res = this.$root.smallUserStr(this.tableRow, this.tableHeader, this.editValue);
             }
             else
             if (this.tableHeader.field === 'name') {
-                res = this.$root.uniqName( this.tableRow[this.tableHeader.field] );
+                res = this.$root.uniqName( this.editValue );
+            }
+            else
+            if (this.tableHeader.field === 'f_default' && this.tableRow.f_type === 'Attachment') {
+                let meth = _.find(this.attachmentDefaultMethods(), {val: this.tableRow.f_default});
+                res = meth ? meth.show : this.tableRow.f_default;
+            }
+            else
+            if (this.tableHeader.field === 'validation_rules') {
+                res = Validator.rulesPreview( this.tableRow );
             }
             else
             if (this.tableHeader.field === 'filter_type') {
-                switch (this.tableRow[this.tableHeader.field]) {
+                switch (this.editValue) {
                     case 'value': res = 'Values'; break;
                     case 'range': res = 'Range'; break;
                 }
             }
             else
             if (this.tableHeader.field === 'ddl_style') {
-                switch (this.tableRow[this.tableHeader.field]) {
+                switch (this.editValue) {
                     case 'ddl': res = 'DDL'; break;
                     case 'panel': res = 'Panel'; break;
                 }
             }
             else
             if (this.tableHeader.field === 'verttb_cell_height') {
-                switch (this.tableRow[this.tableHeader.field]) {
+                switch (this.editValue) {
                     case 1: res = 'Small'; break;
                     case 2: res = 'Medium'; break;
                     case 3: res = 'Large'; break;
@@ -669,30 +873,15 @@ export default {
                 res = this.tableRow.verttb_he_auto ? '' : this.tableRow.verttb_row_height;
             }
             else
-                if (this.tableHeader.field === 'image_display_view') {
-                switch (this.tableRow.image_display_view) {
-                    case 'scroll': res = 'Scroll'; break;
-                    case 'slide': res = 'Slide'; break;
-                }
-            }
-            else
-            if (this.tableHeader.field === 'image_display_fit') {
-                switch (this.tableRow.image_display_fit) {
-                    case 'fill': res = 'Fill'; break;
-                    case 'width': res = 'Width'; break;
-                    case 'height': res = 'Height'; break;
-                }
-            }
-            else
             if (this.tableHeader.field === 'default_stats') {
-                res = this.tableRow[this.tableHeader.field]
-                    ? String(this.tableRow[this.tableHeader.field]).toUpperCase()
+                res = this.editValue
+                    ? String(this.editValue).toUpperCase()
                     : '';
             }
             else
             if (this.tableHeader.field === 'unit_ddl_id' && this.tableRow.unit_ddl_id) {
-                let idx = _.findIndex(this.globalMeta._ddls, {id: Number(this.tableRow.unit_ddl_id)});
-                res = idx > -1 ? this.globalMeta._ddls[idx].name : '';
+                let ddl = _.find(this.globalMetaDdls(true), {val: Number(this.tableRow.unit_ddl_id)});
+                res = ddl ? ddl.show : this.tableRow.unit_ddl_id;
             }
             else
             if (this.tableHeader.field === 'unit' || this.tableHeader.field === 'unit_display') {
@@ -700,18 +889,36 @@ export default {
             }
             else
             if (this.tableHeader.field === 'ddl_id' && this.tableRow.ddl_id) {
-                let idx = _.findIndex(this.globalMeta._ddls, {id: Number(this.tableRow.ddl_id)});
-                res = idx > -1 ? this.globalMeta._ddls[idx].name : this.tableRow.ddl_id;
+                let ddl = _.find(this.globalMetaDdls(true), {val: Number(this.tableRow.ddl_id)});
+                res = ddl ? ddl.show : this.tableRow.ddl_id;
             }
             else
-            if (this.inArray(this.tableHeader.field, ['is_lat_field','is_long_field','is_addr_field','is_info_header_field','fetch_source_id'])) {
-                let field = _.find(this.globalMeta._fields, {id: Number(this.tableRow[this.tableHeader.field])});
+            if (
+                this.inArray(this.tableHeader.field,
+                ['is_lat_field','is_long_field','is_addr_field','is_info_header_field','is_info_header_value','fetch_source_id','fetch_by_row_cloud_id'])
+            ) {
+                let field = _.find(this.globalMeta._fields, {id: Number(this.editValue)});
                 res = field ? field.name : '';
+            }
+            else
+            if (this.inArray(this.tableHeader.field, ['fetch_one_cloud_id'])) {
+                let cloud = _.find(this.availClouds(), {val: Number(this.editValue)});
+                res = cloud ? cloud.show : '';
+            }
+            else
+            if (this.inArray(this.tableHeader.field, ['width_of_table_popup'])) {
+                let cloud = _.find(this.tableWidths(), {val: this.editValue});
+                res = cloud ? cloud.show : res;
             }
             else
             if (this.inArray(this.tableHeader.field, ['mirror_rc_id'])) {
                 let rc = _.find(this.globalMeta._ref_conditions, {id: Number(this.tableRow.mirror_rc_id)});
                 res = rc ? rc.name : this.tableRow.mirror_rc_id;
+            }
+            else
+            if (this.inArray(this.tableHeader.field, ['twilio_google_acc_id','twilio_sendgrid_acc_id','twilio_sms_acc_id','twilio_voice_acc_id'])) {
+                let tw = _.find(this.globalTwilios(), {val: Number(this.editValue)});
+                res = tw ? tw.show : this.editValue;
             }
             else
             if (this.inArray(this.tableHeader.field, ['mirror_field_id'])) {
@@ -730,10 +937,27 @@ export default {
                     res = '';
                 }
             }
-            else {
-                res = this.tableRow[this.tableHeader.field];
+            else
+            if (this.inArray(this.tableHeader.field, ['fld_display_header_type'])) {
+                switch (VerticalTableFldObject.fieldSetting('fld_display_header_type', this.tableRow, null, this.behavior)) {
+                    case 'symbol': res = 'Symbol'; break;
+                    case 'tooltip': res = 'Tooltip'; break;
+                    case 'placeholder': res = 'Placeholder'; break;
+                    default: res = 'Default'; break;
+                }
             }
-            return this.$root.strip_tags(res);
+            else
+            if (this.tableHeader.field === 'image_fitting') {
+                switch (this.tableRow.image_fitting) {
+                    case 'fill': res = 'Fill'; break;
+                    case 'width': res = 'Width'; break;
+                    case 'height': res = 'Height'; break;
+                }
+            }
+            else {
+                res = this.editValue;
+            }
+            return this.$root.strip_danger_tags(res);
         },
         radioSettingsCheckedHandler(column, checkedFieldId) {
             if (
@@ -741,31 +965,85 @@ export default {
                 &&
                 this.tableHeader.field === column
                 &&
-                this.tableRow[this.tableHeader.field] === 1
+                this.editValue === 1
             ) {
-                this.tableRow[this.tableHeader.field] = 0;
+                this.editValue = 0;
                 this.updateValue();
             }
         },
 
         //select arrays
+        attachmentDefaultMethods() {
+            return [
+                {val: 'file', show: 'Browse'},
+                {val: 'link', show: 'Link'},
+                {val: 'drag', show: 'Drag & Drop'},
+                {val: 'photo', show: 'Camera (photo)'},
+                {val: 'video', show: 'Camera (video)'},
+                {val: 'audio', show: 'Microphone'},
+                {val: 'paste', show: 'Paste'},
+            ];
+        },
+        tableWidths() {
+            return [
+                { val:'full', show:'Full', },
+                { val:'field', show:'Field', },
+            ];
+        },
         nameFields() {
-            let fltr = this.behavior === 'settings_kanban_add' ? 'kanban_group' : 'active_links';
-            let fields = _.filter(this.globalMeta._fields, (hdr) => { return !hdr[fltr] });
+            let fields = _.filter(this.globalMeta._fields, (hdr) => { return !hdr.active_links });
             return _.map(fields, (hdr) => {
                 return { val: hdr.id, show: this.$root.uniqName(hdr.name), }
             });
         },
-        metaFields() {
-            let flds = _.filter(this.globalMeta._fields, {f_type: 'String'});
+        metaFields(ftype) {
+            let flds = _.filter(this.globalMeta._fields, {f_type: ftype || 'String'});
             return _.map(flds, (hdr) => {
                 return { val: hdr.id, show: hdr.name, }
             });
         },
-        globalMetaDdls() {
-            return _.map(this.globalMeta._ddls, (hdr) => {
+        isSharedDDL() {
+            return _.find(this.$root.settingsMeta.shared_ddls || [], {id: Number(this.tableRow[this.tableHeader.field])});
+        },
+        globalMetaDdls(withShared) {
+            let ddls = _.map(this.globalMeta._ddls, (hdr) => {
                 return { val: hdr.id, show: hdr.name, }
             });
+            if (withShared) {
+                let shared = [];
+
+                let tbids = _.orderBy(this.$root.settingsMeta.shared_ddls || [], 'admin_public');
+                tbids = _.uniq( _.map(tbids, 'table_id') );
+
+                let sharedgroups = _.groupBy(this.$root.settingsMeta.shared_ddls || [], 'table_id');
+                _.each(tbids, (id) => {
+                    let group = sharedgroups[id];
+                    let firstDDL = _.first(group);
+                    if (firstDDL) {
+                        try {
+                            let htmlVal = 'Fr <span class="fas fa-table"></span> ' + firstDDL._table.name;
+                            htmlVal = firstDDL.admin_public
+                                ? htmlVal + ' (public)'
+                                : '<a target="_blank" href="' + firstDDL.__url + '">' + htmlVal + '</a>';
+                            let url = new URL(firstDDL.__url) || {pathname: ''};
+                            shared.push({
+                                val: null,
+                                html: htmlVal,
+                                isTitle: true,
+                                style: {'backgroundColor': '#dfd', 'cursor': 'not-allowed'},
+                                hover: url.pathname.replace('/data/', '')
+                            });
+
+                            _.each(group, (ddl) => {
+                                shared.push({val: ddl.id, show: ddl.name,});
+                            });
+                        } catch (e) {}
+                    }
+                });
+
+                ddls = _.concat(ddls, shared);
+            }
+            return ddls;
         },
         globalMetaRefConds() {
             return _.map(this.globalMeta._ref_conditions, (rc) => {
@@ -786,6 +1064,36 @@ export default {
                 return { val: frm, show: String(frm).toUpperCase(), }
             });
         },
+        availClouds() {
+            return _.map(this.$root.settingsMeta.user_clouds_data, (cloud) => {
+                return { val: cloud.id, show: cloud.name, }
+            });
+        },
+        globalTwilios() {
+            let userkey = '';
+            switch (this.tableHeader.field) {
+                case 'twilio_google_acc_id': userkey = '_google_email_accs'; break;
+                case 'twilio_sendgrid_acc_id': userkey = '_sendgrid_api_keys'; break;
+                default: userkey = '_twilio_api_keys';
+            }
+            return _.map(this.$root.user[userkey], (twilio, key) => {
+                return { val: twilio.id, show: twilio.name || twilio.email || '#'+(key+1), }
+            });
+        },
+        initEditFill() {
+            let row = this.getCurrentRow();
+            this.editValue = SpecialFuncs.getEditValue(this.tableHeader, row[this.tableHeader.field]);
+        },
+        getCurrentRow() {
+            let row = this.tableRow;
+            if (this.parentRow && this.parentRow._map_field_settings) {
+                row = _.find(this.parentRow._map_field_settings, {table_field_id: Number(this.tableRow.id)}) || {
+                    table_map_id: Number(this.parentRow.id),
+                    table_field_id: Number(this.tableRow.id),
+                };
+            }
+            return row;
+        },
 
         //Emits
         showDdlSettingsPopup() {
@@ -794,26 +1102,19 @@ export default {
         showRefSettingsPopup(rcid) {
             eventBus.$emit('show-ref-conditions-popup', this.globalMeta.db_name, rcid);
         },
-
-        //KEYBOARD
-        changeCol(is_next) {
-            if (this.editing) {
-                this.hideEdit();
-                this.updateValue();
-                if (this.$refs.inline_input && $(this.$refs.inline_input).hasClass('select2-hidden-accessible')) {
-                    $(this.$refs.inline_input).select2('destroy');
-                }
-            }
-            this.$nextTick(() => {
-                this.selectedCell.next_col(this.globalMeta, is_next, this.isVertTable);
-            });
+        showUserSettings() {
+            let key = this.tableHeader.field === 'twilio_google_acc_id' ? 'google' : 'twilio_tab';
+            eventBus.$emit('open-resource-popup', 'connections', 0, key);
         },
     },
     mounted() {
+        this.initEditFill();
+        eventBus.$on('global-click', this.globalClick);
         eventBus.$on('global-keydown', this.globalKeydownHandler);
         eventBus.$on('table-data-string-popup__update', this.tableDataStringUpdateHandler);
     },
     beforeDestroy() {
+        eventBus.$off('global-click', this.globalClick);
         eventBus.$off('global-keydown', this.globalKeydownHandler);
         eventBus.$off('table-data-string-popup__update', this.tableDataStringUpdateHandler);
     }

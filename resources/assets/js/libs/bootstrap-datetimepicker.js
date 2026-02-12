@@ -423,11 +423,12 @@
 
                 if (options.fixedPositioned) {
                     let rect = _.first(component || element).getBoundingClientRect();
-                    console.log(rect);
+                    let vert_limit = widget.outerHeight() + rect.bottom > window.innerHeight;
+                    let hor_limit = widget.outerWidth() + rect.left > window.innerWidth;
                     widget.css({
                         position: 'fixed',
-                        top: rect.bottom + 'px',
-                        left: rect.left + 'px',
+                        top: !vert_limit ? rect.bottom + 'px' : (rect.top - widget.outerHeight()) + 'px',
+                        left: !hor_limit ? rect.left + 'px' : (rect.right - widget.outerWidth()) + 'px',
                     });
                     return;
                 }
@@ -945,6 +946,7 @@
                 widget.hide();
 
                 $(window).off('resize', place);
+                window.removeEventListener('scroll', place, true);
                 widget.off('click', '[data-action]');
                 widget.off('mousedown', false);
 
@@ -1256,6 +1258,7 @@
                 showMode();
 
                 $(window).on('resize', place);
+                window.addEventListener('scroll', place, true);
                 widget.on('click', '[data-action]', doAction); // this handles clicks on the widget
                 widget.on('mousedown', false);
 

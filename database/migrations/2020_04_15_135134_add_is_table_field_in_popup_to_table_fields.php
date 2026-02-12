@@ -15,6 +15,7 @@ class AddIsTableFieldInPopupToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->unsignedInteger('is_table_field_in_popup')->default(0);
+            $table->unsignedInteger('is_hdr_lvl_one_row')->default(0);
         });
     }
 
@@ -27,6 +28,7 @@ class AddIsTableFieldInPopupToTableFields extends Migration
     {
         Schema::table('table_fields', function (Blueprint $table) {
             $table->dropColumn('is_table_field_in_popup');
+            $table->dropColumn('is_hdr_lvl_one_row');
         });
     }
 }

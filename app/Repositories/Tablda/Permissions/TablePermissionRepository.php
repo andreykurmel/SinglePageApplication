@@ -531,7 +531,6 @@ class TablePermissionRepository
             //for selected user
             return TablePermission::where('table_id', $table_id)
                 ->where('can_reference', 1)
-                ->where('referencing_shared', 1)
                 ->isActiveForSelectedUser($user_id)
                 ->count();
         } else {

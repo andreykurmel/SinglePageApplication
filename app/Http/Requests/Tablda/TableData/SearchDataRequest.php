@@ -24,7 +24,7 @@ class SearchDataRequest extends FormRequest
     public function rules()
     {
         return [
-            'table_id' => 'required|integer|exists:tables,id',
+            'map_id' => 'required|integer|exists:table_maps,id',
             'term' => 'required|string',
             'columns' => 'required|array',
             'special_params' => 'required|array',

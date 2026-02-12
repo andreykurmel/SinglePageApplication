@@ -3,8 +3,13 @@
 namespace Vanguard\Http\Controllers\Web\Tablda;
 
 
+use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Routing\ResponseFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
-use Ramsey\Uuid\Uuid;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Vanguard\Http\Controllers\Controller;
 use Vanguard\Http\Requests\Tablda\TablePermission\LinkedTableAddRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\LinkedTableDirectRequest;
@@ -16,6 +21,7 @@ use Vanguard\Http\Requests\Tablda\TablePermission\TableDcrDefaultFieldRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TableDcrDirectRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TableDcrUpdateColumnGroupsRequest;
 use Vanguard\Http\Requests\Tablda\TablePermission\TableDcrUpdateRequest;
+use Vanguard\Models\Dcr\DcrLinkedTable;
 use Vanguard\Models\Dcr\TableDataRequest;
 use Vanguard\Models\Table\TableData;
 use Vanguard\Repositories\Tablda\Permissions\CopyDataRequestRepository;
@@ -27,6 +33,8 @@ use Vanguard\User;
 
 class TableDataRequestController extends Controller
 {
+    use CanEditAddon;
+
     private $tableService;
     private $tableDataRequestRepository;
     private $tableDataRequestService;
@@ -68,7 +76,8 @@ class TableDataRequestController extends Controller
 
     /**
      * @param TableDcrCopyRequest $request
-     * @return \Illuminate\Support\Collection
+     * @return Collection
+     * @throws AuthorizationException
      */
     public function copyPermis(TableDcrCopyRequest $request)
     {
@@ -77,54 +86,49 @@ class TableDataRequestController extends Controller
         $table_from = $this->tableService->getTable($from_data_request->table_id);
         $table_to = $this->tableService->getTable($to_data_request->table_id);
 
-        //$this->authorize('isOwner', [TableData::class, $table_from]);
         $this->authorize('isOwner', [TableData::class, $table_to]);
 
-        $fields = $request->as_template ? (new TableDataRequest())->design_tab : [];
-        (new CopyDataRequestRepository())->copyDataRequest($from_data_request, $to_data_request, !!$request->as_template, $fields);
+        $fields = $request->full_copy ? [] : (new TableDataRequest())->design_tab;
+        (new CopyDataRequestRepository())->copyDataRequest($from_data_request, $to_data_request, $fields, !!$request->full_copy);
         $table_to->_is_owner = true;
-        return $this->tableDataRequestRepository->loadWithRelations($table_to->id, $to_data_request->id)->get();
+        return $this->tableDataRequestRepository->loadWithRelations($table_to->id, $to_data_request->id);
     }
 
     /**
-     * Add Table DataRequest
-     *
      * @param TableDcrAddRequest $request
-     * @return mixed
+     * @return ResponseFactory|Application|Response|mixed
      */
     public function insertTableDataRequest(TableDcrAddRequest $request)
     {
         $table = $this->tableService->getTable($request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddon($table, 'request');
 
         $arr = array_merge($request->fields, ['table_id' => $request->table_id]);
 
-        if (!empty($request->fields['user_link']) && $this->tableDataRequestRepository->checkAddress($table->name, $request->fields['user_link'])) {
-            return response('Address taken! Enter a different one.', 400);
-        } else {
-            return $this->tableDataRequestRepository->addDataRequest($arr);
+        if ($this->tableDataRequestRepository->checkAddress($request->fields['custom_url'] ?? '')) {
+            return response('This Custom URL is already used! Enter a different one.', 400);
         }
+
+        return $this->tableDataRequestRepository->addDataRequest($arr);
     }
 
     /**
-     * Update Table DataRequest
-     *
      * @param TableDcrUpdateRequest $request
-     * @return array
+     * @return ResponseFactory|Application|Response|TableDataRequest
      */
     public function updateTableDataRequest(TableDcrUpdateRequest $request)
     {
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
-        if (!empty($request->fields['user_link']) && $this->tableDataRequestRepository->checkAddress($table->name, $request->fields['user_link'], $data_request->id)) {
-            return response('Address taken! Enter a different one.', 400);
-        } else {
-            return $this->tableDataRequestRepository->updateDataRequest($data_request->id, $request->fields);
+        if ($this->tableDataRequestRepository->checkAddress($request->fields['custom_url'] ?? '', $data_request->id)) {
+            return response('This Custom URL is already used! Enter a different one.', 400);
         }
+
+        return $this->tableDataRequestRepository->updateDataRequest($data_request->id, $request->fields);
     }
 
     /**
@@ -138,7 +142,7 @@ class TableDataRequestController extends Controller
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_dcr_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return $this->tableDataRequestRepository->deleteDataRequest($data_request->id, $data_request->table_id);
     }
@@ -151,7 +155,7 @@ class TableDataRequestController extends Controller
      */
     public function checkPass(TableDcrDirectRequest $request)
     {
-        $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
+        $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_dcr_id);
 
         return ['status' => $data_request->pass == $request->pass];
     }
@@ -180,7 +184,7 @@ class TableDataRequestController extends Controller
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return $this->tableDataRequestRepository->updateTableColDataRequest(
             $request->table_data_request_id,
@@ -201,7 +205,7 @@ class TableDataRequestController extends Controller
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return $this->tableDataRequestService->defaultField($data_request->id, $request->table_field_id, $request->default_val);
     }
@@ -211,14 +215,14 @@ class TableDataRequestController extends Controller
      *
      * @param TableDataRequestFileRequest $request
      * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
     public function addDcrFile(TableDataRequestFileRequest $request)
     {
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return [
             'filepath' => $this->tableDataRequestRepository->insertDCRFile($data_request, $request->field, $request->u_file)
@@ -230,37 +234,37 @@ class TableDataRequestController extends Controller
      *
      * @param TableDataRequestFileRequest $request
      * @return mixed
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
     public function deleteDcrFile(TableDataRequestFileRequest $request)
     {
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return ['status' => $this->tableDataRequestRepository->deleteDCRFile($data_request, $request->field)];
     }
 
     /**
      * @param LinkedTableAddRequest $request
-     * @return \Vanguard\Models\Dcr\DcrLinkedTable
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @return DcrLinkedTable
+     * @throws AuthorizationException
      */
     public function insertLinkedTable(LinkedTableAddRequest $request)
     {
         $data_request = $this->tableDataRequestRepository->getDataRequest($request->table_dcr_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return $this->tableDataRequestRepository->insertLinkedTable($data_request->id, $request->fields);
     }
 
     /**
      * @param LinkedTableUpdateRequest $request
-     * @return \Vanguard\Models\Dcr\DcrLinkedTable
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @return DcrLinkedTable
+     * @throws AuthorizationException
      */
     public function updateLinkedTable(LinkedTableUpdateRequest $request)
     {
@@ -268,7 +272,7 @@ class TableDataRequestController extends Controller
         $data_request = $this->tableDataRequestRepository->getDataRequest($linked->table_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return $this->tableDataRequestRepository->updateLinkedTable($linked->id, $request->fields);
     }
@@ -276,7 +280,7 @@ class TableDataRequestController extends Controller
     /**
      * @param LinkedTableDirectRequest $request
      * @return array
-     * @throws \Illuminate\Auth\Access\AuthorizationException
+     * @throws AuthorizationException
      */
     public function deleteLinkedTable(LinkedTableDirectRequest $request)
     {
@@ -284,8 +288,101 @@ class TableDataRequestController extends Controller
         $data_request = $this->tableDataRequestRepository->getDataRequest($linked->table_request_id);
         $table = $this->tableService->getTable($data_request->table_id);
 
-        $this->authorize('isOwner', [TableData::class, $table]);
+        $this->canEditAddonItem($table, $data_request->_dcr_rights());
 
         return ['res' => $this->tableDataRequestRepository->deleteLinkedTable($linked->id)];
+    }
+
+    /**
+     * @param Request $request
+     * @return array|Model
+     * @throws AuthorizationException
+     */
+    public function attachDetachDcrFld(Request $request)
+    {
+        $table = $this->tableService->getTable($request->table_id);
+        $this->canEditAddon($table, 'request');
+        if ($request->dcr_id && $request->field_id) {
+            $this->tableDataRequestRepository->attachIfNeeded($request->dcr_id, $request->field_id);
+            $this->tableDataRequestRepository->changePivotFld($request->dcr_id, $request->field_id, $request->setting, $request->val);
+            return $this->tableDataRequestRepository
+                ->loadWithRelations($table->id, $request->dcr_id)
+                ->first();
+        }
+        return [];
+    }
+
+    /**
+     * @param Request $request
+     * @return string
+     * @throws \Exception
+     */
+    public function fillDcrUrl(Request $request)
+    {
+        $dcr = $this->tableDataRequestRepository->getDataRequest($request->table_data_request_id);
+        $this->canEditAddon($dcr->_table, 'request');
+
+        $this->tableDataRequestRepository->fillDcrUrl($dcr);
+        return 'done';
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     * @throws AuthorizationException
+     */
+    public function toggleDcrRight(Request $request)
+    {
+        $dcr = $this->tableDataRequestRepository->getDataRequest($request->dcr_id);
+        $this->authorize('isOwner', [TableData::class, $dcr->_table]);
+        return $this->tableDataRequestRepository->toggleDcrRight($dcr, $request->permission_id, $request->can_edit);
+    }
+
+    /**
+     * @param Request $request
+     * @return mixed
+     * @throws AuthorizationException
+     */
+    public function delDcrRight(Request $request)
+    {
+        $dcr = $this->tableDataRequestRepository->getDataRequest($request->dcr_id);
+        $this->authorize('isOwner', [TableData::class, $dcr->_table]);
+        return $this->tableDataRequestRepository->deleteDcrRight($dcr, $request->permission_id);
+    }
+
+    /**
+     * @param Request $request
+     * @return Collection
+     */
+    public function insertNotifLinkedTable(Request $request)
+    {
+        $data_request = $this->tableDataRequestRepository->getDataRequest($request->dcr_id);
+        $this->canEditAddon($data_request->_table, 'request');
+        $this->tableDataRequestRepository->insertNotifLinkedTable($data_request->id, $request->fields);
+        return $data_request->{$request->type}()->get();
+    }
+
+    /**
+     * @param Request $request
+     * @return Collection
+     */
+    public function updateNotifLinkedTable(Request $request)
+    {
+        $linked = $this->tableDataRequestRepository->getNotifLinkedTable($request->id);
+        $this->canEditAddon($linked->_dcr->_table, 'request');
+        $this->tableDataRequestRepository->updateNotifLinkedTable($linked->id, $request->fields);
+        return $linked->_dcr->{$request->type}()->get();
+    }
+
+    /**
+     * @param Request $request
+     * @return Collection
+     */
+    public function deleteNotifLinkedTable(Request $request)
+    {
+        $linked = $this->tableDataRequestRepository->getNotifLinkedTable($request->id);
+        $this->canEditAddon($linked->_dcr->_table, 'request');
+        $this->tableDataRequestRepository->deleteNotifLinkedTable($linked->id);
+        return $linked->_dcr->{$request->type}()->get();
     }
 }

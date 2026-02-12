@@ -12,8 +12,74 @@
                    :style="textSysStyle">
         </div>
 
+        <template v-if="isOwnerOrCanEdit('can_change_primaryview') && !filter_for_field">
+            <div class="flex flex--center flex--space form-group"
+                 :style="{width: max_set_len+'px'}"
+            >
+                <label>Primary View:</label>
+                <select class="form-control l-inl-control inl-sm"
+                        @change="propChanged('primary_view')"
+                        v-model="tb_meta.primary_view"
+                        :style="textSysStyle"
+                        style="width: 100%; min-width: 110px;">
+                    <option value="grid_view">Grid View</option>
+                    <option value="list_view">List View</option>
+                    <option value="board_view">Board View</option>
+                </select>
+            </div>
+
+            <div class="flex flex--center flex--space form-group"
+                 :style="{width: max_set_len+'px'}"
+            >
+                <label>Width, %:</label>
+                <input class="form-control l-inl-control inl-sm"
+                       :disabled="tb_meta.primary_view === 'grid_view'"
+                       @change="propChanged('primary_width')"
+                       v-model="tb_meta.primary_width"
+                       :style="textSysStyle"
+                       style="width: 100%; min-width: 60px;"/>
+
+                <label>&nbsp;&nbsp;&nbsp;Alignment:</label>
+                <select class="form-control l-inl-control inl-sm"
+                        @change="propChanged('primary_align')"
+                        v-model="tb_meta.primary_align"
+                        :style="textSysStyle"
+                        style="width: 100%; min-width: 80px;">
+                    <option value="start">Left</option>
+                    <option value="center">Center</option>
+                    <option value="end">Right</option>
+                </select>
+            </div>
+            <board-setting-block
+                v-if="tb_meta.primary_view === 'board_view'"
+                :tb_meta="tb_meta"
+                :board_settings="tb_meta"
+                class="form-group--min"
+                @val-changed="setSetting"
+            ></board-setting-block>
+        </template>
+
         <template v-if="isOwner">
             <template v-if="!filter_for_field">
+                <div v-show="tb_meta.primary_view === 'list_view'"
+                     class="flex flex--center flex--space form-group"
+                     :style="{width: max_set_len+'px'}"
+                >
+                    <label>Listing Field:</label>
+                    <select class="form-control l-inl-control"
+                            @change="propChanged('listing_fld_id')"
+                            v-model="tb_meta.listing_fld_id"
+                            :style="textSysStyle">
+                        <option v-for="hdr in tb_meta._fields" :value="hdr.id">{{ hdr.name }}</option>
+                    </select>
+
+                    <label>&nbsp;&nbsp;&nbsp;Rows Width, px:</label>
+                    <input class="form-control l-inl-control inl-sm"
+                           @change="propChanged('listing_rowswi')"
+                           v-model="tb_meta.listing_rowswi"
+                           :style="textSysStyle"/>
+                </div>
+
                 <div class="flex flex--center flex--space form-group"
                      :style="{width: max_set_len+'px'}"
                 >
@@ -42,7 +108,7 @@
                 <!--Theme settings-->
             </template>
 
-            <div class="form-group--min" :style="{width: max_set_len+'px'}">
+            <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
                 <span class="indeterm_check__wrap pub-check">
                     <span class="indeterm_check"
                           @click="tb_meta.edit_one_click = !tb_meta.edit_one_click;propChanged('edit_one_click')"
@@ -51,10 +117,10 @@
                         <i v-if="tb_meta.edit_one_click" class="glyphicon glyphicon-ok group__icon"></i>
                     </span>
                 </span>
-                <label> One-click to enter cell edit-mode.</label>
+                <label class="wrap ml5">One-click to enter editing-mode at empty cell.</label>
             </div>
             <template v-if="!filter_for_field">
-                <div class="form-group--min" :style="{width: max_set_len+'px'}">
+                <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.autoload_new_data = !tb_meta.autoload_new_data;propChanged('autoload_new_data')"
@@ -63,9 +129,9 @@
                             <i v-if="tb_meta.autoload_new_data" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <label> Auto-reload "Grid View" when change(s) made by others.</label>
+                    <label class="wrap ml5">Auto-reload "Grid View" when change(s) made by others.</label>
                 </div>
-                <div class="form-group--min" :style="{width: max_set_len+'px'}">
+                <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.pub_hidden = !tb_meta.pub_hidden;propChanged('pub_hidden')"
@@ -74,9 +140,30 @@
                             <i v-if="tb_meta.pub_hidden" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <label> Hidden for "Public" sharing.</label>
+                    <label class="wrap ml5">Hidden for "Public" sharing.</label>
                 </div>
-                <div class="form-group" :style="{width: max_set_len+'px'}">
+                <div class="form-group--min flex flex--center-v" :style="{width: max_set_len+'px'}">
+                    <span class="indeterm_check__wrap pub-check">
+                        <span class="indeterm_check"
+                              @click="tb_meta.filters_on_top = !tb_meta.filters_on_top;propChanged('filters_on_top')"
+                              :style="checkboxSys"
+                        >
+                            <i v-if="tb_meta.filters_on_top" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label class="wrap ml5">Filters on top.</label>
+                    <label v-if="tb_meta.filters_on_top">&nbsp;&nbsp;&nbsp;Position:</label>
+                    <select v-if="tb_meta.filters_on_top"
+                            class="form-control l-inl-control inl-sm"
+                            @change="propChanged('filters_ontop_pos')"
+                            v-model="tb_meta.filters_ontop_pos"
+                            :style="textSysStyle">
+                        <option value="start">Left</option>
+                        <option value="center">Center</option>
+                        <option value="end">Right</option>
+                    </select>
+                </div>
+                <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
                     <span class="indeterm_check__wrap pub-check">
                         <span class="indeterm_check"
                               @click="tb_meta.enabled_activities = !tb_meta.enabled_activities;propChanged('enabled_activities')"
@@ -85,195 +172,45 @@
                             <i v-if="tb_meta.enabled_activities" class="glyphicon glyphicon-ok group__icon"></i>
                         </span>
                     </span>
-                    <label> Turn on "Activities".</label>
+                    <label class="wrap ml5">Turn on "Activities".</label>
                 </div>
-
-                <div class="input-left-items form-group" :style="{width: max_set_len+'px'}">
-                    <div><b>Add-on features:</b></div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('map')}"
-                                      @click="!userHasAddon('map')
-                                          ? null
-                                          : propChanged('add_map',tb_meta)"
-                                      :style="checkboxSys"
-                                >
-                                    <i v-if="tb_meta.add_map" class="glyphicon glyphicon-ok group__icon"></i>
-                                </span>
-                            </span>
-                            <span>Geospatial Information (GSI)</span>
-                        </label>
-                    </div>
-                    <div class="form-group--min m_l" v-if="tb_meta.add_map || presentAddress">
-                        <div class="m_l" :class="[tb_meta.api_key_mode === 'table' ? 'form-group--min' : '']">
-                            <label>Use</label>
-                            <select class="form-control l-inl-control"
-                                    @change="propChanged('api_key_mode')"
-                                    v-model="tb_meta.api_key_mode"
-                                    :style="textSysStyle"
-                                    style="width: 130px;padding: 0;"
-                            >
-                                <option value="table">Table specific</option>
-                                <option value="account">Account</option>
-                            </select>
-                            <label class="">
-                                <a href="https://developers.google.com/maps/documentation/javascript/get-api-key" target="_blank">Google API Key</a>
-                            </label>
-                            <template v-if="tb_meta.api_key_mode === 'account'">
-                                <select class="form-control l-inl-control"
-                                        @change="propChanged('account_api_key_id')"
-                                        v-model="tb_meta.account_api_key_id"
-                                        :style="textSysStyle"
-                                        style="width: 100px;padding: 0;"
-                                >
-                                    <option :value="null">No API Key</option>
-                                    <option v-for="(kkey,kk) in $root.user._google_api_keys" :value="kkey.id">#{{ kk+1 }}</option>
-                                </select>
-                                <span>.</span>
-                            </template>
-                            <span v-if="tb_meta.api_key_mode === 'table'">Enter below:</span>
-                        </div>
-                        <div v-if="tb_meta.api_key_mode === 'table'" class="flex flex--center">
-                            <input class="form-control l-inl-control"
-                                   @click="hide_api = false"
-                                   @change="propChanged('google_api_key');setApidots();hide_api = true;"
-                                   v-model="hide_api ? api_dots : tb_meta.google_api_key"
-                                   :style="textSysStyle"/>
-                            <button v-if="tb_meta.google_api_key" class="btn btn-danger btn-sm" @click="removeGlApi()">&times;</button>
-                            <i class="fa fa-eye" :style="{color: hide_api ? '' : '#F00'}" @click="hide_api = !hide_api"></i>
-                            <i class="fa fa-info-circle" ref="fahelp" @click="showHover"></i>
-                            <hover-block v-if="help_tooltip"
-                                         :html_str="$root.google_help"
-                                         :p_left="help_left"
-                                         :p_top="help_top"
-                                         :c_offset="help_offset"
-                                         @another-click="help_tooltip = false"
-                            ></hover-block>
-                        </div>
-                    </div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('bi')}"
-                                      @click="!userHasAddon('bi')
-                                          ? null
-                                          : propChanged('add_bi',tb_meta)"
-                                      :style="checkboxSys"
-                                >
-                                    <i v-if="tb_meta.add_bi" class="glyphicon glyphicon-ok group__icon"></i>
-                                </span>
-                            </span>
-                            <span>Business Intelligence (BI)</span>
-                        </label>
-                    </div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('request')}"
-                                      @click="!userHasAddon('request')
-                                          ? null
-                                          : propChanged('add_request',tb_meta)"
-                                      :style="checkboxSys"
-                                >
-                                    <i v-if="tb_meta.add_request" class="glyphicon glyphicon-ok group__icon"></i>
-                                </span>
-                            </span>
-                            <span>Data Collection & Request (DCR)</span>
-                        </label>
-                    </div>
-                    <div class="form-group--min m_l">
-                        <label>
-                            <span class="indeterm_check__wrap pub-check">
-                                <span class="indeterm_check"
-                                      :class="{'disabled': !userHasAddon('alert')}"
-                                      @click="!userHasAddon('alert')
-                                          ? null
-                                          : propChanged('add_alert',tb_meta)"
-                                      :style="checkboxSys"
-                                >
-                                    <i v-if="tb_meta.add_alert" class="glyphicon glyphicon-ok group__icon"></i>
-                                </span>
-                            </span>
-                            <span>Alerts, Notifications & Automations (ANA)</span>
-                        </label>
-                    </div>
-                    <div class="form-group--min m_l flex flex--center-v">
-                        <div>
-                            <label>
-                                <span class="indeterm_check__wrap pub-check">
-                                    <span class="indeterm_check"
-                                          :class="{'disabled': !userHasAddon('kanban')}"
-                                          @click="!userHasAddon('kanban')
-                                              ? null
-                                              : propChanged('add_kanban',tb_meta)"
-                                          :style="checkboxSys"
-                                    >
-                                        <i v-if="tb_meta.add_kanban" class="glyphicon glyphicon-ok group__icon"></i>
-                                    </span>
-                                </span>
-                                <span>Kanban</span>
-                            </label>
-                        </div>
-                        <div class="m_l">
-                            <label>
-                                <span class="indeterm_check__wrap pub-check">
-                                    <span class="indeterm_check"
-                                          :class="{'disabled': !userHasAddon('kanban')}"
-                                          @click="!userHasAddon('kanban')
-                                              ? null
-                                              : propChanged('add_gantt',tb_meta)"
-                                          :style="checkboxSys"
-                                    >
-                                        <i v-if="tb_meta.add_gantt" class="glyphicon glyphicon-ok group__icon"></i>
-                                    </span>
-                                </span>
-                                <span>Gantt</span>
-                            </label>
-                        </div>
-                    </div>
-                    <div class="form-group--min m_l flex flex--center-v">
-                        <div>
-                            <label>
-                                <span class="indeterm_check__wrap pub-check">
-                                    <span class="indeterm_check"
-                                          :class="{'disabled': !userHasAddon('email')}"
-                                          @click="!userHasAddon('email')
-                                              ? null
-                                              : propChanged('add_email',tb_meta)"
-                                          :style="checkboxSys"
-                                    >
-                                        <i v-if="tb_meta.add_email" class="glyphicon glyphicon-ok group__icon"></i>
-                                    </span>
-                                </span>
-                                <span>Email</span>
-                            </label>
-                        </div>
-                        <div class="m_l">
-                            <label>
-                                <span class="indeterm_check__wrap pub-check">
-                                    <span class="indeterm_check"
-                                          :class="{'disabled': !userHasAddon('calendar')}"
-                                          @click="!userHasAddon('calendar')
-                                              ? null
-                                              : propChanged('add_calendar',tb_meta)"
-                                          :style="checkboxSys"
-                                    >
-                                        <i v-if="tb_meta.add_calendar" class="glyphicon glyphicon-ok group__icon"></i>
-                                    </span>
-                                </span>
-                                <span>Calendar</span>
-                            </label>
-                        </div>
-                    </div>
+                <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
+                    <span class="indeterm_check__wrap pub-check">
+                        <span class="indeterm_check"
+                              @click="tb_meta.mirror_edited_underline = !tb_meta.mirror_edited_underline;propChanged('mirror_edited_underline')"
+                              :style="checkboxSys"
+                        >
+                            <i v-if="tb_meta.mirror_edited_underline" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label class="wrap ml5">Underline changed values in mirrored cells.</label>
+                </div>
+                <div class="form-group--min flex" :style="{width: max_set_len+'px'}">
+                    <span class="indeterm_check__wrap pub-check">
+                        <span class="indeterm_check"
+                              @click="tb_meta.no_span_data_cell_in_popup = !tb_meta.no_span_data_cell_in_popup;propChanged('no_span_data_cell_in_popup')"
+                              :style="checkboxSys"
+                        >
+                            <i v-if="tb_meta.no_span_data_cell_in_popup" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label class="wrap ml5">Same width for fields with and without right-side components (units, history icon, etc).</label>
+                </div>
+                <div class="form-group flex" :style="{width: max_set_len+'px'}">
+                    <span class="indeterm_check__wrap pub-check">
+                        <span class="indeterm_check"
+                              @click="tb_meta.refill_auto_oncopy = !tb_meta.refill_auto_oncopy;propChanged('refill_auto_oncopy')"
+                              :style="checkboxSys"
+                        >
+                            <i v-if="tb_meta.refill_auto_oncopy" class="glyphicon glyphicon-ok group__icon"></i>
+                        </span>
+                    </span>
+                    <label class="wrap ml5">Recreate the values for "Auto String" fields for copied records.</label>
                 </div>
             </template>
         </template><!-- is owner -->
 
-        <div v-if="isOwnerOrCanEdit"
+        <div v-if="isOwnerOrCanEdit('can_edit_tb')"
              class="flex flex--center flex--space form-group"
              :style="{width: max_set_len+'px'}"
         >
@@ -282,17 +219,34 @@
                     @change="propChanged('initial_view_id')"
                     v-model="tb_cur_settings.initial_view_id"
                     :style="textSysStyle">
+                <option :value="-3" style="color: #00F">Entire Table (Available Range)</option>
                 <option :value="-2" style="color: #00F">Blank (No Data)</option>
-                <option :value="-1" style="color: #00F">Entire Table (Available Range)</option>
-                <option :value="0" style="color: #00F">Last Exit State</option>
+                <option :value="-1" style="color: #00F">Last Exit State</option>
                 <option disabled="disabled">Views:</option>
                 <option v-for="view in tb_views" :value="view.id">&nbsp;&nbsp;&nbsp;&nbsp;{{ view.name }}</option>
             </select>
         </div>
 
+        <div v-if="isOwnerOrCanEdit('can_edit_tb')"
+             class="flex flex--center flex--space form-group"
+             :style="{width: max_set_len+'px'}"
+        >
+            <label class="">App link value field:</label>
+            <select class="form-control l-inl-control"
+                    @change="propChanged('multi_link_app_fld_id')"
+                    v-model="tb_meta.multi_link_app_fld_id"
+                    :style="textSysStyle">
+                <option :value="null"></option>
+                <option v-for="fld in tb_meta._fields"
+                        v-if="$root.systemFields.indexOf(fld.field) === -1"
+                        :value="fld.id"
+                >{{ $root.uniqName(fld.name) }}</option>
+            </select>
+        </div>
+
         <template v-if="isOwner">
             <div class="form-group">
-                <label class="form-group--min">Popup form view for single record, including DCR Form.</label>
+                <label class="form-group--min">Pop-up/DCR form view of single record:</label>
                 <div class="m_l form-group--min">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check"
@@ -313,7 +267,7 @@
                            :style="textSysStyle">
                     <span>%</span>
                 </div>
-                <div class="m_l">
+                <div class="m_l form-group--min">
                     <span class="indeterm_check__wrap">
                         <span class="indeterm_check"
                               @click="propChanged('vert_tb_floating',tb_meta)"
@@ -323,6 +277,69 @@
                         </span>
                     </span>
                     <span>Apply Floating settings to columns.</span>
+                </div>
+                <div class="m_l form-group--min">
+                    <span>Row spacing:</span>
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           type="number"
+                           @change="propChanged('vert_tb_rowspacing')"
+                           v-model="tb_meta.vert_tb_rowspacing"
+                           :style="textSysStyle">
+                    <span>px</span>
+                </div>
+                <div class="m_l form-group--min">
+                    <span>Width (px):</span>
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Default"
+                           title="Default"
+                           type="number"
+                           @change="propChanged('vert_tb_width_px')"
+                           v-model="tb_meta.vert_tb_width_px"
+                           :style="textSysStyle">
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Min"
+                           title="Min"
+                           type="number"
+                           @change="propChanged('vert_tb_width_px_min')"
+                           v-model="tb_meta.vert_tb_width_px_min"
+                           :style="textSysStyle">
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Max"
+                           title="Max"
+                           type="number"
+                           @change="propChanged('vert_tb_width_px_max')"
+                           v-model="tb_meta.vert_tb_width_px_max"
+                           :style="textSysStyle">
+                </div>
+                <div class="m_l form-group--min">
+                    <span>Height (%):</span>
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Default"
+                           title="Default"
+                           type="number"
+                           @change="propChanged('vert_tb_height')"
+                           v-model="tb_meta.vert_tb_height"
+                           :style="textSysStyle">
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Min"
+                           title="MIn"
+                           type="number"
+                           @change="propChanged('vert_tb_height_min')"
+                           v-model="tb_meta.vert_tb_height_min"
+                           :style="textSysStyle">
+                    <input class="form-control l-inl-control l-inl-control--nano"
+                           style="max-width: 80px"
+                           placeholder="Max"
+                           title="Max"
+                           type="number"
+                           @change="propChanged('vert_tb_height_max')"
+                           v-model="tb_meta.vert_tb_height_max"
+                           :style="textSysStyle">
                 </div>
             </div>
 
@@ -510,18 +527,25 @@
                 </div>
             </div>
             <div class="form-group" :style="{width: max_set_len+'px'}">
-                <board-setting-block
-                        :board_view_height="tb_meta.board_view_height"
-                        :board_image_width="tb_meta.board_image_width"
-                        @val-changed="genSetting"
-                ></board-setting-block>
-                <table class="tb-rows-padding">
+                <table class="tb-rows-padding full-width">
+                    <tr v-if="presentMirror">
+                        <td>
+                            <label class="">Max. # of records that can be mirrored from source table for one record:</label>
+                        </td>
+                        <td class="txt--right">
+                            <input class="form-control l-inl-control l-inl-control--min"
+                                   type="number"
+                                   @change="propChanged('max_mirrors_in_one_row')"
+                                   v-model="tb_meta.max_mirrors_in_one_row"
+                                   :style="textSysStyle">
+                        </td>
+                    </tr>
                     <tr>
                         <td>
-                            <label class="">Max. # of loaded records in the pop-up panel for links:</label>
+                            <label class="">Default # of records per page in the pop-up panel for links:</label>
                         </td>
-                        <td>
-                            <input class="form-control l-inl-control l-inl-control--min"
+                        <td class="txt--right">
+                            <input class="form-control l-inl-control l-inl-control--min no-margin"
                                    type="number"
                                    @change="propChanged('max_rows_in_link_popup')"
                                    v-model="tb_meta.max_rows_in_link_popup"
@@ -531,10 +555,10 @@
                     <template v-if="!filter_for_field">
                         <tr>
                             <td>
-                                <label class="">Max. # of searching results to be displayed:</label>
+                                <label class="">Max. # of results to be displayed for search:</label>
                             </td>
-                            <td>
-                                <input class="form-control l-inl-control l-inl-control--min"
+                            <td class="txt--right">
+                                <input class="form-control l-inl-control l-inl-control--min no-margin"
                                        type="number"
                                        @change="propChanged('search_results_len')"
                                        v-model="tb_meta.search_results_len"
@@ -543,10 +567,10 @@
                         </tr>
                         <tr>
                             <td>
-                                <label class="">Max. # of items can be displayed in a filter:</label>
+                                <label class="">Max. # of items that can be displayed in a filter:</label>
                             </td>
-                            <td>
-                                <input class="form-control l-inl-control l-inl-control--min"
+                            <td class="txt--right">
+                                <input class="form-control l-inl-control l-inl-control--min no-margin"
                                        type="number"
                                        @change="propChanged('max_filter_elements')"
                                        v-model="tb_meta.max_filter_elements"
@@ -870,11 +894,49 @@
                     </label>
                 </div>
             </div>
+
+            <div class="form-group--min">
+                <div class="form-group--min">
+                    <label>Select Grid View (display) engine:</label>
+                </div>
+                <div>
+                    <input type="radio" v-model="tb_meta.table_engine" :value="'default'" @change="setSetting('table_engine','default')"/>
+                    <label>Regular</label>
+                </div>
+                <div>
+                    <input type="radio" v-model="tb_meta.table_engine" :value="'virtual'" @change="setSetting('table_engine','virtual')"/>
+                    <label>Virtual Scroll</label>
+                </div>
+                <div class="ml15 flex flex--space">
+                    <div class="flex flex--center" style="white-space: normal;">
+                            <span class="indeterm_check__wrap">
+                                <span class="indeterm_check"
+                                      @click="propChanged('auto_enable_virtual_scroll',tb_meta)"
+                                      :style="checkboxSys"
+                                >
+                                    <i v-if="tb_meta.auto_enable_virtual_scroll" class="glyphicon glyphicon-ok group__icon"></i>
+                                </span>
+                            </span>
+                        <span>&nbsp;Auto-enable when visible cells >= </span>
+                    </div>
+                    <input class="form-control l-inl-control inl-sm"
+                           @change="propChanged('auto_enable_virtual_scroll_when')"
+                           v-model="tb_meta.auto_enable_virtual_scroll_when"
+                           :style="textSysStyle"
+                           style="min-width: 60px;"/>
+                </div>
+                <div>
+                    <input type="radio" v-model="tb_meta.table_engine" :value="'vue_virtual'" @change="setSetting('table_engine','vue_virtual')"/>
+                    <label>Vue Virtual Scroll</label>
+                </div>
+            </div>
         </template>
     </div>
 </template>
 
 <script>
+    import {eventBus} from "../../app";
+
     import {SpecialFuncs} from "../../classes/SpecialFuncs";
 
     import CellStyleMixin from "./../_Mixins/CellStyleMixin.vue";
@@ -897,13 +959,6 @@
         },
         data() {
             return {
-                hide_api: true,
-                api_dots: '',
-                re_init: false,
-                help_tooltip: false,
-                help_left: 0,
-                help_top: 0,
-                help_offset: 0,
                 edit_conv_table: false,
             }
         },
@@ -916,6 +971,9 @@
             },
             presentAddress() {
                 return _.find(this.tb_meta._fields, (hdr) => { return hdr.f_type === 'Address' });
+            },
+            presentMirror() {
+                return _.find(this.tb_meta._fields, (hdr) => { return hdr.input_type === 'Mirror' });
             },
             presentUnitConv() {
                 return _.find(this.tb_meta._fields, (hdr) => { return !!hdr.unit_ddl_id });
@@ -930,13 +988,6 @@
             },
             isOwner() {
                 return this.tb_meta._is_owner && !this.type;
-            },
-            isOwnerOrCanEdit() {
-                if (this.type) {
-                    return false;
-                }
-                return this.tb_meta._is_owner
-                    || (this.tb_meta._current_right && this.tb_meta._current_right.can_edit_tb);
             },
             refIsOwner() {
                 let tb = _.find(this.$root.settingsMeta.available_tables, {id: Number(this.tb_meta.unit_conv_table_id)});
@@ -955,8 +1006,12 @@
             filter_for_field: String,
         },
         methods: {
-            setApidots() {
-                this.api_dots = String(this.tb_meta.google_api_key || '').replace(/./gi, '*');
+            isOwnerOrCanEdit(permission) {
+                if (this.type) {
+                    return false;
+                }
+                return this.tb_meta._is_owner
+                    || (this.tb_meta._current_right && this.tb_meta._current_right[permission]);
             },
             hasField(field) {
                 return this.tb_meta
@@ -977,54 +1032,76 @@
                 }
                 return res;
             },
-            showHover(e) {
-                let bounds = this.$refs.fahelp ? this.$refs.fahelp.getBoundingClientRect() : {};
-                let px = (bounds.left + bounds.right) / 2;
-                let py = (bounds.top + bounds.bottom) / 2;
-                this.help_tooltip = true;
-                this.help_left = px || e.clientX;
-                this.help_top = py || e.clientY;
-                this.help_offset = Math.abs(bounds.top - bounds.bottom) || 0;
-            },
-            userHasAddon(code) {
-                let idx = _.findIndex(this.$root.user._subscription._addons, {code: code});
-                return this.$root.user._is_admin || idx > -1;
-            },
-            genSetting(prop_name, val) {
+            setSetting(prop_name, val) {
                 this.tb_meta[prop_name] = val;
                 this.$emit('prop-changed', prop_name);
             },
             propChanged(prop_name, obj, sync_obj) {
-                if (obj) {
-                    obj[prop_name] = !obj[prop_name];
-                    (sync_obj ? sync_obj[prop_name] = obj[prop_name] : null);
-                }
+                $.LoadingOverlay('show');
+                window.setTimeout(() => {
+                    if (obj) {
+                        obj[prop_name] = !obj[prop_name];
+                        (sync_obj ? sync_obj[prop_name] = obj[prop_name] : null);
+                    }
 
-                if (prop_name === 'max_rows_in_link_popup') {
-                    this.tb_meta.max_rows_in_link_popup = Math.max(this.tb_meta.max_rows_in_link_popup, 1);
-                    this.tb_meta.max_rows_in_link_popup = Math.min(this.tb_meta.max_rows_in_link_popup, 500);
-                }
-                if (prop_name === 'search_results_len') {
-                    this.tb_meta.search_results_len = Math.max(this.tb_meta.search_results_len, 1);
-                    this.tb_meta.search_results_len = Math.min(this.tb_meta.search_results_len, 100);
-                }
-                if (prop_name === 'max_filter_elements') {
-                    this.tb_meta.max_filter_elements = Math.max(this.tb_meta.max_filter_elements, 100);
-                    this.tb_meta.max_filter_elements = Math.min(this.tb_meta.max_filter_elements, 3000);
-                }
-                if (prop_name === 'name') {
-                    this.tb_meta.name = SpecialFuncs.safeTableName(this.tb_meta.name);
-                }
-                this.$emit('prop-changed', prop_name);
-            },
-            removeGlApi() {
-                this.tb_meta.google_api_key = '';
-                this.propChanged('google_api_key');
-                this.setApidots();
+                    if (prop_name === 'max_mirrors_in_one_row') {
+                        this.tb_meta.max_mirrors_in_one_row = Math.max(this.tb_meta.max_mirrors_in_one_row, 1);
+                        this.tb_meta.max_mirrors_in_one_row = Math.min(this.tb_meta.max_mirrors_in_one_row, 100);
+                    }
+                    if (prop_name === 'max_rows_in_link_popup') {
+                        this.tb_meta.max_rows_in_link_popup = Math.max(this.tb_meta.max_rows_in_link_popup, 1);
+                        this.tb_meta.max_rows_in_link_popup = Math.min(this.tb_meta.max_rows_in_link_popup, 500);
+                    }
+                    if (prop_name === 'search_results_len') {
+                        this.tb_meta.search_results_len = Math.max(this.tb_meta.search_results_len, 1);
+                        this.tb_meta.search_results_len = Math.min(this.tb_meta.search_results_len, 100);
+                    }
+                    if (prop_name === 'max_filter_elements') {
+                        this.tb_meta.max_filter_elements = Math.max(this.tb_meta.max_filter_elements, 10);
+                        this.tb_meta.max_filter_elements = Math.min(this.tb_meta.max_filter_elements, 3000);
+                    }
+
+                    if (prop_name === 'vert_tb_width_px_min') {
+                        this.tb_meta.vert_tb_width_px_min = Math.max(this.tb_meta.vert_tb_width_px_min, 200);
+                    }
+                    if (prop_name === 'vert_tb_width_px') {
+                        this.tb_meta.vert_tb_width_px = Math.max(this.tb_meta.vert_tb_width_px, this.tb_meta.vert_tb_width_px_min);
+                    }
+                    if (prop_name === 'linkd_tb_width_px_min') {
+                        this.tb_meta.linkd_tb_width_px_min = Math.max(this.tb_meta.linkd_tb_width_px_min, 200);
+                    }
+                    if (prop_name === 'linkd_tb_width_px') {
+                        this.tb_meta.linkd_tb_width_px = Math.max(this.tb_meta.linkd_tb_width_px, this.tb_meta.linkd_tb_width_px_min);
+                    }
+                    if (prop_name === 'vert_tb_height_min') {
+                        this.tb_meta.vert_tb_height_min = Math.max(this.tb_meta.vert_tb_height_min, 20);
+                    }
+                    if (prop_name === 'vert_tb_height') {
+                        this.tb_meta.vert_tb_height = Math.max(this.tb_meta.vert_tb_height, this.tb_meta.vert_tb_height_min);
+                    }
+                    if (prop_name === 'linkd_tb_height_min') {
+                        this.tb_meta.linkd_tb_height_min = Math.max(this.tb_meta.linkd_tb_height_min, 20);
+                    }
+                    if (prop_name === 'linkd_tb_height') {
+                        this.tb_meta.linkd_tb_height = Math.max(this.tb_meta.linkd_tb_height, this.tb_meta.linkd_tb_height_min);
+                    }
+
+                    if (prop_name === 'name') {
+                        this.tb_meta.name = SpecialFuncs.safeTableName(this.tb_meta.name);
+                    }
+                    this.$emit('prop-changed', prop_name);
+
+                    if (prop_name === 'initial_view_id') {
+                        eventBus.$emit('save-table-status');
+                    }
+                    if (prop_name === 'add_report' || prop_name === 'add_bi') {
+                        eventBus.$emit('run-after-load-changes');
+                    }
+                    $.LoadingOverlay('hide');
+                }, 50);
             },
         },
         mounted() {
-            this.setApidots();
         },
         beforeDestroy() {
         }
@@ -1034,8 +1111,14 @@
 <style lang="scss" scoped>
     @import './../CommonBlocks/TabldaLike';
 
+    .inl-sm {
+        padding: 3px 5px;
+        height: 28px;
+        width: 100px;
+    }
+
     .m_l {
-        margin-left: 30px;
+        margin-left: 20px;
     }
 
     .form-group, .form-group--min {
@@ -1050,18 +1133,6 @@
     .pub-check {
         /*margin: 0 12px 0 0;*/
         position: relative;
-        top: 2px;
-    }
-    
-    .input-left-items {
-        text-align: left;
-        
-        label {
-            font-weight: normal;
-        }
-        input {
-            margin-left: 30px;
-        }
     }
 
     label {
@@ -1130,17 +1201,6 @@
         select {
             margin: 0;
         }
-    }
-
-    .fa-info-circle {
-        cursor: pointer;
-        padding-left: 5px;
-    }
-
-    .btn-danger {
-        line-height: 18px;
-        font-size: 2em;
-        padding: 5px;
     }
 
     select {

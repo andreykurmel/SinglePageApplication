@@ -41,6 +41,7 @@ class TransferUserShowToTableUserSettingsTable extends Migration
             $table->unsignedInteger('cell_height')->default(1);
             $table->unsignedInteger('left_menu_width')->default(250);
             $table->unsignedInteger('stim_filter_width')->default(220);
+            $table->unsignedInteger('right_menu_width')->default(250);
         });
     }
 
@@ -78,6 +79,7 @@ class TransferUserShowToTableUserSettingsTable extends Migration
             $table->dropColumn('max_cell_rows');
             $table->dropColumn('cell_height');
             $table->dropColumn('left_menu_width');
+            $table->dropColumn('right_menu_width');
             $table->dropColumn('stim_filter_width');
         });
     }

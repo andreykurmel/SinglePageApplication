@@ -50,12 +50,12 @@
         },
         props: {
             chart_uuid: String,
-            export_name: String,
+            export_prefix: String,
             can_action: Boolean,
         },
         methods: {
             sendSignal(key) {
-                eventBus.$emit('chart-export-button-click', this.chart_uuid, key, this.export_name+'table');
+                eventBus.$emit('chart-export-button-click', this.chart_uuid, key, this.export_prefix);
             },
             hideMenu(e) {
                 let container = $(this.$refs.export_button);

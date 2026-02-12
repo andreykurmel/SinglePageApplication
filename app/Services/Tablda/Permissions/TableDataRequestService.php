@@ -8,6 +8,7 @@ use Vanguard\Mail\EmailWithSettings;
 use Vanguard\Models\Dcr\DcrLinkedTable;
 use Vanguard\Models\Dcr\TableDataRequest;
 use Vanguard\Models\Table\Table;
+use Vanguard\Repositories\Tablda\AutomationHistoryRepository;
 use Vanguard\Repositories\Tablda\Permissions\TableDataRequestRepository;
 use Vanguard\Repositories\Tablda\TableData\FormulaEvaluatorRepository;
 use Vanguard\Repositories\Tablda\TableFieldLinkRepository;
@@ -75,8 +76,8 @@ class TableDataRequestService
         $tbServ = new TableDataService();
         $formula_parser = new FormulaEvaluatorRepository($table, $table->user_id, true);
         $dcr = $this->dataReqRepo->getDataRequest($dcr_id);
-        if ($dcr) {
-            $pref = HelperService::dcrPref($dcr, $html_row);
+        $pref = $dcr ? HelperService::dcrPref($dcr, $html_row) : '';
+        if ($dcr && !empty($dcr[$pref . 'active_notif'])) {
             $rel = '_' . $pref;
 
             $email_field = $dcr ? $dcr[$rel . 'email_field'] : null;
@@ -100,6 +101,8 @@ class TableDataRequestService
             $recipients['bcc'] = $this->service->addRecipientsEmails($recipients['bcc'], $bcc_static_emails ?? '', true);
 
             if ($recipients['to']) {
+                $automationHistory = new AutomationHistoryRepository($dcr->user_id, $dcr->table_id);
+                $automationHistory->startTimer();
 
                 $fields_arr = $this->service->getFieldsArrayForNotification($table, $dcr[$rel . 'email_col_group']);
 
@@ -110,8 +113,8 @@ class TableDataRequestService
                 $usr = auth()->user();
                 $user_str = $usr ? ($usr->first_name ? $usr->first_name . ' ' . $usr->last_name : $usr->username) : '';
                 $greeting = $usr || $toname
-                    ? 'Hello, ' . ($toname ?: $user_str) . '!'
-                    : 'Hello!';
+                    ? ($toname ?: $user_str) . ':'
+                    : 'Hello, there:';
 
                 $rows_arr = $this->service->prepareRowVals($table, $html_row);
 
@@ -132,25 +135,32 @@ class TableDataRequestService
                     'changed_fields' => [],
                     'alert_arr' => ['mail_format' => $dcr[$pref . 'email_format'] ?: 'table'],
                     'type' => 'added',
+                    'custom_salutation' => $dcr[$pref . 'signature_txt'],
                 ];
 
                 //Add Linked Records (which are present in DCR limits).
                 $field_ids = $table->_fields->pluck('id')->toArray();
                 $links_objs = (new TableFieldLinkRepository())->getRortForFields($field_ids);
-                if ($links_objs && $links_objs->count()) {
+                $notifs_linked = $dcr[$rel . 'linked_notifs'];
+                if ($links_objs && $links_objs->count() && $notifs_linked->count()) {
                     $links_objs->load(['_ref_condition' => function ($rc) {
                         $rc->with('_ref_table');
                     }]);
                     $link_tables = [];
-                    foreach ($links_objs as $i => $link) {
+                    foreach ($links_objs as $link) {
+                        $activeLink = $notifs_linked->where('link_id', '=', $link->id)->where('is_active', '=', 1)->first();
+                        if (! $activeLink || ! $link->_ref_condition) {
+                            continue;
+                        }
                         $reftable = $link->_ref_condition->_ref_table;
                         [$lnk_rows_count, $lnk_rows] = $tbServ->getFieldRows($reftable, $link->toArray(), $html_row, 1, 10);
-                        $lnk_fields = $this->service->getFieldsArrayForNotification($reftable);
+                        $lnk_fields = $this->service->getFieldsArrayForNotification($reftable, $activeLink->_col_group);
                         $link_tables[] = [
                             'name' => $reftable->name,
                             'fields' => $lnk_fields,
                             'all_rows' => $lnk_rows,
                             'has_unit' => $this->service->fldsArrHasUnit($fields_arr),
+                            'mail_format' => $activeLink->related_format ?: 'table',
                         ];
                     }
                     $data['link_tables'] = $link_tables;
@@ -159,6 +169,8 @@ class TableDataRequestService
                 $mailer = new EmailWithSettings('dcr_notification', $recipients['to'], $recipients['cc'] ?? [], $recipients['bcc'] ?? []);
                 $mailer->send($params, $data);
 
+                $automationHistory->stopTimerAndSave('DCR', $dcr->name, 'Notification', 'Email');
+//                return $mailer->getMailable($params, $data);
             }
         }
     }
@@ -209,7 +221,7 @@ class TableDataRequestService
      * @param array $dcr_parent_row
      * @return array
      */
-    protected function fillLinkedRow(DcrLinkedTable $linked_table, array $linked_row, array $dcr_parent_row): array
+    public function fillLinkedRow(DcrLinkedTable $linked_table, array $linked_row, array $dcr_parent_row): array
     {
         $request_id = HelperService::dcr_id_linked_row($linked_table->table_request_id, ($dcr_parent_row['id'] ?? null));
         $linked_row['request_id'] = $request_id;
@@ -220,9 +232,11 @@ class TableDataRequestService
             }]);
 
             foreach ($ref_cond->_items as $ref_item) {
-                $linked_row[$ref_item->_compared_field->field] = $ref_item->_field
-                    ? ($dcr_parent_row[$ref_item->_field->field] ?? null)
-                    : $ref_item->compared_value;
+                if ($ref_item->_compared_field) {
+                    $linked_row[$ref_item->_compared_field->field] = $ref_item->_field
+                        ? ($dcr_parent_row[$ref_item->_field->field] ?? null)
+                        : $ref_item->compared_value;
+                }
             }
         }
         return $linked_row;

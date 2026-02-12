@@ -17,13 +17,17 @@ class CreateTableDcrTable extends Migration
             //Main
             $table->increments('id');
             $table->unsignedInteger('table_id');
+            $table->unsignedInteger('user_id');
+            $table->unsignedInteger('permission_dcr_id')->nullable();
             $table->tinyInteger('active')->default(0);
             $table->string('name', 64)->nullable();
             $table->tinyInteger('is_template')->default(0);
+            $table->string('custom_url', 255)->nullable();
             $table->string('link_hash', 255)->nullable();
             $table->string('dcr_hash', 128)->nullable();
             $table->string('pass', 128)->nullable();
             $table->string('qr_link', 255)->nullable();
+            $table->string('description', 255)->nullable();
             $table->string('row_request')->default('-1')->change();
 
             $table->foreign('table_id', 'table_data_requests_table_id')
@@ -36,6 +40,9 @@ class CreateTableDcrTable extends Migration
             //Design/Overall tab
             $table->string('dcr_sec_background_by', 16)->default('color');
             $table->string('dcr_sec_scroll_style', 16)->default('scroll');
+            $table->tinyInteger('dcr_flow_header_stick')->default(1);
+            $table->tinyInteger('dcr_sec_slide_top_header')->default(1);
+            $table->tinyInteger('dcr_sec_slide_progresbar')->default(1);
             $table->tinyInteger('dcr_sec_line_top')->default(1);
             $table->tinyInteger('dcr_sec_line_bot')->default(1);
             $table->string('dcr_sec_line_color', 16)->nullable();
@@ -45,11 +52,21 @@ class CreateTableDcrTable extends Migration
             $table->string('dcr_sec_bg_img', 255)->nullable();
             $table->string('dcr_sec_bg_img_fit', 16)->default('Width');
 
+            $table->float('dcr_many_rows_width')->default(250);
+            $table->unsignedInteger('dcr_qr_with_name')->nullable();
+            $table->unsignedInteger('dcr_accordion_single_open')->default(1);
+            $table->string('dcr_tab_font_type', 64)->nullable();
+            $table->integer('dcr_tab_font_size')->nullable();
+            $table->string('dcr_tab_font_color', 16)->nullable();
+            $table->string('dcr_tab_font_style', 128)->nullable();
+            $table->string('dcr_tab_bg_color', 16)->nullable();
+            $table->unsignedInteger('dcr_tab_height')->default(30);
+
 
 
             //Design/Title tab
             $table->string('dcr_title', 64)->nullable();
-            $table->integer('dcr_title_width')->nullable();
+            $table->float('dcr_title_width')->nullable();
             $table->integer('dcr_title_height')->nullable();
             $table->string('dcr_title_font_type', 64)->nullable();
             $table->integer('dcr_title_font_size')->nullable();
@@ -71,12 +88,12 @@ class CreateTableDcrTable extends Migration
             $table->string('dcr_form_line_color', 16)->nullable();
             $table->string('dcr_form_bg_color', 16)->nullable();
             $table->unsignedInteger('dcr_form_transparency')->default(0);
-            $table->string('dcr_form_message', 512)->nullable();
+            $table->text('dcr_form_message')->nullable();
             $table->string('dcr_form_message_font', 64)->nullable();
             $table->integer('dcr_form_message_size')->nullable();
             $table->string('dcr_form_message_color', 16)->nullable();
             $table->string('dcr_form_message_style', 128)->nullable();
-            $table->integer('dcr_form_width')->nullable();
+            $table->float('dcr_form_width')->nullable();
             $table->tinyInteger('dcr_form_shadow')->default(0);
             $table->string('dcr_form_shadow_color', 16)->nullable();
             $table->string('dcr_form_shadow_dir', 16)->default('BR');
@@ -86,7 +103,9 @@ class CreateTableDcrTable extends Migration
 
 
             //Action & Status tab
-            $table->tinyInteger('one_per_submission')->default(0);
+            $table->tinyInteger('download_pdf')->default(0);
+            $table->tinyInteger('download_png')->default(0);
+            $table->unsignedInteger('one_per_submission')->default(0);
             $table->unsignedInteger('dcr_record_status_id')->nullable();
             $table->unsignedInteger('dcr_record_url_field_id')->nullable();
             $table->tinyInteger('dcr_record_allow_unfinished')->nullable();
@@ -123,6 +142,7 @@ class CreateTableDcrTable extends Migration
 
 
             //Notifications/Submission tab
+            $table->tinyInteger('dcr_active_notif')->default(1);
             $table->string('dcr_confirm_msg', 255)->nullable();
             $table->string('dcr_unique_msg', 255)->nullable();
             $table->unsignedInteger('dcr_email_field_id')->nullable();
@@ -137,6 +157,7 @@ class CreateTableDcrTable extends Migration
             $table->unsignedInteger('dcr_email_col_group_id')->nullable();
             $table->unsignedInteger('dcr_addressee_field_id')->nullable();
             $table->string('dcr_addressee_txt', 255)->nullable();
+            $table->string('dcr_signature_txt', 512)->nullable();
 
             $table->foreign('dcr_addressee_field_id', 'table_data_requests__dcr_addressee_field_id')
                 ->references('id')
@@ -156,6 +177,7 @@ class CreateTableDcrTable extends Migration
 
 
             //Notifications/Saving tab
+            $table->tinyInteger('dcr_save_active_notif')->default(1);
             $table->unsignedInteger('dcr_save_email_field_id')->nullable();
             $table->unsignedInteger('dcr_save_cc_email_field_id')->nullable();
             $table->unsignedInteger('dcr_save_bcc_email_field_id')->nullable();
@@ -168,6 +190,7 @@ class CreateTableDcrTable extends Migration
             $table->string('dcr_save_bcc_email_field_static', 255)->nullable();
             $table->string('dcr_save_email_subject', 255)->nullable();
             $table->string('dcr_save_addressee_txt', 255)->nullable();
+            $table->string('dcr_save_signature_txt', 512)->nullable();
             $table->string('dcr_save_email_message', 512)->nullable();
             $table->string('dcr_save_email_format', 32)->default('table');
 
@@ -189,6 +212,7 @@ class CreateTableDcrTable extends Migration
 
 
             //Notifications/Updating tab
+            $table->tinyInteger('dcr_upd_active_notif')->default(1);
             $table->unsignedInteger('dcr_upd_email_field_id')->nullable();
             $table->unsignedInteger('dcr_upd_cc_email_field_id')->nullable();
             $table->unsignedInteger('dcr_upd_bcc_email_field_id')->nullable();
@@ -201,6 +225,7 @@ class CreateTableDcrTable extends Migration
             $table->string('dcr_upd_bcc_email_field_static', 255)->nullable();
             $table->string('dcr_upd_email_subject', 255)->nullable();
             $table->string('dcr_upd_addressee_txt', 255)->nullable();
+            $table->string('dcr_upd_signature_txt', 512)->nullable();
             $table->string('dcr_upd_email_message', 512)->nullable();
             $table->string('dcr_upd_email_format', 32)->default('table');
 

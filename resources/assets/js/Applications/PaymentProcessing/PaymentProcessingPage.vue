@@ -10,7 +10,7 @@
         <div class="flexer" v-else="">
             <label v-if="['stripe','paypal'].indexOf(payment_method) > -1"
                    class="payment_title"
-            >You are making payment on ${{ payment_amount }}:</label>
+            >You are making a payment of ${{ payment_amount }}:</label>
             <label v-else="" class="">Payment Method not found in the Row!</label>
 
             <stripe-block
@@ -73,7 +73,7 @@
                 if ($token) {
                     this.sendPaying('StripeCard', 0, $token);
                 } else {
-                    Swal('', 'You should add card before you can confirm payment.');
+                    Swal('Info', 'You should add card before you can confirm payment.');
                 }
             },
             PaypalByPay(paypal) {
@@ -89,9 +89,10 @@
                     token: $token,
                 }).then(({ data }) => {
                     if (data.error) {
-                        Swal('', data.error);
+                        Swal('Info', data.error);
                     } else {
                         Swal({
+                            title: 'Info',
                             text: 'Payment successful!',
                             timer: 1500,
                         }).then(() => {
@@ -99,7 +100,7 @@
                         });
                     }
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });

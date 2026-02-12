@@ -1,8 +1,12 @@
 <template>
-    <div class="wrap">
+    <div class="wrap" v-if="level > 0">
         <div v-for="i in level"
              class="border"
-             :style="{left: ((i-1)*hdr_margin_lft)+'px'}"
+             :style="{
+                left: ((i-1)*hdr_margin_lft)+'px',
+                top: '-1px',
+                bottom: '1px',
+             }"
         ></div>
     </div>
 </template>
@@ -15,7 +19,7 @@
                 hdr_margin_lft: 15,
             };
         },
-        props:{
+        props: {
             level: Number,
         },
         methods: {
@@ -28,8 +32,6 @@
         .border {
             position: absolute;
             width: 5px;
-            top: -4px;
-            bottom: -4px;
             background-color: #CCC;
         }
     }

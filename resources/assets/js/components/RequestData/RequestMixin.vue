@@ -47,8 +47,9 @@
                 return status_hdr ? tableRow[status_hdr.field] : '';
             },
             //buttons avails
-            availSave(tableRow) {
-                return this.allowUnfinish
+            availSave(tableRow, isTable) {
+                return (this.dcrObject.one_per_submission == 1 || isTable)
+                    && this.allowUnfinish
                     &&
                     (
                         this.isNew(tableRow)
@@ -56,19 +57,23 @@
                         (this.rowStatus(tableRow) === 'Saved' && this.visibil(tableRow) && this.editabil(tableRow))
                     );
             },
-            availSubmit(tableRow) {
-                return this.isNew(tableRow)
-                    ||
-                    (this.rowStatus(tableRow) === 'Saved' && this.visibil(tableRow));
+            availSubmit(tableRow, isTable) {
+                return (this.dcrObject.one_per_submission == 1 || isTable)
+                    && (
+                        this.isNew(tableRow)
+                        ||
+                        (this.rowStatus(tableRow) === 'Saved' && this.visibil(tableRow))
+                    );
             },
-            availUpdate(tableRow) {
-                return !this.isNew(tableRow)
+            availUpdate(tableRow, isTable) {
+                return (this.dcrObject.one_per_submission == 1 || isTable)
+                    && !this.isNew(tableRow)
                     && this.visibil(tableRow)
                     && this.editabil(tableRow)
                     && (this.rowStatus(tableRow) === 'Submitted' || this.rowStatus(tableRow) === 'Updated');
             },
-            availAdd(tableRow) {
-                return !this.dcrObject.one_per_submission
+            availAdd(tableRow, isTable) {
+                return (this.dcrObject.one_per_submission != 1 || isTable)
                     && (
                         this.isNew(tableRow)
                         ||

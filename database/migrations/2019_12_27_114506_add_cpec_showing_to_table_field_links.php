@@ -15,6 +15,8 @@ class AddCpecShowingToTableFieldLinks extends Migration
     {
         Schema::table('table_ref_condition_items', function (Blueprint $table) {
             $table->string('spec_show', 32)->nullable();
+            $table->string('field_part', 16)->default('value');
+            $table->string('compared_part', 16)->default('value');
         });
     }
 
@@ -27,6 +29,8 @@ class AddCpecShowingToTableFieldLinks extends Migration
     {
         Schema::table('table_ref_condition_items', function (Blueprint $table) {
             $table->dropColumn('spec_show');
+            $table->dropColumn('field_part');
+            $table->dropColumn('compared_part');
         });
     }
 }

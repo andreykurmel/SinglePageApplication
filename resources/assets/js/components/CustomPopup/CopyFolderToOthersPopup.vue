@@ -1,12 +1,19 @@
 <template>
-    <div class="popup-wrapper" @click.self="$emit('popup-close')">
-        <div class="popup">
+    <div>
+        <div class="popup-wrapper" @click.self="$emit('popup-close')"></div>
+        <div class="popup" :style="getPopupStyle()">
             <div class="flex flex--col">
                 <div class="popup-header">
-                    <span v-if="!folderMeta">Folder loading...</span>
-                    <span v-else="">Copy folder and children nodes (sub-folders and tables) to others.</span>
-
-                    <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close')"></span>
+                    <div class="drag-bkg" draggable="true" @dragstart="dragPopSt()" @drag="dragPopup()"></div>
+                    <div class="flex">
+                        <div class="flex__elem-remain">
+                            <span v-if="!folderMeta">Folder loading...</span>
+                            <span v-else="">Copy folder and children nodes (sub-folders and tables) to others.</span>
+                        </div>
+                        <div class="" style="position: relative">
+                            <span class="glyphicon glyphicon-remove pull-right header-btn" @click="$emit('popup-close')"></span>
+                        </div>
+                    </div>
                 </div>
                 <div class="flex__elem-remain popup-content">
                     <div class="flex__elem__inner popup-main">
@@ -85,10 +92,15 @@
 <script>
     import {eventBus} from './../../app';
 
+    import PopupAnimationMixin from '../_Mixins/PopupAnimationMixin';
+
     import CopyTableSettingsBlock from "../CommonBlocks/CopyTableSettingsBlock";
 
     export default {
         name: "CopyFolderToOthersPopup",
+        mixins: [
+            PopupAnimationMixin,
+        ],
         components: {
             CopyTableSettingsBlock,
         },
@@ -97,6 +109,9 @@
                 selectedTable: null,
                 selectedSettings: null,
                 settings: {},
+                //PopupAnimationMixin
+                getPopupWidth: 800,
+                idx: 0,
             }
         },
         props:{
@@ -156,6 +171,11 @@
 
             //copy functions
             copyFolder() {
+                if (! $(this.$refs.search_user).val()) {
+                    Swal('Info', '"Copy to User" is empty!');
+                    return;
+                }
+
                 let copy_arr = $(this.$refs.jstree).jstree("get_json", '#');
 
                 $.LoadingOverlay('show');
@@ -169,7 +189,7 @@
                     }
                     this.$emit('popup-close');
                 }).catch(errors => {
-                    Swal('', getErrors(errors));
+                    Swal('Info', getErrors(errors));
                 }).finally(() => {
                     $.LoadingOverlay('hide');
                 });
@@ -193,6 +213,10 @@
             $(this.$refs.search_user).next().css('height', '26px');
 
             this.createTreeMenu();
+
+            this.$root.tablesZidxIncrease();
+            this.zIdx = this.$root.tablesZidx;
+            this.runAnimation({anim_transform:'none'});
         }
     }
 </script>
@@ -201,8 +225,6 @@
     @import "CustomEditPopUp";
 
     .popup {
-        width: 800px;
-
         button {
             margin-top: 10px;
         }

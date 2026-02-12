@@ -16,6 +16,7 @@ use Vanguard\User;
  * @property int $user_id
  * @property string $name
  * @property string|null $notes
+ * @property int $is_system
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroupCondition[] $_conditions
  * @property int|null $_conditions_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Folder\Folder[] $_folders
@@ -31,6 +32,7 @@ use Vanguard\User;
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\Table\Table[] $_tables
  * @property int|null $_tables_count
  * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroup2TablePermission[] $_tables_shared
+ * @property \Illuminate\Database\Eloquent\Collection|\Vanguard\Models\User\UserGroupSubgroup[] $_subgroups
  * @property int|null $_tables_shared_count
  * @property \Vanguard\User $_user
  * @mixin \Eloquent
@@ -45,6 +47,7 @@ class UserGroup extends Model
         'user_id',
         'name',
         'notes',
+        'is_system',
     ];
 
 
@@ -79,6 +82,10 @@ class UserGroup extends Model
 
     public function _tables_shared() {
         return $this->hasMany(UserGroup2TablePermission::class, 'user_group_id', 'id');
+    }
+
+    public function _subgroups() {
+        return $this->hasMany(UserGroupSubgroup::class, 'usergroup_id', 'id');
     }
 
     public function _individuals() {

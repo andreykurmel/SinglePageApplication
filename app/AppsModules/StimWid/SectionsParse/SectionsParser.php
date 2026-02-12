@@ -4,6 +4,7 @@ namespace Vanguard\AppsModules\StimWid\SectionsParse;
 
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Vanguard\AppsModules\StimWid\Data\DataReceiver;
 use Vanguard\AppsModules\StimWid\Data\UserPermisQuery;
@@ -188,7 +189,8 @@ class SectionsParser
      */
     protected function calc_row(array $row): array
     {
-        $parsed_str = $row[$this->name_fld->data_field] . ' ' . ($row[$this->add_fld->data_field] ?? '');
+        //$parsed_str = $row[$this->name_fld->data_field] . ' ' . ($row[$this->add_fld->data_field] ?? '');
+        $parsed_str = $row[$this->add_fld->data_field] ?? '';
         $parsed_str = preg_replace('/[^a-z.\/\d-]/i', '', $parsed_str);
         $dot_str = $this->replace_dots($parsed_str);
         $div_str = $this->replace_divs($parsed_str);
@@ -209,34 +211,6 @@ class SectionsParser
     protected function parse_actions(string $parsed_str, array $row): array
     {
         $pos = [];
-        //WIDE FLANGE
-        if (preg_match('/wide|flange/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
-            $parsed_str = $this->onlyRight($parsed_str, $pos);
-            $mch = [];
-            preg_match('/[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
-            $found = $mch ? $this->find_aisc('%W'.array_first($mch).'%') : null;
-            $row = $this->set_aisc_to_row($row, $found);
-        }
-        //DOUBLE ANGLE
-        if (
-            (preg_match('/double/i', $parsed_str) && preg_match('/angle/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE))
-            ||
-            (preg_match('/LL/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE))
-        ) {
-            $parsed_str = $this->onlyRight($parsed_str, $pos);
-            $mch = [];
-            preg_match('/[\d-\/\.]+x[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
-            $found = $mch ? $this->find_aisc('%2L'.array_first($mch).'%') : null;
-            $row = $this->set_aisc_to_row($row, $found);
-        }
-        //SINGLE ANGLE
-        if (preg_match('/angle/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
-            $parsed_str = $this->onlyRight($parsed_str, $pos);
-            $mch = [];
-            preg_match('/[\d-\/\.]+x[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
-            $found = $mch ? $this->find_aisc('%L'.array_first($mch).'%') : null;
-            $row = $this->set_aisc_to_row($row, $found);
-        }
         //PIPE
         if (preg_match('/PIPE|STD|XS|XXS/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
             $parsed_str = $this->onlyRight($parsed_str, $pos);
@@ -244,49 +218,76 @@ class SectionsParser
             preg_match('/[\d-\/\.]+/i', $parsed_str, $mch);
             $type = preg_match('/XXS/i', $parsed_str) ? 'XXS'
                 : (preg_match('/XS/i', $parsed_str) ? 'XS' : 'STD');
-            $found = $mch ? $this->find_aisc('%PIPE'.array_first($mch).$type.'%') : null;
+            $found = $mch ? $this->find_aisc('PIPE'.Arr::first($mch).$type.'%') : null;
             $row = $this->set_aisc_to_row($row, $found);
-        }
+        } else
         //HSS
         if (preg_match('/HSS/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
             $parsed_str = $this->onlyRight($parsed_str, $pos);
             $mch = [];
             preg_match('/[\d-\/\.]+x[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);//3x3x3
-            $found = $mch ? $this->find_aisc('%HSS'.array_first($mch).'%') : null;
+            $found = $mch ? $this->find_aisc('HSS'.Arr::first($mch).'%') : null;
             if (!$found) {
                 preg_match('/[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);//3x3
-                $found = $mch ? $this->find_aisc('%HSS' . array_first($mch) . '%') : null;
+                $found = $mch ? $this->find_aisc('HSS' . Arr::first($mch) . '%') : null;
             }
             $row = $this->set_aisc_to_row($row, $found);
-        }
+        } else
         //SR
         if (preg_match('/SR/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
             $parsed_str = $this->onlyRight($parsed_str, $pos);
             $mch = [];
             preg_match('/[\d-\/\.]+/i', $parsed_str, $mch);
-            $found = $mch ? $this->find_aisc('%SR'.array_first($mch)) : null;
+            $found = $mch ? $this->find_aisc('SR'.Arr::first($mch)) : null;
             if (!$found && $mch) {
-                $found = $this->find_aisc_by_calc('%SR%', 'SR'.array_first($mch));
+                $found = $this->find_aisc_by_calc('%SR%', 'SR'.Arr::first($mch));
             }
             $row = $this->set_aisc_to_row($row, $found);
-        }
+        } else
         //C
         if (preg_match('/C/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
             $parsed_str = $this->onlyRight($parsed_str, $pos);
             $mch = [];
             preg_match('/[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);//3x3
-            $found = $mch ? $this->find_aisc('C'.array_first($mch)) : null;
+            $found = $mch ? $this->find_aisc('C'.Arr::first($mch)) : null;
             $row = $this->set_aisc_to_row($row, $found);
-        }
+        } else
         //PLATE
         if (preg_match('/PL|PLATE/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
             $parsed_str = $this->onlyRight($parsed_str, $pos);
             $mch = [];
             preg_match('/[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);//3x3
-            $mch = $mch ? array_first($mch) : '';
+            $mch = $mch ? Arr::first($mch) : '';
             $found = $mch ? $this->find_aisc('PL'.$mch) : null;
             $dims = explode('x', strtolower($mch));
             $row = $this->set_aisc_to_row($row, $found??['id'=>0], $dims[0]??0, $dims[1]??0);
+        } else
+        //WIDE FLANGE
+        if (preg_match('/W\d/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
+            $parsed_str = $this->onlyRight($parsed_str, $pos);
+            $mch = [];
+            preg_match('/[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
+            $found = $mch ? $this->find_aisc('W'.Arr::first($mch).'%') : null;
+            $row = $this->set_aisc_to_row($row, $found);
+        } else
+        //DOUBLE ANGLE
+        if (preg_match('/LL\d/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
+            $parsed_str = $this->onlyRight($parsed_str, $pos);
+            $mch = [];
+            preg_match('/[\d-\/\.]+x[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
+            $mch = $mch ? Arr::first($mch) : '';
+            $dims = explode('x', strtolower($mch));
+            $thesame = ($dims[0] ?? 0) == ($dims[1] ?? 0);
+            $found = $mch ? $this->find_aisc('2L'.$mch.'%', false, $thesame ? '2L_E' : '2L_LLBB') : null;
+            $row = $this->set_aisc_to_row($row, $found);
+        } else
+        //SINGLE ANGLE
+        if (preg_match('/L\d/i', $parsed_str, $pos, PREG_OFFSET_CAPTURE)) {
+            $parsed_str = $this->onlyRight($parsed_str, $pos);
+            $mch = [];
+            preg_match('/[\d-\/\.]+x[\d-\/\.]+x[\d-\/\.]+/i', $parsed_str, $mch);
+            $found = $mch ? $this->find_aisc('L'.Arr::first($mch).'%') : null;
+            $row = $this->set_aisc_to_row($row, $found);
         }
 
         return $row;
@@ -299,7 +300,7 @@ class SectionsParser
      */
     protected function onlyRight(string $parsed_str, array $pos)
     {
-        $start = array_first($pos)[1] ?? 0;
+        $start = Arr::first($pos)[1] ?? 0;
         return substr($parsed_str, $start);
     }
 
@@ -322,12 +323,16 @@ class SectionsParser
     /**
      * @param string $like_str
      * @param bool $all
+     * @param string $shape
      * @return array|null
      */
-    protected function find_aisc(string $like_str, bool $all = false)
+    protected function find_aisc(string $like_str, bool $all = false, string $shape = '')
     {
         $sql = DataReceiver::mapped_query('AISC')
             ->where('AISC_Size2', 'like', $like_str);
+        if ($shape) {
+            $sql->where('AISC_Shape', '=', $shape);
+        }
         return $all ? $sql->get() : $sql->first();
     }
 

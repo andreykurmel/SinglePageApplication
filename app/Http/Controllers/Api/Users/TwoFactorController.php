@@ -42,7 +42,9 @@ class TwoFactorController extends ApiController
             $request->two_factor_type
         );
 
-        Authy::register($user);
+        if ($user->two_factor_type != 'email') {
+            Authy::register($user);
+        }
 
         $user->save();
 
@@ -58,11 +60,6 @@ class TwoFactorController extends ApiController
      */
     public function destroy(User $user)
     {
-        if (! Authy::isEnabled($user)) {
-            return $this->setStatusCode(422)
-                ->respondWithError("2FA is not enabled for this user.");
-        }
-
         $user->two_factor_options = null;
         $user->save();
 
